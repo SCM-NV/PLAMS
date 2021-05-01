@@ -37,7 +37,7 @@ Example
 API
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. autoclass:: VibrationsJob(molecule, settings, jobType=ADFJob, get_gradients='get_gradients', reorder='inputOrder', aseVibOpt={})
+.. autoclass:: VibrationsJob(molecule, settings, jobType=ADFJob, get_gradients='get_gradients', aseVibOpt={}, name='plams.vib')
     :exclude-members: _result_type
 .. autoclass:: VibrationsResults
-.. autoclass:: IRJob(molecule, settings, jobType=ADFJob, get_gradients='get_gradients', reorder='inputOrder', get_dipole_vector='get_dipole_vector', aseVibOpt={})
+.. autoclass:: IRJob(molecule, settings, get_dipole_vector='get_dipole_vector', **kwargs)

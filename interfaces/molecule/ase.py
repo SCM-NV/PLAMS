@@ -105,8 +105,11 @@ def toASE(molecule):
 
 
 
-def fromASE(molecule):
-    """Convert an ASE molecule to a PLAMS |Molecule|. Translate coordinates, atomic numbers, and lattice vectors (if present). The order of atoms is preserved."""
+def fromASE(molecule, properties=None):
+    """Convert an ASE molecule to a PLAMS |Molecule|. Translate coordinates, atomic numbers, and lattice vectors (if present). The order of atoms is preserved.
+
+    Pass a |Settings| instance through the ``properties`` option to inherit them to the returned molecule.
+    """
     plamsMol = Molecule()
 
     #iterate over ASE atoms
@@ -125,5 +128,6 @@ def fromASE(molecule):
         #write lattice to plamsMol
         plamsMol.lattice = lattice.copy()
 
-
+    if properties:
+        plamsMol.properties.update(properties)
     return plamsMol

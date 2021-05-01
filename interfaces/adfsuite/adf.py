@@ -1,4 +1,5 @@
 import numpy as np
+import warnings
 
 from subprocess import CalledProcessError
 
@@ -69,13 +70,21 @@ class ADFResults(SCMResults):
         raise ResultsError("'Dipole' not present in 'Properties' section of {}".format(self._kfpath()))
 
 
-    def get_gradients(self, eUnit='au', lUnit='bohr'):
-        """get_gradients(eUnit='au', lUnit='bohr')
+    def get_gradients(self, energy_unit='au', dist_unit='bohr', eUnit=None, lUnit=None):
+        """get_gradients(energy_unit='au', dist_unit='bohr')
         Return the cartesian gradients from the 'Gradients_InputOrder' field of the 'GeoOpt' Section in the kf-file, expressed in given units. Returned value is a numpy array with shape (nAtoms,3).
         """
+        if eUnit:
+            log("Deprecated Keyword eUnit used in ADFResults.get_gradients, update your script! Overwriting energy_unit with the given argument.", 1)
+            warnings.warn("eUnit is deprecated, use energy_unit instead.", category=DeprecationWarning)
+            energy_unit = eUnit
+        if lUnit:
+            log("Deprecated Keyword lUnit used in ADFResults.get_gradients, update your script! Overwriting energy_unit with the given argument.", 1)
+            warnings.warn("lUnit is deprecated, use dist_unit instead.", category=DeprecationWarning)
+            dist_unit = lUnit
         gradients = np.array(self.readkf('GeoOpt','Gradients_InputOrder'))
         gradients.shape = (-1,3)
-        gradients *= (Units.conversion_ratio('au',eUnit) / Units.conversion_ratio('bohr',lUnit))
+        gradients *= (Units.conversion_ratio('au',energy_unit) / Units.conversion_ratio('bohr',dist_unit))
         return gradients
 
 
