@@ -299,6 +299,9 @@ rst_epilog = """
 .. |Cp2kResults| replace:: :class:`Cp2kResults<scm.plams.interfaces.thirdparty.cp2k.Cp2kResults>`
 .. |Cp2kSettings2Mol| replace:: :class:`Cp2kSettings2Mol<scm.plams.interfaces.thirdparty.cp2k.Cp2kSettings2Mol>`
 
+.. |ORCAJob| replace:: :class:`ORCAJob<scm.plams.interfaces.thirdparty.orca.ORCAJob>`
+.. |ORCAResults| replace:: :class:`ORCAResults<scm.plams.interfaces.thirdparty.orca.ORCAResults>`
+
 .. |DFTBPlusJob| replace:: :class:`~scm.plams.interfaces.thirdparty.dftbplus.DFTBPlusJob`
 .. |DFTBPlusResults| replace:: :class:`~scm.plams.interfaces.thirdparty.dftbplus.DFTBPlusResults`
 
