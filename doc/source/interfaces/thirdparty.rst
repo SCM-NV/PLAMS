@@ -3,9 +3,10 @@ Other programs
 
 .. toctree::
 
-    dirac
+    cp2k
     crystal
     dftbplus
-    cp2k
-    orca
+    dirac
     mopac
+    orca
+    raspa

@@ -48,6 +48,7 @@ class Units:
         -   ``kcal/mol``
         -   ``kJ/mol``
         -   ``cm^-1``, ``cm-1``
+        -   ``K``, ``Kelvin``
 
     *   dipole moment:
 
