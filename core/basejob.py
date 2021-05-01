@@ -432,7 +432,7 @@ class SingleJob(Job):
 
 
     @classmethod
-    def load_external(cls, path, settings=None, molecule=None, finalize=False):
+    def load_external(cls, path, settings=None, molecule=None, finalize=False, jobname=None):
         """Load an external job from *path*.
 
         In this context an "external job" is an execution of some external binary that was not managed by PLAMS, and hence does not have a ``.dill`` file. It can also be used in situations where the execution was started with PLAMS, but the Python process was terminated before the execution finished, resulting in steps 9-12 of :ref:`job-life-cycle` not happening.
@@ -457,7 +457,7 @@ class SingleJob(Job):
             raise FileError('Path {} does not exist, cannot load from it.'.format(path))
 
         path = os.path.abspath(path)
-        jobname = os.path.basename(path)
+        jobname = jobname or os.path.basename(path)
 
         job = cls(name=jobname)
         job.path = path
