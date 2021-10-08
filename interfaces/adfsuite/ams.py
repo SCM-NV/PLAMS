@@ -662,7 +662,7 @@ class AMSJob(SingleJob):
 
 
     def get_errormsg(self):
-        """Tries to get an an error message for a failed job. This method returns ``None`` for successful jobs."""
+        """Tries to get an error message for a failed job. This method returns ``None`` for successful jobs."""
         if self.ok():
             return None
         else:
