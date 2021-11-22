@@ -18,7 +18,6 @@ All the functions below, apart from :func:`~scm.plams.mol.identify.label_atoms`,
 .. currentmodule:: scm.plams.mol.identify
 
 .. autofunction:: label_atoms
-.. autofunction:: find_permutation
 .. autofunction:: molecule_name
 .. autofunction:: initialize
 .. autofunction:: iterate
