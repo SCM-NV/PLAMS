@@ -325,9 +325,9 @@ def get_conformations(mol, nconfs=1, name=None, forcefield=None, rms=-1, enforce
     :parameter float rms: Root Mean Square deviation threshold for removing
         similar/equivalent conformations.
     :parameter bool enforceChirality: Enforce the correct chirality if chiral centers are present
-    :parameter str useExpTorsionAnglePrefs : Use experimental torsion angles preferences for the conformer generation by rdkit
-    :parameter list constraint_ats : List of atom indices to be constrained
-    :parameter str EmbedParameters : Name of RDKit EmbedParameters class ('EmbedParameters', 'ETKDG')
+    :parameter str useExpTorsionAnglePrefs: Use experimental torsion angles preferences for the conformer generation by rdkit
+    :parameter list constraint_ats: List of atom indices to be constrained
+    :parameter str EmbedParameters: Name of RDKit EmbedParameters class ('EmbedParameters', 'ETKDG')
     :return: A molecule with hydrogens and 3D coordinates or a list of molecules if nconfs > 1
     :rtype: |Molecule| or list of PLAMS Molecules
     """
