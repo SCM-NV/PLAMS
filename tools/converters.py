@@ -93,6 +93,12 @@ def traj_to_rkf(trajfile,  rkftrajectoryfile):
     kf = KFFile(rkftrajectoryfile)
     kf['EngineResults%nEntries'] = 0
     kf['General%user input'] = '\xFF'.join(['Engine External','EndEngine'])
+    if len(traj) == 1:
+        kf['General%task'] = 'singlepoint'
+    elif kinetic_energy is None or kinetic_energy == 0:
+        kf['General%task'] = 'geometryoptimization'
+    else:
+        kf['General%task'] = 'moleculardynamics'
 
     return coords, cell
 
