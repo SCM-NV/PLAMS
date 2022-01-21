@@ -2594,7 +2594,7 @@ class Molecule:
 
 
     @staticmethod
-    def rmsd(mol1, mol2, return_rotmat=False, check=True):
+    def rmsd(mol1, mol2, ignore_hydrogen=False, return_rotmat=False, check=True):
         """
         Uses the
         `Kabsch algorithm <https://en.wikipedia.org/wiki/Kabsch_algorithm>`_ to align and
@@ -2633,6 +2633,9 @@ class Molecule:
             nums1 = np.array([i.atnum for i in mol1])
             nums2 = np.array([i.atnum for i in mol2])
             assert (nums1 == nums2).all(), f"\nAtoms are not the same (or not in the same order). Use `check==False` if you do not care about this.\n"
+        if ignore_hydrogen is True:
+            mol1 = [at.coords for at in mol1 if at.symbol != 'H']
+            mol2 = [at.coords for at in mol2 if at.symbol != 'H']
         return kabsch(np.array(mol1), np.array(mol2), rotmat=return_rotmat)
 
     @property
