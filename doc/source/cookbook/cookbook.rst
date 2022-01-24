@@ -149,6 +149,20 @@ Generate a molecule from a SMILES string
     ethane = from_smiles('C-C', nconfs=10, forcefield='uff')[0]
 
 
+Load all xyz files in a folder as molecules
+-------------------------------------------
+
+See function :func:`~scm.plams.core.functions.read_molecules`.
+
+.. code-block:: python
+
+    molecules = read_molecules('/some_path/folder_containing_xyz_files/')
+
+    for name, mol in molecules.items():
+        print("Name of the xyz file (without extension): ", name)
+        print(mol)
+
+
 Counting rings
 --------------
 Rings inside molecules can be counted in various ways, which are not all giving the same results. 
