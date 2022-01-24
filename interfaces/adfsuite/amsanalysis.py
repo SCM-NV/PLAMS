@@ -1,4 +1,5 @@
 from ...core.errors import PlamsError
+from ...core.errors import FileError
 from .scmjob import SCMJob, SCMResults
 
 __all__ = ['AMSAnalysisJob', 'AMSAnalysisResults','convert_to_unicode']
