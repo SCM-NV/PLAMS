@@ -822,4 +822,13 @@ def write_molecule_section (rkf, coords=None, cell=None, elements=None, section=
                                 suffixes.append('')
                 if present :
                         rkf.write(section,'EngineAtomicInfo','\x00'.join(suffixes))
+                # Also add a bond section
+                if len(molecule.bonds) > 0 :
+                        bond_indices = [sorted([iat for iat in molecule.index(bond)]) for bond in molecule.bonds]
+                        atoms_from = [bond[0] for bond in bond_indices]
+                        atoms_to = [bond[1] for bond in bond_indices]
+                        orders = [bond.order for bond in molecule.bonds]
+                        rkf.write(section,'fromAtoms',atoms_from)
+                        rkf.write(section,'toAtoms',atoms_to)
+                        rkf.write(section,'bondOrders',orders)
 
