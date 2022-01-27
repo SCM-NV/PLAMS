@@ -29,7 +29,7 @@ class GammaJob(MultiJob):
         for charge, spin in zip(charges, self.spins):
             name = '{}_charge_{}'.format(self.name, charge)
             newjob = AMSJob(name=name, molecule=self.molecule, settings=self.settings)
-            newjob.settings.input.ams.System.charge = charge
+            newjob.molecule.properties.charge = charge
             newjob.settings.input.adf.xc.rangesep = "gamma={:f}".format(self.gamma)
             if spin != 0:
                 newjob.settings.input.adf.unrestricted = True
