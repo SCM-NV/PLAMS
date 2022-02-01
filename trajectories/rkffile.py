@@ -213,8 +213,9 @@ class RKFTrajectoryFile (TrajectoryFile) :
                 """
                 Overwrite the molecule section with the latest frame
                 """
-                crd,cell = self.read_last_frame()
-                self._write_molecule_section(crd,cell)
+                molecule = self.get_plamsmol()
+                crd,cell = self.read_last_frame(molecule=molecule)
+                self._write_molecule_section(crd,cell,molecule=molecule)
 
         def _read_header (self, molecule_section='Molecule') :
                 """
@@ -836,8 +837,8 @@ def write_molecule_section (rkf, coords=None, cell=None, elements=None, section=
                         # To do that, I need to compute them.
                         # I could make a start with writing in zeros
                         if cell is not None :
-                                #lattice_displacements = compute_lattice_displacements(molecule)
-                                lattice_displacements = [0 for i in range(len(cell)*len(molecule.bonds))]
+                                lattice_displacements = compute_lattice_displacements(molecule)
+                                #lattice_displacements = [0 for i in range(len(cell)*len(molecule.bonds))]
                                 rkf.write(section,'latticeDisplacements',lattice_displacements)
 
 def compute_lattice_displacements (molecule) :
@@ -859,7 +860,6 @@ def compute_lattice_displacements (molecule) :
         
         # Now see what multiple they are of 0.5
         lattice_displacements = numpy.round(proj).astype(int)
-        print (bond_indices[numpy.where(lattice_displacements!=0)[0]])
         lattice_displacements = lattice_displacements.reshape((3*nbonds)).tolist()
         return lattice_displacements
 
