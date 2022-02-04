@@ -627,7 +627,7 @@ class AMSResults(Results):
         for i in range(1, len(pes)+1):
             key = f"PESPoint({i})"
             if key in self.rkfs:
-                amsresults = self.rkfs[key].read_section("AMSResults") 
+                amsresults = self.rkfs[key].read_section("AMSResults")
             else:
                 amsresults = {}
             ret['Properties'].append(amsresults)
@@ -750,7 +750,8 @@ class AMSResults(Results):
     class EnergyLandscape:
 
         class State:
-            def __init__(self, landscape, engfile, energy, mol, count, isTS, reactantsID=None, productsID=None):
+            def __init__(self, landscape, engfile, energy, mol, count, isTS, reactantsID=None, productsID=None,
+                            prefactorsFromReactant=None, prefactorsFromProduct=None):
                 self._landscape = landscape
                 self.engfile = engfile
                 self.energy = energy
@@ -759,6 +760,8 @@ class AMSResults(Results):
                 self.isTS = isTS
                 self.reactantsID = reactantsID
                 self.productsID = productsID
+                self.prefactorsFromReactant = prefactorsFromReactant
+                self.prefactorsFromProduct = prefactorsFromProduct
 
             @property
             def id(self):
@@ -774,14 +777,70 @@ class AMSResults(Results):
 
             def __str__(self):
                 if self.isTS:
-                    lines  = [f"State {self.id}: transition state @ {self.energy} Hartree (found {self.count} times, results on {self.engfile})"]
-                    if self.reactantsID is not None: lines += [f"|- Reactants: {self.reactants}"]
-                    if self.productsID is not None: lines += [f"+- Products:  {self.products}"]
+                    lines  = [f"State {self.id}: {self.molecule.get_formula(False)} transition state @ {self.energy} Hartree (found {self.count} times, results on {self.engfile})"]
+                    if self.reactantsID is not None: lines += [f"  +- Reactants: {self.reactants}"]
+                    if self.productsID is not None:  lines += [f"     Products:  {self.products}"]
+                    if self.reactantsID is not None: lines += [f"     Prefactors: {self.prefactorsFromReactant:.3E}:{self.prefactorsFromProduct:.3E}"]
                 else:
-                    lines  = [f"State {self.id}: local minimum @ {self.energy} Hartree (found {self.count} times, results on {self.engfile})"]
+                    lines  = [f"State {self.id}: {self.molecule.get_formula(False)} local minimum @ {self.energy} Hartree (found {self.count} times, results on {self.engfile})"]
                 return "\n".join(lines)
 
+
+        class Fragment:
+            def __init__(self, landscape, engfile, energy, mol):
+                self._landscape = landscape
+                self.engfile = engfile
+                self.energy = energy
+                self.molecule = mol
+
+            @property
+            def id(self):
+                return self._landscape._fragments.index(self)+1
+
+            def __str__(self):
+                lines  = [f"Fragment {self.id}: {self.molecule.get_formula(False)} local minimum @ {self.energy} Hartree (results on {self.engfile})"]
+                return "\n".join(lines)
+
+
+        class FragmentedState:
+            def __init__(self, landscape, energy, composition, connections=None, adsorptionPrefactors=None, desorptionPrefactors=None):
+                self._landscape = landscape
+                self.energy = energy
+                self.composition = composition
+                self.connections = connections
+                self.adsorptionPrefactors = adsorptionPrefactors
+                self.desorptionPrefactors = desorptionPrefactors
+
+            @property
+            def id(self):
+                return self._landscape._fstates.index(self)+1
+
+            @property
+            def fragments(self):
+                return [ self._landscape._fragments[i] for i in self.composition ]
+
+            def __str__(self):
+                formula = ""
+                for i,id in enumerate(self.composition):
+                    formula += self._landscape._fragments[id].molecule.get_formula(False)
+                    if( i != len(self.composition)-1 ):
+                        formula += "+"
+                lines  = [f"FragmentedState {self.id}: {formula} local minimum @ {self.energy} Hartree (fragments {[i+1 for i in self.composition]})"]
+                for i,iState in enumerate(self.connections):
+                    lines += [f"  +- {self._landscape._states[iState]}"]
+
+                    if( i == len(self.connections)-1 ):
+                        lines += [f"     Prefactors: {self.adsorptionPrefactors[iState]:.3E}:{self.desorptionPrefactors[iState]:.3E}"]
+                    else:
+                        lines += [f"  |  Prefactors: {self.adsorptionPrefactors[iState]:.3E}:{self.desorptionPrefactors[iState]:.3E}"]
+                return "\n".join(lines)
+
+
         def __init__(self, results):
+            self._states = []
+            self._fragments = []
+            self._fstates = []
+
             sec = results.read_rkf_section("EnergyLandscape")
 
             # If there is only 1 state in the 'EnergyLandscape' section, some variables that are normally lists are insted be build-in types (e.g. a 'float' instead of a 'list of floats').
@@ -791,7 +850,6 @@ class AMSResults(Results):
                     sec[var] = [sec[var]]
 
             nStates = sec['nStates']
-            self._states = []
 
             for iState in range(nStates):
                 energy  = sec['energies'][iState]
@@ -803,7 +861,35 @@ class AMSResults(Results):
                 else:
                     reactantsID = sec['reactants'][iState] if sec['reactants'][iState] > 0 else None
                     productsID  = sec['products'][iState] if sec['products'][iState] > 0 else None
-                    self._states.append(AMSResults.EnergyLandscape.State(self, resfile, energy, mol, count, True, reactantsID, productsID))
+                    prefactorsFromReactant = sec['prefactorsFromReactant'][iState] if sec['products'][iState] > 0 else None
+                    prefactorsFromProduct  = sec['prefactorsFromProduct'][iState] if sec['products'][iState] > 0 else None
+                    self._states.append(AMSResults.EnergyLandscape.State(self, resfile, energy, mol, count, True, reactantsID, productsID,
+                                                                            prefactorsFromReactant, prefactorsFromProduct))
+
+            if( 'nFragments' not in sec ): return
+
+            nFragments = sec['nFragments']
+
+            for iFragment in range(nFragments):
+                energy  = sec['fragmentsEnergies'][iFragment]
+                resfile = os.path.splitext(sec['fragmentsFileNames'].split('\0')[iFragment])[0]
+                mol = results.get_molecule('Molecule',file=resfile)
+                self._fragments.append(AMSResults.EnergyLandscape.Fragment(self, resfile, energy, mol))
+
+            if( 'nFStates' not in sec ): return
+
+            nFragmentedStates = sec['nFStates']
+
+            for iFState in range(nFragmentedStates):
+                iEnergy = sec['fStatesEnergy('+str(iFState+1)+')']
+                iNFragments = sec['fStatesNFragments('+str(iFState+1)+')']
+                iComposition = [ i-1 for i in sec['fStatesComposition('+str(iFState+1)+')'] ]
+                iNConnections = sec['fStatesNConnections('+str(iFState+1)+')']
+                iConnections = [ i-1 for i in sec['fStatesConnections('+str(iFState+1)+')'] ]
+                iAdsorptionPrefactors = sec['fStatesAdsorptionPrefactors('+str(iFState+1)+')']
+                iDesorptionPrefactors = sec['fStatesDesorptionPrefactors('+str(iFState+1)+')']
+
+                self._fstates.append(AMSResults.EnergyLandscape.FragmentedState(self, iEnergy, iComposition, iConnections, iAdsorptionPrefactors, iDesorptionPrefactors))
 
         @property
         def minima(self):
@@ -813,10 +899,21 @@ class AMSResults(Results):
         def transition_states(self):
             return [s for s in self._states if s.isTS]
 
+        @property
+        def fragments(self):
+            return [f for f in self._fragments]
+
+        @property
+        def fragmented_states(self):
+            return [fs for fs in self._fstates]
+
         def __str__(self):
-            return 'All stationary points:\n'+\
-                   '======================\n'+\
-                   '\n'.join(str(s) for s in self._states)
+            lines  = [ 'All stationary points:' ]
+            lines += ['======================' ]
+            for s in self._states: lines += [ str(s) ]
+            for f in self._fragments: lines += [ str(s) ]
+            for fs in self._fstates: lines += [ str(fs) ]
+            return "\n".join(lines)
 
         def __getitem__(self, i):
             return self._states[i-1]
@@ -917,7 +1014,7 @@ class AMSJob(SingleJob):
     @classmethod
     def from_input(cls, text_input, name='plamsjob', molecule=None):
         """
-        Creates an AMSJob from AMS-style text input. This function requires that the SCM Python package is installed (if not, it will raise an ImportError). 
+        Creates an AMSJob from AMS-style text input. This function requires that the SCM Python package is installed (if not, it will raise an ImportError).
 
         text_input : a multi-line string
 
