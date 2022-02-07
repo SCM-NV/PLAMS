@@ -11,7 +11,6 @@ from os.path import join as opj
 from contextlib import AbstractContextManager
 
 
-from .functions import config, log
 
 
 __all__ = []
@@ -47,6 +46,7 @@ def sha256(string):
 
 def saferun(*args, **kwargs):
     """A wrapper around :func:`subprocess.run` repeating the call ``config.saferun.repeat`` times with ``config.saferun.delay`` interval in case of :exc:`BlockingIOError` being raised (any other exception is not caught and directly passed above). All arguments (*args* and *kwargs*) are passed directly to :func:`~subprocess.run`. If all attempts fail, the last raised :exc:`BlockingIOError` is reraised."""
+    from .functions import config, log
     attempt = 0
     (repeat, delay) = (config.saferun.repeat, config.saferun.delay) if ('saferun' in config) else (5,1)
     while attempt <= repeat:
@@ -141,3 +141,22 @@ def parse_action(action: str) -> Callable[[Exception], None]:
     except KeyError as ex:
         raise ValueError("`action` expected 'ignore', 'raise' or 'warn'; "
                          f"observed value: {action!r}") from ex
+
+
+#===========================================================================
+
+
+def retry(sleep=0.1, maxtries=10):
+    # wrapper for sleep-retrying a function call. use with `@retry()`
+    from time import sleep as _sleep
+    def wrap1(f):
+        def wrap2(*a, __count=0, **kw):
+            try:
+                return f(*a, **kw)
+            except Exception as e:
+                if __count > maxtries:
+                    raise e from None # ignores stack trace
+                _sleep(sleep)
+                wrap2(*a, __count=__count+1, **kw, )
+        return wrap2
+    return wrap1

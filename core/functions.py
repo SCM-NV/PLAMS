@@ -13,6 +13,7 @@ from os.path import isfile, isdir, expandvars, dirname
 
 from .errors import PlamsError, FileError
 from .settings import Settings
+from .private import retry
 
 __all__ = ['init', 'finish', 'log', 'load', 'load_all', 'delete_job', 'add_to_class', 'add_to_instance', 'config', 'read_molecules', 'read_all_molecules_in_xyz_file']
 
@@ -143,6 +144,7 @@ def load_all(path, jobmanager=None):
 #===========================================================================
 
 
+@retry()
 def delete_job(job):
     """Remove *job* from its corresponding |JobManager| and delete the job folder from the disk. Mark *job* as 'deleted'."""
 
