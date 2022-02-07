@@ -1039,22 +1039,6 @@ class AMSJob(SingleJob):
             sett.input = parser.to_settings('ams', text_input)
         return cls(settings=sett, name=name, molecule=molecule)
 
-    @classmethod
-    def from_runfile(cls, path, name='plamsjob', molecule=None):
-        """
-        path : path to an AMS .run or .in file. Note: for AMS jobs generated with PLAMS, you should pass the path to the .in file to this function.
-
-        Returns an AMSJob based on the text input in the .run or .in file.
-
-        Note: The ``name`` and ``molecule`` of the returned AMSJob will not be set. If there is a System block in the run file, then it will be read into the returned job's settings.
-        """
-        with open(path) as f:
-            run = f.read()
-        if '<<' in run:
-            delimiter = re.findall(r"<<.*?(\w+)", run)[0]
-            run = ''.join(re.findall(rf"(?s)(?:{delimiter})(.*)(?:[\r\n]{delimiter})", run))
-        return cls.from_input(run, name, molecule)
-
     def run(self, jobrunner=None, jobmanager=None, watch=False, **kwargs):
         """Run the job using *jobmanager* and *jobrunner* (or defaults, if ``None``).
 
