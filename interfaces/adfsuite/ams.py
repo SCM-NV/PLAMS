@@ -777,12 +777,12 @@ class AMSResults(Results):
 
             def __str__(self):
                 if self.isTS:
-                    lines  = [f"State {self.id}: {self.molecule.get_formula(False)} transition state @ {self.energy} Hartree (found {self.count} times, results on {self.engfile})"]
+                    lines  = [f"State {self.id}: {self.molecule.get_formula(False)} transition state @ {self.energy:.8f} Hartree (found {self.count} times, results on {self.engfile})"]
                     if self.reactantsID is not None: lines += [f"  +- Reactants: {self.reactants}"]
                     if self.productsID is not None:  lines += [f"     Products:  {self.products}"]
                     if self.reactantsID is not None: lines += [f"     Prefactors: {self.prefactorsFromReactant:.3E}:{self.prefactorsFromProduct:.3E}"]
                 else:
-                    lines  = [f"State {self.id}: {self.molecule.get_formula(False)} local minimum @ {self.energy} Hartree (found {self.count} times, results on {self.engfile})"]
+                    lines  = [f"State {self.id}: {self.molecule.get_formula(False)} local minimum @ {self.energy:.8f} Hartree (found {self.count} times, results on {self.engfile})"]
                 return "\n".join(lines)
 
 
@@ -798,7 +798,7 @@ class AMSResults(Results):
                 return self._landscape._fragments.index(self)+1
 
             def __str__(self):
-                lines  = [f"Fragment {self.id}: {self.molecule.get_formula(False)} local minimum @ {self.energy} Hartree (results on {self.engfile})"]
+                lines  = [f"Fragment {self.id}: {self.molecule.get_formula(False)} local minimum @ {self.energy:.8f} Hartree (results on {self.engfile})"]
                 return "\n".join(lines)
 
 
@@ -825,7 +825,7 @@ class AMSResults(Results):
                     formula += self._landscape._fragments[id].molecule.get_formula(False)
                     if( i != len(self.composition)-1 ):
                         formula += "+"
-                lines  = [f"FragmentedState {self.id}: {formula} local minimum @ {self.energy} Hartree (fragments {[i+1 for i in self.composition]})"]
+                lines  = [f"FragmentedState {self.id}: {formula} local minimum @ {self.energy:.8f} Hartree (fragments {[i+1 for i in self.composition]})"]
                 for i,iState in enumerate(self.connections):
                     lines += [f"  +- {self._landscape._states[iState]}"]
 
@@ -911,7 +911,7 @@ class AMSResults(Results):
             lines  = [ 'All stationary points:' ]
             lines += ['======================' ]
             for s in self._states: lines += [ str(s) ]
-            for f in self._fragments: lines += [ str(s) ]
+            for f in self._fragments: lines += [ str(f) ]
             for fs in self._fstates: lines += [ str(fs) ]
             return "\n".join(lines)
 
