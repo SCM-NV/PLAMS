@@ -209,6 +209,7 @@ rst_epilog = """
 .. |load| replace:: :func:`~scm.plams.core.functions.load`
 .. |load_all| replace:: :func:`~scm.plams.core.functions.load_all`
 .. |finish| replace:: :func:`~scm.plams.core.functions.finish`
+.. |read_molecules| replace:: :func:`~scm.plams.core.functions.read_molecules`
 .. |add_to_class| replace:: :func:`~scm.plams.core.functions.add_to_class`
 .. |add_to_instance| replace:: :func:`~scm.plams.core.functions.add_to_instance`
 
@@ -232,6 +233,7 @@ rst_epilog = """
 .. |Atom| replace:: :class:`~scm.plams.mol.atom.Atom`
 .. |Bond| replace:: :class:`~scm.plams.mol.bond.Bond`
 .. |Molecule| replace:: :class:`~scm.plams.mol.molecule.Molecule`
+.. |from_smiles| replace:: :func:`~scm.plams.interfaces.molecule.rdkit.from_smiles`
 
 .. |PeriodicTable| replace:: :class:`~scm.plams.tools.periodic_table.PeriodicTable`
 .. |Units| replace:: :class:`~scm.plams.tools.units.Units`
@@ -252,6 +254,7 @@ rst_epilog = """
 .. |Results| replace:: :class:`~scm.plams.core.results.Results`
 .. |KFReader| replace:: :class:`~scm.plams.tools.kftools.KFReader`
 .. |KFFile| replace:: :class:`~scm.plams.tools.kftools.KFFile`
+.. |KFHistory| replace:: :class:`~scm.plams.tools.kftools.KFHistory`
 
 .. |AMSJob| replace:: :class:`~scm.plams.interfaces.adfsuite.ams.AMSJob`
 .. |AMSResults| replace:: :class:`~scm.plams.interfaces.adfsuite.ams.AMSResults`

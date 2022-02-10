@@ -1011,34 +1011,6 @@ class AMSJob(SingleJob):
     _command = 'ams'
 
 
-    @classmethod
-    def from_input(cls, text_input, name='plamsjob', molecule=None):
-        """
-        Creates an AMSJob from AMS-style text input. This function requires that the SCM Python package is installed (if not, it will raise an ImportError).
-
-        text_input : a multi-line string
-
-        Returns: An AMSJob instance
-
-        Note: The ``name`` and ``molecule`` of the returned AMSJob will not be set. If there is a System block in the ``text_input``, then it will be read into the returned job's settings.
-
-        Example::
-
-           text = '''
-           Task GeometryOptimization
-           Engine DFTB
-               Model GFN1-xTB
-           EndEngine
-           '''
-
-           job = AMSJob.from_input(text)
-        """
-        from scm.input_parser import InputParser
-        sett = Settings()
-        with InputParser() as parser:
-            sett.input = parser.to_settings('ams', text_input)
-        return cls(settings=sett, name=name, molecule=molecule)
-
     def run(self, jobrunner=None, jobmanager=None, watch=False, **kwargs):
         """Run the job using *jobmanager* and *jobrunner* (or defaults, if ``None``).
 
@@ -1436,37 +1408,48 @@ class AMSJob(SingleJob):
 
 
     @classmethod
-    def from_inputfile(cls, filename: str, heredoc_delimit: str = 'eor', **kwargs) -> 'AMSJob':
-        """Construct an :class:`AMSJob` instance from an ADF inputfile or runfile.
+    def from_input(cls, text_input:str, **kwargs) -> 'AMSJob':
+        """
+        Creates an AMSJob from AMS-style text input. This function requires that the SCM Python package is installed (if not, it will raise an ImportError).
 
-        If a runscript is provide than this method will attempt to extract the input file based
-        on the heredoc delimiter (see *heredoc_delimit*).
+        text_input : a multi-line string
 
+        Returns: An AMSJob instance
+
+        Example::
+
+           text = '''
+           Task GeometryOptimization
+           Engine DFTB
+               Model GFN1-xTB
+           EndEngine
+           '''
+
+           job = AMSJob.from_input(text)
         """
         try:
             from scm.input_parser import InputParser
         except ImportError:  # Try to load the parser from $AMSHOME/scripting
             with UpdateSysPath():
                 from scm.input_parser import InputParser
+        sett = Settings()
+        with InputParser() as parser:
+            sett.input = parser.to_settings(cls._command, text_input)
+        mol = cls.settings_to_mol(sett)
+        return cls(molecule=mol, settings=sett, **kwargs)
 
-        s = Settings()
+
+    @classmethod
+    def from_inputfile(cls, filename:str, heredoc_delimit:str='eor', **kwargs) -> 'AMSJob':
+        """Construct an :class:`AMSJob` instance from an AMS inputfile or runfile.
+
+        If a runscript is provide than this method will attempt to extract the input file based
+        on the heredoc delimiter (see *heredoc_delimit*).
+
+        """
         with open(filename, 'r') as f:
             inp_file = parse_heredoc(f.read(), heredoc_delimit)
-
-        with InputParser() as parser:
-            s.input = parser.to_settings(cls._command, inp_file)
-        if not s.input:
-            raise JobError(f"from_inputfile: failed to parse '{filename}'")
-
-        # Extract a molecule from the input settings
-        mol = cls.settings_to_mol(s)
-
-        # Create and return the Job instance
-        if mol is not None:
-            return cls(molecule=mol, settings=s, **kwargs)
-        else:
-            s.ignore_molecule = True
-            return cls(settings=s, **kwargs)
+        return cls.from_input(inp_file, **kwargs)
 
 
     @staticmethod
