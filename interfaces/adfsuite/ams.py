@@ -2,6 +2,7 @@ import os
 import subprocess
 import numpy as np
 import re
+from natsort import natsorted
 
 from os.path import join as opj
 
@@ -622,14 +623,8 @@ class AMSResults(Results):
             ret['Molecules'] = mols
 
         ret['Properties'] = []
-        # self.rkfs has the keys PESPoint(1), PESPoint(2), ..., ams
-        # need to loop here to guarantee right order
-        for i in range(1, len(pes)+1):
-            key = f"PESPoint({i})"
-            if key in self.rkfs:
-                amsresults = self.rkfs[key].read_section("AMSResults")
-            else:
-                amsresults = {}
+        for key in natsorted(title for title in self.rkfs.keys() if title.startswith('PESPoint')):
+            amsresults = self.rkfs[key].read_section("AMSResults")
             ret['Properties'].append(amsresults)
 
         return ret
