@@ -20,6 +20,7 @@ Examples
    ExcitationsWorkflow
    ChargeTransferIntegralsADF
    gammascan
+   OxidationPotential
 
 
 .. _recipes:
