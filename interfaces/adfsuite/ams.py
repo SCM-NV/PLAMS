@@ -7,7 +7,7 @@ from natsort import natsorted
 from os.path import join as opj
 
 from ...core.basejob import SingleJob
-from ...core.errors import FileError, JobError, ResultsError, PTError
+from ...core.errors import FileError, JobError, ResultsError, PTError, PlamsError, JobError
 from ...core.functions import config, log, parse_heredoc
 from ...core.private import sha256, UpdateSysPath
 from ...core.results import Results
@@ -1421,6 +1421,12 @@ class AMSJob(SingleJob):
            '''
 
            job = AMSJob.from_input(text)
+
+        .. note::
+
+            If *molecule* is included in the keyword arguments to this method, the *text_input* may not contain any System blocks. In other words, the molecules to be used either need to come from the *text_input*, or the keyword argument, but not both.
+
+            If *settings* is included in the keyword arguments to this method, the |Settings| created from the *text_input* will be soft updated with the settings from the keyword argument. In other word, the *text_input* takes precedence over the *settings* keyword argument.
         """
         try:
             from scm.input_parser import InputParser
@@ -1431,6 +1437,13 @@ class AMSJob(SingleJob):
         with InputParser() as parser:
             sett.input = parser.to_settings(cls._command, text_input)
         mol = cls.settings_to_mol(sett)
+        if mol:
+            if 'molecule' in kwargs:
+                raise JobError('AMSJob.from_input(): molecule passed in both text_input and as keyword argument')
+        else:
+            mol = kwargs.pop('molecule', None)
+        if 'settings' in kwargs:
+            sett.soft_update(kwargs.pop('settings'))
         return cls(molecule=mol, settings=sett, **kwargs)
 
 
@@ -1502,7 +1515,7 @@ class AMSJob(SingleJob):
             if settings_block.region :
                 for s_reg in settings_block.region :
                     if not '_h' in s_reg.keys() :
-                        raise PlamsError ('Region block requires a header!')
+                        raise JobError ('Region block requires a header!')
                     if s_reg.properties :
                         mol.properties.regions[s_reg._h] = s_reg.properties._1
 
