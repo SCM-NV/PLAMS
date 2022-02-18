@@ -1135,6 +1135,8 @@ class Molecule:
                 bo_copy.atom2 = bro[bo.atom2]
                 ret.add_bond(bo_copy)
 
+        ret.properties.soft_update(self.properties)
+
         return ret
 
     def locate_rings (self) :
