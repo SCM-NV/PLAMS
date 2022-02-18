@@ -2620,13 +2620,13 @@ class Molecule:
                 3         H      0.327778       0.033891      -0.901672
 
         """
-        from subprocess import Popen
+        from subprocess import Popen, DEVNULL
         from tempfile import NamedTemporaryFile
         with NamedTemporaryFile(mode='w+', suffix='.xyz') as f_in:
             self.writexyz(f_in)
             f_in.seek(0)
             with NamedTemporaryFile(mode='w+', suffix='.xyz') as f_out:
-                p = Popen(f'amsprep -t SP -m {f_in.name} -addhatoms -exportcoordinates {f_out.name}', shell=True)
+                p = Popen(f'amsprep -t SP -m {f_in.name} -addhatoms -exportcoordinates {f_out.name}', shell=True, stdout=DEVNULL)
                 p.communicate()
                 retmol = self.__class__(f_out.name)
         return retmol
