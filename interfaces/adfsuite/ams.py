@@ -514,6 +514,8 @@ class AMSResults(Results):
 
         return ret
 
+    def get_poissonratio(self, engine=None):
+        return self._process_engine_results(lambda x: x.read('AMSResults', 'PoissonRatio'), engine)
 
     def get_youngmodulus(self, unit='au', engine=None):
         return self._process_engine_results(lambda x: x.read('AMSResults', 'YoungModulus'), engine) * Units.conversion_ratio('au', unit)

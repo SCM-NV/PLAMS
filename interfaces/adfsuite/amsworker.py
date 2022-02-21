@@ -181,6 +181,11 @@ class AMSWorkerResults:
         """
         return self._results["elasticTensor"]
 
+    def get_poissonratio(self):
+        bm = self.get_bulkmodulus()
+        sm = self.get_shearmodulus()
+        return (3*bm - 2*sm) / (6*bm + 2*sm)
+
     def get_youngmodulus(self, unit='au'):
         bm = self.get_bulkmodulus()
         sm = self.get_shearmodulus()
