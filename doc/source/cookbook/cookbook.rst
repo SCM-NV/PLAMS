@@ -549,3 +549,40 @@ An alternative way is to make use of the `KFReader` class::
    structure  = rkf_reader.read("History", "Coords({})".format(n_steps))
 
 Note that also the KFReader class lacks most of the shortcut functions of a proper |AMSResults| object so that the access to the data has to be specified manually.
+
+
+Parallelization
+***************
+
+PLAMS supports running multiple jobs in parallel.
+Details on the synchronization between parallel job executions can be found :ref:`here <parallel>`.
+To make sure your PLAMS script can take maximum advantage of parallel job execution there is a simple rule:
+Make sure to create and run as many jobs as possible before starting to access any results.
+(This is because the access to results of a job may block until that job has finished, preventing you to submit more independent jobs in the meantime.)
+
+In the common case where there are *no* dependencies between jobs, this means that we should set up and run all jobs *before* starting to access any results.
+The script below shows how to parallelize the trivially parallel task of just executing the same job on a set of molecules.
+
+.. code-block:: python
+
+   mols = read_molecules('my_molecules')
+   # mols is a dictionary mapping filenames (without
+   # extension) to plams.Molecule instances, e.g.:
+   # my_molecules/benzene.xyz would become mols['benzene']
+
+   sett = Settings()
+   # ... all your settings go here ...
+
+   config.default_jobrunner = JobRunner(parallel=True, maxjobs=8)
+   sett.runscript.nproc = 4
+   # run up to 8 jobs (using 4 cores each) in parallel
+
+   jobs    = { n: AMSJob(name=n, settings=sett, molecule=m) for n,m in mols.items() }
+   results = { n: j.run() for n,j in jobs.items() }
+   # make and run all jobs before accessing any results
+
+   for n,r in results.items():
+      print(n, r.get_energy() if r.ok() else 'Failed')
+
+Obviously, ``runscript.nproc`` could also be set on a per-job basis.
+This is useful if some of your jobs do not scale well with the number of CPU cores, or if you have jobs of very different computational cost.
