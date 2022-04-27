@@ -1,5 +1,7 @@
 import os
 import threading
+import re
+import shutil
 try:
     import dill as pickle
 except ImportError:
@@ -47,6 +49,8 @@ class JobManager:
         self.jobs = []
         self.names = {}
         self.hashes = {}
+
+        self._register_lock = threading.RLock()
 
         if path is None:
             ams_resultsdir = os.getenv("AMS_RESULTSDIR")
@@ -122,54 +126,57 @@ class JobManager:
 
     def remove_job(self, job):
         """Remove *job* from the job manager. Forget its hash."""
-        if job in self.jobs:
-            self.jobs.remove(job)
-            job.jobmanager = None
-        h = job.hash()
-        if h in self.hashes and self.hashes[h] == job:
-            del self.hashes[h]
-        if isinstance(job, MultiJob):
-            for child in job:
-                self.remove_job(child)
-            for otherjob in job.other_jobs():
-                self.remove_job(otherjob)
-
-
-
-    def _register_name(self, job):
-        """Register the name of the *job*.
-
-        If a job with the same name was already registered, *job* is renamed by appending consecutive integers. The number of digits in the appended number is defined by the ``counter_len`` value in ``settings``.
-        """
-
-        name = job._full_name()
-        if name in self.names:
-            self.names[name] += 1
-            job.name += '.'+ str(self.names[name]).zfill(self.settings.counter_len)
-            log('Renaming job {} to {}'.format(name, job._full_name()), 3)
-        else:
-            self.names[name] = 1
+        with self._register_lock:
+            if job in self.jobs:
+                self.jobs.remove(job)
+                job.jobmanager = None
+            h = job.hash()
+            if h in self.hashes and self.hashes[h] == job:
+                del self.hashes[h]
+            if isinstance(job, MultiJob):
+                for child in job:
+                    self.remove_job(child)
+                for otherjob in job.other_jobs():
+                    self.remove_job(otherjob)
+            shutil.rmtree(job.path)
 
 
 
     def _register(self, job):
-        """Register the *job*. Register job's name (rename if needed) and create the job folder."""
+        """Register the *job*. Register job's name (rename if needed) and create the job folder.
 
-        log('Registering job {}'.format(job.name), 7)
-        job.jobmanager = self
+        If a job with the same name was already registered, *job* is renamed by appending consecutive integers. The number of digits in the appended number is defined by the ``counter_len`` value in ``settings``.
+        Note that jobs whose name already contains a counting suffix, e.g. ``myjob.002`` will have the suffix stripped as the very first step.
+        """
+        with self._register_lock:
 
-        self._register_name(job)
+            log('Registering job {}'.format(job.name), 7)
+            job.jobmanager = self
 
-        if job.path is None:
-            if job.parent:
-                job.path = opj(job.parent.path, job.name)
+            # If the name ends with the counting suffix, e.g. ".002", remove it.
+            # The suffix is just not part of a legitimate job name and users will have to live with it potentially changing.
+            orgfname = job._full_name()
+            job.name = re.sub(r"(\.\d{%i})+$"%(self.settings.counter_len), "", job.name)
+            fname = job._full_name()
+            if fname in self.names:
+                self.names[fname] += 1
+                job.name += '.'+str(self.names[fname]).zfill(self.settings.counter_len)
+                fname = job._full_name()
             else:
-                job.path = opj(self.workdir, job.name)
-        os.mkdir(job.path)
+                self.names[fname] = 1
+            if fname != orgfname:
+                log('Renaming job {} to {}'.format(orgfname, fname), 3)
 
-        self.jobs.append(job)
-        job.status = 'registered'
-        log('Job {} registered'.format(job.name), 7)
+            if job.path is None:
+                if job.parent:
+                    job.path = opj(job.parent.path, job.name)
+                else:
+                    job.path = opj(self.workdir, job.name)
+            os.mkdir(job.path)
+
+            self.jobs.append(job)
+            job.status = 'registered'
+            log('Job {} registered'.format(job.name), 7)
 
 
 
@@ -177,12 +184,13 @@ class JobManager:
         """Calculate the hash of *job* and, if it is not ``None``, search previously run jobs for the same hash. If such a job is found, return it. Otherwise, return ``None``"""
         h = job.hash()
         if h is not None:
-            if h in self.hashes:
-                prev = self.hashes[h]
-                log('Job {} previously run as {}, using old results'.format(job.name, prev.name), 1)
-                return prev
-            else:
-                self.hashes[h] = job
+            with self._register_lock:
+                if h in self.hashes:
+                    prev = self.hashes[h]
+                    log('Job {} previously run as {}, using old results'.format(job.name, prev.name), 1)
+                    return prev
+                else:
+                    self.hashes[h] = job
         return None
 
 

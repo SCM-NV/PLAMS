@@ -154,7 +154,6 @@ def delete_job(job):
     #In case job.jobmanager is None, run() method was not called yet, so no JobManager knows about this job and no folder exists.
     if job.jobmanager is not None:
         job.jobmanager.remove_job(job)
-        shutil.rmtree(job.path)
 
     if job.parent is not None:
         job.parent.remove_child(job)
