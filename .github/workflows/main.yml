@@ -39,4 +39,4 @@ jobs:
           pip3 install .
       - name: Test
         run: |
-          python -c 'from plams import *'
+          python3 -c 'from plams import *'
