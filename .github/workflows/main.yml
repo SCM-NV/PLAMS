@@ -36,7 +36,7 @@ jobs:
       - run: conda install python=${{ matrix.python-version }} "certifi=2021.5.30"      
       - name: Build
         run: |          
-          python3 -m pip install .
+          python setup.py install
       - name: Test
         run: |
-          python3 -c 'from plams import *'
+          python -c 'from plams import *'
