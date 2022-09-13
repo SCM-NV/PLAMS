@@ -28,7 +28,7 @@ setup(
     ],
     keywords         = ['molecular modeling', 'computational chemistry', 'workflow', 'python interface'],
     python_requires  = '>=3.6',
-    install_requires = ['dill>=0.2.4', 'numpy>1.23', 'scipy', 'natsort'],
+    install_requires = ['dill>=0.2.4', 'numpy', 'scipy', 'natsort'],
     packages         = packages,
     package_dir      = {'scm.plams': '.'},
     package_data     = {'scm.plams' : ['plams_defaults', 'examples/*', 'unit_tests/*', 'unit_tests/xyz/*']},
