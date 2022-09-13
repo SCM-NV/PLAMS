@@ -33,11 +33,10 @@ jobs:
          conda-channels: anaconda, conda-forge
       - run: conda --version
       - run: python --version
-      - run: conda install python=${{ matrix.python-version }} "certifi=2021.5.30"
-      - run: conda activate
+      - run: conda install python=${{ matrix.python-version }} "certifi=2021.5.30"      
       - name: Build
         run: |          
-          pip3 install .
+          python3 -m pip install .
       - name: Test
         run: |
           python3 -c 'from plams import *'
