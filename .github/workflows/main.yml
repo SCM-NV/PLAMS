@@ -1,0 +1,42 @@
+# This workflow tests the pip installation of plams in a variety of python versions
+
+name: PIP install PLAMS
+
+# Controls when the workflow will run
+on:
+  # Triggers the workflow on push or pull request events but only for the "master" branch
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+  
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # This workflow contains a single job called "build"
+  build:
+    name: Build for (${{ matrix.python-version }}, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: true
+      matrix:
+        os: ['ubuntu-latest']
+        python-version: ['3.6', '3.7', '3.8', '3.9', '3.10']
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      - uses: actions/checkout@v2
+      - name: Setup conda
+        uses: s-weigand/setup-conda@v1
+        with:
+         update-conda: false
+         python-version: ${{ matrix.python-version }}
+         conda-channels: anaconda, conda-forge
+      - run: conda --version
+      - run: python --version
+      - run: conda install python=${{ matrix.python-version }} "certifi=2021.5.30"
+      - name: Build
+        run: |          
+          pip3 install .
+      - name: Test
+        run: |
+          python -c 'from plams import *'
