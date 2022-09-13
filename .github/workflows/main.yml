@@ -39,4 +39,4 @@ jobs:
           python setup.py install
       - name: Test
         run: |
-          python -c 'from plams import *'
+          python -c 'from scm.plams import *'
