@@ -219,7 +219,7 @@ def log(message, level=0):
 
     Logs are printed independently to the text logfile (a file called ``logfile`` in the main working folder) and to the standard output. If *level* is equal or lower than verbosity (defined by ``config.log.file`` or ``config.log.stdout``) the message is printed. Date and/or time can be added based on ``config.log.date`` and ``config.log.time``. All logging activity is thread safe.
     """
-    if 'log' in config:
+    if config.init and 'log' in config:
         if level <= config.log.file or level <= config.log.stdout:
             message = str(message)
             prefix = ''
