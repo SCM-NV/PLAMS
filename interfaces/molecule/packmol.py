@@ -227,7 +227,7 @@ class PackMol:
 
         return output_molecule
 
-def packmol(molecules:Union[List[Molecule],Molecule], mole_fractions:List[float]=None, density:float=None, n_atoms:int=None, box_bounds:List[float]=None, n_molecules:Union[List[int],int]=None, sphere:bool=False, region_names:List[str]=None, return_details:bool=False, executable:str=None):
+def packmol(molecules:Union[List[Molecule],Molecule], mole_fractions:List[float]=None, density:float=None, n_atoms:int=None, box_bounds:List[float]=None, n_molecules:Union[List[int],int]=None, sphere:bool=False, keep_bonds:bool=True, keep_atom_properties:bool=True, region_names:List[str]=None, return_details:bool=False, executable:str=None):
     """
 
         Create a fluid of the given ``molecules``. The function will use the
@@ -254,6 +254,12 @@ def packmol(molecules:Union[List[Molecule],Molecule], mole_fractions:List[float]
 
         region_names : str or list of str
             Populate the region information for each atom. Should have the same length and order as ``molecules``. My default the regions are named ``mol0``, ``mol1``, etc.
+
+        keep_bonds : bool
+            If True, the bonds from the constituent molecules will be kept in the returned Molecule
+
+        keep_atom_properties : bool
+            If True, the atom.properties (e.g. atom type) of the constituent molecules will be kept in the returned Molecule
 
         return_details : bool
             Return a 2-tuple (Molecule, dict) where the dict has keys like 'n_molecules', 'mole_fractions', 'density', etc. They contain the actual details of the returned molecule, which may differ slightly from the requested quantities.
@@ -381,6 +387,24 @@ def packmol(molecules:Union[List[Molecule],Molecule], mole_fractions:List[float]
     except ValueError:
         details['density'] = None
         pass # if not periodict
+
+    if keep_atom_properties:
+        for at, molecule_type_index, atom_index_in_molecule in zip(out, molecule_type_indices, atom_indices_in_molecule):
+            at.properties = molecules[molecule_type_index][atom_index_in_molecule+1].properties.copy()
+
+    if keep_bonds:
+        out.delete_all_bonds()
+        for imol, mol in enumerate(molecules):
+            for b in mol.bonds:
+                i1, i2 = sorted(mol.index(b)) # 1-based
+                for iout, (molecule_type, atom_index_molecule) in enumerate(zip(molecule_type_indices, atom_indices_in_molecule)):
+                    if molecule_type != imol:
+                        continue
+                    if i1 != atom_index_molecule + 1:
+                        continue
+                    new_i1 = iout + i1 # iout 0-based, i1 1-based
+                    new_i2 = iout + i2 # out 0-based, 1-based
+                    out.add_bond(out[new_i1], out[new_i2], order=b.order)
 
     if region_names:
         region_names = tolist(region_names)
