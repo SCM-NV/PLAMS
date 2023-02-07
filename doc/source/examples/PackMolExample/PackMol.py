@@ -165,3 +165,55 @@ print(f"Microsolvated structure: {len(out)} atoms.")
 out.write('acetonitrile-microsolvated.xyz')
 show(out, figsize=figsize)
 
+
+# ## Bonds, atom properties (force field types, regions, ...)
+# 
+# The ``packmol()`` function accepts the arguments ``keep_bonds`` and ``keep_atom_properties``. These options will keep the bonds defined for the constitutent molecules, as well as any atomic properties.
+# 
+# The bonds and atom properties are easiest to see by printing the System block for an AMS job:
+
+water = from_smiles('O')
+n2 = from_smiles('N#N')
+
+# delete properties coming from from_smiles
+for at in water:
+    at.properties = Settings()
+for at in n2:
+    at.properties = Settings()
+    
+water[1].properties.region = "oxygen_atom"
+water[2].properties.mass = 2.014   # deuterium
+water.delete_bond(water[1, 2]) # delete bond between atoms 1 and 2 (O and H)
+
+
+out = packmol([water, n2], n_molecules=[2, 1], density=0.5)
+print(AMSJob(molecule=out).get_input())
+
+
+# By default, the ``packmol()`` function assigns regions called ``mol0``, ``mol1``, etc. to the different added molecules. The ``region_names`` option lets you set custom names. 
+
+out = packmol(
+    [water, n2], n_molecules=[2, 1], density=0.5, 
+    region_names=["water", "nitrogen_molecule"]
+)
+print(AMSJob(molecule=out).get_input())
+
+
+# Below, we also set ``keep_atom_properties=False``, this will remove the previous regions (in this example "oxygen_atom") and mass. 
+
+out = packmol(
+    [water, n2], n_molecules=[2, 1], density=0.5, 
+    keep_atom_properties=False
+)
+print(AMSJob(molecule=out).get_input())
+
+
+# ``keep_bonds=False`` will additionally ignore any defined bonds:
+
+out = packmol(
+    [water, n2], n_molecules=[2, 1], density=0.5, 
+    region_names=["water", "nitrogen_molecule"], 
+    keep_bonds=False, keep_atom_properties=False
+)
+print(AMSJob(molecule=out).get_input())
+

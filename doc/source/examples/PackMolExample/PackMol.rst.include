@@ -142,7 +142,7 @@ First, create the gasphase molecule:
 .. parsed-literal::
 
     water-5.xyz: pure liquid in non-orthorhombic box (requires AMS2022 or later)
-    PLAMS working folder: /home/user/adfhome/scripting/scm/plams/doc/source/examples/PackMolExample/plams_workdir
+    PLAMS working folder: PackMolExample/plams_workdir
     Top: system in surrounding orthorhombic box before calling refine_lattice(). Bottom: System in non-orthorhombic box after calling refine_lattice()
 
 
@@ -370,4 +370,179 @@ solute.
 
 
 .. image:: PackMol_files/PackMol_27_1.png
+
+
+Bonds, atom properties (force field types, regions, ...)
+--------------------------------------------------------
+
+The ``packmol()`` function accepts the arguments ``keep_bonds`` and
+``keep_atom_properties``. These options will keep the bonds defined for
+the constitutent molecules, as well as any atomic properties.
+
+The bonds and atom properties are easiest to see by printing the System
+block for an AMS job:
+
+.. code:: ipython3
+
+    water = from_smiles('O')
+    n2 = from_smiles('N#N')
+    
+    # delete properties coming from from_smiles
+    for at in water:
+        at.properties = Settings()
+    for at in n2:
+        at.properties = Settings()
+        
+    water[1].properties.region = "oxygen_atom"
+    water[2].properties.mass = 2.014   # deuterium
+    water.delete_bond(water[1, 2]) # delete bond between atoms 1 and 2 (O and H)
+
+.. code:: ipython3
+
+    out = packmol([water, n2], n_molecules=[2, 1], density=0.5)
+    print(AMSJob(molecule=out).get_input())
+
+
+.. parsed-literal::
+
+    system
+      Atoms
+                  O       3.0728760000       3.9143770000       1.9903040000 region=mol0,oxygen_atom
+                  H       3.9160850000       3.5184940000       1.6850930000 mass=2.014 region=mol0
+                  H       2.7876040000       4.6565520000       1.4140990000 region=mol0
+                  O       4.9258210000       3.8909400000       3.9982150000 region=mol0,oxygen_atom
+                  H       4.9810380000       3.6502800000       4.9468530000 mass=2.014 region=mol0
+                  H       5.0008460000       4.8604790000       3.8619060000 region=mol0
+                  N       1.1338120000       1.0294860000       0.9890770000 region=mol1
+                  N       0.9243670000       1.6667980000       1.8734330000 region=mol1
+      End
+      BondOrders
+         1 3 1.0
+         4 6 1.0
+         7 8 3.0
+      End
+      Lattice
+             5.9692549746     0.0000000000     0.0000000000
+             0.0000000000     5.9692549746     0.0000000000
+             0.0000000000     0.0000000000     5.9692549746
+      End
+    End
+    
+    
+
+
+By default, the ``packmol()`` function assigns regions called ``mol0``,
+``mol1``, etc. to the different added molecules. The ``region_names``
+option lets you set custom names.
+
+.. code:: ipython3
+
+    out = packmol(
+        [water, n2], n_molecules=[2, 1], density=0.5, 
+        region_names=["water", "nitrogen_molecule"]
+    )
+    print(AMSJob(molecule=out).get_input())
+
+
+.. parsed-literal::
+
+    system
+      Atoms
+                  O       3.0728760000       3.9143770000       1.9903040000 region=oxygen_atom,water
+                  H       3.9160850000       3.5184940000       1.6850930000 mass=2.014 region=water
+                  H       2.7876040000       4.6565520000       1.4140990000 region=water
+                  O       4.9258210000       3.8909400000       3.9982150000 region=oxygen_atom,water
+                  H       4.9810380000       3.6502800000       4.9468530000 mass=2.014 region=water
+                  H       5.0008460000       4.8604790000       3.8619060000 region=water
+                  N       1.1338120000       1.0294860000       0.9890770000 region=nitrogen_molecule
+                  N       0.9243670000       1.6667980000       1.8734330000 region=nitrogen_molecule
+      End
+      BondOrders
+         1 3 1.0
+         4 6 1.0
+         7 8 3.0
+      End
+      Lattice
+             5.9692549746     0.0000000000     0.0000000000
+             0.0000000000     5.9692549746     0.0000000000
+             0.0000000000     0.0000000000     5.9692549746
+      End
+    End
+    
+    
+
+
+Below, we also set ``keep_atom_properties=False``, this will remove the
+previous regions (in this example "oxygen\_atom") and mass.
+
+.. code:: ipython3
+
+    out = packmol(
+        [water, n2], n_molecules=[2, 1], density=0.5, 
+        keep_atom_properties=False
+    )
+    print(AMSJob(molecule=out).get_input())
+
+
+.. parsed-literal::
+
+    system
+      Atoms
+                  O       3.0728760000       3.9143770000       1.9903040000 region=mol0
+                  H       3.9160850000       3.5184940000       1.6850930000 region=mol0
+                  H       2.7876040000       4.6565520000       1.4140990000 region=mol0
+                  O       4.9258210000       3.8909400000       3.9982150000 region=mol0
+                  H       4.9810380000       3.6502800000       4.9468530000 region=mol0
+                  H       5.0008460000       4.8604790000       3.8619060000 region=mol0
+                  N       1.1338120000       1.0294860000       0.9890770000 region=mol1
+                  N       0.9243670000       1.6667980000       1.8734330000 region=mol1
+      End
+      BondOrders
+         1 3 1.0
+         4 6 1.0
+         7 8 3.0
+      End
+      Lattice
+             5.9692549746     0.0000000000     0.0000000000
+             0.0000000000     5.9692549746     0.0000000000
+             0.0000000000     0.0000000000     5.9692549746
+      End
+    End
+    
+    
+
+
+``keep_bonds=False`` will additionally ignore any defined bonds:
+
+.. code:: ipython3
+
+    out = packmol(
+        [water, n2], n_molecules=[2, 1], density=0.5, 
+        region_names=["water", "nitrogen_molecule"], 
+        keep_bonds=False, keep_atom_properties=False
+    )
+    print(AMSJob(molecule=out).get_input())
+
+
+.. parsed-literal::
+
+    system
+      Atoms
+                  O       3.0728760000       3.9143770000       1.9903040000 region=water
+                  H       3.9160850000       3.5184940000       1.6850930000 region=water
+                  H       2.7876040000       4.6565520000       1.4140990000 region=water
+                  O       4.9258210000       3.8909400000       3.9982150000 region=water
+                  H       4.9810380000       3.6502800000       4.9468530000 region=water
+                  H       5.0008460000       4.8604790000       3.8619060000 region=water
+                  N       1.1338120000       1.0294860000       0.9890770000 region=nitrogen_molecule
+                  N       0.9243670000       1.6667980000       1.8734330000 region=nitrogen_molecule
+      End
+      Lattice
+             5.9692549746     0.0000000000     0.0000000000
+             0.0000000000     5.9692549746     0.0000000000
+             0.0000000000     0.0000000000     5.9692549746
+      End
+    End
+    
+    
 
