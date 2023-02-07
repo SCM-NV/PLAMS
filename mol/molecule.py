@@ -429,7 +429,7 @@ class Molecule:
         return frags
 
 
-    def guess_bonds(self, atom_subset=None, dmax=1.28):
+    def guess_bonds(self, atom_subset=None, dmax=1.28, metal_atoms:bool=True):
         """Try to guess bonds in the molecule based on types and positions of atoms.
 
         All previously existing bonds are removed. New bonds are generated based on interatomic distances and information about maximal number of bonds for each atom type (``connectors`` property, taken from |PeriodicTable|).
@@ -442,7 +442,8 @@ class Molecule:
 
         The *dmax* argument gives the maximum value for ratio of the bond length to the sum of atomic radii for the two atoms in the bond.
 
-        The bond order for any bond to a metal atom will be set to 1.
+        metal_atoms : bool
+            If True, bonds to metal atoms will be guessed. They are often useful for visualization.  The bond order for any bond to a metal atom will be set to 1.
 
         .. warning::
 
@@ -608,26 +609,30 @@ class Molecule:
         stray_hydrogens = [x for x in hydrogens if len(x.bonds) == 0]
         find_and_add_bonds(nonmetallic, neighbors, from_atoms_subset=stray_hydrogens, to_atoms_subset=nonmetallic, ignore_free=True, dmax=dmax)
 
-        # for obvious anions like carbonate, nitrate, sulfate, phosphate, and arsenate, do not allow metal atoms to bond to the central atom
-        new_atom_list = []
-        for at in atom_list:
-            if at in potentially_ignore_metal_bonds:
-                if len([x for x in at.bonds if x.other_end(at).is_electronegative]) >= 3:
-                    continue
-            new_atom_list.append(at)
-        find_and_add_bonds(atom_list, neighbors, from_atoms_subset=metallic, to_atoms_subset=new_atom_list, ignore_free=True, dmax=dmax)
+        if metal_atoms:
+            # bonds to metal atoms are very useful for visualization but 
+            # are not typically used in force fields. So provide an option to not add them
 
-        # delete metal-metal bonds and metal-hydrogen bonds if the metal is bonded to enough electronegative atoms and not enough metal atoms
-        # (this means that the metal is a cation, so bonds should almost never be drawn unless it's a dimetal complex or a hydride/H2 ligand, but that should be rare)
-        for at in metallic:
-            at._metalbondcounter = len([x for x in at.bonds if x.other_end(at).is_metallic])
-            at._electronegativebondcounter = len([x for x in at.bonds if x.other_end(at).is_electronegative])
-            if at._electronegativebondcounter >= 3 or \
-                    (at._electronegativebondcounter >= 2 >= at._metalbondcounter) or \
-                    (at._electronegativebondcounter >= 1 and at._metalbondcounter <= 0):
-                bonds_to_delete = [b for b in at.bonds if b.other_end(at).is_metallic or b.other_end(at).atnum == 1]
-                for b in bonds_to_delete:
-                    self.delete_bond(b)
+            # for obvious anions like carbonate, nitrate, sulfate, phosphate, and arsenate, do not allow metal atoms to bond to the central atom
+            new_atom_list = []
+            for at in atom_list:
+                if at in potentially_ignore_metal_bonds:
+                    if len([x for x in at.bonds if x.other_end(at).is_electronegative]) >= 3:
+                        continue
+                new_atom_list.append(at)
+            find_and_add_bonds(atom_list, neighbors, from_atoms_subset=metallic, to_atoms_subset=new_atom_list, ignore_free=True, dmax=dmax)
+
+            # delete metal-metal bonds and metal-hydrogen bonds if the metal is bonded to enough electronegative atoms and not enough metal atoms
+            # (this means that the metal is a cation, so bonds should almost never be drawn unless it's a dimetal complex or a hydride/H2 ligand, but that should be rare)
+            for at in metallic:
+                at._metalbondcounter = len([x for x in at.bonds if x.other_end(at).is_metallic])
+                at._electronegativebondcounter = len([x for x in at.bonds if x.other_end(at).is_electronegative])
+                if at._electronegativebondcounter >= 3 or \
+                        (at._electronegativebondcounter >= 2 >= at._metalbondcounter) or \
+                        (at._electronegativebondcounter >= 1 and at._metalbondcounter <= 0):
+                    bonds_to_delete = [b for b in at.bonds if b.other_end(at).is_metallic or b.other_end(at).atnum == 1]
+                    for b in bonds_to_delete:
+                        self.delete_bond(b)
 
 
         cleanup_atom_list(atom_list)
