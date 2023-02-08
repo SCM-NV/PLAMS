@@ -402,8 +402,8 @@ def packmol(molecules:Union[List[Molecule],Molecule], mole_fractions:List[float]
                         continue
                     if i1 != atom_index_molecule + 1:
                         continue
-                    new_i1 = iout + i1 # iout 0-based, i1 1-based
-                    new_i2 = iout + i2 # out 0-based, 1-based
+                    new_i1 = iout + 1 # iout 0-based
+                    new_i2 = iout + 1 + i2 - i1 # iout 0-based
                     out.add_bond(out[new_i1], out[new_i2], order=b.order)
 
     if region_names:
