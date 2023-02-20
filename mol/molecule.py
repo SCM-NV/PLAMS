@@ -1193,6 +1193,9 @@ class Molecule:
             at._visited = False
 
         def dfs(v, indices):
+            """
+            Depth first search of self starting at atom v, extending the list of connected atoms (indices)
+            """
             v._visited = True
             for e in v.bonds:
                 u = e.other_end(v)
@@ -1200,10 +1203,26 @@ class Molecule:
                     indices.append(self.index(u, start=indices[0]+1)-1)
                     dfs(u, indices)
 
+        def bfs(v, indices):
+            """
+            Breadth first search of self starting at atom v, extending the list of connected atoms (indices)
+            """
+            # REB: Changed to bfs to avoid Pythons recursion error for big systems
+            atoms = [v]
+            while (len(atoms)>0):
+                for v in atoms: v._visited = True
+                res = []
+                [res.append(e.other_end(v)) for v in atoms for e in v.bonds if not e.other_end(v)._visited and not e.other_end(v) in res]
+                atoms = res
+                #atoms = [e.other_end(v) for v in atoms for e in v.bonds if not e.other_end(v)._visited]
+                for u in atoms:
+                    indices.append(self.index(u, start=indices[0]+1)-1)
+
         for iatom,src in enumerate(self.atoms):
             if not src._visited:
                 indices = [iatom]
-                dfs(src, indices)
+                #dfs(src, indices)
+                bfs(src, indices)
                 molecule_indices.append(sorted(indices))
 
         for at in self:
@@ -1277,71 +1296,6 @@ class Molecule:
         """
         Find the rings in the structure
         """
-        def shortest_path_dijkstra (conect, source, target) :
-            """
-            Find the shortest paths (can be more than 1) 
-            between a source atom and a target
-            atom in a molecule
-            """
-            huge = 100000.
-    
-            dist = {}
-            previous = {}
-            for v in range(len(conect)) :
-                dist[v] = huge
-                previous[v] = []
-            dist[source] = 0
-
-            Q = [source]
-            for iat in range(len(conect)) :
-                if iat != source :
-                    Q.append(iat)
-
-            while len(Q) > 0 :
-                # vertex in Q with smallest distance in dist
-                u = Q[0]
-                if dist[u] == huge :
-                    return []
-                u = Q.pop(0)
-                if u == target :
-                    break
-
-                # Select the neighbors of u, and loop over them
-                neighbors = conect[u]
-                for v in neighbors :
-                    if not v in Q :
-                        continue
-                    alt = dist[u] + 1.
-                    if alt == dist[v] :
-                        previous[v].append(u)
-                    if alt < dist[v] :
-                        previous[v] = [u]
-                        dist[v] = alt
-                        # Reorder Q
-                        for i,vertex in enumerate(Q) :
-                            if vertex == v :
-                                ind = i
-                                break
-                        Q.pop(ind)
-                        for i,vertex in enumerate(Q) :
-                            if dist[v] < dist[vertex] :
-                                ind = i
-                                break
-                        Q.insert(ind,v)
-
-            bridgelist = [[u]]
-            d = dist[u]
-            for i in range(int(d)) :
-                paths = []
-                for j,path in enumerate(bridgelist) :
-                    prevats = previous[path[-1]]
-                    for at in prevats :
-                        newpath = path+[at]
-                        paths.append(newpath)
-                bridgelist = paths
-
-            return bridgelist
-
         def bond_from_indices (ret, iat1, iat2) :
             """
             Return a bond object from the atom indices
@@ -1380,7 +1334,7 @@ class Molecule:
 
                 if connection :
                     retconect = ret.get_connection_table()
-                    rings = shortest_path_dijkstra(retconect,iat,iatn)
+                    rings = self.shortest_path_dijkstra(iat,iatn,conect=retconect)
                     for ring in rings :
                         ring.sort()
                         if not ring in allrings :
@@ -1391,6 +1345,72 @@ class Molecule:
 
         allrings = [self.order_ring(ring) for ring in allrings]
         return allrings
+
+    def locate_rings_acm (self):
+        """
+        Use the ACM algorithm to find rings
+        """
+        def find_cycle (tree, root, leaf):
+            """
+            Find the path from leaf to root in tree
+
+            Note: The problem is that a bond is not added when a cycle has closed.
+                  And even if we add that bond, I don't know how to find the path other than with Dijkstra
+            """
+            # First move from path to the top of the tree
+            prev = leaf
+            pathb = [leaf]
+            while (prev!=root):
+                prevlist = [b[0] for b in tree if b[1]==prev]
+                if len(prevlist) == 0 : break
+                prev = prevlist[0]
+                pathb.append(prev)
+            if prev==root:
+                return pathb
+            # Also move forward, from the top to the root
+            prev = root
+            pathf = [root]
+            while (prev not in pathb):
+                prevlist = [b[0] for b in tree if b[1]==prev]
+                if len(prevlist) == 0 : break
+                prev = prevlist[0]
+                pathf.append(prev)
+            path = pathb[:pathb.index(prev)] + pathf[::-1]
+            return path
+
+        rings = []
+        rings_sorted = []
+
+        conect = self.get_connection_table()
+        atoms_to_examine = [self.index(at)-1 for at in self.atoms]
+        iat = atoms_to_examine[0]
+        atoms_in_tree = [iat]
+        tree = [[] for i in range(len(self))]
+        counter = 0
+        while (1):
+            #print ('%8i %8i %8i'%(counter,iat,len(rings)))
+            counter += 1
+            for jat in conect[iat]:
+                if jat in atoms_in_tree:
+                    #ring = find_cycle(tree,iat,jat)
+                    for ring in self.shortest_path_dijkstra(iat,jat,conect=tree):
+                        sorted_ring = sorted(ring)
+                        if not sorted_ring in rings_sorted:
+                            rings.append(ring)
+                            rings_sorted.append(sorted_ring)
+                else:
+                    atoms_in_tree.append(jat)
+                tree[iat].append(jat)
+                tree[jat].append(iat)
+                #tree.append([iat,jat])
+                conect[iat] = [j for j in conect[iat] if not j==jat]
+                conect[jat] = [j for j in conect[jat] if not j==iat]
+            atoms_to_examine = [i for i in atoms_to_examine if not i==iat]
+            if len(atoms_to_examine)==0:
+                break
+            candidates = [i for i in atoms_in_tree if i in atoms_to_examine]
+            iat = candidates[0] if len(candidates)>0 else atoms_to_examine[0]
+        return rings
 
     def order_ring (self, ring_indices) :
         """
@@ -1406,6 +1426,89 @@ class Molecule:
             else :
                 new_ring.append(neighbors[0])
         return new_ring
+
+    def locate_rings_networkx (self):
+        """
+        Obtain a list of ring indices using RDKit (same as locate_rings, but much faster)
+        """
+        import networkx
+        matrix = self.bond_matrix()
+        matrix = matrix.astype(numpy.int32)
+        matrix[matrix>0] = 1
+        graph = networkx.from_numpy_matrix(matrix)
+        rings = networkx.cycle_basis(graph)
+        return rings
+
+    def shortest_path_dijkstra (self, source, target, conect=None) :
+        """
+        Find the shortest paths (can be more than 1) 
+        between a source atom and a target
+        atom in a connection table
+
+        * ``source`` -- Index of the source atom
+        * ``target`` -- Index of the target atom
+        """
+        if conect is None:
+            conect = self.get_connection_table()
+
+        huge = 100000.
+
+        dist = {}
+        previous = {}
+        for v in range(len(conect)) :
+            dist[v] = huge
+            previous[v] = []
+        dist[source] = 0
+
+        Q = [source]
+        for iat in range(len(conect)) :
+            if iat != source :
+                Q.append(iat)
+
+        while len(Q) > 0 :
+            # vertex in Q with smallest distance in dist
+            u = Q[0]
+            if dist[u] == huge :
+                return []
+            u = Q.pop(0)
+            if u == target :
+                break
+
+            # Select the neighbors of u, and loop over them
+            neighbors = conect[u]
+            for v in neighbors :
+                if not v in Q :
+                    continue
+                alt = dist[u] + 1.
+                if alt == dist[v] :
+                    previous[v].append(u)
+                if alt < dist[v] :
+                    previous[v] = [u]
+                    dist[v] = alt
+                    # Reorder Q
+                    for i,vertex in enumerate(Q) :
+                        if vertex == v :
+                            ind = i
+                            break
+                    Q.pop(ind)
+                    for i,vertex in enumerate(Q) :
+                        if dist[v] < dist[vertex] :
+                            ind = i
+                            break
+                    Q.insert(ind,v)
+
+        bridgelist = [[u]]
+        d = dist[u]
+        for i in range(int(d)) :
+            paths = []
+            for j,path in enumerate(bridgelist) :
+                prevats = previous[path[-1]]
+                for at in prevats :
+                    newpath = path+[at]
+                    paths.append(newpath)
+            bridgelist = paths
+
+        return bridgelist
 
 #===========================================================================
 #==== Geometry operations ==================================================
