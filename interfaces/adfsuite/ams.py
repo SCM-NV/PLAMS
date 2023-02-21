@@ -1323,7 +1323,15 @@ class AMSResults(Results):
                     lines  = [f"State {self.id}: {self.molecule.get_formula(False)} transition state @ {self.energy:.8f} Hartree (found {self.count} times"+(f", results on {self.engfile})" if self.engfile is not None else ")")]
                     if self.reactantsID is not None: lines += [f"  +- Reactants: {self.reactants}"]
                     if self.productsID is not None:  lines += [f"     Products:  {self.products}"]
-                    if self.reactantsID is not None: lines += [f"     Prefactors: {self.prefactorsFromReactant:.3E}:{self.prefactorsFromProduct:.3E}"]
+
+                    if self.reactantsID is not None and self.productsID is not None:
+                        eV = Units.convert(1.0, 'eV', 'hartree')
+                        lines += [f"     Prefactors: {self.prefactorsFromReactant:.3E}:{self.prefactorsFromProduct:.3E} s^-1"]
+                        dEforward = ( self.energy-self._landscape._states[self.reactantsID-1].energy )/eV
+                        dEbackward = ( self.energy-self._landscape._states[self.productsID-1].energy )/eV
+                        lines += [f"     Barriers: {dEforward:.3f}:{dEbackward:.3f} eV"]
+                    elif self.productsID is not None:
+                        lines += [f"     Prefactors: {self.prefactorsFromReactant:.3E}:?"]
                 else:
                     lines  = [f"State {self.id}: {self.molecule.get_formula(False)} local minimum @ {self.energy:.8f} Hartree (found {self.count} times"+(f", results on {self.engfile})" if self.engfile is not None else ")")]
                 return "\n".join(lines)
