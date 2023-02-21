@@ -3,6 +3,8 @@
 Reduction and oxidation potentials
 ====================================
 
+**Note**: This example requires AMS2023 or later.
+
 Definitions and introduction
 ------------------------------
 

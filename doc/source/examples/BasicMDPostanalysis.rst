@@ -3,6 +3,8 @@
 Basic molecular dynamics analysis
 =====================================
 
+**Note**: This example requires AMS2023 or later.
+
 This example illustrates how to calculate the basic
 
 * velocity autocorrelation function (VACF)
@@ -22,6 +24,8 @@ For details about the functions, see the |AMSResults| API.
 .. note::
 
     More advanced analysis is possible by setting up an :class:`~scm.plams.interfaces.adfsuite.amsanalysis.AMSAnalysisJob` job.
+
+    See also: `Molecular Dynamics with Python <../../Tutorials/MolecularDynamicsAndMonteCarlo/MDintroPython/intro.html>`__
 
 
 **Example usage:** (:download:`Download BasicMDPostanalysis.py <../../../examples/BasicMDPostanalysis.py>`)

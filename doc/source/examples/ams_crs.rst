@@ -3,6 +3,8 @@
 ADF and COSMO-RS workflow
 -------------------------
 
+**Note**: This example requires AMS2023 or later.
+
 This example uses ADF to generate the .coskf file for benzene. You can also
 modify it to instead use the Benzene.coskf from the ADFCRS-2018 database.
 Note that you first need to install the ADFCRS-2018 database.

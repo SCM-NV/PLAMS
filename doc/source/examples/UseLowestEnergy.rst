@@ -3,6 +3,8 @@
 Hybrid engine: Use lowest energy
 =====================================
 
+**Note**: This example requires AMS2023 or later.
+
 If you are unsure of the lowest energy spin state for a structure, the safest
 way is to try multiple different possibilities. Starting from AMS2023, this can
 be done with the `AMS Hybrid engine <../../Hybrid/EngineOptions.html>`__

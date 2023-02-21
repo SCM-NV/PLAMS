@@ -1,7 +1,9 @@
 .. _CustomASECalculatorExample:
 
-AMS geometry optimizer with forces from any ASE calculator 
+Engine ASE: AMS geometry optimizer with forces from any ASE calculator 
 ==========================================================================
+
+**Note**: This example requires AMS2023 or later.
 
 This example illustrates how set up an AMS calculation using any external ASE calculator as the engine.
 

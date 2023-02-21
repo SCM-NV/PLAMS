@@ -5,6 +5,8 @@ Property Prediction
 
 This example shows how to quickly estimate properties of pure compounds in Python.
 
+**Note**: This example requires AMS2023 or later.
+
 .. seealso::
 
     `Pure compounds property prediction documentation <../../../COSMO-RS/Property_Prediction.html>`__

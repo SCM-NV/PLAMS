@@ -3,6 +3,8 @@
 Sella transition state search with AMS
 ================================================
 
+**Note**: This example requires AMS2023 or later.
+
 This example shows how to couple the `Sella <https://doi.org/10.1021/acs.jctc.2c00395>`__ code to AMS using the 
 AMS :ref:`ASE calculator <ASECalculatorExample>`.
 

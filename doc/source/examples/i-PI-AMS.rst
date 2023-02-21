@@ -3,6 +3,8 @@
 i-PI path integral MD with AMS
 ================================================
 
+**Note**: This example requires AMS2023 or later.
+
 This example shows how to couple the `i-PI <http://ipi-code.org>`__ code to AMS using the 
 AMS :ref:`ASE calculator <ASECalculatorExample>`.
 

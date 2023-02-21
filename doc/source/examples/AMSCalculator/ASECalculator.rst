@@ -1,8 +1,10 @@
 .. _ASECalculatorExample:
 .. _AMSCalculatorExample:
 
-ASE geometry optimizer with AMS forces
+AMSCalculator: ASE geometry optimizer with AMS forces
 ===============================================================
+
+**Note**: This example requires AMS2023 or later.
 
 .. note::
 

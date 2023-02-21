@@ -3,6 +3,8 @@
 Band structure
 ===================
 
+**Note**: This example requires AMS2023 or later.
+
 .. seealso::
 
     :ref:`PlottingTools`

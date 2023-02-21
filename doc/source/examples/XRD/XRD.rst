@@ -7,7 +7,7 @@ This example shows how to use pymatgen to quickly estimate a powder diffractogra
 
 .. note::
 
-    You can install pymatgen into the AMS Python environment by installing the m3gnet package.
+    You can install pymatgen into the AMS Python environment by installing the m3gnet package in AMS2023 or later.
 
 To follow along, either
 
