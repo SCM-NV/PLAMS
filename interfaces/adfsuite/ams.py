@@ -661,7 +661,7 @@ class AMSResults(Results):
         return Units.convert(np.asarray(self._process_engine_results(lambda x: x.read('AMSResults', 'LUMOEnergy'), engine)).reshape(-1), "Hartree", unit)
 
 
-    def get_smallest_HOMO_LUMO_gap(self, unit='Hartree', engine=None):
+    def get_smallest_homo_lumo_gap(self, unit='Hartree', engine=None):
         """
         Returns a float containing the smallest HOMO-LUMO gap irrespective of spin (i.e. min(LUMO) - max(HOMO)). See also :func:`~are_orbitals_fractionally_occupied`.
 

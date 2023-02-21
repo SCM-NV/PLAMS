@@ -142,7 +142,7 @@ except KeyError:
 try:
     homo = job.results.get_homo_energies(unit='eV')[0]
     lumo = job.results.get_lumo_energies(unit='eV')[0]
-    homo_lumo_gap = job.results.get_smallest_HOMO_LUMO_gap(unit='eV')
+    homo_lumo_gap = job.results.get_smallest_homo_lumo_gap(unit='eV')
     
     print('HOMO        : {:.3f} eV'.format(homo))
     print('LUMO        : {:.3f} eV'.format(lumo))

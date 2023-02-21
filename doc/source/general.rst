@@ -27,7 +27,7 @@ What's new in PLAMS for AMS2023?
 
 * :ref:`PlottingTools` for plotting the :ref:`electronic band structure <BandStructureExample>`
 
-* Additions to |AMSResults|: get_homo_energies(), get_lumo_energies, get_smallest_HOMO_LUMO_gap()
+* Additions to |AMSResults|: get_homo_energies(), get_lumo_energies, get_smallest_homo_lumo_gap()
 
 * Additions to |Molecule|: guess_atomic_charges(), set_density(), get_unique_bonds(), get_unique_angles()
 
