@@ -204,8 +204,11 @@ def vasp_output_to_ams(vasp_folder, wdir=None, overwrite=False, write_engine_rkf
         raise ValueError('Directory {} does not exist'.format(vasp_folder))
 
     outcar = os.path.join(vasp_folder, 'OUTCAR')
-    if not os.path.exists(outcar):
-        raise ValueError('File {} does not exist, should be an OUTCAR file.'.format(outcar))
+    if not os.path.exists(outcar): 
+        if os.path.exists(os.path.join(vasp_folder, 'XDATCAR')):
+            outcar = os.path.join(vasp_folder, 'XDATCAR')
+        else:
+            raise ValueError('File {} does not exist, should be an OUTCAR file.'.format(outcar))
 
     if wdir is None:
         wdir = os.path.join(os.path.dirname(outcar),'AMSJob')
