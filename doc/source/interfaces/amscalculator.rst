@@ -45,6 +45,9 @@ Additionally, when the charge needs to be treated extensively w.r.t. manipulatio
 The total charge is thus obtained as ``sum(Atoms.get_initial_charges())+Atoms.info['charge']``.
 See the ASE documentation for details on initial charges and info.
 
+.. seealso::
+   **Example**: :ref:`ChargedAMSCalculatorExample`
+
 AMS standalone and worker mode
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
