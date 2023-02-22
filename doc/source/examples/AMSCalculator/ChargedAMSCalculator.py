@@ -1,5 +1,4 @@
 #!/usr/bin/env amspython
-
 # coding: utf-8
 
 # ## Initial imports
@@ -41,6 +40,11 @@ atoms.calc = calc
 atoms.get_potential_energy() #calculate the energy of a charged ion
 
 
+# AMS used the following input file:
+
+print(calc.amsresults.job.get_input())
+
+
 # ## Construct a charged ion with atomic charges
 
 atoms = Atoms('OH',
@@ -60,6 +64,45 @@ atoms.get_potential_energy() #calculate the energy of a charged ion
 
 
 # AMS only considers the total charge of the system and not the individual atomic charges. PLAMS thus reuses the results of the previous calculation since the calculation is for the same chemical system. Both input options are allowed. If both input options are used, the total charge is the sum of both.
+
+print(calc.amsresults.job.get_input())
+
+
+# ## Setting the charge as a calculator property
+# A charge can be set for the calculator in the settings object. 
+
+atoms = Atoms('OH',
+              positions = [[1.0,0.0,0.0],[0.0,0.0,0.0]]
+             )
+
+settings = Settings()
+settings.input.ADF #Use ADF with the default settings
+settings.input.ams.Task = "SinglePoint"
+settings.input.ams.System.Charge = -1
+
+calc = AMSCalculator(settings = settings, name='default_charge')
+atoms.calc = calc
+atoms.get_potential_energy() #calculate the energy of a charged ion
+print(calc.amsresults.job.get_input())
+
+
+# In this case, the charge of the `Atoms` object is no longer used.
+
+atoms = Atoms('OH',
+              positions = [[1.0,0.0,0.0],[0.0,0.0,0.0]],
+             )
+atoms.info['charge'] = 100
+
+settings = Settings()
+settings.input.ADF #Use ADF with the default settings
+settings.input.ams.Task = "SinglePoint"
+settings.input.ams.System.Charge = -1
+
+calc = AMSCalculator(settings = settings, name='default_charge_overridden')
+atoms.calc = calc
+atoms.get_potential_energy() #calculate the energy of a charged ion
+print(calc.amsresults.job.get_input())
+
 
 # ## Finish PLAMS
 
