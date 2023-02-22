@@ -1,7 +1,7 @@
 .. _AMSCalculator:
 
-ASE AMSCalculator
--------------------
+ASE Calculator for AMS
+-----------------------
 
 .. currentmodule:: scm.plams.interfaces.adfsuite.ase_calculator
 
