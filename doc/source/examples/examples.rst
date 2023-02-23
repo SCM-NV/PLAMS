@@ -82,6 +82,7 @@ Other AMS calculations
    BAND_NiO_HubbardU
    BandStructure/BandStructure
    AMSPlumedMD/AMSPlumedMD
+   QE_AMS_AFM_HubbardU
    BasicMDPostanalysis
    UseLowestEnergy
 
