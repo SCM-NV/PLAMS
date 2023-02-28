@@ -7,7 +7,6 @@ from ...mol.molecule import Molecule
 from ...mol.atom import Atom
 from ...interfaces.adfsuite.ams import AMSJob, AMSResults
 from ...tools.units import Units
-from ...interfaces.molecule.packmol import packmol_mixture
 from .amsmdjob import AMSNVTJob
 import numpy as np
 from scipy.optimize import curve_fit

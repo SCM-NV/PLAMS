@@ -3,7 +3,7 @@
 Packmol interface
 ~~~~~~~~~~~~~~~~~~
 
-Packmol (`Packmol website <http://leandro.iqm.unicamp.br/m3g/packmol/home.shtml>`__) is a program for creating liquid or gas mixtures. The PLAMS interface only supports
+Packmol (`Packmol website <https://m3g.github.io/packmol/download.shtml>`__) is a program for creating liquid or gas mixtures. The PLAMS interface only supports
 
 * uniform mixtures
 * solid/liquid interfaces
@@ -17,7 +17,7 @@ There are three main functions:
 
 See the :ref:`Packmol example <PackMolExample>` for all the ways these functions can be used.
 
-The above two functions accept an ``executable`` argument, which should
+The above functions accept an ``executable`` argument, which should
 contain the path to the packmol program. If it is not specified, the path to
 the packmol program included with the Amsterdam Modeling Suite will be used.
 

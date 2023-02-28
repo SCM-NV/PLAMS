@@ -9,7 +9,6 @@ from ...mol.molecule import Molecule
 from ...mol.atom import Atom
 from ...interfaces.adfsuite.ams import AMSJob, AMSResults
 from ...tools.units import Units
-from ...interfaces.molecule.packmol import packmol_mixture
 from .equilibratedensity import EquilibrateDensityJob
 from .amsmdjob import AMSNVTJob
 import numpy as np

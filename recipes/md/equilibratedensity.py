@@ -7,7 +7,6 @@ from ...mol.molecule import Molecule
 from ...mol.atom import Atom
 from ...interfaces.adfsuite.ams import AMSJob
 from ...tools.units import Units
-from ...interfaces.molecule.packmol import packmol_mixture
 from .scandensity import AMSMDScanDensityJob
 from .amsmdjob import AMSNVTJob, AMSNPTJob, AMSNVEJob
 import numpy as np
