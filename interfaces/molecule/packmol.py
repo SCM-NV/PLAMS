@@ -431,9 +431,7 @@ def packmol(
 
     # packmol returns the molecules sorted
     molecule_type_indices = []  # [0,0,0,...,1,1,1] # two different molecules with 3 and 5 atoms
-    molecule_indices = (
-        []
-    )  # [0,0,0,1,1,1,2,2,2,....,58,58,58,58,58,59,59,59,59,59] # two different molecules with 3 and 5 atoms
+    molecule_indices = []  # [0,0,0,1,1,1,2,2,2,....,58,58,58,58,58,59,59,59,59,59] # two different molecules with 3 and 5 atoms
     atom_indices_in_molecule = []  # [0,1,2,0,1,2,...,0,1,2,3,4,0,1,2,3,4]
     current = 0
     for i, (mol, n_mol) in enumerate(zip(molecules, coeffs)):
