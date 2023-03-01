@@ -304,14 +304,17 @@ def packmol(
     n_molecules : int or list of int
         The (exact) number of molecules for each component (in the same order as ``molecules``). Cannot be combined with ``mole_fractions``.
 
-    region_names : str or list of str
-        Populate the region information for each atom. Should have the same length and order as ``molecules``. By default the regions are named ``mol0``, ``mol1``, etc.
+    sphere: bool
+        Whether the molecules should be packed in a sphere. The radius is determined by getting the volume from the box bounds!
 
     keep_bonds : bool
         If True, the bonds from the constituent molecules will be kept in the returned Molecule
 
     keep_atom_properties : bool
         If True, the atom.properties (e.g. force-field atom types) of the constituent molecules will be kept in the returned Molecule
+
+    region_names : str or list of str
+        Populate the region information for each atom. Should have the same length and order as ``molecules``. By default the regions are named ``mol0``, ``mol1``, etc.
 
     return_details : bool
         Return a 2-tuple (Molecule, dict) where the dict has keys like 'n_molecules', 'mole_fractions', 'density', etc. They contain the actual details of the returned molecule, which may differ slightly from the requested quantities.
@@ -402,30 +405,13 @@ def packmol(
         )
 
     pm = PackMol(executable=executable)
-    for i, (mol, n_mol) in enumerate(zip(molecules, coeffs)):
-        if sphere:
-            if i == 0:
-                pm.add_structure(
-                    PackMolStructure(
-                        mol,
-                        n_molecules=n_mol,
-                        box_bounds=box_bounds,
-                        fixed=True,
-                        sphere=False,
-                    )
-                )
-            else:
-                pm.add_structure(
-                    PackMolStructure(
-                        mol,
-                        n_molecules=n_mol,
-                        box_bounds=box_bounds,
-                        fixed=False,
-                        sphere=True,
-                    )
-                )
-        else:
-            pm.add_structure(PackMolStructure(mol, n_molecules=n_mol, box_bounds=box_bounds))
+    if sphere and len(molecules) == 2 and n_molecules and n_molecules[0] == 1:
+        # Special case used by packmol_microsolvation
+        pm.add_structure(PackMolStructure(molecules[0], n_molecules[0], box_bounds=box_bounds, sphere=False, fixed=True))
+        pm.add_structure(PackMolStructure(molecules[1], n_molecules[1], box_bounds=box_bounds, sphere=True, fixed=False))
+    else:
+        for i, (mol, n_mol) in enumerate(zip(molecules, coeffs)):
+            pm.add_structure(PackMolStructure(mol, n_molecules=n_mol, box_bounds=box_bounds, sphere=sphere))
 
     out = pm.run()
 
