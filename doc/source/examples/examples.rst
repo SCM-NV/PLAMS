@@ -85,6 +85,7 @@ Other AMS calculations
    QE_AMS_AFM_HubbardU
    BasicMDPostanalysis
    UseLowestEnergy
+   M3GNet
 
 Pymatgen
 ----------------
