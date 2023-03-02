@@ -108,3 +108,10 @@ class Bond:
         if self.mol:
             self.mol.rotate_bond(self, moving_atom, angle, unit)
 
+
+    def has_cell_shifts(self):
+        return 'suffix' in self.properties and \
+               isinstance(self.properties.suffix, str) and \
+               self.properties.suffix != '' and \
+               not self.properties.suffix.isspace()
+

@@ -1921,13 +1921,7 @@ class Molecule:
         coords[:,:n] = (lattice_mat.T@fractional_coords_new.T).T
         self.from_array(coords)
 
-        def has_cell_shifts(bnd):
-            return 'suffix' in bnd.properties and \
-                   isinstance(bnd.properties.suffix, str) and \
-                   bnd.properties.suffix != '' and \
-                   not bnd.properties.suffix.isspace()
-
-        if any(has_cell_shifts(b) for b in self.bonds):
+        if any(b.has_cell_shifts() for b in self.bonds):
             # Fix cell shifts for bonds for atoms that were moved.
             for b in self.bonds:
                 # Check if the mapping has moved the bonded atoms relative to each other.
@@ -1935,7 +1929,7 @@ class Molecule:
                 relshift = (shift[at2,:n] - shift[at1,:n]).astype(int)
                 if not np.all(relshift == 0):
                     # Relative position has changed: cell shifts need updating!
-                    if has_cell_shifts(b):
+                    if b.has_cell_shifts():
                         # Grab the original cell shifts from the suffix. An empty
                         # suffix means "0 0 0" if at least one atom has cell shifts. If
                         # no atom has cell shifts and all suffixes are empty, the bonds

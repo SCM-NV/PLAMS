@@ -407,8 +407,12 @@ def packmol(
     pm = PackMol(executable=executable)
     if sphere and len(molecules) == 2 and n_molecules and n_molecules[0] == 1:
         # Special case used by packmol_microsolvation
-        pm.add_structure(PackMolStructure(molecules[0], n_molecules[0], box_bounds=box_bounds, sphere=False, fixed=True))
-        pm.add_structure(PackMolStructure(molecules[1], n_molecules[1], box_bounds=box_bounds, sphere=True, fixed=False))
+        pm.add_structure(
+            PackMolStructure(molecules[0], n_molecules[0], box_bounds=box_bounds, sphere=False, fixed=True)
+        )
+        pm.add_structure(
+            PackMolStructure(molecules[1], n_molecules[1], box_bounds=box_bounds, sphere=True, fixed=False)
+        )
     else:
         for i, (mol, n_mol) in enumerate(zip(molecules, coeffs)):
             pm.add_structure(PackMolStructure(mol, n_molecules=n_mol, box_bounds=box_bounds, sphere=sphere))
@@ -532,20 +536,34 @@ def packmol_on_slab(
     if slab.cell_angles() != [90.0, 90.0, 90.0]:
         raise ValueError("slab in packmol_on_slab must be have orthorhombic cell")
 
-    out = slab.copy()
-    box_bounds = get_packmol_solid_liquid_box_bounds(out)
     liquid = packmol(
         molecules=molecules,
         mole_fractions=mole_fractions,
         density=density,
-        box_bounds=box_bounds,
+        box_bounds=get_packmol_solid_liquid_box_bounds(slab),
         executable=executable,
     )
-    out.add_molecule(liquid)
 
-    for at in out:
-        if at.coords[2] > out.lattice[2][2]:
-            at.translate([0, 0, -out.lattice[2][2]])
+    # Map all liquid molecules to [0..1]
+    # NOTE: We need to be using the lattice of the slab for this!
+    #       The lattice of the liquid is different ...
+    liquid.lattice = slab.lattice
+    # If the slab has cell-shifts for the bonds, the liquid also needs to have
+    # them. If if would not have cell-shifts, they would not be updated in the
+    # map_to_central_cell call, even though they would become significant when
+    # combining with the slab that has them: minimum image convention is only
+    # assumed if no bond has cell-shifts.
+    if liquid.bonds and any(b.has_cell_shifts() for b in slab.bonds):
+        for b in liquid.bonds:
+            b.properties.suffix = "0 0 0"
+    liquid.map_to_central_cell(around_origin=False)
+    if liquid.bonds and any(b.has_cell_shifts() for b in slab.bonds):
+        for b in liquid.bonds:
+            if b.properties.suffix == "0 0 0":
+                del b.properties.suffix
+
+    out = slab.copy()
+    out.add_molecule(liquid)
     return out
 
 
