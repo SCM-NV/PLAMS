@@ -227,7 +227,7 @@ class PeriodicTable:
         """Get property of element described by either symbol or atomic number. Skeleton method for :meth:`get_radius`, :meth:`get_mass` and  :meth:`get_connectors`."""
         if isinstance(arg, str):
             pr = cls.data[cls.get_atomic_number(arg)][prop]
-        elif isinstance(arg, int) or isinstance(arg, numpy.int64):
+        elif isinstance(arg, (int, numpy.int64, numpy.int32)):
             try:
                 pr = cls.data[arg][prop]
             except KeyError:
