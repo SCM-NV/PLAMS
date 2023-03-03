@@ -66,7 +66,6 @@ class PackMolStructure:
         self.molecule = molecule
         if fixed:
             assert n_molecules is None or n_molecules == 1
-            # assert(box_bounds is None)
             assert density is None
             self.n_molecules = 1
             if molecule.lattice and len(molecule.lattice) == 3:
@@ -181,7 +180,8 @@ class PackMol:
         self.structures = structures or []
         self.filetype = filetype
         self.executable = executable or os.path.join(os.path.expandvars("$AMSBIN"), "packmol.exe")
-        assert os.path.exists(self.executable)
+        if not os.path.exists(self.executable):
+            raise RuntimeError("PackMol exectuable not found: " + self.exectuable)
 
     def add_structure(self, structure: PackMolStructure):
         self.structures.append(structure)
@@ -222,8 +222,6 @@ class PackMol:
         returns: a Molecule with the packed structures
         """
 
-        assert os.path.exists(self.executable)
-
         output_molecule = Molecule()
         with tempfile.TemporaryDirectory() as tmpdir:
             output_fname = os.path.join(tmpdir, "output.xyz")
@@ -242,12 +240,6 @@ class PackMol:
                         structure.molecule.write(structure_fname)
                     input_file.write(structure.get_input_block(structure_fname, tolerance=2.0))
 
-            # with open(input_fname, 'r') as f:
-            #    for line in f:
-            #        print(line)
-
-            # cannot feed stdin as a string into packmol for some reason
-            # it seems to need a file
             my_input = open(input_fname, "r")
             saferun(self.executable, stdin=my_input, stdout=subprocess.DEVNULL)
             my_input.close()
@@ -356,10 +348,43 @@ def packmol(
 
 
     """
-    assert not (n_atoms and n_molecules)
-    assert n_atoms or n_molecules or density
-    assert density or box_bounds
-    assert not (mole_fractions and n_molecules)
+    # Input arguments allow for lots of combinations.
+    # Let's try to check that the specified combination makes sense ...
+    if n_atoms is None and n_molecules is None and density is None:
+        raise ValueError("Illegal combination of arguments: must specify either n_atoms, n_molecules or density")
+    if n_atoms is not None and n_molecules is not None:
+        raise ValueError("Illegal combination of arguments: n_atoms and n_molecules are mutually exclusive")
+    if density is None and box_bounds is None:
+        raise ValueError("Illegal combination of arguments: must specify either density or box_bounds")
+    if n_atoms is not None and box_bounds is not None and density is not None:
+        raise ValueError("Illegal combination of arguments: n_atoms, box_bounds and density specified at the same time")
+    if n_molecules is not None and box_bounds is not None and density is not None:
+        raise ValueError("Illegal combination of arguments: n_molecules, box_bounds and density specified at the same time")
+    if mole_fractions is not None and n_molecules is not None:
+        raise ValueError("Illegal combination of arguments: mole_fractions and n_molecules are mutually exclusive")
+    if isinstance(molecules, list):
+        if n_molecules is not None:
+            if not isinstance(n_molecules, list):
+                raise ValueError("Illegal combination of arguments: molecules is a list, but n_molecules is not")
+            if len(n_molecules) != len(molecules):
+                raise ValueError("Illegal combination of arguments: len(n_molecules) != len(molecules)")
+        if mole_fractions is not None:
+            if not isinstance(mole_fractions, list):
+                raise ValueError("Illegal combination of arguments: molecules is a list, but mole_fractions is not")
+            if len(mole_fractions) != len(molecules):
+                raise ValueError("Illegal combination of arguments: len(mole_fractions) != len(molecules)")
+        if region_names is not None:
+            if not isinstance(region_names, list):
+                raise ValueError("Illegal combination of arguments: molecules is a list, but region_names is not")
+            if len(region_names) != len(molecules):
+                raise ValueError("Illegal combination of arguments: len(region_names) != len(molecules)")
+    else:
+        if n_molecules is not None and isinstance(n_molecules, list):
+            raise ValueError("Illegal combination of arguments: n_molecules is a list, when molecules is not")
+        if mole_fractions is not None and isinstance(mole_fractions, list):
+            raise ValueError("Illegal combination of arguments: mole_fractions is a list, when molecules is not")
+        if region_names is not None and isinstance(region_names, list):
+            raise ValueError("Illegal combination of arguments: region_names is a list, when molecules is not")
 
     def tolist(x):
         return x if isinstance(x, list) else [x]
@@ -401,7 +426,7 @@ def packmol(
 
     if coeffs is None:
         raise ValueError(
-            f"Illegal combination of options: n_atoms={n_atoms}, n_molecules={n_molecules}, box_bounds={box_bounds}, density={density}"
+            f"Illegal combination of arguments: n_atoms={n_atoms}, n_molecules={n_molecules}, box_bounds={box_bounds}, density={density}"
         )
 
     pm = PackMol(executable=executable)
@@ -639,8 +664,7 @@ def packmol_microsolvation(
         sphere=True,
     )
 
-    #plams_solvated.guess_bonds()
-    atom_indices = [i for i, at in enumerate(plams_solvated, 1) if i <= len(solute)]
-    newmolecule = plams_solvated.get_complete_molecules_within_threshold(atom_indices, threshold=threshold)
+    solute_indices = [i for i, at in enumerate(plams_solvated, 1) if i <= len(solute)]
+    newmolecule = plams_solvated.get_complete_molecules_within_threshold(solute_indices, threshold=threshold)
 
     return newmolecule
