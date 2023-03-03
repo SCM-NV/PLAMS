@@ -504,8 +504,11 @@ def get_packmol_solid_liquid_box_bounds(slab: Molecule):
 def packmol_on_slab(
     slab: Molecule,
     molecules: Union[List[Molecule], Molecule],
-    density: float,
     mole_fractions: List[float] = None,
+    density: float = 1.0,
+    keep_bonds: bool = True,
+    keep_atom_properties: bool = True,
+    region_names: List[str] = None,
     executable: str = None,
 ):
     """
@@ -541,6 +544,9 @@ def packmol_on_slab(
         mole_fractions=mole_fractions,
         density=density,
         box_bounds=get_packmol_solid_liquid_box_bounds(slab),
+        keep_bonds=keep_bonds,
+        keep_atom_properties=keep_atom_properties,
+        region_names=region_names,
         executable=executable,
     )
 
@@ -562,7 +568,17 @@ def packmol_on_slab(
             if b.properties.suffix == "0 0 0":
                 del b.properties.suffix
 
+    # Shift liquid molecules (now in [0..1]) on top of the slab.
+    # The slab could be anywhere, e.g. [-0.5..0.5] ...
+    slab_center_x = (max(at.coords[0] for at in slab) + min(at.coords[0] for at in slab)) / 2
+    slab_center_y = (max(at.coords[1] for at in slab) + min(at.coords[1] for at in slab)) / 2
+    liquid_center_x = (max(at.coords[0] for at in liquid) + min(at.coords[0] for at in liquid)) / 2
+    liquid_center_y = (max(at.coords[1] for at in liquid) + min(at.coords[1] for at in liquid)) / 2
+    liquid.translate([-liquid_center_x + slab_center_x, -liquid_center_y + slab_center_y, 0.0])
+
     out = slab.copy()
+    for at in out:
+        AMSJob._add_region(at, "slab")
     out.add_molecule(liquid)
     return out
 
@@ -580,6 +596,9 @@ def packmol_microsolvation(
     solvent: Molecule,
     density: float = 1.0,
     threshold: float = 3.0,
+    keep_bonds: bool = True,
+    keep_atom_properties: bool = True,
+    region_names: List[str] = ["solute", "solvent"],
     executable: str = None,
 ):
     """
@@ -597,8 +616,8 @@ def packmol_microsolvation(
     threshold: float
         Distance in angstrom. Any solvent molecule for which at least 1 atom is within this threshold to the solute molecule will be kept
 
-    executable: str
-        Path to packmol executable.
+    For the other arguments, see ``packmol``.
+
     """
 
     solute_coords = solute.as_array()
@@ -614,17 +633,14 @@ def packmol_microsolvation(
         [plams_solute, solvent],
         n_molecules=[1, n_solvent],
         box_bounds=box_bounds,
+        keep_bonds=keep_bonds,
+        keep_atom_properties=keep_atom_properties,
+        region_names=region_names,
         sphere=True,
     )
 
-    plams_solvated.guess_bonds()
+    #plams_solvated.guess_bonds()
     atom_indices = [i for i, at in enumerate(plams_solvated, 1) if i <= len(solute)]
     newmolecule = plams_solvated.get_complete_molecules_within_threshold(atom_indices, threshold=threshold)
-
-    for i, at in enumerate(newmolecule, 1):
-        region_name = "solvent"
-        if i <= len(solute):
-            region_name = "solute"
-        AMSJob._add_region(at, region_name)
 
     return newmolecule
