@@ -104,14 +104,20 @@ job.run();
 
 trajectory = Trajectory(job.results.rkfpath())
 
+every = 20  # picture every 20 frames in the trajectory
+N_images = np.int_(np.ceil(len(trajectory) / every))
+fig, axes = plt.subplots(1, N_images, figsize=(10,3))
+
 O3H6_distances = []
+i_ax = 0
+
 for i, mol in enumerate(trajectory, 1):
     O3H6_distances.append(mol[3].distance_to(mol[6]))
-    if i % 20 == 1:
+    if i % every == 1:
         try:
-            plot_molecule(mol) # mol is a PLAMS Molecule
-            plt.title(f"frame {i}")
-            plt.show()
+            plot_molecule(mol, ax=axes[i_ax]) # mol is a PLAMS Molecule
+            axes[i_ax].set_title(f"frame {i}")
+            i_ax += 1
         except NameError:
             pass
 

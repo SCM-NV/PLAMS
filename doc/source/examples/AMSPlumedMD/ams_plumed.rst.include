@@ -182,10 +182,10 @@ Run the job
 
 .. parsed-literal::
 
-    [02.02|11:29:02] JOB dissociating-carbonic-acid STARTED
-    [02.02|11:29:03] JOB dissociating-carbonic-acid RUNNING
-    [02.02|11:29:06] JOB dissociating-carbonic-acid FINISHED
-    [02.02|11:29:06] JOB dissociating-carbonic-acid SUCCESSFUL
+    [02.03|10:37:53] JOB dissociating-carbonic-acid STARTED
+    [02.03|10:37:53] JOB dissociating-carbonic-acid RUNNING
+    [02.03|10:37:57] JOB dissociating-carbonic-acid FINISHED
+    [02.03|10:37:57] JOB dissociating-carbonic-acid SUCCESSFUL
 
 
 Analyze the trajectory
@@ -198,40 +198,26 @@ molecules
 
     trajectory = Trajectory(job.results.rkfpath())
     
+    every = 20  # picture every 20 frames in the trajectory
+    N_images = np.int_(np.ceil(len(trajectory) / every))
+    fig, axes = plt.subplots(1, N_images, figsize=(10,3))
+    
     O3H6_distances = []
+    i_ax = 0
+    
     for i, mol in enumerate(trajectory, 1):
         O3H6_distances.append(mol[3].distance_to(mol[6]))
-        if i % 20 == 1:
+        if i % every == 1:
             try:
-                plot_molecule(mol) # mol is a PLAMS Molecule
-                plt.title(f"frame {i}")
-                plt.show()
+                plot_molecule(mol, ax=axes[i_ax]) # mol is a PLAMS Molecule
+                axes[i_ax].set_title(f"frame {i}")
+                i_ax += 1
             except NameError:
                 pass
 
 
 
 .. image:: ams_plumed_files/ams_plumed_11_0.png
-
-
-
-.. image:: ams_plumed_files/ams_plumed_11_1.png
-
-
-
-.. image:: ams_plumed_files/ams_plumed_11_2.png
-
-
-
-.. image:: ams_plumed_files/ams_plumed_11_3.png
-
-
-
-.. image:: ams_plumed_files/ams_plumed_11_4.png
-
-
-
-.. image:: ams_plumed_files/ams_plumed_11_5.png
 
 
 The above pictures show how the H(6) approaches the O(3). At the end,
@@ -297,10 +283,10 @@ transition state search with the ADF DFT engine.
 
 .. parsed-literal::
 
-    [02.02|11:29:07] JOB ts-search STARTED
-    [02.02|11:29:07] JOB ts-search RUNNING
-    [02.02|11:29:56] JOB ts-search FINISHED
-    [02.02|11:29:56] JOB ts-search SUCCESSFUL
+    [02.03|10:37:57] JOB ts-search STARTED
+    [02.03|10:37:57] JOB ts-search RUNNING
+    [02.03|10:38:43] JOB ts-search FINISHED
+    [02.03|10:38:43] JOB ts-search SUCCESSFUL
 
 
 .. code:: ipython3
@@ -327,16 +313,16 @@ transition state search with the ADF DFT engine.
 .. parsed-literal::
 
     Frequencies (at a TS there should be 1 imaginary [given as negative])
-    -1422.038 cm^-1
-    314.722 cm^-1
-    365.431 cm^-1
-    545.714 cm^-1
-    702.591 cm^-1
-    744.407 cm^-1
-    877.082 cm^-1
-    1080.398 cm^-1
-    1119.906 cm^-1
-    1759.415 cm^-1
-    2064.579 cm^-1
-    3470.480 cm^-1
+    -1418.544 cm^-1
+    316.478 cm^-1
+    368.106 cm^-1
+    546.293 cm^-1
+    704.022 cm^-1
+    743.223 cm^-1
+    875.443 cm^-1
+    1080.487 cm^-1
+    1120.571 cm^-1
+    1757.757 cm^-1
+    2064.528 cm^-1
+    3473.204 cm^-1
 
