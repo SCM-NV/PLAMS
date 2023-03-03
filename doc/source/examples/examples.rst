@@ -114,4 +114,6 @@ The source code of ``recipes`` modules is presented here to demonstrate how easy
     numgrad
     numhess
     global_minimum
+    pyAHFCDOS
+    fcf_dos
 

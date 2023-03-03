@@ -13,6 +13,8 @@ What's new in PLAMS for AMS2023?
 
 * The :ref:`ADFCOSMORSCompoundJob <ADFCOSMORSCompound>` class for running jobs equivalent to "Task COSMO-RS Compound" in the AMS GUI. Such a job generates a .coskf file for use with COSMO-RS.
 
+* The calculation of the :ref:`vibronic density of states<fcf_dos>` has been added to PLAMS.
+
 * Classes for running and restarting :ref:`molecular dynamics (MD) jobs with AMS <AMSMDJob>`
 
 * A class for generating and analyzing :ref:`conformers <conformers_interface>`
