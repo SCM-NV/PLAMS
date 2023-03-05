@@ -45,7 +45,7 @@ Workflows
    ExcitationsWorkflow
    ChargeTransferIntegralsADF
    gammascan
-   ConformersGeneration
+   ConformersGeneration/ConformersGeneration
 
 COSMO-RS and property prediction
 -----------------------------------
