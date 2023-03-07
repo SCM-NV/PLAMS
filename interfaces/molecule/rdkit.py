@@ -1,7 +1,7 @@
 
 __all__ = ['add_Hs', 'apply_reaction_smarts', 'apply_template',
            'gen_coords_rdmol', 'get_backbone_atoms', 'modify_atom',
-           'to_rdmol', 'from_rdmol', 'from_sequence', 'from_smiles', 'from_smarts',
+           'to_rdmol', 'from_rdmol', 'from_sequence', 'from_smiles', 'from_smarts', 'to_smiles',
            'partition_protein', 'readpdb', 'writepdb', 'get_substructure', 'get_conformations',
            'yield_coords', 'canonicalize_mol']
 
@@ -226,6 +226,39 @@ def to_rdmol(plams_mol, sanitize=True, properties=True, assignChirality=False):
         except AttributeError :
             pass
     return rdmol
+
+
+def to_smiles(plams_mol, short_smiles=True, **kwargs):
+    """
+    Returns the RDKit-generated SMILES string of a PLAMS molecule.
+
+    Note: SMILES strings are generated based on the molecule's connectivity. If the input PLAMS molecule does not contain any bonds, "guessed bonds" will be used.
+
+    :parameter plams_mol: A PLAMS |Molecule|
+    :parameter bool short_smiles: whether or not to use some RDKit sanitization to get shorter smiles (e.g. for a water molecule, short_smiles=True -> "O", short_smiles=False -> [H]O[H])
+    :parameter \**kwargs: With 'kwargs' you can provide extra optional parameters to the rdkit.Chem method 'MolToSmiles'. See the rdkit documentation for more info.
+
+    :return: the SMILES string
+    """
+
+    if len(plams_mol.bonds) > 0:
+        mol_with_bonds = plams_mol
+    else:
+        mol_with_bonds = plams_mol.copy()
+        mol_with_bonds.guess_bonds()
+
+    rd_mol = to_rdmol(mol_with_bonds, sanitize=False)
+
+    # This sanitization black magic is needed for getting the "short, nice and clean" SMILES string.
+    # Without this, the SMILES string for water would be "[H]O[H]". With this is just "O"
+    if short_smiles:
+        s = Chem.rdmolops.SanitizeFlags
+        rdkitSanitizeOptions = s.SANITIZE_ADJUSTHS or s.SANITIZE_CLEANUP or s.SANITIZE_CLEANUPCHIRALITY or s.SANITIZE_FINDRADICALS or s.SANITIZE_PROPERTIES or s.SANITIZE_SETAROMATICITY or s.SANITIZE_SETCONJUGATION or s.SANITIZE_SETHYBRIDIZATION or s.SANITIZE_SYMMRINGS
+        Chem.rdmolops.AssignRadicals(rd_mol)
+        rd_mol = Chem.rdmolops.RemoveHs(rd_mol, updateExplicitCount=True, sanitize=False)
+        Chem.rdmolops.SanitizeMol(rd_mol, rdkitSanitizeOptions)
+    smiles = Chem.MolToSmiles(rd_mol, **kwargs)
+    return smiles
 
 
 pdb_residue_info_items = [
