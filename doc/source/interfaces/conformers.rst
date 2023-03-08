@@ -14,6 +14,14 @@ This page documents the PLAMS interface to **Conformers**. For a description of 
 ConformersJob
 -------------
 
+.. important::
+
+    Import these classes from ``scm.conformers``, not ``scm.plams`` !
+
+    .. code-block::
+
+        from scm.conformers import ConformersJob, ConformersResults
+
 The ``ConformersJob`` class, which derives from |SingleJob| class, can be used to set up and run a Conformers calculation.
 
 The input options for the Conformers tool (described `here <../../AMS/Utilities/Conformers.html>`_) can be specified in the ``input.ams`` branch of a setting object. See the :ref:`conformers_example` example.
