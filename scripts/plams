@@ -81,6 +81,7 @@ with open(config.default_jobmanager.input, 'w', encoding='utf-8') as f:
 
 #load jobs from -l folders
 for path in args.load:
+    print('LOAD: Loading jobs from '+path)
     load_all(path)
 
 #execute input script
