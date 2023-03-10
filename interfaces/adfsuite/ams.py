@@ -279,7 +279,7 @@ class AMSResults(Results):
                 mol.lattice = [tuple(lattice[j:j+3]) for j in range(0,len(lattice),3)]
 
             if all(('History', i) in main for i in [f'Bonds.Index({step})', f'Bonds.Atoms({step})', f'Bonds.Orders({step})']):
-                mol.bonds = []
+                mol.delete_all_bonds()
                 index = main.read('History', f'Bonds.Index({step})')
                 if not isinstance(index, list): index = [index]
                 atoms = main.read('History', f'Bonds.Atoms({step})')
