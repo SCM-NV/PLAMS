@@ -242,6 +242,11 @@ AMS-like .rkf file so that you can visualize them in the GUI module AMSmovie.
     molecule_list = [from_smiles('C'), from_smiles('CC')]
     molecules_to_rkf(molecule_list, 'output.rkf', overwrite=True)
 
+Convert a trajectory to ams.rkf with bond guessing
+---------------------------------------------------------
+
+See :ref:`ConvertToAMSRKFTrajectory`
+
 Pre-optimize a molecule
 ------------------------------------
 
