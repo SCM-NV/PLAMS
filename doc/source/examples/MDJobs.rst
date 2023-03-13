@@ -21,6 +21,8 @@ In AMS2023, the following special Jobs exist to simplify running MD simulations 
 
 * ``AMSMDScanDensityJob`` for running MD deformation simulations while isotropically scaling the density
 
+* ``AMSNVESpawnerJob`` is a special MultiJob that runs several NVE simulations with initial velocities taken from evenly spaced frames in a previous job.
+
 Some default values are different from AMS. For example, the checkpoint
 frequency is set to a higher number, and the thermostat constant ``tau`` is
 automatically set to 400 times the timestep, by default.
@@ -38,6 +40,7 @@ The NVE, NVT, and NPT classes simply remove the below options if they are set:
     Barostat, yes, no, no, yes
     Nanoreactor, yes, no, no, no
     Deformation, yes, no, no, no
+
 
 The following jobs help with the postanalysis:
 
