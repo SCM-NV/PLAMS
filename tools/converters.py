@@ -9,9 +9,9 @@ import re
 import os
 import tempfile
 
-__all__ = ['traj_to_rkf', 'vasp_output_to_ams', 'qe_output_to_ams', 'gaussian_output_to_ams', 'rkf_to_ase_traj', 'rkf_to_ase_atoms']
+__all__ = ['traj_to_rkf', 'vasp_output_to_ams', 'qe_output_to_ams', 'gaussian_output_to_ams', 'rkf_to_ase_traj', 'rkf_to_ase_atoms', 'file_to_traj']
 
-def traj_to_rkf(trajfile,  rkftrajectoryfile):
+def traj_to_rkf(trajfile,  rkftrajectoryfile, task=None, timestep:float=0.25):
     """
         Convert ase .traj file to .rkf file. NOTE: The order of atoms (or the number of atoms) cannot change between frames!
 
@@ -19,7 +19,13 @@ def traj_to_rkf(trajfile,  rkftrajectoryfile):
             path to a .traj file
         rkftrajectoryfile : str 
             path to the output .rkf file (will be created)
+        task : str
+            Which task to write. If None it is auto-determined.
 
+        timestep: float
+            Which timestep to write when task == 'moleculardynamics'
+
+        
         Returns : 2-tuple (coords, cell)
             The final coordinates and cell in angstrom
     """
@@ -73,6 +79,9 @@ def traj_to_rkf(trajfile,  rkftrajectoryfile):
             if 'PotentialEnergy' in mddata and 'KineticEnergy' in mddata:
                 mddata['TotalEnergy'] = mddata['PotentialEnergy'] + mddata['KineticEnergy']
             
+            if str(task).lower() == 'moleculardynamics' or len(mddata) > 0:
+                mddata['Time'] = timestep * i
+
             if len(mddata) == 0:
                 mddata = None
 
@@ -95,14 +104,16 @@ def traj_to_rkf(trajfile,  rkftrajectoryfile):
     # the below is needed to be able to load the .rkf file with AMSJob.load_external()
     kf = KFFile(rkftrajectoryfile)
     kf['EngineResults%nEntries'] = 0
-    kf['General%user input'] = '\xFF'.join(['Engine External','EndEngine'])
     kf['General%program'] = 'ams'
-    if len(traj) == 1:
-        kf['General%task'] = 'singlepoint'
-    elif kinetic_energy is None or kinetic_energy == 0:
-        kf['General%task'] = 'geometryoptimization'
-    else:
-        kf['General%task'] = 'moleculardynamics'
+    if task is None:
+        if len(traj) == 1:
+            task = 'singlepoint'
+        elif kinetic_energy is None or kinetic_energy == 0:
+            task = 'geometryoptimization'
+        else:
+            task = 'moleculardynamics'
+    kf['General%task'] = task
+    kf['General%user input'] = '\xFF'.join([f'Task {task}', 'Engine External','EndEngine'])
 
     return coords, cell
 
@@ -175,12 +186,13 @@ def _postprocess_vasp_amsrkf(kffile, outcar):
             userinput.append('  !EndINCAR')
         userinput.append('  EndInput') #end of the Free block
         userinput.append('EndEngine')
+        userinput.append('Task {}'.format(kf['General%task']))
         kf['General%user input'] = '\xFF'.join(userinput)
 
     finally:
         kf.save()
 
-def vasp_output_to_ams(vasp_folder, wdir=None, overwrite=False, write_engine_rkf=True):
+def vasp_output_to_ams(vasp_folder, wdir=None, overwrite=False, write_engine_rkf=True, task:str=None, timestep:float=0.25):
     """ 
         Converts VASP output (OUTCAR, ...) to AMS output (ams.rkf, vasp.rkf)
 
@@ -199,6 +211,12 @@ def vasp_output_to_ams(vasp_folder, wdir=None, overwrite=False, write_engine_rkf
 
         write_engine_rkf : bool
             If True, also write vasp.rkf alongside ams.rkf. The vasp.rkf file will only contain an AMSResults section (energy, gradients, stress tensor). It will not contain the DOS or the band structure.
+
+        task : str
+            Which task to write to ams.rkf. If None it is auto-determined (probably set to 'geometryoptimization')
+
+        timestep : float
+            If task='moleculardynamics', which timestep (in fs) between frames to write
     """
     if not os.path.isdir(vasp_folder):
         raise ValueError('Directory {} does not exist'.format(vasp_folder))
@@ -228,7 +246,7 @@ def vasp_output_to_ams(vasp_folder, wdir=None, overwrite=False, write_engine_rkf
     _remove_or_raise(enginefile, overwrite)
 
     # convert the .traj file to ams.rkf
-    traj_to_rkf(trajfile, kffile)
+    traj_to_rkf(trajfile, kffile, task=task, timestep=timestep)
 
     _postprocess_vasp_amsrkf(kffile, outcar)
     if write_engine_rkf:
