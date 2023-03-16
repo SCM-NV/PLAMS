@@ -14,3 +14,8 @@ Python Library for Automating Molecular Simulations
     examples/examples
     cookbook/cookbook
     citations
+
+.. toctree::
+    :maxdepth: 1
+
+    FAQ
