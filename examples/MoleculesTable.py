@@ -106,7 +106,7 @@ def round_off(number,rtype='integer'):
     if rtype=='half_integer':
         number = round(number * 2) / 2
     if rtype=='integer':
-        number = int(np.ceil(number))
+        number = round(number)
     return number
 
 def bo2symbol(bo):
