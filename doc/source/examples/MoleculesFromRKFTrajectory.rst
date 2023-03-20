@@ -1,7 +1,7 @@
 .. _MoleculesFromRKFTrajectory:
 
-Molecules from ams.rkf trajectory
-=====================================
+Extract frames from ams.rkf trajectory
+======================================
 
 **Example usage:** (:download:`Download MoleculesFromRKFTrajectory.py <../../../examples/MoleculesFromRKFTrajectory.py>`)
 
