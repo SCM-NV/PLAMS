@@ -7,7 +7,9 @@ Conformers Generation
 
 .. seealso::
    
-   :ref:`conformers_interface` PLAMS interface
+   * :ref:`conformers_interface` PLAMS interface
+
+   * `Conformers for COSMO-RS <../../../COSMO-RS/advanced_scripts/Conformers.html>`__
 
 Example illustrating how to generate conformers with AMS.
 
