@@ -471,12 +471,14 @@ def get_conformations(mol, nconfs=1, name=None, forcefield=None, rms=-1, enforce
         param_obj.coordMap = coordMap
     try:
         cids = list(AllChem.EmbedMultipleConfs(rdkit_mol,nconfs,param_obj))
-        #cids = list(AllChem.EmbedMultipleConfs(rdkit_mol,nconfs,pruneRmsThresh=rms,randomSeed=1))
     except:
          # ``useRandomCoords = True`` prevents (poorly documented) crash for large systems
         param_obj.useRandomCoords = True
         cids = list(AllChem.EmbedMultipleConfs(rdkit_mol,nconfs,param_obj))
-        #cids = list(AllChem.EmbedMultipleConfs(rdkit_mol,nconfs,pruneRmsThresh=rms,randomSeed=1,useRandomCoords=True))
+    if len(cids) == 0 :
+        # Sometimes rdkit does not crash (for large systems), but simply doe snot create conformers
+        param_obj.useRandomCoords = True
+        cids = list(AllChem.EmbedMultipleConfs(rdkit_mol,nconfs,param_obj))
 
     if forcefield:
         # Select the forcefield (UFF or MMFF)

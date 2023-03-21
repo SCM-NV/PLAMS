@@ -597,6 +597,16 @@ class AMSResults(Results):
         return freqs * Units.conversion_ratio('cm^-1', unit)
 
 
+    def get_force_constants(self, engine=None):
+        """Return a numpy array of force constants, expressed in atomic units (Hartree/bohr^2).
+
+        The *engine* argument should be the identifier of the file you wish to read. To access a file called ``something.rkf`` you need to call this function with ``engine='something'``. The *engine* argument can be omitted if there's only one engine results file in the job folder.
+        """
+        forceConstants = self._process_engine_results(lambda x: x.read('Vibrations', 'ForceConstants'), engine)
+        forceConstants = np.array(forceConstants) if isinstance(forceConstants,list) else np.array([forceConstants])
+        return forceConstants
+
+
     def get_charges(self, engine=None):
         """Return the atomic charges, expressed in atomic units.
 
