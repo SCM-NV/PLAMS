@@ -278,8 +278,10 @@ class AMSResults(Results):
                 lattice = Units.convert(main.read('History', f'LatticeVectors('+str(step)+')'), 'bohr', 'angstrom')
                 mol.lattice = [tuple(lattice[j:j+3]) for j in range(0,len(lattice),3)]
 
+            # Bonds from the reference molecule are probably outdated. Let us never use them ...
+            mol.delete_all_bonds()
+            # ... but instead use bonds from the history section if they are available:
             if all(('History', i) in main for i in [f'Bonds.Index({step})', f'Bonds.Atoms({step})', f'Bonds.Orders({step})']):
-                mol.delete_all_bonds()
                 index = main.read('History', f'Bonds.Index({step})')
                 if not isinstance(index, list): index = [index]
                 atoms = main.read('History', f'Bonds.Atoms({step})')
@@ -289,7 +291,13 @@ class AMSResults(Results):
                 for i in range(len(index)-1):
                     for j in range(index[i], index[i+1]):
                         mol.add_bond(mol[i+1], mol[atoms[j-1]], orders[j-1])
+            if ('History', f'Bonds.CellShifts({step})') in main:
+                cellShifts = main.read('History', f'Bonds.CellShifts({step})')
+                for i, b in enumerate(mol.bonds):
+                    b.properties.suffix = f"{cellShifts[3*i]} {cellShifts[3*i+1]} {cellShifts[3*i+2]}"
+
             return mol
+
 
     def is_valid_stepnumber (self, main, step) :
         """
