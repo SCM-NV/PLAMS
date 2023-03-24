@@ -176,15 +176,27 @@ class Molecule:
         return ret
 
 
-    def add_molecule(self, other, copy=False):
+    def add_molecule(self, other, copy=False, margin=-1):
         """Add some *other* molecule to this one::
 
             protein += water
 
         If *copy* is ``True``, *other* molecule is copied and the copy is added to this molecule. Otherwise, *other* molecule is directly merged with this one
         The ``properties`` of this molecule are :meth:`soft_updated<scm.plams.core.settings.Settings.soft_update>` with the  ``properties`` of the *other* molecules.
+
+        margin: float
+            If <0, keep the coordinates of ``other``. If >=0, all atoms in the ``other`` molecule will have *at least* this distance (in angstrom) to all atoms in ``self``.
+
         """
+        if margin >= 0:
+            dx, dy, dz = np.max(self.as_array(), axis=0) - np.min(other.as_array(), axis=0) + margin
+            copy = True
+
         other = other.copy() if copy else other
+
+        if margin >= 0:
+            other.translate([dx, dy, dz])
+
         self.atoms += other.atoms
         self.bonds += other.bonds
         for atom in self.atoms:
