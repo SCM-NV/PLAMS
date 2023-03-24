@@ -622,7 +622,7 @@ class Molecule:
         find_and_add_bonds(nonmetallic, neighbors, from_atoms_subset=stray_hydrogens, to_atoms_subset=nonmetallic, ignore_free=True, dmax=dmax)
 
         if metal_atoms:
-            # bonds to metal atoms are very useful for visualization but 
+            # bonds to metal atoms are very useful for visualization but
             # are not typically used in force fields. So provide an option to not add them
 
             # for obvious anions like carbonate, nitrate, sulfate, phosphate, and arsenate, do not allow metal atoms to bond to the central atom
@@ -669,7 +669,7 @@ class Molecule:
         # The exception is if the neighbor is also electro-negative. Then they cancel eachother out.
         #electronegative = [PT.get_symbol(i) for i,values in enumerate(PT.data) if PT.get_electronegative(i) and (not PT.get_symbol(i)=='C')]
         electronegative = [PT.get_symbol(i) for i,values in enumerate(PT.data) if PT.get_electronegative(i)]
-        # This will go very wrong for a lot of elements like P, Si, Al, 
+        # This will go very wrong for a lot of elements like P, Si, Al,
         # which appear to have a connectors value of 8
         electronegative = [s for s in electronegative if not PT.get_connectors(PT.get_atomic_number(s))==8]
         # First select the electronegative indices
@@ -1256,7 +1256,7 @@ class Molecule:
             at_copy = smart_copy(at, owncopy=['properties'], without=['mol','bonds'])
             ret.add_atom(at_copy)
             bro[at] = at_copy
-    
+
         # Then the bonds
         for bo in self.bonds:
             if (bo.atom1 in bro) and (bo.atom2 in bro):
@@ -1316,7 +1316,7 @@ class Molecule:
             for bond in ret.bonds :
                 indices = [i-1 for i in ret.index(bond)]
                 if iat1 in indices and iat2 in indices :
-                    break 
+                    break
             if bond is None : raise Exception('This bond should exist (%i %i), but does not!'%(iat1,iat2))
             return bond
 
@@ -1453,7 +1453,7 @@ class Molecule:
 
     def shortest_path_dijkstra (self, source, target, conect=None) :
         """
-        Find the shortest paths (can be more than 1) 
+        Find the shortest paths (can be more than 1)
         between a source atom and a target
         atom in a connection table
 
@@ -2410,7 +2410,7 @@ class Molecule:
             else:
                 new_atom = Atom(atnum=num, coords=(lst[1+shift],lst[2+shift],lst[3+shift]))
             if len(lst) > shift + 4:
-                new_atom.properties.suffix = line.split(maxsplit=shift+5)[-1]
+                new_atom.properties.suffix = ' '.join(line.split()[shift+4:])
             self.add_atom(new_atom)
 
 
@@ -2792,7 +2792,7 @@ class Molecule:
         suffixes = [at.properties.suffix if "suffix" in at.properties else "" for at in self]
         suffixes = [suf.lower() for suf in suffixes]
         for i,at in enumerate(self.atoms):
-            suffix = suffixes[i] + "forcefield.type=%s forcefield.charge=%f"%(types[i],charges[i]) 
+            suffix = suffixes[i] + "forcefield.type=%s forcefield.charge=%f"%(types[i],charges[i])
             at.properties.soft_update(AMSJob._atom_suffix_to_settings(suffix))
         if patch is not None:
             self.properties.forcefieldpatch = patch
@@ -2960,7 +2960,7 @@ class Molecule:
     def numbers(self) -> np.ndarray:
         """ Return an array of all atomic numbers in the Molecule. Can also be used to set all numbers at once. """
         return np.array([i.atnum for i in self])
-    
+
     @numbers.setter
     def numbers(self, values):
         if len(values) != len(self):
@@ -2972,7 +2972,7 @@ class Molecule:
     def symbols(self) -> np.ndarray:
         """ Return an array of all atomic symbols in the Molecule. Can also be used to set all symbols at once. """
         return np.array([i.symbol for i in self])
-    
+
     @symbols.setter
     def symbols(self, values):
         if len(values) != len(self):
@@ -3082,7 +3082,7 @@ class Molecule:
 
         return ret
 
-        
+
 
     if __name__ == '__main__':
         main()
