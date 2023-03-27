@@ -25,7 +25,7 @@ Molecule analysis
 
    MoleculesFromRKFTrajectory
    MoleculesTable
-   MoleculeSubstitution
+   MoleculeSubstitution/MoleculeSubstitutionExample
    ConvertToAMSRKFTrajectory
 
 Benchmarks
