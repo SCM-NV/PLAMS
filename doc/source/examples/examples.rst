@@ -44,6 +44,7 @@ Workflows
 
    RedoxPotential
    ExcitationsWorkflow
+   AMSTSWorkflow/AMSTSWorkflow
    ChargeTransferIntegralsADF
    gammascan
    ConformersGeneration/ConformersGeneration

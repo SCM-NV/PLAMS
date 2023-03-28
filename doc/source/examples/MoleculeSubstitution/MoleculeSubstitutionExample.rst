@@ -17,6 +17,7 @@ each molecule (the "connector") to break and where a new bond will be formed.
 
     * :ref:`ExcitationsWorkflow`
     * :ref:`Molecule`
+    * :ref:`AMSTSWorkflow`
 
 **Note**: This example requires AMS2023 or later.
 
