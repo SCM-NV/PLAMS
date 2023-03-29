@@ -32,5 +32,5 @@ To follow along, either
 Complete Python code
 ----------------------------
 
-.. literalinclude:: ../../../../examples/MoleculeSubstitution.py
+.. literalinclude:: MoleculeSubstitution.py
     :language: python
