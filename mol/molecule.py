@@ -656,12 +656,43 @@ class Molecule:
         charge = sum(self.guess_atomic_charges(adjust_to_systemcharge=False))
         return charge
 
-    def guess_atomic_charges (self, adjust_to_systemcharge=True, keep_hydrogen_charged=False) :
+    def guess_atomic_charges (self, adjust_to_systemcharge=True, keep_hydrogen_charged=False, depth=1, electronegativities=None) :
         """
         Return a list of guessed charges, one for each atom, based on connectivity
 
+        * ``depth`` -- The electronegativity of an atom is determined all its neighbors up to depth 
+        * ``electronegativities`` -- A dictionary containing electronegativity values for the electronegative elements
+
         Note: Fairly basic implementation that will not always yield reliable results
         """
+        def get_electronegativity (atom, prevat, search_depth=None):
+            """
+            Get the electronegativity of atom by searching through the molecules
+            """
+            ens = get_electronegativities (atom, [self.index(prevat)-1], search_depth)
+            en = sum(ens)/len(ens) if len(ens) > 0 else 0.
+            return en
+
+        def get_electronegativities (atom, prevats=[], search_depth=None):
+            """
+            Get the electronegativities of neighbors by searching through the molecules
+            """
+            en = [electronegativities[atom.symbol] if atom.symbol in electronegativities else None]
+            en = [v for v in en if v is not None]
+            if search_depth is not None:
+                search_depth -= 1
+                if search_depth <= 0:
+                    return en
+            neighbors = [at for at in self.neighbors(atom) if not self.index(at)-1 in prevats]
+            prevats = prevats + [self.index(atom)-1]
+            for other_at in neighbors:
+                en += get_electronegativities(other_at,prevats,search_depth)
+                prevats += [self.index(other_at)-1]
+            return en
+   
+        if electronegativities is None: 
+            # https://pubchem.ncbi.nlm.nih.gov/periodic-table/electronegativity/
+            electronegativities = {'Te': 2.1, 'P': 2.19, 'At': 2.2, 'C': 2.55, 'Se': 2.55, 'S': 2.58, 'I': 2.66, 'Br': 2.96, 'N': 3.04, 'Cl': 3.16, 'O': 3.44, 'F': 3.98, }
         charges = [0. for atom in self.atoms]
 
         # Negative charge to unsatureated electronegative atoms (C, N, O, P, S, etc)
@@ -693,7 +724,13 @@ class Molecule:
                     order = round(bond.order*2)/2 # Rounded to 0.5 only if it is very obviousy a partial bond
                 else:
                     order = round(bond.order)
-                if atom.symbol == 'C' and j in en_indices :
+                # Compare the electronegativity values to decide where the electrons go
+                en_i = get_electronegativity(atom,other_at,search_depth=depth)
+                en_j = get_electronegativity(other_at,atom,search_depth=depth)
+                #en_i = electronegativities[atom.symbol]
+                #en_j = electronegativities[other_at.symbol] if other_at.symbol in electronegativities else 0.
+                if en_i <= en_j and j in en_indices :
+                #if atom.symbol == 'C' and j in en_indices :
                     echarges[i] += order
                 else :
                     echarges[j] += order
@@ -733,7 +770,7 @@ class Molecule:
                     dq = sum(charges) - molcharge
                     if abs(dq) > 1 :
                         log('Charges: %s'%(' '.join([str(q) for q in charges])))
-                        raise ChargeError('Guessed atomic charges (%i) using PLAMS do not match assigned charge molecule (%i)'%(sum(charges),molcharge))
+                        raise MoleculeError('Guessed atomic charges (%i) using PLAMS do not match assigned charge molecule (%i)'%(sum(charges),molcharge))
                     tmpcharges = charges.copy()
                     if dq < 0 :
                         tmpcharges = [-q for q in charges]
