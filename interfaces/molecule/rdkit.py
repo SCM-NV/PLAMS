@@ -14,6 +14,7 @@ This is a series of functions that apply RDKit functionality on PLAMS molecules
 
 import sys
 import random
+import numpy
 from warnings import warn
 try:
     import dill as pickle
@@ -352,11 +353,20 @@ def from_smiles(smiles, nconfs=1, name=None, forcefield=None, rms=0.1):
     :return: A molecule with hydrogens and 3D coordinates or a list of molecules if nconfs > 1
     :rtype: |Molecule| or list of PLAMS Molecules
     """
+    from scm.plams import distance_array
+
     smiles = str(smiles.split()[0])
     smiles = Chem.CanonSmiles(smiles)
     rdkit_mol = Chem.AddHs(Chem.MolFromSmiles(smiles))
     rdkit_mol.SetProp('smiles', smiles)
-    return get_conformations(rdkit_mol, nconfs, name, forcefield, rms)
+    plamsmol =  get_conformations(rdkit_mol, nconfs, name, forcefield, rms)
+    coords = plamsmol.as_array()
+    distances = distance_array(coords,coords)[numpy.triu_indices(len(plamsmol),1)]
+    if (abs(distances)<1e-10).any():
+        param_obj = getattr(AllChem,'EmbedParameters')()
+        param_obj.useRandomCoords = True
+        plamsmol =  get_conformations(rdkit_mol, nconfs, name, forcefield, rms, randomSeed=-1, EmbedParametersObject=param_obj)
+    return plamsmol
 
 
 def from_smarts(smarts, nconfs=1, name=None, forcefield=None, rms=0.1):
@@ -385,7 +395,7 @@ def from_smarts(smarts, nconfs=1, name=None, forcefield=None, rms=0.1):
 
 
 def get_conformations(mol, nconfs=1, name=None, forcefield=None, rms=-1, enforceChirality=False, useExpTorsionAnglePrefs='default', constraint_ats=None,
-                        EmbedParameters='EmbedParameters', randomSeed=1, best_rms=-1):
+                        EmbedParameters='EmbedParameters', randomSeed=1, best_rms=-1, EmbedParametersObject=None):
     """
     Generates 3D conformation(s) for an rdkit_mol or a PLAMS Molecule
 
@@ -405,6 +415,7 @@ def get_conformations(mol, nconfs=1, name=None, forcefield=None, rms=-1, enforce
     :parameter list constraint_ats: List of atom indices to be constrained
     :parameter str EmbedParameters: Name of RDKit EmbedParameters class ('EmbedParameters', 'ETKDG')
     :parameter int randomSeed: The seed for the random number generator. If set to None the generated conformers will be non-deterministic.
+    :parameter rdkit.Chem.rdDistGeom.EmbedParameters EmbedParametersObject: The whole package of parameters for EmbedMultipleConfs. Parts of it get overwritten by the other parameters.
     :return: A molecule with hydrogens and 3D coordinates or a list of molecules if nconfs > 1
     :rtype: |Molecule| or list of PLAMS Molecules
     """
@@ -459,6 +470,8 @@ def get_conformations(mol, nconfs=1, name=None, forcefield=None, rms=-1, enforce
     #    Chem.AssignAtomChiralTagsFromStructure(rdkit_mol)
     #param_obj = AllChem.ETKDG()
     param_obj = getattr(AllChem,EmbedParameters)()
+    if EmbedParametersObject is not None:
+        param_obj = EmbedParametersObject
     param_obj.pruneRmsThresh = rms
     param_obj.randomSeed = randomSeed if randomSeed is not None else random.getrandbits(31)
     param_obj.enforceChirality = enforceChirality
