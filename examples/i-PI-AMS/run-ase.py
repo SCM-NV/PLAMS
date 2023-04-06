@@ -1,7 +1,7 @@
 #!/usr/bin/env amspython
 from ase.io import read
 from ase.calculators.socketio import SocketClient
-from scm.plams import Settings, AMSCalculator
+from scm.plams import Settings, AMSCalculator, init, finish
 
 """
 Example illustrating how to use AMS as a client together with i-PI.
@@ -27,6 +27,8 @@ To run this example,
 """
 
 def main():
+    init()
+
     use_stress = False
     atoms = read('firstframe.xyz')
 
@@ -41,6 +43,8 @@ def main():
         atoms.set_calculator(calc)
         client = SocketClient(unixsocket='driver-irpmd-16') # socket should match the one given in input.xml
         client.run(atoms, use_stress=use_stress)
+
+    finish()
 
 if __name__ == '__main__':
     main()
