@@ -13,11 +13,14 @@ Initial imports
 
 .. parsed-literal::
 
-    PLAMS working folder: /home/user/amshome/scripting/scm/plams/doc/source/examples/AMSCalculator/plams_workdir
+    PLAMS working folder: AMSCalculator/plams_workdir
 
 
-Construct a charged ion
------------------------
+Example 1: Total system charge
+------------------------------
+
+Create the charged molecule (ion)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Create a charged ion using using ``ase.Atoms`` and setting the ``info``
 dictionairy.
@@ -30,17 +33,17 @@ dictionairy.
     #define a total charge
     atoms.info['charge'] = -1
     
-    plot_atoms(atoms, scale=0.5);
+    plot_atoms(atoms);
 
 
 
-.. image:: ChargedAMSCalculator.include_files/ChargedAMSCalculator.include_3_0.png
+.. image:: ChargedAMSCalculatorExample_files/ChargedAMSCalculatorExample_3_0.png
 
 
 Set the AMS settings
---------------------
+~~~~~~~~~~~~~~~~~~~~
 
-First, set the AMS settings as you normally would do:
+First, set the AMS settings as you normally would do in PLAMS:
 
 .. code:: ipython3
 
@@ -48,38 +51,49 @@ First, set the AMS settings as you normally would do:
     settings.input.ADF #Use ADF with the default settings
     settings.input.ams.Task = "SinglePoint"
 
-Run AMS
--------
+Run AMS through the ASE Calculator
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Below, the ``amsworker=False`` (default) will cause AMS to run in
+standalone mode. This means that all input and output files will be
+stored on disk.
 
 .. code:: ipython3
 
-    calc = AMSCalculator(settings = settings, name='total_charge')
-    atoms.calc = calc
+    atoms.calc = AMSCalculator(settings = settings, name='total_charge', amsworker=False)
     
-    atoms.get_potential_energy() #calculate the energy of a charged ion
+    energy = atoms.get_potential_energy() #calculate the energy of a charged ion
+    print(f'Energy: {energy:.3f} eV') # ASE uses eV as energy unit
 
 
 .. parsed-literal::
 
-    [22.02|16:58:59] JOB total_charge1 STARTED
-    [22.02|16:58:59] JOB total_charge1 RUNNING
-    [22.02|16:59:00] JOB total_charge1 FINISHED
-    [22.02|16:59:00] JOB total_charge1 SUCCESSFUL
+    [18.04|09:39:55] JOB total_charge1 STARTED
+    [18.04|09:39:55] JOB total_charge1 RUNNING
+    [18.04|09:39:57] JOB total_charge1 FINISHED
+    [18.04|09:39:57] JOB total_charge1 SUCCESSFUL
+    Energy: -8.325 eV
 
 
+Access the input file
+~~~~~~~~~~~~~~~~~~~~~
 
+``atoms.calc.amsresults`` contains the corresponding PLAMS AMSResults
+object.
 
-.. parsed-literal::
+``atoms.calc.amsresults.job`` contains the corresponding PLAMS AMSJob
+object. This object has, for example, the ``get_input()`` method to
+access the input to AMS.
 
-    -8.325219526819573
+**Note**: These are actually properties of the Calculator, not the
+Atoms! So if you run more calculations with the same calculator you will
+**overwrite** the AMSResults in ``atoms.calc.amsresults``!
 
-
-
-AMS used the following input file:
+AMS used the following input:
 
 .. code:: ipython3
 
-    print(calc.amsresults.job.get_input())
+    print(atoms.calc.amsresults.job.get_input())
 
 
 .. parsed-literal::
@@ -100,8 +114,41 @@ AMS used the following input file:
     
 
 
+Access the binary .rkf results files and use PLAMS AMSResults methods
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Access the paths to the binary results files:
+
+.. code:: ipython3
+
+    ams_rkf = atoms.calc.amsresults.rkfpath(file='ams')
+    print(ams_rkf)
+
+
+.. parsed-literal::
+
+    AMSCalculator/plams_workdir/total_charge1/ams.rkf
+
+
+If you prefer, you can use the PLAMS methods to access results like the
+energy:
+
+.. code:: ipython3
+
+    energy2 = atoms.calc.amsresults.get_energy(unit='eV')
+    print(f'Energy: {energy2:.3f} eV')
+
+
+.. parsed-literal::
+
+    Energy: -8.325 eV
+
+
+Example 2: Define atomic charges
+--------------------------------
+
 Construct a charged ion with atomic charges
--------------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code:: ipython3
 
@@ -110,15 +157,15 @@ Construct a charged ion with atomic charges
                   charges = [-1, 0]
                  )
     
-    plot_atoms(atoms, scale=0.5);
+    plot_atoms(atoms);
 
 
 
-.. image:: ChargedAMSCalculator.include_files/ChargedAMSCalculator.include_11_0.png
+.. image:: ChargedAMSCalculatorExample_files/ChargedAMSCalculatorExample_15_0.png
 
 
 Run AMS
--------
+~~~~~~~
 
 .. code:: ipython3
 
@@ -130,16 +177,16 @@ Run AMS
 
 .. parsed-literal::
 
-    [22.02|16:59:00] JOB atomic_charges1 STARTED
-    [22.02|16:59:00] Job atomic_charges1 previously run as total_charge1, using old results
-    [22.02|16:59:00] JOB atomic_charges1 COPIED
+    [18.04|09:39:58] JOB atomic_charges1 STARTED
+    [18.04|09:39:58] Job atomic_charges1 previously run as total_charge1, using old results
+    [18.04|09:39:58] JOB atomic_charges1 COPIED
 
 
 
 
 .. parsed-literal::
 
-    -8.325219526819573
+    -8.325219526830319
 
 
 
@@ -172,8 +219,11 @@ charge is the sum of both.
     
 
 
-Setting the charge as a calculator property
--------------------------------------------
+Example 3: Set the charge in the AMS System block
+-------------------------------------------------
+
+Set the charge in the AMS System block
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 A charge can be set for the calculator in the settings object.
 
@@ -196,10 +246,10 @@ A charge can be set for the calculator in the settings object.
 
 .. parsed-literal::
 
-    [22.02|16:59:01] JOB default_charge1 STARTED
-    [22.02|16:59:01] JOB default_charge1 RUNNING
-    [22.02|16:59:03] JOB default_charge1 FINISHED
-    [22.02|16:59:03] JOB default_charge1 SUCCESSFUL
+    [18.04|09:39:58] JOB default_charge1 STARTED
+    [18.04|09:39:58] JOB default_charge1 RUNNING
+    [18.04|09:40:00] JOB default_charge1 FINISHED
+    [18.04|09:40:00] JOB default_charge1 SUCCESSFUL
     System
       Atoms
                   O       1.0000000000       0.0000000000       0.0000000000 
@@ -238,9 +288,9 @@ In this case, the charge of the ``Atoms`` object is no longer used.
 
 .. parsed-literal::
 
-    [22.02|16:59:03] JOB default_charge_overridden1 STARTED
-    [22.02|16:59:03] Job default_charge_overridden1 previously run as default_charge1, using old results
-    [22.02|16:59:03] JOB default_charge_overridden1 COPIED
+    [18.04|09:40:00] JOB default_charge_overridden1 STARTED
+    [18.04|09:40:00] Job default_charge_overridden1 previously run as default_charge1, using old results
+    [18.04|09:40:00] JOB default_charge_overridden1 COPIED
     System
       Atoms
                   O       1.0000000000       0.0000000000       0.0000000000 
@@ -267,5 +317,5 @@ Finish PLAMS
 
 .. parsed-literal::
 
-    [22.02|16:59:03] PLAMS run finished. Goodbye
+    [18.04|09:40:00] PLAMS run finished. Goodbye
 

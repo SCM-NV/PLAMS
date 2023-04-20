@@ -1,23 +1,23 @@
 .. _ChargedAMSCalculatorExample:
 
-AMSCalculator: Charged systems
+AMSCalculator: Access results files & Charged systems
 ===============================================================
 
 **Note**: This example requires AMS2023 or later.
 
 Example illustrating how to use the :ref:`AMSCalculator` for charged systems.
 
-* Download :download:`ChargedAMSCalculator.py` (run as ``$AMSBIN/amspython ChargedAMSCalculator.py``).
-* Download :download:`ChargedAMSCalculator.ipynb` (see also: how to install `Jupyterlab <../../../Scripting/Python_Stack/Python_Stack.html#install-and-run-jupyter-lab-jupyter-notebooks>`__ in AMS)
+* Download :download:`ChargedAMSCalculatorExample.py` (run as ``$AMSBIN/amspython ChargedAMSCalculatorExample.py``).
+* Download :download:`ChargedAMSCalculatorExample.ipynb` (see also: how to install `Jupyterlab <../../../Scripting/Python_Stack/Python_Stack.html#install-and-run-jupyter-lab-jupyter-notebooks>`__ in AMS)
 
 
-.. include:: ChargedAMSCalculator.include.rst
+.. include:: ChargedAMSCalculatorExample.rst.include
 
 
 Complete Python code
 ----------------------------
 
-.. literalinclude:: ChargedAMSCalculator.py
+.. literalinclude:: ChargedAMSCalculatorExample.py
 	:language: python
 
 
