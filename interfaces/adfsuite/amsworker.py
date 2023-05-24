@@ -697,9 +697,9 @@ class AMSWorker:
 
                 self.proc.wait()
             self.proc = None
-            with open(os.path.join(self.workerdir, 'ams.out'), 'r') as amsoutput:
+            with open(os.path.join(self.workerdir, 'ams.out'), 'r', errors="backslashreplace") as amsoutput:
                 stdout = amsoutput.readlines()
-            with open(os.path.join(self.workerdir, 'ams.err'), 'r') as amserror:
+            with open(os.path.join(self.workerdir, 'ams.err'), 'r', errors="backslashreplace") as amserror:
                 stderr = amserror.readlines()
 
         # At this point the worker is down. We definitely don't have anything in the restart cache anymore ...
