@@ -208,7 +208,7 @@ autodoc_member_order = 'bysource'
 autodoc_typehints = 'none'
 
 rst_epilog = """
-.. |init| replace:: :func:`~scm.plams.core.functions.init`
+.. |init| replace:: :class:`~scm.plams.core.functions.init`
 .. |log| replace:: :func:`~scm.plams.core.functions.log`
 .. |load| replace:: :func:`~scm.plams.core.functions.load`
 .. |load_all| replace:: :func:`~scm.plams.core.functions.load_all`

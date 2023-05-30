@@ -7,6 +7,7 @@ import subprocess
 import time
 import types
 import warnings
+import contextlib
 from typing import Callable, Dict, NoReturn
 
 from os.path import join as opj
@@ -24,7 +25,7 @@ config.init = False
 #===========================================================================
 
 
-def init(path=None, folder=None, config_settings:Dict=None, quiet=False, use_existing_folder=False):
+class init(contextlib.AbstractContextManager):
     """Initialize PLAMS environment. Create global ``config`` and the default |JobManager|.
 
     An empty |Settings| instance is created and populated with default settings by executing ``plams_defaults``. The following locations are used to search for the defaults file, in order of precedence:
@@ -36,46 +37,87 @@ def init(path=None, folder=None, config_settings:Dict=None, quiet=False, use_exi
     Then a |JobManager| instance is created as ``config.default_jobmanager`` using *path* and *folder* to determine the main working folder. Settings for this instance are taken from ``config.jobmanager``. If *path* is not supplied, the current directory is used. If *folder* is not supplied, ``plams_workdir`` is used.  If *use_existing_folder* is True and the working folder already exists, PLAMS will not create a new working folder with an incremental suffix (e.g. plams_workdir.002). Instead, it will just use the pre-existing folder (note: that this might lead to issues if the working folder is not empty).
 
     Optionally, an additional `dict` (or |Settings| instance) can be provided to the `config_settings` argument which will be used to update the values from the ``plams_defaults``.
-    
+
+    |init| can be either used as a standalone function or in conjunction with the ``with`` statement, the latter option automatically calling |finish| upon exiting the context manager:
+
+    .. code-block:: python
+
+        >>> from scm.plams import Molecule, Settings, AMSJob, init, finish
+
+        >>> mol: Molecule = ...
+        >>> settings: Settings = ...
+
+        >>> with init():
+        ...     job1 = AMSJob(molecule=mol, settings=settings)
+        ...     result1 = job1.run()
+
+        # Equivalently:
+        >>> init()
+        >>> job2 = AMSJob(molecule=mol, settings=settings)
+        >>> result2 = job2.run()
+        >>> finish()
+
+
     .. warning::
       This function **must** be called before any other PLAMS command can be executed. Trying to do anything without it results in a crash. See also |master-script|.
     """
 
-    if config.init:
-        return
+    __slots__ = ("otherJM",)
 
-    if 'PLAMSDEFAULTS' in os.environ and isfile(expandvars('$PLAMSDEFAULTS')):
-        defaults = expandvars('$PLAMSDEFAULTS')
-    elif 'AMSHOME' in os.environ and isfile(opj(expandvars('$AMSHOME'), 'scripting', 'scm', 'plams', 'plams_defaults')):
-        defaults = opj(expandvars('$AMSHOME'), 'scripting', 'scm', 'plams', 'plams_defaults')
-    else:
-        defaults = opj(dirname(dirname(__file__)), 'plams_defaults')
-        if not isfile(defaults):
-            raise PlamsError('plams_defaults not found, please set PLAMSDEFAULTS or AMSHOME in your environment')
-    with open(defaults, 'r') as f:
-        exec(compile(f.read(), defaults, 'exec'))
+    def __init__(self, path=None, folder=None, config_settings: Dict = None, quiet=False, otherJM=None, use_existing_folder=False):
+        self.otherJM = otherJM
 
-    config.update(config_settings or {})
+        if config.init:
+            return
 
-    from .jobmanager import JobManager
-    config.default_jobmanager = JobManager(config.jobmanager, path, folder, use_existing_folder)
+        if 'PLAMSDEFAULTS' in os.environ and isfile(expandvars('$PLAMSDEFAULTS')):
+            defaults = expandvars('$PLAMSDEFAULTS')
+        elif 'AMSHOME' in os.environ and isfile(opj(expandvars('$AMSHOME'), 'scripting', 'scm', 'plams', 'plams_defaults')):
+            defaults = opj(expandvars('$AMSHOME'), 'scripting', 'scm', 'plams', 'plams_defaults')
+        else:
+            defaults = opj(dirname(dirname(__file__)), 'plams_defaults')
+            if not isfile(defaults):
+                raise PlamsError('plams_defaults not found, please set PLAMSDEFAULTS or AMSHOME in your environment')
+        with open(defaults, 'r') as f:
+            exec(compile(f.read(), defaults, 'exec'))
 
-    if not quiet:
-        log('Running PLAMS located in {}'.format(dirname(dirname(__file__))), 5)
-        log('Using Python {}.{}.{} located in {}'.format(*sys.version_info[:3], sys.executable), 5)
-        log('PLAMS defaults were loaded from {}'.format(defaults), 5)
+        config.update(config_settings or {})
 
-        log('PLAMS environment initialized', 5)
-        log('PLAMS working folder: {}'.format(config.default_jobmanager.workdir), 1)
+        from .jobmanager import JobManager
+        config.default_jobmanager = JobManager(config.jobmanager, path, folder, use_existing_folder)
 
-    config.slurm = _init_slurm() if "SLURM_JOB_ID" in os.environ else None
+        if not quiet:
+            log('Running PLAMS located in {}'.format(dirname(dirname(__file__))), 5)
+            log('Using Python {}.{}.{} located in {}'.format(*sys.version_info[:3], sys.executable), 5)
+            log('PLAMS defaults were loaded from {}'.format(defaults), 5)
 
-    try:
-        import dill
-    except ImportError:
-        log('WARNING: importing dill package failed. Falling back to the default pickle module. Expect problems with pickling', 1)
+            log('PLAMS environment initialized', 5)
+            log('PLAMS working folder: {}'.format(config.default_jobmanager.workdir), 1)
 
-    config.init = True
+        config.slurm = _init_slurm() if "SLURM_JOB_ID" in os.environ else None
+
+        try:
+            import dill
+        except ImportError:
+            log('WARNING: importing dill package failed. Falling back to the default pickle module. Expect problems with pickling', 1)
+
+        config.init = True
+
+    def __enter__(self):
+        """Enter the context manager; return |init|."""
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        """Exit the context manager; call |finish|."""
+        finish(self.otherJM)
+
+    def __repr__(self):
+        """Return :func:`repr(self) <repr>`."""
+        return f"<plams.init: {config.init}>"
+
+    def __bool__(self):
+        """Return :class:`bool(self) <bool>`."""
+        return config.init
 
 
 def _init_slurm():
@@ -140,6 +182,9 @@ def finish(otherJM=None):
     This function must be called at the end of your script for |cleaning| to take place. See |master-script| for details.
 
     If you used some other job managers than just the default one, they need to be passed as *otherJM* list.
+
+    This function is automatically called when using |init| with the ``with`` statement.
+
     """
     if not config.init:
         return

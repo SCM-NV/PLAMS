@@ -7,7 +7,7 @@ Public functions
 
 This chapter gathers information about public functions that can be used in PLAMS scripts.
 
-.. autofunction:: init
+.. autoclass:: init
 .. autofunction:: finish
 .. autofunction:: load
 .. autofunction:: load_all
