@@ -1,4 +1,5 @@
 import copy
+import types
 import functools
 import glob
 import inspect
@@ -122,7 +123,13 @@ class _MetaResults(type):
     _dont_restrict = ['refresh', 'collect', '_clean', 'get_errormsg', 'collect_rkfs']
     def __new__(meta, name, bases, dct):
         for attr in dct:
-            if not (attr.endswith('__') and attr.startswith('__')) and not type(dct[attr]) is type and callable(dct[attr]) and (attr not in _MetaResults._dont_restrict):
+            # Explcitly check for `types.FunctionType` instances instead of `__call__` as to
+            # exclude static-/classmethods (which define `__call__` in python >= 3.10)
+            if (
+                not (attr.endswith('__') and attr.startswith('__'))
+                and isinstance(dct[attr], types.FunctionType)
+                and attr not in _MetaResults._dont_restrict
+            ):
                 dct[attr] = _restrict(dct[attr])
         return type.__new__(meta, name, bases, dct)
 
