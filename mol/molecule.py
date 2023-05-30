@@ -26,6 +26,30 @@ input_parser_available = 'AMSBIN' in os.environ
 __all__ = ['Molecule']
 
 
+class _AsArrayWrapper:
+    """A context manager for temporary inter-converting between PLAMS molecules and numpy arrays."""
+
+    __slots__ = ("__weakref__", "_mol", "_atom_subset", "_array")
+
+    def __init__(self, mol, array, atom_subset=None):
+        """Initialize the context manager."""
+        self._mol = mol
+        self._atom_subset = atom_subset
+        self._array = array
+
+    def __enter__(self):
+        """Enter the context manager; return the Cartesian coordinate array."""
+        return self._array
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        """Exit the context manager; update the ``mol`` coordinates with those from the Cartesian coordinate array."""
+        self._mol.from_array(self._array, self._atom_subset)
+
+    def __repr__(self):
+        """Implement ``repr(self)``."""
+        return f"{type(self).__name__}({self._mol!r})"
+
+
 class Molecule:
     """A class representing the molecule object.
 
@@ -660,7 +684,7 @@ class Molecule:
         """
         Return a list of guessed charges, one for each atom, based on connectivity
 
-        * ``depth`` -- The electronegativity of an atom is determined all its neighbors up to depth 
+        * ``depth`` -- The electronegativity of an atom is determined all its neighbors up to depth
         * ``electronegativities`` -- A dictionary containing electronegativity values for the electronegative elements
 
         Note: Fairly basic implementation that will not always yield reliable results
@@ -689,8 +713,8 @@ class Molecule:
                 en += get_electronegativities(other_at,prevats,search_depth)
                 prevats += [self.index(other_at)-1]
             return en
-   
-        if electronegativities is None: 
+
+        if electronegativities is None:
             # https://pubchem.ncbi.nlm.nih.gov/periodic-table/electronegativity/
             electronegativities = {'Te': 2.1, 'P': 2.19, 'At': 2.2, 'C': 2.55, 'Se': 2.55, 'S': 2.58, 'I': 2.66, 'Br': 2.96, 'N': 3.04, 'Cl': 3.16, 'O': 3.44, 'F': 3.98, }
         charges = [0. for atom in self.atoms]
@@ -2376,12 +2400,34 @@ class Molecule:
             mol.add_atom(at)
         return mol
 
-    def as_array(self, atom_subset=None):
+    def as_array(self, atom_subset=None, context=False):
         """Return cartesian coordinates of this molecule's atoms as a numpy array.
 
         *atom_subset* argument can be used to specify only a subset of atoms, it should be an iterable container with atoms belonging to this molecule.
 
         Returned value is a n*3 numpy array where n is the number of atoms in the whole molecule, or in *atom_subset*, if used.
+
+        Alternativelly, this function can be used in conjunction with the ``with`` statement,
+        which automatically calls :meth:`Molecule.from_array` upon exiting the context manager.
+        Note that the molecules' coordinates will be updated based on the array that was originally returned,
+        so creating and operating on a copy thereof will not affect the original molecule.
+
+        .. code-block:: python
+
+            >>> from scm.plams import Molecule
+
+            >>> mol = Molecule(...)
+
+            >>> with mol.as_array(context=True) as xyz_array:
+            >>>     xyz_array += 5.0
+            >>>     xyz_array[0] = [0, 0, 0]
+
+            # Or equivalently
+            >>> xyz_array = mol.as_array()
+            >>> xyz_array += 5.0
+            >>> xyz_array[0] = [0, 0, 0]
+            >>> mol.from_array(xyz_array)
+
         """
         atom_subset = atom_subset or self.atoms
 
@@ -2397,7 +2443,10 @@ class Molecule:
         atom_iterator = itertools.chain.from_iterable(at.coords for at in atom_subset)
         xyz_array = np.fromiter(atom_iterator, count=count, dtype=float)
         xyz_array.shape = shape
-        return xyz_array
+        if context:
+            return _AsArrayWrapper(self, xyz_array, atom_subset)
+        else:
+            return xyz_array
 
 
     def from_array(self, xyz_array, atom_subset=None):
@@ -3123,4 +3172,3 @@ class Molecule:
 
     if __name__ == '__main__':
         main()
-
