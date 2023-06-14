@@ -209,6 +209,8 @@ The only adjustable option (apart from usual ``pre``, ``post``, ``shebang`` and 
 
 
 
+.. _AMSMoleculeHandling:
+
 Molecule handling
 ~~~~~~~~~~~~~~~~~
 
