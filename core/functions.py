@@ -62,8 +62,6 @@ class init(contextlib.AbstractContextManager):
       This function **must** be called before any other PLAMS command can be executed. Trying to do anything without it results in a crash. See also |master-script|.
     """
 
-    __slots__ = ("otherJM",)
-
     def __init__(self, path=None, folder=None, config_settings: Dict = None, quiet=False, otherJM=None, use_existing_folder=False):
         self.otherJM = otherJM
 
@@ -105,19 +103,11 @@ class init(contextlib.AbstractContextManager):
 
     def __enter__(self):
         """Enter the context manager; return |init|."""
-        return self
+        return None
 
     def __exit__(self, exc_type, exc_value, traceback):
         """Exit the context manager; call |finish|."""
         finish(self.otherJM)
-
-    def __repr__(self):
-        """Return :func:`repr(self) <repr>`."""
-        return f"<plams.init: {config.init}>"
-
-    def __bool__(self):
-        """Return :class:`bool(self) <bool>`."""
-        return config.init
 
 
 def _init_slurm():
