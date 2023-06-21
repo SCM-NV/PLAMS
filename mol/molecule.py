@@ -2938,13 +2938,17 @@ class Molecule:
         """
         from subprocess import Popen, DEVNULL
         from tempfile import NamedTemporaryFile
-        with NamedTemporaryFile(mode='w+', suffix='.xyz') as f_in:
+        with NamedTemporaryFile(mode='w+', suffix='.xyz', delete=False) as f_in:
             self.writexyz(f_in)
-            f_in.seek(0)
-            with NamedTemporaryFile(mode='w+', suffix='.xyz') as f_out:
-                p = Popen(f'amsprep -t SP -m {f_in.name} -addhatoms -exportcoordinates {f_out.name}', shell=True, stdout=DEVNULL)
+            f_in.close()
+            with NamedTemporaryFile(mode='w+', suffix='.xyz', delete=False) as f_out:
+                f_out.close()
+                amsprep = os.path.join(os.environ['AMSBIN'], "amsprep")
+                p = Popen(f'sh {amsprep} -t SP -m {f_in.name} -addhatoms -exportcoordinates {f_out.name}', shell=True, stdout=DEVNULL)
                 p.communicate()
                 retmol = self.__class__(f_out.name)
+                os.remove(f_out.name)
+            os.remove(f_in.name)
         return retmol
 
 

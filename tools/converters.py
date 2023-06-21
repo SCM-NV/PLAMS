@@ -329,14 +329,16 @@ def text_out_file_to_ams(qe_outfile, wdir=None, overwrite=False, write_engine_rk
     # running standalone QE via the AMS GUI will print multiple jobs into the same output file
     # i.e. both the geo opt and band structure calculation into the same file, which causes
     # the ASE qe.out parser to crash
-    with tempfile.NamedTemporaryFile() as tf:
+    with tempfile.NamedTemporaryFile(delete=False) as tf:
         with open(qe_outfile, 'r') as instream:
             for line in instream:
                 tf.write(line.encode())
                 if 'JOB DONE' in line:
                     break
         tf.flush()
+        tf.file.close()
         trajfile = file_to_traj(tf.name, os.path.join(wdir, 'out.traj'))
+        os.remove(tf.name)
 
     # remove the target files first if overwrite
     kffile = os.path.join(wdir, 'ams.rkf')
