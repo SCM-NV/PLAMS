@@ -356,9 +356,9 @@ class KFFile:
             self.tmpdata = OrderedDict()
 
             tmpfile = self.path+'.tmp' if self.reader else self.path
-            saferun(['udmpkf', tmpfile], input=txt.encode('iso8859'), stdout=DEVNULL, stderr=DEVNULL, shell=True)
+            saferun(['udmpkf', tmpfile], input=txt.encode('iso8859'), stdout=DEVNULL, stderr=DEVNULL, shell=(os.name == 'nt'))
             if self.reader:
-                saferun(['cpkf', tmpfile, self.path] + newvars, stdout=DEVNULL, stderr=DEVNULL, shell=True)
+                saferun(['cpkf', tmpfile, self.path] + newvars, stdout=DEVNULL, stderr=DEVNULL, shell=(os.name == 'nt'))
                 os.remove(tmpfile)
             self.reader = KFReader(self.path)
 
@@ -372,7 +372,7 @@ class KFFile:
                 self.reader._create_index()
             if section in self.reader._sections:
                 tmpfile = self.path+'.tmp'
-                saferun(['cpkf', self.path, tmpfile, '-rm', section], stdout=DEVNULL, stderr=DEVNULL, shell=True)
+                saferun(['cpkf', self.path, tmpfile, '-rm', section], stdout=DEVNULL, stderr=DEVNULL, shell=(os.name == 'nt'))
                 shutil.move(tmpfile, self.path)
                 self.reader = KFReader(self.path)
 
