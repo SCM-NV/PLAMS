@@ -2,10 +2,10 @@ import numpy
 import os
 import shutil
 import struct
+import subprocess
 
 from bisect import bisect
 from collections import OrderedDict
-from subprocess import DEVNULL
 
 from ..core.private import saferun
 from ..core.errors import FileError
@@ -13,6 +13,17 @@ from ..core.functions import log
 
 
 __all__ = ['KFFile', 'KFReader', 'KFHistory']
+
+
+def _run_kftool(*args, **kwargs):
+    startupinfo = None
+    if os.name == 'nt':
+        # Prevent unwanted console windows from popping up on Windows
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        startupinfo.wShowWindow = subprocess.SW_HIDE
+
+    return saferun(*args, **kwargs, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, startupinfo=startupinfo)
 
 
 
@@ -356,9 +367,9 @@ class KFFile:
             self.tmpdata = OrderedDict()
 
             tmpfile = self.path+'.tmp' if self.reader else self.path
-            saferun(['udmpkf', tmpfile], input=txt.encode('iso8859'), stdout=DEVNULL, stderr=DEVNULL, shell=(os.name == 'nt'))
+            _run_kftool(['udmpkf', tmpfile], input=txt.encode('iso8859'))
             if self.reader:
-                saferun(['cpkf', tmpfile, self.path] + newvars, stdout=DEVNULL, stderr=DEVNULL, shell=(os.name == 'nt'))
+                _run_kftool(['cpkf', tmpfile, self.path] + newvars)
                 os.remove(tmpfile)
             self.reader = KFReader(self.path)
 
@@ -372,7 +383,7 @@ class KFFile:
                 self.reader._create_index()
             if section in self.reader._sections:
                 tmpfile = self.path+'.tmp'
-                saferun(['cpkf', self.path, tmpfile, '-rm', section], stdout=DEVNULL, stderr=DEVNULL, shell=(os.name == 'nt'))
+                _run_kftool(['cpkf', self.path, tmpfile, '-rm', section])
                 shutil.move(tmpfile, self.path)
                 self.reader = KFReader(self.path)
 
