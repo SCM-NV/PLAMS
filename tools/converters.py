@@ -411,6 +411,9 @@ def rkf_to_ase_atoms(rkf_file, get_results=True):
         out_file: str
             Path to the .traj or .xyz file that will be created. If the file exists it will be overwritten. If a .xyz file is specified it will use the normal ASE format (not the AMS format).
 
+        get_results: bool
+            Whether to include results like energy, forces, and stress in the trajectory.
+
         Returns: a list of all the ASE Atoms objects.
     """
     from ase import Atoms
@@ -469,6 +472,20 @@ def rkf_to_ase_atoms(rkf_file, get_results=True):
     return all_atoms
 
 def rkf_to_ase_traj(rkf_file, out_file, get_results=True):
+    """
+        Convert an ams.rkf trajectory to a different trajectory format (.xyz, .traj, anything supported by ASE)
+
+        rkf_file: str
+            Path to an ams.rkf file
+
+        out_file: str
+            Path to the .traj or .xyz file that will be created. If the file exists it will be overwritten. If a .xyz file is specified it will use the normal ASE format (not the AMS format).
+
+        get_results: bool
+            Whether to include results like energy, forces, and stress in the trajectory.
+
+    """
+
     from ase.io import write
     all_atoms = rkf_to_ase_atoms(rkf_file, get_results=get_results)
     write(out_file, all_atoms)
