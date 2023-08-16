@@ -805,7 +805,7 @@ class AMSResults(Results):
         for i in range(nScanCoord):
             units.append([])
             for j in range(len(scancoords[i])):
-                if scancoords[i][j] in ['a', 'b', 'c'] or 'Dist' in scancoords[i][j]:
+                if scancoords[i][j] in ['a', 'b', 'c'] or 'Dist' in scancoords[i][j] or 'Coordinate' in scancoords[i][j]:
                     units[-1].append('bohr')
                 elif 'Volume' in scancoords[i][j]:
                     units[-1].append('bohr^3')
