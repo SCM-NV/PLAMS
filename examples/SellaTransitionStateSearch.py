@@ -1,9 +1,11 @@
 #!/usr/bin/env amspython
-from scm.plams import *
 import os
-from ase.io import read
-from sella import Sella
 import time
+
+from ase.io import read
+from scm.plams import *
+from scm.plams.interfaces.adfsuite.ase_calculator import AMSCalculator
+from sella import Sella
 
 """
 
