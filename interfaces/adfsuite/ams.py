@@ -1271,13 +1271,14 @@ class AMSResults(Results):
     def recreate_settings(self):
         """Recreate the input |Settings| instance for the corresponding job based on files present in the job folder. This method is used by |load_external|.
 
-        If ``ams.rkf`` is present in the job folder, extract user input and parse it back to a |Settings| instance using ``scm.libbase`` module. Remove the ``system`` branch from that instance.
+        If ``ams.rkf`` is present in the job folder, extract user input and parse it back to a |Settings| instance using ``scm.input_parser`` module. Remove the ``system`` branch from that instance.
         """
         if 'ams' in self.rkfs:
             user_input = self.readrkf('General', 'user input')
             try:
-                from scm.libbase import InputParser
-                inp = InputParser().to_settings('ams', user_input)
+                from scm.input_parser import InputParser
+                with InputParser() as parser:
+                    inp = parser.to_settings('ams', user_input)
             except:
                 log('Failed to recreate input settings from {}'.format(self.rkfs['ams'].path, 5))
                 return None
@@ -2108,9 +2109,14 @@ class AMSJob(SingleJob):
 
             If *settings* is included in the keyword arguments to this method, the |Settings| created from the *text_input* will be soft updated with the settings from the keyword argument. In other word, the *text_input* takes precedence over the *settings* keyword argument.
         """
-        from scm.libbase import InputParser
+        try:
+            from scm.input_parser import InputParser
+        except ImportError:  # Try to load the parser from $AMSHOME/scripting
+            with UpdateSysPath():
+                from scm.input_parser import InputParser
         sett = Settings()
-        sett.input = InputParser().to_settings(cls._command, text_input)
+        with InputParser() as parser:
+            sett.input = parser.to_settings(cls._command, text_input)
         mol = cls.settings_to_mol(sett)
         if mol:
             if 'molecule' in kwargs:

@@ -375,13 +375,18 @@ class SCMJob(SingleJob):
         on the heredoc delimiter (see *heredoc_delimit*).
 
         """
-        from scm.libbase import InputParser
+        try:
+            from scm.input_parser import InputParser
+        except ImportError:  # Try to load the parser from $AMSHOME/scripting
+            with UpdateSysPath():
+                from scm.input_parser import InputParser
 
         s = Settings()
         with open(filename, 'r') as f:
             inp_file = parse_heredoc(f.read(), heredoc_delimit)
 
-        s.input = InputParser().to_settings(cls._json_definitions or cls._command, inp_file)
+        with InputParser() as parser:
+            s.input = parser.to_settings(cls._json_definitions or cls._command, inp_file)
         if not s.input:
             raise JobError(f"from_inputfile: failed to parse '{filename}'")
 

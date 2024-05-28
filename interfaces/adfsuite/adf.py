@@ -194,13 +194,15 @@ class ADFResults(SCMResults):
             else:
                 user_input = self.readkf('General', 'user input')
             try:
-                from scm.libbase import InputParser, InputError
-                inp = InputParser().to_settings('adf', user_input)
-            except InputError:
+                from scm.input_parser import InputParser
+                with InputParser() as parser:
+                    inp = parser.to_settings('adf', user_input)
+            except CalledProcessError:
                 from scm.input_parser import convert_legacy_input
                 new_input = convert_legacy_input(user_input, program='adf')
                 try:
-                    inp = InputParser().to_settings('adf', new_input)
+                    with InputParser() as parser:
+                        inp = parser.to_settings('adf', new_input)
                 except:
                     log('Failed to recreate input settings from {}'.format(self._kf.path), 5)
                     return None
