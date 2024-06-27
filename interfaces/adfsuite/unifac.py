@@ -16,7 +16,7 @@ try:
     from rdkit.Chem import MolToSmiles, RemoveHs
 
     RDKIT_EX = None
-except ImportError as ex:
+except (ImportError, SystemError) as ex:
     RDKIT_EX = ex
 
 __all__ = ["UnifacJob", "UnifacResults"]

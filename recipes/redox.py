@@ -367,6 +367,7 @@ class AMSRedoxScreeningJob(AMSRedoxParentJob):
         @add_to_instance(gencoskf_0)
         def prerun(self):  # noqa F811
             self.input_molecule = dftb_go_0.results.get_main_molecule()  # will inherit the charge
+            self.atomic_ion = len(self.input_molecule) == 1
 
         self.children["gencoskf_0"] = gencoskf_0
 
@@ -379,6 +380,7 @@ class AMSRedoxScreeningJob(AMSRedoxParentJob):
             @add_to_instance(gencoskf_ox)
             def prerun(self):  # noqa F811
                 self.input_molecule = dftb_go_ox.results.get_main_molecule()
+                self.atomic_ion = len(self.input_molecule) == 1
 
             self.children["gencoskf_ox"] = gencoskf_ox
 
@@ -391,6 +393,7 @@ class AMSRedoxScreeningJob(AMSRedoxParentJob):
             @add_to_instance(gencoskf_red)
             def prerun(self):  # noqa F811
                 self.input_molecule = dftb_go_red.results.get_main_molecule()
+                self.atomic_ion = len(self.input_molecule) == 1
 
             self.children["gencoskf_red"] = gencoskf_red
 

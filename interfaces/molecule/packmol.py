@@ -745,7 +745,7 @@ def packmol_on_slab(
     """
     if len(slab.lattice) != 3:
         raise ValueError("slab in packmol_on_slab must be 3D periodic: slab in xy-plane with vacuum gap along z-axis")
-    if slab.cell_angles() != [90.0, 90.0, 90.0]:
+    if not all(np.isclose(slab.cell_angles(), [90.0, 90.0, 90.0])):
         raise ValueError("slab in packmol_on_slab must be have orthorhombic cell")
 
     liquid = packmol(
