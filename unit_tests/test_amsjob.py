@@ -1,9 +1,8 @@
 import dill as pickle
+import pytest
 
 from scm.plams.interfaces.adfsuite.ams import AMSJob
 from scm.plams.core.settings import Settings
-from scm.input_classes.drivers import AMS
-from scm.input_classes.engines import DFTB
 
 
 def test_pickle():
@@ -26,6 +25,12 @@ def test_pickle_settings():
 
 
 def test_pickle_pisa():
+    try:
+        from scm.input_classes.drivers import AMS
+        from scm.input_classes.engines import DFTB
+
+    except ImportError:
+        pytest.skip("Skipping test because optional 'scm.pisa' package is not available")
     driver = AMS()
     driver.Task = "GeometryOptimization"
     driver.Properties.NormalModes = True

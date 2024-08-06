@@ -346,17 +346,17 @@ class SCMJob(SingleJob):
     def from_inputfile(cls, filename: str, heredoc_delimit: str = "eor", **kwargs) -> "SCMJob":
         """Construct a :class:`SCMJob` instance from an ADF inputfile.
 
-        If a runscript is provide than this method will attempt to extract the input file based
+        If a runscript is provided then this method will attempt to extract the input file based
         on the heredoc delimiter (see *heredoc_delimit*).
 
         """
-        from scm.libbase import InputParser
+        from scm.plams.interfaces.adfsuite.inputparser import InputParserFacade
 
         s = Settings()
         with open(filename, "r") as f:
             inp_file = parse_heredoc(f.read(), heredoc_delimit)
 
-        s.input = InputParser().to_settings(cls._json_definitions or cls._command, inp_file)
+        s.input = InputParserFacade().to_settings(cls._json_definitions or cls._command, inp_file)
         if not s.input:
             raise JobError(f"from_inputfile: failed to parse '{filename}'")
 

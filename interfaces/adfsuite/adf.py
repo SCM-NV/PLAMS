@@ -182,18 +182,9 @@ class ADFResults(SCMResults):
             else:
                 user_input = self.readkf("General", "user input")
             try:
-                from scm.libbase import InputError, InputParser
+                from scm.plams.interfaces.adfsuite.inputparser import InputParserFacade
 
-                inp = InputParser().to_settings("adf", user_input)
-            except InputError:
-                from scm.input_parser import convert_legacy_input
-
-                new_input = convert_legacy_input(user_input, program="adf")
-                try:
-                    inp = InputParser().to_settings("adf", new_input)
-                except:
-                    log("Failed to recreate input settings from {}".format(self._kf.path), 5)
-                    return None
+                inp = InputParserFacade().to_settings("adf", user_input)
             except:
                 log("Failed to recreate input settings from {}".format(self._kf.path), 5)
                 return None

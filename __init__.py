@@ -1,3 +1,4 @@
+from scm.plams.version import __version__
 from scm.plams.core.basejob import MultiJob, SingleJob
 from scm.plams.core.errors import (
     FileError,

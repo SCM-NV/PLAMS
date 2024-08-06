@@ -1823,9 +1823,9 @@ class AMSResults(Results):
         if "ams" in self.rkfs:
             user_input = self.readrkf("General", "user input")
             try:
-                from scm.libbase import InputParser
+                from scm.plams.interfaces.adfsuite.inputparser import InputParserFacade
 
-                inp = InputParser().to_settings("ams", user_input)
+                inp = InputParserFacade().to_settings("ams", user_input)
             except:
                 log("Failed to recreate input settings from {}".format(self.rkfs["ams"].path))
                 return None
@@ -2519,9 +2519,9 @@ class AMSJob(SingleJob):
             return sett
 
         def serialize_unichemsys_to_settings(mol):
-            from scm.libbase import InputParser
+            from scm.plams.interfaces.adfsuite.inputparser import InputParserFacade
 
-            sett = InputParser().to_settings(AMSJob._command, str(mol))
+            sett = InputParserFacade().to_settings(AMSJob._command, str(mol))
             return sett.ams.system[0]
 
         def serialize_molecule_to_settings(mol):
@@ -2789,10 +2789,10 @@ class AMSJob(SingleJob):
 
             If *settings* is included in the keyword arguments to this method, the |Settings| created from the *text_input* will be soft updated with the settings from the keyword argument. In other word, the *text_input* takes precedence over the *settings* keyword argument.
         """
-        from scm.libbase import InputParser
+        from scm.plams.interfaces.adfsuite.inputparser import InputParserFacade
 
         sett = Settings()
-        sett.input = InputParser().to_settings(cls._command, text_input)
+        sett.input = InputParserFacade().to_settings(cls._command, text_input)
         mol = cls.settings_to_mol(sett)
         if mol:
             if "molecule" in kwargs:

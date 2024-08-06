@@ -1,10 +1,11 @@
 #!/usr/bin/env amspython
 
+import scm.plams
 from scm.plams import *
 
 plams_namespace = globals().copy()
 
-VERSION = '1.5.1'
+VERSION = scm.plams.__version__
 
 import argparse
 import os

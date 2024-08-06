@@ -1,6 +1,6 @@
 import os
 from collections import OrderedDict
-from typing import List, Optional
+from typing import List, Optional, Union, Dict, Mapping
 
 from scm.plams.interfaces.adfsuite.ams import AMSJob
 from scm.plams.interfaces.adfsuite.crs import CRSJob
@@ -85,14 +85,14 @@ class ADFCOSMORSCompoundJob(MultiJob):
 
     def __init__(
         self,
-        molecule: Molecule,
-        coskf_name=None,
-        coskf_dir=None,
-        preoptimization=None,
-        singlepoint=False,
-        settings=None,
-        mol_info={},
-        **kwargs
+        molecule: Union[Molecule, None],
+        coskf_name: Optional[str] = None,
+        coskf_dir: Optional[str] = None,
+        preoptimization: Optional[str] = None,
+        singlepoint: bool = False,
+        settings: Optional[Settings] = None,
+        mol_info: Optional[Mapping[str, Union[float, int, str]]] = None,
+        **kwargs,
     ):
         """
 
@@ -119,6 +119,9 @@ class ADFCOSMORSCompoundJob(MultiJob):
         self.input_molecule = molecule
 
         self.mol_info = dict()
+        if mol_info is not None:
+            self.mol_info.update(mol_info)
+        # self.mol_info = mol_info
         self.atomic_ion = False  # should be set when molecule is set if using a custom prerun() method
         if molecule is not None:
             self.mol_info["Molar Mass"] = molecule.get_mass()
@@ -153,7 +156,9 @@ class ADFCOSMORSCompoundJob(MultiJob):
                 preoptimization_s.runscript.nproc = 1
                 preoptimization_s.input.ams.Task = "GeometryOptimization"
                 preoptimization_s += model_to_settings(preoptimization)
-                preoptimization_job = AMSJob(settings=preoptimization_s, name="preoptimization", molecule=molecule)
+                preoptimization_job = AMSJob(
+                    settings=preoptimization_s, name="preoptimization", molecule=self.input_molecule
+                )
                 self.children["preoptimization"] = preoptimization_job
 
             gas_s = Settings()
@@ -168,7 +173,7 @@ class ADFCOSMORSCompoundJob(MultiJob):
                     self.molecule = self.parent.children["preoptimization"].results.get_main_molecule()
 
             else:
-                gas_job.molecule = molecule
+                gas_job.molecule = self.input_molecule
 
             self.children["gas"] = gas_job
 
@@ -178,34 +183,33 @@ class ADFCOSMORSCompoundJob(MultiJob):
 
         if singlepoint:
 
-            @add_to_instance(solv_job)
+            gas_job.settings.input.ams.Task = "SinglePoint"
+
+            @add_to_instance(gas_job)
             def prerun(self):
                 self.molecule = self.parent.input_molecule
-                self.settings += self.parent.adf_settings(
-                    solvation=True,
-                    settings=self.parent.settings,
-                    elements=list(set(at.symbol for at in self.parent.input_molecule)),
-                    atomic_ion=self.parent.atomic_ion
-                )
 
-        else:
+            self.children["gas"] = gas_job
 
-            @add_to_instance(solv_job)
-            def prerun(self):
-                gas_job.results.wait()
-                self.settings.input.ams.EngineRestart = "../gas/adf.rkf"
-                self.settings.input.ams.LoadSystem.File = "../gas/ams.rkf"
-                self.settings += self.parent.adf_settings(
-                    solvation=True,
-                    settings=self.parent.settings,
-                    elements=list(set(at.symbol for at in self.parent.input_molecule)),
-                    atomic_ion=self.parent.atomic_ion
-                )
-                # self.settings.input.ams.EngineRestart = self.parent.children['gas'].results.rkfpath(file='adf') # this doesn't work with PLAMS restart since the file will refer to the .res directory (so the job is rerun needlessly)
-                # self.settings.input.ams.LoadSystem.File = self.parent.children['gas'].results.rkfpath(file='ams')
-                # cannot copy to gasphase-ams.rkf etc. because that conflicts with PLAMS restarts
-                # shutil.copyfile(gas_job.results.rkfpath(file='ams'), os.path.join(self.path, 'gasphase-ams.rkf'))
-                # shutil.copyfile(gas_job.results.rkfpath(file='adf'), os.path.join(self.path, 'gasphase-adf.rkf'))
+        @add_to_instance(solv_job)
+        def prerun(self):
+            gas_job.results.wait()
+            self.settings.input.ams.EngineRestart = "../gas/adf.rkf"
+            self.settings.input.ams.LoadSystem.File = "../gas/ams.rkf"
+            molecule_charge = gas_job.results.get_main_molecule().properties.get("charge", 0)
+            self.settings.input.ams.LoadSystem._1 = f"# {self.parent.name}"
+            self.settings.input.ams.LoadSystem._2 = f"# charge {molecule_charge}"
+            self.settings += self.parent.adf_settings(
+                solvation=True,
+                settings=self.parent.settings,
+                elements=list(set(at.symbol for at in self.parent.input_molecule)),
+                atomic_ion=self.parent.atomic_ion,
+            )
+            # self.settings.input.ams.EngineRestart = self.parent.children['gas'].results.rkfpath(file='adf') # this doesn't work with PLAMS restart since the file will refer to the .res directory (so the job is rerun needlessly)
+            # self.settings.input.ams.LoadSystem.File = self.parent.children['gas'].results.rkfpath(file='ams')
+            # cannot copy to gasphase-ams.rkf etc. because that conflicts with PLAMS restarts
+            # shutil.copyfile(gas_job.results.rkfpath(file='ams'), os.path.join(self.path, 'gasphase-ams.rkf'))
+            # shutil.copyfile(gas_job.results.rkfpath(file='adf'), os.path.join(self.path, 'gasphase-adf.rkf'))
 
         @add_to_instance(solv_job)
         def postrun(self):
@@ -238,7 +242,7 @@ class ADFCOSMORSCompoundJob(MultiJob):
         self.children["crs"] = crsjob
 
     @staticmethod
-    def _get_radii() -> dict:
+    def _get_radii() -> Dict[str, float]:
         """Method to get the atomic radii from solvent.txt (for some elements the radii are instead the Klamt radii)"""
         with open(os.path.expandvars("$AMSHOME/data/gui/solvent.txt"), "r") as f:
             mod_allinger_radii = [float(x) for i, x in enumerate(f) if i > 0]
@@ -427,14 +431,25 @@ class ADFCOSMORSCompoundJob(MultiJob):
         return s
 
     @staticmethod
-    def convert_to_coskf(rkf: str, coskf: str, mol_info: dict):
-        """rkf: absolute path to adf.rkf, coskf: path to write out the resulting .coskf file"""
+    def convert_to_coskf(rkf: str, coskf: str, mol_info: Optional[Mapping[str, Union[float, int, str]]] = None):
+        """
+        rkf: str
+            absolute path to adf.rkf
+
+        coskf: str
+            path to write out the resulting .coskf file
+
+        mol_info: dict[str, float | int | str], optional
+            Optional information to write out in the "Compound Data" section of the .coskf file
+
+        """
         f = KFFile(rkf)
         cosmo = f.read_section("COSMO")
         coskf_file = KFFile(coskf, autosave=False)
         for k, v in cosmo.items():
             coskf_file.write("COSMO", k, v)
-        for key, value in mol_info.items():
-            # print(f"write to coskf {key}: {value}")
-            coskf_file.write("Compound Data", key, value)
+        if mol_info is not None:
+            for key, value in mol_info.items():
+                # print(f"write to coskf {key}: {value}")
+                coskf_file.write("Compound Data", key, value)
         coskf_file.save()
