@@ -7,6 +7,7 @@ from datetime import date
 
 from docutils.parsers.rst.directives.admonitions import Danger, Important
 from sphinx.locale import admonitionlabels
+from scm.plams.version import __version__
 
 admonitionlabels["important"] = "Technical"
 admonitionlabels["danger"] = "Warning"
@@ -60,7 +61,7 @@ else:
     # built documents.
     #
     # The short X.Y version.
-    version = "1.5.1"
+    version = __version__
     # The full version, including alpha/beta/rc tags.
     # release = ''
 

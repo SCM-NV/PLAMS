@@ -3135,13 +3135,13 @@ class Molecule:
         """Read a file containing a System block used in AMS driver input files."""
         if not input_parser_available:
             raise NotImplementedError(
-                "Reading from System blocks from AMS input files requires the scm.libbase library to be available."
+                "Reading from System blocks from AMS input files requires an AMS installation to be available."
             )
-        from scm.libbase import InputParser
+        from scm.plams.interfaces.adfsuite.inputparser import InputParserFacade
         from scm.plams.interfaces.adfsuite.ams import AMSJob
 
         sett = Settings()
-        sett.input.AMS = Settings(InputParser().to_dict("ams", f.read(), string_leafs=True))
+        sett.input.AMS = Settings(InputParserFacade().to_dict("ams", f.read(), string_leafs=True))
         if "System" not in sett.input.AMS:
             raise ValueError("No System block found in file.")
         sysname = other.get("sysname", "")

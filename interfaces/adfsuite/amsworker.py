@@ -1169,7 +1169,7 @@ class AMSWorker:
         self._call("DeleteMDState", args)
 
     def ParseInput(self, program_name, text_input, string_leafs):
-        """Parse the text input and return a Python dictionary representing the the JSONified input.
+        """Parse the text input and return a Python dictionary representing the JSONified input.
 
         - *program_name*: the name of the program. This will be used for loading the appropriate json input definitions. e.g. if program_name='adf', the input definition file 'adf.json' will be used.
         - *text_input*: a string containing the text input to be parsed.

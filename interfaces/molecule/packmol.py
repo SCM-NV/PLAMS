@@ -632,7 +632,7 @@ def packmol(
     for at, molindex in zip(out, molecule_type_indices):
         AMSJob._add_region(at, region_names[molindex])
 
-    tot_charge = sum(mol.properties.get("charge", 0) * c for mol, c in zip(molecules, coeffs))
+    tot_charge = sum(int(mol.properties.get("charge", 0)) * c for mol, c in zip(molecules, coeffs))
     if tot_charge != 0:
         out.properties.charge = tot_charge
 
