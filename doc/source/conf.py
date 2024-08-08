@@ -21,7 +21,7 @@ def modify_signature(app, what, name, obj, options, signature, return_annotation
 
 def setup(app):
     if not tags.has("scm_theme"):
-        app.add_stylesheet("boxes.css")
+        app.add_css_file("boxes.css")
     app.add_directive("warning", Danger)
     app.add_directive("technical", Important)
     app.connect("autodoc-process-signature", modify_signature)
@@ -327,6 +327,10 @@ rst_epilog = """
 .. |VibrationsJob| replace:: :class:`~scm.plams.recipes.vibration.VibrationsJob`
 .. |IRJob| replace:: :class:`~scm.plams.recipes.vibration.IRJob`
 .. |VibrationsResults| replace:: :class:`~scm.plams.recipes.vibration.VibrationsResults`
+.. |ADFFragmentJob| replace:: :class:`~scm.plams.recipes.adffragment.ADFFragmentJob`
+.. |ADFFragmentResults| replace:: :class:`~scm.plams.recipes.adffragment.ADFFragmentResults`
+.. |BANDFragmentJob| replace:: :class:`~scm.plams.recipes.bandfragment.BANDFragmentJob`
+.. |BANDFragmentResults| replace:: :class:`~scm.plams.recipes.bandfragment.BANDFragmentResults`
 
 .. |RPM| replace:: :ref:`rerun-prevention`
 .. |cleaning| replace:: :ref:`cleaning`
