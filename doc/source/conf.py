@@ -21,7 +21,7 @@ def modify_signature(app, what, name, obj, options, signature, return_annotation
 
 def setup(app):
     if not tags.has("scm_theme"):
-        app.add_stylesheet("boxes.css")
+        app.add_css_file("boxes.css")
     app.add_directive("warning", Danger)
     app.add_directive("technical", Important)
     app.connect("autodoc-process-signature", modify_signature)
@@ -41,7 +41,7 @@ if tags.has("scm_theme"):
 
 else:
 
-    extensions = []
+    extensions = ["sphinx_tabs.tabs"]
 
     # Add any paths that contain templates here, relative to this directory.
     templates_path = ["_templates"]
@@ -200,7 +200,11 @@ pygments_style = "sphinx"
 # configuration for intersphinx: refer to the Python standard library.
 intersphinx_mapping = {"python3": ("http://docs.python.org/3.8", None)}
 
-autodoc_default_options = {"members": True, "private-members": True, "special-members": True}
+autodoc_default_options = {
+    "members": True,
+    "private-members": True,
+    "special-members": True,
+}
 autodoc_member_order = "bysource"
 autodoc_typehints = "none"
 

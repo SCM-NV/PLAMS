@@ -3,7 +3,7 @@ import builtins
 from importlib import reload
 
 from scm.plams.core.settings import Settings
-from scm.plams.unit_tests.test_helpers import get_mock_import_function
+from scm.plams.unit_tests.test_helpers import get_mock_import_function, skip_if_no_ams_installation
 
 
 @pytest.fixture
@@ -96,6 +96,9 @@ def test_to_dict_with_scmlibbase_succeeds(system_text_inputs):
 
 
 def get_monkeypatched_input_parser(monkeypatch):
+    # If there is no AMS installation the input parser will not run so skip test with a warning
+    skip_if_no_ams_installation()
+
     # Mock scm.libbase import failing (even when present in the env)
     mock_import_function = get_mock_import_function("scm.libbase")
     monkeypatch.setattr(builtins, "__import__", mock_import_function)
@@ -114,6 +117,9 @@ def get_monkeypatched_input_parser(monkeypatch):
 
 
 def get_input_parser_or_skip():
+    # If there is no AMS installation the input parser will not run so skip test with a warning
+    skip_if_no_ams_installation()
+
     from scm.plams.interfaces.adfsuite.inputparser import InputParserFacade, InputParser
 
     # Get an instance of the input parser facade using the scm.libbase parser

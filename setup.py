@@ -32,7 +32,8 @@ setup(
     ],
     keywords=["molecular modeling", "computational chemistry", "workflow", "python interface"],
     python_requires=">=3.6",
-    install_requires=["dill>=0.2.4", "numpy", "scipy", "natsort"],
+    install_requires=["dill>=0.2.4", "numpy<2", "scipy", "natsort"],
+    extras_require={"chem_tools": ["ase", "rdkit"]},
     packages=packages,
     package_dir={"scm.plams": "."},
     package_data={

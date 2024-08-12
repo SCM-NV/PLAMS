@@ -1,4 +1,7 @@
 import builtins
+import pytest
+import os
+
 from scm.plams.core.settings import (
     SafeRunSettings,
     LogSettings,
@@ -62,3 +65,12 @@ def assert_config_as_expected(
         assert isinstance(config.job.runscript, RunScriptSettings)
         assert isinstance(config.jobmanager, JobManagerSettings)
         assert isinstance(config, ConfigSettings)
+
+
+def skip_if_no_ams_installation():
+    """
+    Check whether the AMSBIN environment variable is set, and therefore if there is an AMS installation present.
+    If there is no installation, skip the test with a warning.
+    """
+    if os.getenv("AMSBIN") is None:
+        pytest.skip("Skipping test as cannot find AMS installation. '$AMSBIN' environment variable is not set.")
