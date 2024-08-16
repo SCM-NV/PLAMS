@@ -40,3 +40,6 @@ class MoleculeError(PlamsError):
 
 class TrajectoryError(PlamsError):
     """:class:`Trajectory<scm.plams.trajectories.TrajectoryFile>` error."""
+
+class ExampleError(PlamsError):
+    pass
