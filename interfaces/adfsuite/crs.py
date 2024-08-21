@@ -108,7 +108,7 @@ class CRSResults(SCMResults):
             raise ValueError("Results object is missing or incomplete.")
 
         # first get the two ranges for the indices
-        ncomp  = self.readkf(section, "ncomp")
+        ncomp = self.readkf(section, "ncomp")
         nitems = self.readkf(section, "nitems")
         try:
             nstruct = self.readkf(section, "nstruct")
@@ -142,17 +142,17 @@ class CRSResults(SCMResults):
         This function returns multispecies distribution for each (compound,structure) pair.  The format is a list
         with indices corresponding to compound indices.  Each item in the list is a dictionary with a structure name : list pair, where the structure name corresponds to a structure the compound can be exist as and the list is the distribution of that compound in that structure over the number of points (mole fractions, temperatures, pressures).
         """
-        res           = self.get_results()
+        res = self.get_results()
         property_name = res["property"].rstrip()
 
-        if(property_name=="LOGP"): 
+        if property_name == "LOGP":
             nPhase = 2
         else:
             nPhase = 1
 
-        ncomp         = self.readkf(self.section, "ncomp")
-        struct_names  = res["struct names"]
-        num_points    = self.readkf(self.section, "nitems")
+        ncomp = self.readkf(self.section, "ncomp")
+        struct_names = res["struct names"]
+        num_points = self.readkf(self.section, "nitems")
         valid_structs = [[] for _ in range(ncomp)]
         comp_dist = res["comp distribution"].flatten()
         for i in range(len(struct_names)):

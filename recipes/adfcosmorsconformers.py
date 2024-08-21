@@ -1,11 +1,9 @@
 from scm.plams.interfaces.adfsuite.ams import AMSJob
-from scm.plams.interfaces.adfsuite.crs import CRSJob
 from scm.plams.tools.kftools import KFFile
 from scm.plams.mol.molecule import Molecule
 from scm.plams.core.basejob import MultiJob
 from scm.plams.core.results import Results
 from scm.plams.core.settings import Settings
-from scm.plams.core.functions import add_to_instance
 from scm.conformers import ConformersJob
 from scm.plams.recipes.adfcosmorscompound import ADFCOSMORSCompoundJob
 import os
@@ -64,7 +62,7 @@ class ADFCOSMORSConfJob(MultiJob):
         coskf_dir=None,
         coskf_name=None,
         mol_info={},
-        **kwargs
+        **kwargs,
     ):
 
         super().__init__(children={}, **kwargs)
@@ -73,14 +71,14 @@ class ADFCOSMORSConfJob(MultiJob):
 
         self.mol = molecule
         mol_info["Molar Mass"] = molecule.get_mass()
-        mol_info["Formula"] = molecule.get_formula()    
+        mol_info["Formula"] = molecule.get_formula()
         try:
             rings = molecule.locate_rings()
             flatten_atoms = [atom for subring in rings for atom in subring]
             nring = len(set(flatten_atoms))
             mol_info["Nring"] = int(nring)
         except:
-            pass             
+            pass
         self.mol_info = mol_info
 
         self.adf_results = False
@@ -230,7 +228,6 @@ class ADFCOSMORSConfJob(MultiJob):
 
     def _add_filter(self, sett):
 
-        job_count = self.job_count
         filt = self.filters[self.job_count]
         if filt is not None:
             if filt.max_num_confs is not None:

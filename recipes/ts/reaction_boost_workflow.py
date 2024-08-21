@@ -4,9 +4,8 @@ from collections import defaultdict, namedtuple
 from dataclasses import dataclass
 from natsort import natsorted
 from pathlib import Path
-from typing import Dict, List, Tuple, Sequence, Union
+from typing import Dict, List, Tuple
 import numpy as np
-import os
 import scm.plams as plams
 import scm.reactmap
 import warnings

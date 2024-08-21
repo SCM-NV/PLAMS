@@ -6,45 +6,48 @@ import sys
 from os.path import join as opj
 
 command = ""
-#Try to locate sphinx-build executable
-if 'AMSBIN' in os.environ:
-    command = opj(os.path.expandvars('$AMSBIN'), 'python3.5', 'bin', 'sphinx-build')
+# Try to locate sphinx-build executable
+if "AMSBIN" in os.environ:
+    command = opj(os.path.expandvars("$AMSBIN"), "python3.8", "bin", "sphinx-build")
     if not os.path.exists(command):
         # This might be a windows machine
-        command = opj(os.path.expandvars('$AMSBIN'), 'python3.5', 'Scripts', 'sphinx-build.exe')
+        command = opj(os.path.expandvars("$AMSBIN"), "python3.8", "Scripts", "sphinx-build.exe")
         if os.path.exists(command):
             # starting sphinx-build on windows is tricky...
-            command = ['sh', opj(os.path.expandvars('$AMSBIN'), 'amspython'), '-m', 'sphinx']
+            command = ["sh", opj(os.path.expandvars("$AMSBIN"), "amspython"), "-m", "sphinx"]
         else:
-            print('Warning: AMSBIN found in environment, but failed to locate sphinx-build')
+            print("Warning: AMSBIN found in environment, but failed to locate sphinx-build")
             command = ""
 if command == "":
-    null = open(os.devnull, 'wb')
+    null = open(os.devnull, "wb")
     try:
-        subprocess.call(['sphinx-build','--version'], stdout=null, stderr=null)
-        command = 'sphinx-build'
+        subprocess.call(["sphinx-build", "--version"], stdout=null, stderr=null)
+        command = "sphinx-build"
     except OSError:
         try:
-            subprocess.call(['sphinx-build2','--version'], stdout=null, stderr=null)
-            command = 'sphinx-build2'
+            subprocess.call(["sphinx-build2", "--version"], stdout=null, stderr=null)
+            command = "sphinx-build2"
         except OSError:
-            print('Error: Sphinx executable not found!')
+            print("Error: Sphinx executable not found!")
             null.close()
             sys.exit(0)
     null.close()
 
 location = os.path.dirname(os.path.realpath(__file__))
-#Source of documentation should be located in "source" subfolder next to this script
-source = opj(location, 'source')
+# Source of documentation should be located in "source" subfolder next to this script
+source = opj(location, "source")
 
-#Target can be given as command line argument, if not the "build" subfolder is used
+# Target can be given as command line argument, if not the "build" subfolder is used
 if len(sys.argv) > 1:
     target = sys.argv[1]
 else:
-    target = opj(location, 'build')
+    target = opj(location, "build")
 
+warning_file = "build_plams_doc_warn_errors.txt"
 if isinstance(command, list):
     # on windows command is a list of multiple items
-    subprocess.call(command + [source, target])
+    return_code = subprocess.call(command + [source, target, "-w", warning_file])
 else:
-    subprocess.call([command, source, target])
+    return_code = subprocess.call([command, source, target, "-w", warning_file])
+
+sys.exit(return_code)

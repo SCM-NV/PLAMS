@@ -1,0 +1,6 @@
+dill==0.3.6
+numpy==1.23.4
+scipy==1.9.3
+natsort==8.1.0
+ase==3.22.1
+rdkit==2024.03.1

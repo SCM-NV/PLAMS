@@ -288,10 +288,8 @@ class SDFTrajectoryFile(TrajectoryFile):
                 for iat, neighbors in conect.items():
                     for t in neighbors:
                         jat = t
-                        bo = 1.0
                         if isinstance(t, tuple):
                             jat = t[0]
-                            bo = t[1]
                         indices = tuple(sorted([iat, jat]))
                         if not indices in bondlist:
                             bondlist.append(indices)
