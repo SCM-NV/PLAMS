@@ -189,7 +189,7 @@ class RKFHistoryFile(RKFTrajectoryFile):
         version = 1
         self._set_system_version_elements()
         for i in range(self.get_length()):
-            if not ("History","SystemVersion(%i)" % (i + 1)) in self.file_object:
+            if not ("History", "SystemVersion(%i)" % (i + 1)) in self.file_object:
                 continue
             new_version = self.file_object.read("History", "SystemVersion(%i)" % (i + 1))
             if new_version == version:

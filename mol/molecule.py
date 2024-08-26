@@ -5,7 +5,6 @@ import itertools
 import math
 import os
 from collections import OrderedDict
-from typing import List
 
 import numpy as np
 
@@ -23,7 +22,7 @@ from scm.plams.tools.periodic_table import PT
 from scm.plams.tools.units import Units
 
 input_parser_available = "AMSBIN" in os.environ
-from typing import Dict, List, Optional, Tuple, Union, overload
+from typing import List, Optional, Tuple, overload
 
 __all__ = ["Molecule"]
 
@@ -2343,7 +2342,6 @@ class Molecule:
             return
 
         # Get the lattice vectors, and make sure there are 3 of them
-        nats = len(self)
         latticevecs = []
         for i in range(3):
             if i < len(self.lattice):

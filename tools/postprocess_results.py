@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Dict, Set, Union, Literal, Tuple
+from typing import Union, Literal, Tuple
 
 
 def _gaussian(x, A, x0, sigma):

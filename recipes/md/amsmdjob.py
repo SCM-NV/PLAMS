@@ -4,7 +4,7 @@ from scm.plams.interfaces.adfsuite.ams import AMSJob, AMSResults
 import numpy as np
 from scm.plams.tools.kftools import KFFile
 from scm.plams.tools.units import Units
-from typing import List, Dict, Union, Tuple
+from typing import Union
 import scm.plams as plams
 
 __all__ = ["AMSMDJob", "AMSNVEJob", "AMSNVTJob", "AMSNPTJob"]

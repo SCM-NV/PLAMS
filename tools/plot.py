@@ -288,7 +288,7 @@ def plot_correlation(
         min_max_linear_fit = result.slope * min_max + result.intercept
         r2 = result.rvalue**2
         ax.plot(min_max, min_max_linear_fit, "-")
-        legend.append(f"Fit")
+        legend.append("Fit")
         stats_title += f" R^2: {r2:.3f}"
         linear_fit_title = f"Linear fit slope={result.slope:.3f} intercept={result.intercept:.3f}"
 

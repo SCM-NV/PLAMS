@@ -35,7 +35,7 @@ def solubility():
     s.input.compound[0].frac1 = 1.0
 
     s.input.compound[1]._h = solute_coskf
-    s.input.compound[1].nring = 6 # number of ring atoms benzene
+    s.input.compound[1].nring = 6  # number of ring atoms benzene
     s.input.compound[1].meltingpoint = solute_properties["meltingpoint"]
     s.input.compound[1].hfusion = solute_properties["hfusion"] * Units.convert(
         1.0, "kJ/mol", "kcal/mol"

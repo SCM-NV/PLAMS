@@ -169,7 +169,7 @@ class ADFCOSMORSCompoundJob(MultiJob):
             if preoptimization:
 
                 @add_to_instance(gas_job)
-                def prerun(self):
+                def prerun(self):  # noqa: F811
                     self.molecule = self.parent.children["preoptimization"].results.get_main_molecule()
 
             else:
@@ -186,13 +186,13 @@ class ADFCOSMORSCompoundJob(MultiJob):
             gas_job.settings.input.ams.Task = "SinglePoint"
 
             @add_to_instance(gas_job)
-            def prerun(self):
+            def prerun(self):  # noqa: F811
                 self.molecule = self.parent.input_molecule
 
             self.children["gas"] = gas_job
 
         @add_to_instance(solv_job)
-        def prerun(self):
+        def prerun(self):  # noqa: F811
             gas_job.results.wait()
             self.settings.input.ams.EngineRestart = "../gas/adf.rkf"
             self.settings.input.ams.LoadSystem.File = "../gas/ams.rkf"

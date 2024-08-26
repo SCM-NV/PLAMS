@@ -1230,9 +1230,7 @@ class AMSResults(Results):
             else:
                 return [x]
 
-        conversion_ratio = Units.conversion_ratio("au", unit)
         sec = "History"
-        nEntries = self.readrkf(sec, "nEntries")
 
         items = [
             "IRCDirection",
@@ -1249,7 +1247,6 @@ class AMSResults(Results):
         forw = {}
         back = {}
         reformed = {}
-        converged_mask = None
         forw_mask = None
         back_mask = None
         converged = self.get_history_property("Converged", history_section=sec)
@@ -1274,7 +1271,6 @@ class AMSResults(Results):
                 back_mask = [x != 1 for x in d[k]]
                 d[k] = ["Forward" if x == 1 else "Backward" if x == 2 else x for x in d[k]]
 
-            n = len(d[k])
             forw[k] = list(compress(d[k], forw_mask))
             back[k] = list(compress(d[k], back_mask))
             back[k].reverse()
@@ -2275,10 +2271,10 @@ class AMSJob(SingleJob):
             ret += f'export SCM_SRUN_OPTIONS="$SCM_SRUN_OPTIONS -N {nnode}"\n'
         if _has_scm_pisa and isinstance(self.settings.input, DriverBlock):
             if self.settings.input.Engine.name == "QuantumESPRESSO":
-                ret += f"export SCM_DISABLE_MPI=1\n"
+                ret += "export SCM_DISABLE_MPI=1\n"
         else:
             if "QuantumEspresso" in self.settings.input:
-                ret += f"export SCM_DISABLE_MPI=1\n"
+                ret += "export SCM_DISABLE_MPI=1\n"
         if "preamble_lines" in self.settings.runscript:
             for line in self.settings.runscript.preamble_lines:
                 ret += f"{line}\n"
@@ -2509,7 +2505,7 @@ class AMSJob(SingleJob):
 
         def serialize_to_settings(name, mol):
             if isinstance(mol, Molecule):
-                sett = serialize_molecule_to_settings(mol)
+                sett = serialize_molecule_to_settings(mol, name)
             elif _has_scm_unichemsys and isinstance(mol, ChemicalSystem):
                 sett = serialize_unichemsys_to_settings(mol)
 
@@ -2524,7 +2520,7 @@ class AMSJob(SingleJob):
             sett = InputParserFacade().to_settings(AMSJob._command, str(mol))
             return sett.ams.system[0]
 
-        def serialize_molecule_to_settings(mol):
+        def serialize_molecule_to_settings(mol, name: str = None):
             sett = Settings()
 
             if len(mol.lattice) in [1, 2] and mol.align_lattice():

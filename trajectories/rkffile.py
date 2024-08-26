@@ -400,7 +400,6 @@ class RKFTrajectoryFile(TrajectoryFile):
 
         # Read the bond data
         conect = None
-        bonds = None
         if self.read_bonds:
             conect = self._read_bond_data(section="History", step=i)
         self.conect = conect
@@ -497,7 +496,7 @@ class RKFTrajectoryFile(TrajectoryFile):
         """
         Get the connection table without the bond orders
         """
-        conect = self.symmetrize_conect(self.conect)
+        conect = self.symmetrize_conect(self.conect)  # noqa, ToDo: review, return value or remove method?
 
     def _store_mddata_for_step(self, istep):
         """

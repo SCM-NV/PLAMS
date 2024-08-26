@@ -1,4 +1,6 @@
 import builtins
+import pytest
+import os
 
 real_import = builtins.__import__
 
@@ -15,3 +17,12 @@ def get_mock_import_function(import_error_name):
         return real_import(name, globals=globals, locals=locals, fromlist=fromlist, level=level)
 
     return import_with_error
+
+
+def skip_if_no_ams_installation():
+    """
+    Check whether the AMSBIN environment variable is set, and therefore if there is an AMS installation present.
+    If there is no installation, skip the test with a warning.
+    """
+    if os.getenv("AMSBIN") is None:
+        pytest.skip("Skipping test as cannot find AMS installation. '$AMSBIN' environment variable is not set.")
