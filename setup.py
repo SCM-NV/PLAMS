@@ -12,8 +12,8 @@ description = "PLAMS is a library providing powerful, flexible and easily extend
 setup(
     name="plams",
     version=__version__,
-    author="Michał Handzlik",
-    author_email="handzlik@scm.com",
+    author="Software for Chemistry and Materials",
+    author_email="info@scm.com",
     url="https://www.scm.com/doc/plams/",
     download_url="https://github.com/SCM-NV/PLAMS/zipball/release",
     license="LGPLv3",
