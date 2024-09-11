@@ -1,0 +1,80 @@
+name: auto-pr-fix2024
+
+on:
+# Run on merging a PR into trunk
+  pull_request:
+    types:
+      - synchronize # for testing
+    branches:
+      - DavidOrmrodMorley/fix-auto-pr
+
+jobs:
+  create-pr:
+    # Only run if the PR was merged and contained the auto-pr-fix2024 label
+    if: github.event.pull_request.merged == false && contains(github.event.pull_request.labels.*.name, 'auto-pr-fix2024')
+    runs-on: ubuntu-latest
+
+    # Set up env vars
+    env:
+      FIX_BRANCH: fix2024
+      AUTO_BRANCH: Bot-SCM/auto-pr-fix2024-${{ github.event.pull_request.number }}
+
+    steps:
+      # Checkout the fix branch
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.FIX_BRANCH }}
+          fetch-depth: 0
+
+      # Configure git
+      - name: Setup Git config
+        run: |
+          git config user.name "bot-scm"
+          git config user.email "githubbot@scm.com"
+
+      # Create a new branch from the fix branch
+      - name: Create branch
+        run: |
+          git checkout -b $AUTO_BRANCH
+
+      # Get SHAs of all commits associated with PR and cherry-pick them
+      - name: Cherry-pick Commits
+        env:
+          GITHUB_TOKEN: ${{ secrets.BOT_SCM_GITHUB_TOKEN }}
+        run: |
+          PR_NUMBER=${{ github.event.pull_request.number }}
+          REPO=${{ github.repository }}
+          
+          echo "Fetching commits for PR #${PR_NUMBER}..."
+          
+          # Fetch commits using GitHub API as we can't get this information if the branch was deleted
+          COMMITS=$(curl -H "Authorization: token $GITHUB_TOKEN" \
+                         -H "Accept: application/vnd.github.v3+json" \
+                         "https://api.github.com/repos/${REPO}/pulls/${PR_NUMBER}/commits" \
+                         | jq -r '.[] | .sha')
+          
+          for SHA in $COMMITS; do
+            echo "Cherry-picking commit $SHA"
+            git cherry-pick "$SHA" || exit 1
+          done
+
+      # Create pull request from new branch targeting the fix branch
+      - name: Create PR
+        env:
+          GITHUB_TOKEN: ${{ secrets.BOT_SCM_GITHUB_TOKEN }}
+        run: |
+          git push --set-upstream origin $AUTO_BRANCH
+          
+          # Define variables
+          PR_TITLE="Auto ${FIX_BRANCH}: ${{ github.event.pull_request.title }}"
+          PR_BODY="This is an automated pull request based on: ${{ github.event.pull_request.html_url }}. Check the diff is as expected before merging."
+          REPO=${{ github.repository }}
+
+          # Create a pull request using GitHub API
+          curl -X POST \
+            -H "Authorization: token $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github.v3+json" \
+            -d "{\"title\":\"$PR_TITLE\", \"body\":\"$PR_BODY\", \"head\":\"$AUTO_BRANCH\", \"base\":\"$FIX_BRANCH\"}" \
+            "https://api.github.com/repos/$REPO/pulls"
+
