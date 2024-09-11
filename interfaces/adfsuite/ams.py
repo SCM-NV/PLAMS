@@ -1727,6 +1727,7 @@ class AMSResults(Results):
         nEntries = self.readrkf("History", "nEntries")
         coords = np.array(self.get_history_property("Coords")).reshape(nEntries, -1, 3)
         coords = coords[start_step:end_step:every]
+        nEntries = len(coords)
 
         axis2index = {"x": 0, "y": 1, "z": 2}
         index = axis2index[axis]
