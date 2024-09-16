@@ -1,5 +1,6 @@
 import os
 import json
+import threading
 
 from scm.plams.core.settings import Settings
 from scm.plams.interfaces.adfsuite.amsworker import AMSWorker, AMSWorkerError
@@ -118,18 +119,30 @@ class InputParserFacade:
     try:
         from scm.libbase import InputParser as InputParserScmLibbase
 
+        # Cache a single instance of the parser to avoid having to repeatedly reload input file definition JSON
+        # But for this need to make access to the parser thread-safe
+        input_parser_scm_libbase = InputParserScmLibbase()
+        input_parser_lock = threading.Lock()
         _has_scm_libbase = True
     except ImportError:
         _has_scm_libbase = False
 
-    def __init__(self):
-        self.parser = self.InputParserScmLibbase() if self._has_scm_libbase else InputParser()
+    @property
+    def parser(self):
+        """
+        Get instance of a parser used to convert text input.
+        """
+        if self._has_scm_libbase:
+            return self.input_parser_scm_libbase
+        else:
+            return InputParser()
 
     def to_settings(self, program: str, text_input: str):
         """Transform a string with text input into a PLAMS Settings object."""
 
         if self._has_scm_libbase:
-            return self.parser.to_settings(program, text_input)
+            with self.input_parser_lock:
+                return self.parser.to_settings(program, text_input)
         else:
             with self.parser as parser:
                 return parser.to_settings(program, text_input)
@@ -140,7 +153,8 @@ class InputParserFacade:
         a Python dictionary representing the JSONified input.
         """
         if self._has_scm_libbase:
-            return self.parser.to_dict(program, text_input, string_leafs)
+            with self.input_parser_lock:
+                return self.parser.to_dict(program, text_input, string_leafs)
         else:
             with self.parser as parser:
                 return parser._run(program, text_input, string_leafs)
