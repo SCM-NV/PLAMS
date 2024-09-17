@@ -24,6 +24,7 @@ Molecule analysis
 
 .. toctree::
 
+   MoleculeFormats/MoleculeFormats
    MoleculesFromRKFTrajectory
    MoleculesTable
    MoleculeSubstitution/MoleculeSubstitutionExample
