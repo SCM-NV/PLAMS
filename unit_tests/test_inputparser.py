@@ -61,16 +61,16 @@ End
 
     md_settings = Settings()
     md_thermo_settings = Settings()
-    md_settings.ams.MolecularDynamics.Checkpoint.Frequency = "1000000"
-    md_settings.ams.MolecularDynamics.InitialVelocities.Temperature = "600.0"
-    md_settings.ams.MolecularDynamics.NSteps = "100000"
-    md_settings.ams.MolecularDynamics.Shake.All = ["Bonds H *"]
-    md_thermo_settings.Tau = "100"
-    md_thermo_settings.Temperature = "600.0"
-    md_thermo_settings.Type = "Berendsen"
-    md_settings.ams.MolecularDynamics.Thermostat = [md_thermo_settings]
-    md_settings.ams.MolecularDynamics.TimeStep = "1.0"
-    md_settings.ams.MolecularDynamics.Trajectory.SamplingFreq = "100"
+    md_settings.ams.moleculardynamics.checkpoint.frequency = "1000000"
+    md_settings.ams.moleculardynamics.initialvelocities.temperature = "600.0"
+    md_settings.ams.moleculardynamics.nsteps = "100000"
+    md_settings.ams.moleculardynamics.shake.all = ["Bonds H *"]
+    md_thermo_settings.tau = "100"
+    md_thermo_settings.temperature = "600.0"
+    md_thermo_settings.type = "Berendsen"
+    md_settings.ams.moleculardynamics.thermostat = [md_thermo_settings]
+    md_settings.ams.moleculardynamics.timestep = "1.0"
+    md_settings.ams.moleculardynamics.trajectory.samplingfreq = "100"
 
     yield [(geometry_optimisation_input, geometry_optimisation_settings), (md_input, md_settings)]
 
@@ -97,13 +97,13 @@ End
     """
 
     water_settings = Settings()
-    water_settings.Atoms._1 = [
+    water_settings.atoms._1 = [
         "O       0.0000000000       0.0000000000       0.0000000000",
         "H       1.0000000000       0.0000000000       0.0000000000",
         "H       0.0000000000       1.0000000000       0.0000000000",
     ]
     water_system_settings = Settings()
-    water_system_settings.System = [water_settings]
+    water_system_settings.system = [water_settings]
 
     graphene_system_input = """
 System
@@ -121,19 +121,19 @@ System
 End
 """
     graphene_settings = Settings()
-    graphene_settings.Atoms._1 = [
+    graphene_settings.atoms._1 = [
         "C   -1.2300000000000000 -2.1304224999999999  0.0000000000000000",
         "C   -1.2300000000000000 -0.7101408299999999  0.0000000000000000",
         "C    0.0000000000000000  0.0000000000000000  0.0000000000000000",
         "C    0.0000000000000000  1.4202816700000001  0.0000000000000000",
     ]
-    graphene_settings.Lattice._1 = [
+    graphene_settings.lattice._1 = [
         "2.4600000000000000   0.0000000000000000   0.0000000000000000",
         "0.0000000000000000   4.2608449999999998   0.0000000000000000",
         "0.0000000000000000   0.0000000000000000  80.0000000000000000",
     ]
     graphene_system_settings = Settings()
-    graphene_system_settings.System = [graphene_settings]
+    graphene_system_settings.system = [graphene_settings]
 
     yield [(water_system_input, water_system_settings), (graphene_system_input, graphene_system_settings)]
 
