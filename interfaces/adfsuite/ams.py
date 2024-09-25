@@ -2382,7 +2382,7 @@ class AMSJob(SingleJob):
             return True
         return False
 
-    def get_errormsg(self) -> Optional[str]:
+    def get_errormsg(self, prefer_stderr: bool = False) -> Optional[str]:
         """Tries to get an error message for a failed job. This method returns ``None`` for successful jobs."""
         if self.check():
             return None
@@ -2390,6 +2390,12 @@ class AMSJob(SingleJob):
             # Something went wrong. The first place to check is the termination status on the ams.rkf.
             # If the AMS driver stopped with a known error (called StopIt in the Fortran code), the error will be in there.
             try:
+                if prefer_stderr and "$JN.err" in self.results:
+                    with open(self.results["$JN.err"], "r") as err:
+                        msg = err.read().strip()
+                        if msg != "":
+                            return msg
+
                 msg = self.results.readrkf("General", "termination status")
                 if msg == "NORMAL TERMINATION with errors" or msg is None:
                     # Apparently this wasn't a hard stop in the middle of the job.
