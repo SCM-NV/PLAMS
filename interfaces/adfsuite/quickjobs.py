@@ -48,7 +48,10 @@ def preoptimize(
 def shakemd(
     molecule: Molecule,
     density: Optional[float] = None,  # kg/m^3
+    temperature: float = 100.0,
+    timestep: float = 0.5,
     nsteps: int = 4000,
+    density_scaling_segment: float = 0.75, 
     model: str = "UFF",
     settings: Optional[Settings] = None,
     nproc: int = 1,
@@ -77,8 +80,8 @@ def shakemd(
     s.input.ams.MolecularDynamics.NSteps = nsteps
     s.input.ams.MolecularDynamics.Thermostat.Type = "Berendsen"
     s.input.ams.MolecularDynamics.Thermostat.Tau = 100
-    s.input.ams.MolecularDynamics.Thermostat.Temperature = 100
-    s.input.ams.MolecularDynamics.TimeStep = 0.5
+    s.input.ams.MolecularDynamics.Thermostat.Temperature = temperature
+    s.input.ams.MolecularDynamics.TimeStep = timestep
     s.input.ams.MolecularDynamics.InitialVelocities.Temperature = 100
     s.input.ams.MolecularDynamics.Shake.All = "bonds * *"
     if density is not None:
@@ -90,7 +93,10 @@ def shakemd(
             {l[1][0]} {l[1][1]} {l[1][2]}
             {l[2][0]} {l[2][1]} {l[2][2]}
         """
-        s.input.ams.MolecularDynamics.Deformation.StartStep = max(nsteps - 3000, 1)
+        startstep = int(nsteps * (1.0 - density_scaling_segment))
+        if startstep > nsteps - 3000:
+            startstep = nsteps - 3000
+        s.input.ams.MolecularDynamics.Deformation.StartStep = max(startstep, 1)
         s.input.ams.MolecularDynamics.Deformation.StopStep = nsteps
         s.input.ams.MolecularDynamics.Deformation.TargetLattice._1 = target_lattice_str
 
@@ -99,7 +105,7 @@ def shakemd(
 
     out = job.results.get_main_molecule()
 
-    delete_job(job)
+    #delete_job(job)
 
     if called_plams_init:
         finish()
