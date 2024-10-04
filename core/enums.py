@@ -1,16 +1,16 @@
 # Import StrEnum for Python >=3.11, otherwise use backwards compatible class
 try:
-    from enum import StrEnum
+    from enum import StrEnum  # type: ignore
 except ImportError:
     from enum import Enum
 
-    class StrEnum(str, Enum):
+    class StrEnum(str, Enum):  # type: ignore
         """
         Enum where all members are strings and so can be used for string comparison.
         """
 
-        def __str__(self):
-            return self.value
+        def __str__(self) -> str:
+            return str(self.value)
 
 
 __all__ = ["JobStatus"]

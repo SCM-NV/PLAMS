@@ -8,7 +8,7 @@ import shutil
 import threading
 from os.path import join as opj
 from subprocess import PIPE
-from typing import List
+from typing import List, Dict
 
 from scm.plams.core.errors import FileError, ResultsError
 from scm.plams.core.functions import config, log
@@ -161,7 +161,7 @@ class Results(ApplyRestrict):
     Instance methods are automatically wrapped with the "access guardian" that ensures thread safety (see |parallel|).
     """
 
-    _rename_map = {}
+    _rename_map: Dict[str, str] = {}
 
     def __init__(self, job):
         self.job = job

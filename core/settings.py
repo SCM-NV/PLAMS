@@ -1,7 +1,7 @@
 import contextlib
 import textwrap
 from functools import wraps
-from typing import TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING, TypeVar, Union, Tuple, Type
 
 __all__ = [
     "Settings",
@@ -335,7 +335,7 @@ class Settings(dict):
             ('a', 'b', 'c'): 	True
         """
         if flatten_list:
-            nested_type = (Settings, list)
+            nested_type: Union[Type, Tuple[Type, ...]] = (Settings, list)
             iter_type = lambda x: x.items() if isinstance(x, Settings) else enumerate(x)
         else:
             nested_type = Settings
@@ -490,7 +490,7 @@ class SuppressMissing(contextlib.AbstractContextManager):
         """Initialize the :class:`SuppressMissing` context manager."""
         # Ensure that obj is a class, not a class instance
         self.obj = obj if isinstance(obj, type) else type(obj)
-        self.missing = obj.__missing__
+        self.missing = obj.__missing__ if hasattr(obj, "__missing__") else None
 
     def __enter__(self):
         """Enter the :class:`SuppressMissing` context manager: delete :meth:`.Settings.__missing__` at the class level."""
