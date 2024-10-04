@@ -1,5 +1,6 @@
 import collections
 import math
+from typing import Dict
 
 from scm.plams.core.errors import UnitsError
 import numpy as np
@@ -167,7 +168,7 @@ class Units:
     angle["circle"] = 1.0 / 360.0
 
     charge = {}
-    charge["a.u."] = charge["au"] = charge["e"] = 1
+    charge["a.u."] = charge["au"] = charge["e"] = 1.0
     charge["C"] = charge["coulomb"] = constants["e"]
 
     dipole = {}
@@ -231,7 +232,7 @@ class Units:
     dicts["molecular_polarizability"] = molecular_polarizability
 
     # Precomputed a dict mapping lowercased unit names to quantityName:conversionFactor pairs
-    quantities_for_unit = {}
+    quantities_for_unit: Dict[str, Dict[str, float]] = {}
     for quantity in dicts:
         for unit, factor in dicts[quantity].items():
             unit = unit.lower()

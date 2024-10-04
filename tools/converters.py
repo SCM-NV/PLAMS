@@ -1,6 +1,7 @@
 import os
 import re
 import tempfile
+from typing import Optional, Dict
 
 from scm.plams.interfaces.molecule.ase import toASE
 from scm.plams.mol.molecule import Molecule
@@ -93,8 +94,7 @@ def traj_to_rkf(trajfile, rkftrajectoryfile, task=None, timestep: float = 0.25):
             if str(task).lower() == "moleculardynamics" or len(mddata) > 0:
                 mddata["Time"] = timestep * i
 
-            if len(mddata) == 0:
-                mddata = None
+            final_mddata = None if len(mddata) == 0 else mddata
 
             # Create a historydata dictionary, to go into the History section
             historydata = {}
@@ -106,7 +106,7 @@ def traj_to_rkf(trajfile, rkftrajectoryfile, task=None, timestep: float = 0.25):
             if len(historydata) == 0:
                 historydata = {}
 
-            rkfout.write_next(coords=coords, cell=cell, historydata=historydata, mddata=mddata)
+            rkfout.write_next(coords=coords, cell=cell, historydata=historydata, mddata=final_mddata)
 
     finally:
         rkfout.close()
@@ -211,7 +211,12 @@ def _postprocess_vasp_amsrkf(kffile, outcar):
 
 
 def vasp_output_to_ams(
-    vasp_folder, wdir=None, overwrite=False, write_engine_rkf=True, task: str = None, timestep: float = 0.25
+    vasp_folder: str,
+    wdir: Optional[str] = None,
+    overwrite: bool = False,
+    write_engine_rkf: bool = True,
+    task: Optional[str] = None,
+    timestep: float = 0.25,
 ):
     """
     Converts VASP output (OUTCAR, ...) to AMS output (ams.rkf, vasp.rkf)

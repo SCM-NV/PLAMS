@@ -21,9 +21,11 @@ from scm.plams.tools.periodic_table import PT
 from scm.plams.tools.units import Units
 
 input_parser_available = "AMSBIN" in os.environ
-from typing import Union, List, Optional, Tuple, overload, Iterable, Dict
+from typing import Union, List, Optional, Tuple, overload, Iterable, Dict, Set
 
 __all__ = ["Molecule"]
+
+str_type = str  # To avoid type-hinting issues with str() method
 
 
 class Molecule:
@@ -1512,15 +1514,15 @@ class Molecule:
         within_threshold = np.any(less_equal, axis=0)
         good_indices = [i for i, value in enumerate(within_threshold) if value]
 
-        complete_indices = set()
+        complete_indices: Set[int] = set()
         for indlist in molecule_indices:
             for ind in good_indices:
                 if ind in indlist:
                     complete_indices = complete_indices.union(indlist)
                     break
-        complete_indices = sorted(list(complete_indices))
+        sorted_complete_indices = sorted(list(complete_indices))
 
-        newmolecule = self.get_fragment([i for i in complete_indices])
+        newmolecule = self.get_fragment([i for i in sorted_complete_indices])
         return newmolecule
 
     def locate_rings(self):
@@ -3258,7 +3260,7 @@ class Molecule:
         if patch is not None:
             self.properties.forcefieldpatch = patch
 
-    def readrkf(self, filename: str, section: str = "Molecule", **other):
+    def readrkf(self, filename: str_type, section: str_type = "Molecule", **other):
         kf = KFFile(filename)
         sectiondict = kf.read_section(section)
         self.__dict__.update(Molecule._mol_from_rkf_section(sectiondict).__dict__)

@@ -59,11 +59,11 @@ class KFReader:
         self._blocksize = blocksize
         self.endian = "<"  # endian: '<' = little, '>' = big
         self.word = "i"  # length of int: 'i' = 4 bits, 'q' = 8 bits
-        self._sections = None
+        self._sections: Optional[Dict] = None
         if autodetect:
             self._autodetect()
 
-    def read(self, section: str, variable: str) -> TRead:
+    def read(self, section: str, variable: str) -> TRead:  # type: ignore
         """Extract and return data for a *variable* located in a *section*.
 
         For single-value numerical or boolean variables returned value is a single number or bool. For longer variables this method returns a list of values. For string variables a single string is returned.
@@ -73,7 +73,7 @@ class KFReader:
             self._create_index()
 
         try:
-            tmp = self._sections[section]
+            tmp = self._sections[section]  # type: ignore
         except KeyError:
             raise KeyError("Section {} not present in {}".format(section, self.path))
         try:
@@ -109,7 +109,7 @@ class KFReader:
             self._create_index()
 
         try:
-            vtype, vlb, vstart, vlen = self._sections[section][variable]
+            vtype, vlb, vstart, vlen = self._sections[section][variable]  # type: ignore
         except KeyError:
             raise KeyError(f"Section '{section}' or variable '{variable}' not present in '{self.path}'")
         return vtype
@@ -417,10 +417,8 @@ class KFFile:
         if self.reader:
             if self.reader._sections is None:
                 self.reader._create_index()
-            ret |= set(self.reader._sections)
-        ret = list(ret)
-        ret.sort()
-        return ret
+            ret |= set(self.reader._sections)  # type: ignore
+        return sorted(ret)
 
     def read_section(self, section: str) -> Dict[str, TRead]:
         """Return a dictionary with all variables from a given *section*.
@@ -452,7 +450,7 @@ class KFFile:
 
         Each key in that dictionary corresponds to a section name of the KF file
         with the value being a set of variable names."""
-        ret = {}
+        ret: Dict[str, Set[str]] = {}
         for sec, var in self:
             if sec not in ret:
                 ret[sec] = set()
