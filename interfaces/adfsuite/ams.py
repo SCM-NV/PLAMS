@@ -1,6 +1,6 @@
 import os
 from os.path import join as opj
-from typing import Dict, List, Literal, Set, Tuple, Union, Optional, TYPE_CHECKING
+from typing import Dict, List, Literal, Set, Tuple, Union, Optional, TYPE_CHECKING, Any
 
 import numpy as np
 from scm.plams.core.basejob import SingleJob
@@ -339,60 +339,59 @@ class AMSResults(Results):
 
         All data used by this method is taken from ``ams.rkf`` file. The ``molecule`` attribute of the corresponding job is ignored.
         """
-        if "ams" in self.rkfs:
-            main = self.rkfs["ams"]
-            if not self.is_valid_stepnumber(main, step):
-                return None
-            coords = main.read("History", f"Coords({step})")
-            coords = [coords[i : i + 3] for i in range(0, len(coords), 3)]
-            if ("History", f"SystemVersion({step})") in main:
-                system = self.get_system_version(main, step)
-                mol = self.get_molecule(f"ChemicalSystem({system})")
-                molsrc = f"ChemicalSystem({system})"
-            else:
-                mol = self.get_main_molecule()
-                molsrc = "Molecule"
-            assert mol is not None
-            if len(mol) != len(coords):
-                raise ResultsError(
-                    f'Coordinates taken from "History%Coords({step})" have incompatible length with molecule from {molsrc} section'
-                )
-            for at, c in zip(mol, coords):
-                at.move_to(c, unit="bohr")
+        if "ams" not in self.rkfs:
+            return None
 
-            if ("History", "LatticeVectors(" + str(step) + ")") in main:
-                lattice = Units.convert(main.read("History", "LatticeVectors(" + str(step) + ")"), "bohr", "angstrom")
-                mol.lattice = [tuple(lattice[j : j + 3]) for j in range(0, len(lattice), 3)]
+        main = self.rkfs["ams"]
+        if not self.is_valid_stepnumber(main, step):
+            return None
+        coords = main.read("History", f"Coords({step})")
+        coords = [coords[i : i + 3] for i in range(0, len(coords), 3)]
+        if ("History", f"SystemVersion({step})") in main:
+            system = self.get_system_version(main, step)
+            mol = self.get_molecule(f"ChemicalSystem({system})")
+            molsrc = f"ChemicalSystem({system})"
+        else:
+            mol = self.get_main_molecule()
+            molsrc = "Molecule"
+        assert mol is not None
+        if len(mol) != len(coords):
+            raise ResultsError(
+                f'Coordinates taken from "History%Coords({step})" have incompatible length with molecule from {molsrc} section'
+            )
+        for at, c in zip(mol, coords):
+            at.move_to(c, unit="bohr")
 
-            # Bonds from the reference molecule are probably outdated. Let us never use them ...
-            mol.delete_all_bonds()
-            # ... but instead use bonds from the history section if they are available:
-            if all(
-                ("History", i) in main
-                for i in [f"Bonds.Index({step})", f"Bonds.Atoms({step})", f"Bonds.Orders({step})"]
-            ):
-                index = main.read("History", f"Bonds.Index({step})")
-                if not isinstance(index, list):
-                    index = [index]
-                atoms = main.read("History", f"Bonds.Atoms({step})")
-                if not isinstance(atoms, list):
-                    atoms = [atoms]
-                orders = main.read("History", f"Bonds.Orders({step})")
-                if not isinstance(orders, list):
-                    orders = [orders]
-                for i in range(len(index) - 1):
-                    for j in range(index[i], index[i + 1]):
-                        mol.add_bond(mol[i + 1], mol[atoms[j - 1]], orders[j - 1])
-            if ("History", f"Bonds.CellShifts({step})") in main:
-                assert mol.lattice
-                cellShifts = main.read("History", f"Bonds.CellShifts({step})")
-                ndim = len(mol.lattice)
-                for i, b in enumerate(mol.bonds):
-                    b.properties.suffix = " ".join(
-                        [f"{cellShifts[ndim*i+j]}" for j in range(min(len(mol.lattice), ndim))]
-                    )
+        if ("History", "LatticeVectors(" + str(step) + ")") in main:
+            lattice = Units.convert(main.read("History", "LatticeVectors(" + str(step) + ")"), "bohr", "angstrom")
+            mol.lattice = [tuple(lattice[j : j + 3]) for j in range(0, len(lattice), 3)]
 
-            return mol
+        # Bonds from the reference molecule are probably outdated. Let us never use them ...
+        mol.delete_all_bonds()
+        # ... but instead use bonds from the history section if they are available:
+        if all(
+            ("History", i) in main for i in [f"Bonds.Index({step})", f"Bonds.Atoms({step})", f"Bonds.Orders({step})"]
+        ):
+            index = main.read("History", f"Bonds.Index({step})")
+            if not isinstance(index, list):
+                index = [index]
+            atoms = main.read("History", f"Bonds.Atoms({step})")
+            if not isinstance(atoms, list):
+                atoms = [atoms]
+            orders = main.read("History", f"Bonds.Orders({step})")
+            if not isinstance(orders, list):
+                orders = [orders]
+            for i in range(len(index) - 1):
+                for j in range(index[i], index[i + 1]):
+                    mol.add_bond(mol[i + 1], mol[atoms[j - 1]], orders[j - 1])
+        if ("History", f"Bonds.CellShifts({step})") in main:
+            assert mol.lattice
+            cellShifts = main.read("History", f"Bonds.CellShifts({step})")
+            ndim = len(mol.lattice)
+            for i, b in enumerate(mol.bonds):
+                b.properties.suffix = " ".join([f"{cellShifts[ndim*i+j]}" for j in range(min(len(mol.lattice), ndim))])
+
+        return mol
 
     def is_valid_stepnumber(self, main: KFFile, step: int) -> bool:
         """
@@ -515,7 +514,7 @@ class AMSResults(Results):
         molname = "Molecule"
         if ("History", f"SystemVersion({step})") in main:
             system = self.get_system_version(main, step)
-            molname = "ChemicalSystem(%i)" % (system)
+            molname = f"ChemicalSystem({system})"
         masses = np.array(main.read(molname, "AtomMasses"))
         nats = len(masses)
 
@@ -626,7 +625,7 @@ class AMSResults(Results):
         fermi_energy = self.readrkf("BandStructure", "FermiEnergy", file="engine")
         fermi_energy = Units.convert(fermi_energy, "hartree", unit)
 
-        return x, complete_spinup_data, complete_spindown_data, labels, fermi_energy
+        return x, complete_spinup_data, complete_spindown_data, labels, fermi_energy  # type: ignore
 
     def get_engine_results(self, engine: Optional[str] = None) -> Dict:
         """Return a dictionary with contents of ``AMSResults`` section from an engine results ``.rkf`` file.
@@ -1115,7 +1114,7 @@ class AMSResults(Results):
         pescoords = tolist(self.readrkf("PESScan", "PESCoords"))
         pescoords = np.array(pescoords).reshape(-1, sum(len(x) for x in scancoords))
         pescoords = np.transpose(pescoords)
-        units = []
+        units: List[List[str]] = []
         for i in range(nScanCoord):
             units.append([])
             for j in range(len(scancoords[i])):
@@ -1136,7 +1135,7 @@ class AMSResults(Results):
         converged = [bool(x) for x in converged]
         historyindices = tolist(self.readrkf("PESScan", "HistoryIndices"))
 
-        ret = {}
+        ret: Dict[str, Any] = {}
 
         raveled_scancoords = [x[i] for x in scancoords for i in range(len(x))]  # 1d list
         raveled_units = [x[i] for x in units for i in range(len(x))]  # 1d list
@@ -1144,14 +1143,15 @@ class AMSResults(Results):
         constrained_atoms = []
         for sc in raveled_scancoords:
             constrained_atoms.extend(re.findall(r"\((\d+)\)", sc))
+
         try:
-            constrained_atoms = set(int(x) for x in constrained_atoms)
+            constrained_atom_set = set(int(x) for x in constrained_atoms)
         except ValueError:
-            constrained_atoms = set()
+            constrained_atom_set = set()
 
         ret["RaveledScanCoords"] = raveled_scancoords
         ret["nRaveledScanCoords"] = len(raveled_scancoords)
-        ret["ConstrainedAtoms"] = constrained_atoms
+        ret["ConstrainedAtoms"] = constrained_atom_set
         ret["ScanCoords"] = scancoords
         ret["nScanCoords"] = len(scancoords)
         ret["OrigScanCoords"] = origscancoords  # newline delimiter for joint scan coordinates
@@ -1292,13 +1292,13 @@ class AMSResults(Results):
             "HistoryIndices",
             "Molecules",
         ]
-        d = {}
+        d: Dict[str, List] = {}
         forw = {}
         back = {}
         reformed = {}
         forw_mask = None
         back_mask = None
-        converged = self.get_history_property("Converged", history_section=sec)
+        converged = self.get_history_property("Converged", history_section=sec) or []
         converged = tolist(converged)
         converged_mask = [x != 0 for x in converged]
         history_indices = [i for i, x in enumerate(converged_mask, 1) if x]  # raw, not rearranged
@@ -1312,7 +1312,7 @@ class AMSResults(Results):
             elif k == "HistoryIndices":
                 d[k] = history_indices  # rearrangement happens later
             else:
-                d[k] = self.get_history_property(k, history_section=sec)
+                d[k] = self.get_history_property(k, history_section=sec) or []
                 d[k] = tolist(d[k])
                 d[k] = list(compress(d[k], converged_mask))
             if k == "IRCDirection":
@@ -1320,8 +1320,8 @@ class AMSResults(Results):
                 back_mask = [x != 1 for x in d[k]]
                 d[k] = ["Forward" if x == 1 else "Backward" if x == 2 else x for x in d[k]]
 
-            forw[k] = list(compress(d[k], forw_mask))
-            back[k] = list(compress(d[k], back_mask))
+            forw[k] = list(compress(d[k], forw_mask))  # type: ignore
+            back[k] = list(compress(d[k], back_mask))  # type: ignore
             back[k].reverse()
             if k == "PathLength":
                 # print backwards direction as negative numbers
@@ -1344,6 +1344,10 @@ class AMSResults(Results):
         """Returns the time step between adjacent frames (NOT the TimeStep in the settings, but Timestep*SamplingFreq) in femtoseconds for MD simulation jobs"""
         time1 = self.get_property_at_step(1, "Time", history_section=history_section)
         time2 = self.get_property_at_step(2, "Time", history_section=history_section)
+
+        if time1 is None or time2 is None:
+            return None
+
         time_step = time2 - time1
         return time_step
 
@@ -2329,12 +2333,12 @@ class AMSJob(SingleJob):
             # Running as a SLURM job step and user asked for a specific number of tasks.
             # Make sure to use as few nodes as possible to avoid distributing jobs needlessly across nodes.
             # See: https://stackoverflow.com/questions/71382578
+            nnode = 1
             for nnode in range(1, len(config.slurm.tasks_per_node) + 1):
                 if sum(config.slurm.tasks_per_node[0:nnode]) >= self.settings.runscript.nproc:
                     break
-            if nnode > 1:
-                nnode = f"1-{nnode}"
-            ret += f'export SCM_SRUN_OPTIONS="$SCM_SRUN_OPTIONS -N {nnode}"\n'
+            nn_flag = f"1-{nnode}" if nnode > 1 else f"{nnode}"
+            ret += f'export SCM_SRUN_OPTIONS="$SCM_SRUN_OPTIONS -N {nn_flag}"\n'
         if _has_scm_pisa and isinstance(self.settings.input, DriverBlock):
             if self.settings.input.Engine.name == "QuantumESPRESSO":
                 ret += "export SCM_DISABLE_MPI=1\n"
@@ -2893,7 +2897,7 @@ class AMSJob(SingleJob):
         return cls.from_input(inp_file, **kwargs)
 
     @staticmethod
-    def settings_to_mol(s: Settings) -> Dict[str, Molecule]:
+    def settings_to_mol(s: Settings) -> Optional[Dict[str, Molecule]]:
         """Pop the `s.input.ams.system` block from a settings instance and convert it into a dictionary of molecules.
 
         The provided settings should be in the same style as the ones produced by the SCM input parser.
@@ -3047,6 +3051,7 @@ class AMSJob(SingleJob):
 
         properties = Settings()
         for i, t in enumerate(tokens):
+            val: Any
             key, _, val = t.partition("=")
             if not val:
                 # Token that is not a key=value pair? Let's accumulate those in the plain text suffix.

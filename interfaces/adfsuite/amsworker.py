@@ -26,7 +26,7 @@ if os.name == "nt":
     import ctypes.wintypes
     import msvcrt
 
-    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)  # type: ignore
 
     def CheckHandle(result, func, arguments):
         if result == ctypes.wintypes.HANDLE(-1).value:
@@ -384,7 +384,7 @@ class AMSWorkerError(PlamsError):
             return "Could not determine error message. Please check the error.stdout and error.stderr manually."
 
 
-_arg2setting = {}
+_arg2setting: Dict[str, Tuple[str, ...]] = {}
 
 for x in ("prev_results", "quiet"):
     _arg2setting[x] = ("amsworker", x)
@@ -787,9 +787,9 @@ class AMSWorker:
             return False
 
     @staticmethod
-    def _settings_to_args(s: Settings) -> Tuple[str, Dict]:
+    def _settings_to_args(s: Settings) -> Dict:
         """
-        Return a `tuple(TASK, **request_kwargs)` corresponding to a given settings object.
+        Return a **request_kwargs corresponding to a given settings object.
 
         Raises NotImplementedError if unsupported features are encountered.
         """

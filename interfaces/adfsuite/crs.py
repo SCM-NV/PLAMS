@@ -2,6 +2,7 @@ import inspect
 import os
 import subprocess
 from itertools import cycle
+from typing import Optional
 
 import numpy as np
 
@@ -21,7 +22,7 @@ class CRSResults(SCMResults):
     @property
     def section(self) -> str:
         try:  # Return the cached value if possible
-            return self._section
+            return self._section  # type: ignore
         except AttributeError:
             try:
                 self._section = self.job.settings.input.property._h.upper()
@@ -97,9 +98,8 @@ class CRSResults(SCMResults):
         if section is None:
             section = self.section
 
-        output = getattr(self, "_prop_dict", False)
-        if output and output["section"] == section:
-            return output
+        if hasattr(self, "_prop_dict") and self._prop_dict["section"] == section:
+            return self._prop_dict
 
         props = self.get_prop_names()
         try:
@@ -282,7 +282,14 @@ class CRSResults(SCMResults):
         else:
             return dict_species, dict_Asson
 
-    def plot(self, *arrays: "np.ndarray", x_axis: str = None, plot_fig: bool = True, x_label=None, y_label=None):
+    def plot(
+        self,
+        *arrays: "np.ndarray",
+        x_axis: Optional[str] = None,
+        plot_fig: bool = True,
+        x_label: Optional[str] = None,
+        y_label: Optional[str] = None,
+    ):
         """Plot, show and return a series of COSMO-RS results as a matplotlib Figure instance.
 
         Accepts the output of, *e.g.*, :meth:`CRSResults.get_sigma_profile`:
@@ -331,7 +338,7 @@ class CRSResults(SCMResults):
         # Create a dictionary of 1d arrays
         array_dict = {}
         for array in arrays:
-            name = None
+            name: Optional[str] = None
             if isinstance(array, str):  # Array refers to a section in the kf file
                 name = array
                 array = self._prop_dict[array]
@@ -399,7 +406,7 @@ class CRSResults(SCMResults):
             ncomponent = 3 if section == "TERNARYMIX" else 2
             index.shape = ncomponent, len(index) // ncomponent
             iterator = np.nditer(index.astype(str), flags=["external_loop"], order="F")
-            ret[x_axis] = np.array([" / ".join(i for i in item) for item in iterator])
+            ret[x_axis] = np.array([" / ".join(str(i) for i in item) for item in iterator])
         else:
             ret[x_axis] = index
 

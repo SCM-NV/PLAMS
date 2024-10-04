@@ -260,12 +260,14 @@ class AMSAnalysisResults(SCMResults):
         """
         from scm.plams import AMSJob
 
-        if "system" in self.job.settings.input:
-            self.job.settings.input.ams.system = self.job.settings.input.system
-            del self.job.settings.input.system
-            molecule = AMSJob.settings_to_mol(self.job.settings)
-            del self.job.settings.input.ams
-            return molecule
+        if "system" not in self.job.settings.input:
+            return None
+
+        self.job.settings.input.ams.system = self.job.settings.input.system
+        del self.job.settings.input.system
+        molecule = AMSJob.settings_to_mol(self.job.settings)
+        del self.job.settings.input.ams
+        return molecule
 
 
 class AMSAnalysisJob(SCMJob):

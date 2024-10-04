@@ -3,7 +3,7 @@
 """
 
 from copy import deepcopy
-
+from typing import Dict
 import numpy as np
 
 from scm.plams.core.functions import config
@@ -21,7 +21,7 @@ except ImportError:
     # empty interface if ase does not exist:
     __all__ = []
 
-    class Calculator:
+    class Calculator:  # type: ignore
         def __init__(self, *args, **kwargs):
             raise NotImplementedError("AMSCalculator can not be used without ASE")
 
@@ -152,7 +152,7 @@ class AMSCalculator(Calculator):
     """
 
     # counters are a dict as a class variable. This is to support deepcopying/multiple instances with the same name
-    _counter = {}
+    _counter: Dict[str, int] = {}
 
     def __new__(cls, settings=None, name="", amsworker=False, restart=True, molecule=None, extractors=[]):
         """Dispatch object creation to AMSPipeCalculator or AMSJobCalculator depending on |amsworker|"""
