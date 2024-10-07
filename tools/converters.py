@@ -1,7 +1,7 @@
 import os
 import re
 import tempfile
-from typing import Optional, Dict
+from typing import Optional
 
 from scm.plams.interfaces.molecule.ase import toASE
 from scm.plams.mol.molecule import Molecule
