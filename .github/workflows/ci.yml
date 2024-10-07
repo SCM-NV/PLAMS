@@ -93,6 +93,7 @@ jobs:
           pip install black
           pip install "black[jupyter]"
           pip install flake8
+          pip install mypy
 
       - name: Run Black
         run: |
@@ -101,6 +102,10 @@ jobs:
       - name: Run Flake8
         run: |
           flake8 --color never --count --config .flake8 .
+
+      - name: Run MyPy
+        run: |
+           mypy 
           
 
   build-docs:
