@@ -105,7 +105,7 @@ jobs:
 
       - name: Run MyPy
         run: |
-           mypy 
+           mypy --no-warn-unused-ignores
           
 
   build-docs:
