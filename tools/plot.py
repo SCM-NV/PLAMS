@@ -60,8 +60,8 @@ def plot_band_structure(x, y_spin_up, y_spin_down=None, labels=None, fermi_energ
     if y_spin_down is not None:
         plt.plot(x, y_spin_down - zero, "--")
 
-    tick_x = []
-    tick_labels = []
+    tick_x: List[float] = []
+    tick_labels: List[str] = []
     for xx, ll in zip(x, labels):
         if ll:
             if len(tick_x) == 0:

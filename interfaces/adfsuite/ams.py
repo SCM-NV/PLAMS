@@ -1413,8 +1413,9 @@ class AMSResults(Results):
             start_fs, end_fs, every_fs, max_dt_fs
         )
 
-        data = self.get_history_property("Velocities", history_section="MDHistory")
-        data = np.array(data).reshape(nEntries, -1, 3)[start_step:end_step:every]
+        data = np.array(self.get_history_property("Velocities", history_section="MDHistory")).reshape(nEntries, -1, 3)[
+            start_step:end_step:every
+        ]
         if atom_indices is not None:
             zero_based_atom_indices = [x - 1 for x in atom_indices]
             data = data[:, zero_based_atom_indices, :]
@@ -1446,7 +1447,7 @@ class AMSResults(Results):
         dipole_x = self.get_history_property(history_section="BinLog", varname="DipoleMoment_x")
         dipole_y = self.get_history_property(history_section="BinLog", varname="DipoleMoment_y")
         dipole_z = self.get_history_property(history_section="BinLog", varname="DipoleMoment_z")
-        data = np.column_stack((dipole_x, dipole_y, dipole_z))
+        data = np.column_stack((dipole_x, dipole_y, dipole_z))  # type: ignore
         data *= Units.convert(1.0, "e*bohr", dipole_unit)
         return data
 
@@ -1707,8 +1708,7 @@ class AMSResults(Results):
         V = self.get_main_molecule().unit_cell_volume()
 
         try:
-            T = self.get_history_property("Temperature", "MDHistory")
-            T = np.array(T)[start_step:end_step:every]
+            T = np.array(self.get_history_property("Temperature", "MDHistory"))[start_step:end_step:every]
             mean_T = np.mean(T)
         except KeyError:  # might be triggered for currently running trajectories, then just use the first temperature
             mean_T = self.get_property_at_step(1, "Temperature", "MDHistory")

@@ -2,7 +2,7 @@ import inspect
 import os
 import subprocess
 from itertools import cycle
-from typing import Optional
+from typing import Optional, List, Dict
 
 import numpy as np
 
@@ -161,14 +161,14 @@ class CRSResults(SCMResults):
         ncomp = self.readkf(self.section, "ncomp")
         struct_names = res["struct names"]
         num_points = self.readkf(self.section, "nitems")
-        valid_structs = [[] for _ in range(ncomp)]
+        valid_structs: List[List[str]] = [[] for _ in range(ncomp)]
         comp_dist = res["comp distribution"].flatten()
         for i in range(len(struct_names)):
             for j in range(ncomp):
                 if res["valid structs"][i * ncomp + j]:
                     valid_structs[j].append(struct_names[i])
 
-        compositions = [{vs: [] for vs in valid_structs[i]} for i in range(ncomp)]
+        compositions: List[Dict[str, List[float]]] = [{vs: [] for vs in valid_structs[i]} for i in range(ncomp)]
         idx = 0
         for i in range(ncomp):
             for nfrac in range(num_points):

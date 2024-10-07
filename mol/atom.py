@@ -79,7 +79,7 @@ class Atom:
             except ValueError:
                 raise TypeError(f"Atomic number (atnum) must be convertable to an int, but was {type(atnum).__name__}")
             if atnum == 0:
-                self._dummysymbol = "Xx"
+                self._dummysymbol: Optional[str_type] = "Xx"
 
         self.mol = mol
         self.bonds = bonds or []
@@ -183,7 +183,7 @@ class Atom:
     @property
     def symbol(self) -> str_type:
         if self.atnum == 0:
-            return self._dummysymbol
+            return self._dummysymbol  # type: ignore
         else:
             return PT.get_symbol(self.atnum)
 

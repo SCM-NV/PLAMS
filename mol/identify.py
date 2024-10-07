@@ -112,7 +112,7 @@ def new_name(atom, flags):
         more.append("RS" + str(twist(v1, v2, v3, flags.get("twist_tol"))))
 
     if flags["CO"] and len(knocks) >= 4:
-        d = OrderedDict()
+        d: OrderedDict = OrderedDict()
         for label, at in knocks:
             if label not in d:
                 d[label] = []
@@ -336,7 +336,7 @@ def find_permutation(self, other, level=1):
         self.label(level=1, keep_labels=True)
 
     # Link atom IDs to integers
-    dic = {}
+    dic: Dict[str, int] = {}
     for at in self.atoms:
         if not at.IDname in dic.keys():
             dic[at.IDname] = max([v for v in dic.values()]) + 1 if len(dic) > 0 else 1

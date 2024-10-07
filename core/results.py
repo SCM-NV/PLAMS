@@ -379,7 +379,9 @@ class Results(ApplyRestrict):
         absfiles = [opj(path, f) for f in self.files]
         childnames = [child.name for child in self.job] if hasattr(self.job, "children") else []
         if arg in ["none", [], None]:
-            [os.remove(f) for f in absfiles if os.path.isfile(f)]
+            for f in absfiles:
+                if os.path.isfile(f):
+                    os.remove(f)
 
         elif isinstance(arg, list):
             rev = False

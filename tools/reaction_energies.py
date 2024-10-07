@@ -232,17 +232,8 @@ def balance_equation(reactants, products, normalization="r0", normalization_valu
     # Al2(SO4)3 + Ca(OH)2 → Al(OH)3 + CaSO4
     # mat = np.array([[-2,-3,-12,0,0,0],[0,0,0,-1,-2,-2],[1,0,0,0,3,3],[0,1,4,1,0,0]]).T
 
-    mat = []
-    for e in elements:
-        row = []
-        for s in stoich_r:
-            row.append(-s.get(e, 0))
-        for s in stoich_p:
-            row.append(s.get(e, 0))
-        mat.append(row)
-    mat = np.array(mat)
+    mat = np.array([[-s.get(e, 0) for s in stoich_r] + [s.get(e, 0) for s in stoich_p] for e in elements])
 
-    coeffs = []
     if mat.shape[0] >= mat.shape[1]:
         u, s, vh = np.linalg.svd(mat)
         coeffs = np.compress(s <= 1e-12, vh, axis=0)
@@ -313,10 +304,8 @@ def reaction_energy(reactants, products, normalization="r0", unit="hartree"):
     my_reactants = [AMSJob.load_external(x) for x in reactants]
     my_products = [AMSJob.load_external(x) for x in products]
     coeffs_r, coeffs_p = balance_equation(my_reactants, my_products, normalization)
-    reaction_energy = None
 
-    energies = [job.results.get_energy(unit=unit) for job in my_reactants + my_products]
-    energies = np.array(energies)
+    energies = np.array([job.results.get_energy(unit=unit) for job in my_reactants + my_products])
 
     coeffs = np.concatenate(([-x for x in coeffs_r], coeffs_p))
     reaction_energy = np.dot(coeffs, energies)

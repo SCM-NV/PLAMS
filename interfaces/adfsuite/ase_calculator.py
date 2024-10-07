@@ -3,7 +3,7 @@
 """
 
 from copy import deepcopy
-from typing import Dict
+from typing import Dict, Optional
 import numpy as np
 
 from scm.plams.core.functions import config
@@ -30,6 +30,8 @@ except ImportError:
 
 
 class BasePropertyExtractor:
+    name: str
+
     def __call__(self, ams_results, atoms):
         return self.extract(ams_results, atoms)
 
@@ -125,7 +127,7 @@ class AMSCalculator(Calculator):
                 is appended to the name for every calculation.
     amsworker : bool , optional
                 If True, use the AMSWorker to set up an interactive session.
-                The AMSWorker will spawn a seperate
+                The AMSWorker will spawn a separate
                 process (an amsdriver). In order to make sure this process is closed,
                 either use AMSCalculator as a context manager or ensure that
                 AMSCalculator.stop_worker() is called before python is finished:
@@ -174,6 +176,7 @@ class AMSCalculator(Calculator):
 
         self.settings = settings.copy()
         self.amsworker = amsworker
+        self.worker: Optional[AMSWorker] = None
         self.name = name
         self.restart = restart
         self.molecule = molecule
@@ -329,12 +332,12 @@ class AMSPipeCalculator(AMSCalculator):
         memo[id(self.worker)] = self.worker
         try:
             this_method = self.__deepcopy__
-            self.__deepcopy__ = None
+            self.__deepcopy__ = None  # type: ignore
             copy = deepcopy(self, memo)
-            self.__deepcopy__ = this_method
+            self.__deepcopy__ = this_method  # type: ignore
             return copy
         except Exception as e:
-            self.__deepcopy__ = this_method
+            self.__deepcopy__ = this_method  # type: ignore
             raise e
 
 

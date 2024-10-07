@@ -146,7 +146,7 @@ class Settings(dict):
                 self[name] = other[name]
         return self
 
-    def update(self, other):
+    def update(self, other):  # type: ignore
         """Update this instance with data from *other*, overwriting existing keys. Nested |Settings| instances are updated recursively.
 
         In the following example ``s`` and ``o`` are previously prepared |Settings| instances::
