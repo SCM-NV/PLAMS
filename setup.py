@@ -33,7 +33,7 @@ setup(
     keywords=["molecular modeling", "computational chemistry", "workflow", "python interface"],
     python_requires=">=3.6",
     install_requires=["dill>=0.2.4", "numpy<2", "scipy", "natsort"],
-    extras_require={"chem_tools": ["ase", "rdkit"]},
+    extras_require={"chem_tools": ["ase<3.23", "rdkit"], "results": ["networkx<3"]},
     packages=packages,
     package_dir={"scm.plams": "."},
     package_data={"scm.plams": [".flake8", "plams_defaults", "examples/*", "unit_tests/*", "unit_tests/xyz/*"]},
