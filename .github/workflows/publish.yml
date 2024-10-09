@@ -1,4 +1,4 @@
-name: Publish to PyPi
+name: Publish to PyPI
 
 on:
   release:
@@ -90,5 +90,12 @@ jobs:
           name: package
           path: dist
 
-      - name: Publish package
+      - name: Publish package to Test PyPI
+        if: ${{ vars.PUBLISH_TO_TEST_PYPI == 'true' }}
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+
+      - name: Publish package to PyPI
+        if: ${{ vars.PUBLISH_TO_PYPI == 'true' }}
         uses: pypa/gh-action-pypi-publish@release/v1
