@@ -294,5 +294,5 @@ def forcefield_params_from_kf(kf):
     patch = ForceFieldPatch()
     patch.read_from_kf(kf)
     if len(patch) == 0:
-        patch = None
+        return charges, types, None
     return charges, types, patch

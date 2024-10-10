@@ -7,9 +7,9 @@ import time
 import warnings
 from contextlib import AbstractContextManager
 from os.path import join as opj
-from typing import Callable, Dict, NoReturn
+from typing import Callable, Dict, NoReturn, List, Optional
 
-__all__ = []
+__all__: List[str] = []
 
 
 def smart_copy(obj, owncopy=[], without=[]):
@@ -82,7 +82,7 @@ class UpdateSysPath(AbstractContextManager):
 
     """
 
-    def __init__(self, path: str = None) -> None:
+    def __init__(self, path: Optional[str] = None) -> None:
         try:
             parser_path = path if path is not None else opj(os.environ["AMSHOME"], "scripting")
         except KeyError as ex:
@@ -92,7 +92,7 @@ class UpdateSysPath(AbstractContextManager):
 
         if parser_path not in sys.path:
             sys.path.append(parser_path)
-            self.path = parser_path
+            self.path: Optional[str] = parser_path
         else:  # The specified path is already present in sys.path
             self.path = None
 

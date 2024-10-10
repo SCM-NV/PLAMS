@@ -4,7 +4,7 @@ import struct
 import subprocess
 from bisect import bisect
 from collections import OrderedDict
-from typing import Dict, Set, Union, List, Iterator, Optional
+from typing import Dict, Set, Union, List, Iterator, Optional, Any
 
 import numpy as np
 from scm.plams.core.errors import FileError
@@ -24,9 +24,9 @@ def _run_kftool(*args, **kwargs):
     startupinfo = None
     if os.name == "nt":
         # Prevent unwanted console windows from popping up on Windows
-        startupinfo = subprocess.STARTUPINFO()
-        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-        startupinfo.wShowWindow = subprocess.SW_HIDE
+        startupinfo = subprocess.STARTUPINFO()  # type: ignore
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW  # type: ignore
+        startupinfo.wShowWindow = subprocess.SW_HIDE  # type: ignore
 
     return saferun(*args, **kwargs, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, startupinfo=startupinfo)
 
@@ -59,11 +59,11 @@ class KFReader:
         self._blocksize = blocksize
         self.endian = "<"  # endian: '<' = little, '>' = big
         self.word = "i"  # length of int: 'i' = 4 bits, 'q' = 8 bits
-        self._sections = None
+        self._sections: Optional[Dict] = None
         if autodetect:
             self._autodetect()
 
-    def read(self, section: str, variable: str) -> TRead:
+    def read(self, section: str, variable: str) -> TRead:  # type: ignore
         """Extract and return data for a *variable* located in a *section*.
 
         For single-value numerical or boolean variables returned value is a single number or bool. For longer variables this method returns a list of values. For string variables a single string is returned.
@@ -73,7 +73,7 @@ class KFReader:
             self._create_index()
 
         try:
-            tmp = self._sections[section]
+            tmp = self._sections[section]  # type: ignore
         except KeyError:
             raise KeyError("Section {} not present in {}".format(section, self.path))
         try:
@@ -109,7 +109,7 @@ class KFReader:
             self._create_index()
 
         try:
-            vtype, vlb, vstart, vlen = self._sections[section][variable]
+            vtype, vlb, vstart, vlen = self._sections[section][variable]  # type: ignore
         except KeyError:
             raise KeyError(f"Section '{section}' or variable '{variable}' not present in '{self.path}'")
         return vtype
@@ -118,8 +118,8 @@ class KFReader:
         """Iteration yields pairs of section name and variable name."""
         if self._sections is None:
             self._create_index()
-        for section in self._sections:
-            for variable in self._sections[section]:
+        for section in self._sections:  # type: ignore
+            for variable in self._sections[section]:  # type: ignore
                 yield section, variable
 
     def _autodetect(self):
@@ -223,7 +223,8 @@ class KFReader:
                 nextsuper = nsl[0][4]
                 superlist += nsl
 
-            self._data = {}  # list of triples to convert logical to physical block numbers
+            # list of triples to convert logical to physical block numbers
+            self._data: Dict[str, Any] = {}
             self._sections = {}
             for (
                 key,
@@ -341,6 +342,8 @@ class KFFile:
         if section in self.tmpdata and variable in self.tmpdata[section]:
             ret = self.tmpdata[section][variable]
         else:
+            if self.reader is None:
+                raise FileError(f"Could not find file '{self.path}' to read")
             ret = self.reader.read(section, variable)
         if return_as_list and isinstance(ret, (int, float, bool)):
             ret = [ret]
@@ -405,7 +408,7 @@ class KFFile:
         if self.reader:
             if not self.reader._sections:
                 self.reader._create_index()
-            if section in self.reader._sections:
+            if section in self.reader._sections:  # type: ignore
                 tmpfile = self.path + ".tmp"
                 _run_kftool(["cpkf", self.path, tmpfile, "-rm", section])
                 shutil.move(tmpfile, self.path)
@@ -417,10 +420,8 @@ class KFFile:
         if self.reader:
             if self.reader._sections is None:
                 self.reader._create_index()
-            ret |= set(self.reader._sections)
-        ret = list(ret)
-        ret.sort()
-        return ret
+            ret |= set(self.reader._sections)  # type: ignore
+        return sorted(ret)
 
     def read_section(self, section: str) -> Dict[str, TRead]:
         """Return a dictionary with all variables from a given *section*.
@@ -452,7 +453,7 @@ class KFFile:
 
         Each key in that dictionary corresponds to a section name of the KF file
         with the value being a set of variable names."""
-        ret = {}
+        ret: Dict[str, Set[str]] = {}
         for sec, var in self:
             if sec not in ret:
                 ret[sec] = set()
@@ -471,14 +472,14 @@ class KFFile:
 
     def __iter__(self):
         """Iteration yields pairs of section name and variable name."""
-        ret = set()
+        ret_set = set()
         if self.reader:
             for sec, var in self.reader:
-                ret.add((sec, var))
+                ret_set.add((sec, var))
         for sec in self.tmpdata:
             for var in self.tmpdata[sec]:
-                ret.add((sec, var))
-        ret = list(ret)
+                ret_set.add((sec, var))
+        ret = list(ret_set)
         ret.sort(key=lambda x: x[0] + x[1])
         for i in ret:
             yield i

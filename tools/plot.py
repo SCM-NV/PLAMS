@@ -1,6 +1,6 @@
 from scm.plams.mol.molecule import Molecule
 from scm.plams.interfaces.adfsuite.ams import AMSJob
-from typing import Tuple, Union, List
+from typing import Tuple, Union, List, Optional
 
 __all__ = ["plot_band_structure", "plot_molecule", "plot_correlation"]
 
@@ -60,8 +60,8 @@ def plot_band_structure(x, y_spin_up, y_spin_down=None, labels=None, fermi_energ
     if y_spin_down is not None:
         plt.plot(x, y_spin_down - zero, "--")
 
-    tick_x = []
-    tick_labels = []
+    tick_x: List[float] = []
+    tick_labels: List[str] = []
     for xx, ll in zip(x, labels):
         if ll:
             if len(tick_x) == 0:
@@ -113,8 +113,8 @@ def get_correlation_xy(
     job2: Union[AMSJob, List[AMSJob]],
     section: str,
     variable: str,
-    alt_section: str = None,
-    alt_variable: str = None,
+    alt_section: Optional[str] = None,
+    alt_variable: Optional[str] = None,
     file: str = "ams",
     multiplier: float = 1.0,
 ) -> Tuple:
@@ -149,10 +149,7 @@ def get_correlation_xy(
         data1.extend(list(d1))
         data2.extend(list(d2))
 
-    data1 = np.array(data1)
-    data2 = np.array(data2)
-
-    return data1, data2
+    return np.array(data1), np.array(data2)
 
 
 def plot_correlation(
@@ -160,19 +157,19 @@ def plot_correlation(
     job2: Union[AMSJob, List[AMSJob]],
     section: str,
     variable: str,
-    alt_section: str = None,
-    alt_variable: str = None,
+    alt_section: Optional[str] = None,
+    alt_variable: Optional[str] = None,
     file: str = "ams",
     multiplier: float = 1.0,
-    unit: str = None,
-    save_txt: bool = None,
+    unit: Optional[str] = None,
+    save_txt: Optional[str] = None,
     ax=None,
     show_xy: bool = True,
     show_linear_fit: bool = True,
     show_mad: bool = True,
     show_rmsd: bool = True,
-    xlabel: str = None,
-    ylabel: str = None,
+    xlabel: Optional[str] = None,
+    ylabel: Optional[str] = None,
 ):
     """
 

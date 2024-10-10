@@ -562,11 +562,11 @@ def parse_heredoc(bash_input: str, heredoc_delimit: str = "eor") -> str:
     end_heredoc = re.search(end_pattern, bash_input)
 
     # Prepare the slices
-    try:
+    if end_heredoc:
         i, j = start_heredoc.end(), end_heredoc.start()
-    except AttributeError as ex:
+    else:
         err = f"parse_heredoc: failed to find the final '{heredoc_delimit}' delimiter"
-        raise ValueError(err).with_traceback(ex.__traceback__)
+        raise ValueError(err)
 
     # Grab heredoced block and parse it
     _, ret = bash_input[i:j].split("\n", maxsplit=1)

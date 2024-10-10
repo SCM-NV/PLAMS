@@ -4,7 +4,7 @@ import stat
 import threading
 import time
 from os.path import join as opj
-from typing import Optional, List, Generator, TYPE_CHECKING
+from typing import Optional, List, Generator, TYPE_CHECKING, Union, Dict, Iterable
 
 from scm.plams.core.errors import FileError, JobError, PlamsError, ResultsError
 from scm.plams.core.functions import config, log
@@ -75,13 +75,13 @@ class Job:
         self.status = JobStatus.CREATED
         self.results = self.__class__._result_type(self)
         self.name = name
-        self.path = None
+        self.path: Optional[str] = None
         self.jobmanager = None
         self.parent = None
         self.settings = Settings()
         self.default_settings = [config.job]
         self.depend = depend or []
-        self._dont_pickle = []
+        self._dont_pickle: List[str] = []
         if settings is not None:
             if isinstance(settings, Settings):
                 self.settings = settings.copy()
@@ -128,7 +128,6 @@ class Job:
         """
         if self.status != JobStatus.CREATED:
             raise JobError("Trying to run previously started job {}".format(self.name))
-
         self.status = JobStatus.STARTED
         self._log_status(1)
 
@@ -155,7 +154,11 @@ class Job:
         except ImportError:
             import pickle
 
-        filename = filename or opj(self.path, self.name + ".dill")
+        filename = filename or opj(self.path, self.name + ".dill") if self.path is not None else None
+        if not filename:
+            log(f"Pickling of {self.name} failed. Neither a filename nor a default path were provided.", 1)
+            return
+
         with open(filename, "wb") as f:
             try:
                 pickle.dump(self, f, config.job.pickle_protocol)
@@ -201,7 +204,7 @@ class Job:
 
     # =======================================================================
 
-    def _prepare(self, jobmanager: "JobManager") -> None:
+    def _prepare(self, jobmanager: "JobManager") -> bool:
         """Prepare the job for execution. This method collects steps 1-7 from :ref:`job-life-cycle`. Should not be overridden. Returned value indicates if job execution should continue (|RPM| did not find this job as previously run)."""
 
         log("Starting {}._prepare()".format(self.name), 7)
@@ -416,6 +419,9 @@ class SingleJob(Job):
 
     def _get_ready(self) -> None:
         """Create input and runscript files in the job folder. Methods |get_input| and :meth:`full_runscript` are used for that purpose. Filenames correspond to entries in the `_filenames` attribute"""
+        if self.path is None:
+            raise JobError(f"No path has been set for the job '{self.name}'")
+
         inpfile = opj(self.path, self._filename("inp"))
         runfile = opj(self.path, self._filename("run"))
 
@@ -504,7 +510,7 @@ class SingleJob(Job):
         settings: Optional[Settings] = None,
         molecule: Optional[Molecule] = None,
         finalize: bool = False,
-        jobname: str = None,
+        jobname: Optional[str] = None,
     ) -> "SingleJob":
         """Load an external job from *path*.
 
@@ -592,7 +598,7 @@ class MultiJob(Job):
         self._active_children = 0
         self._lock = threading.Lock()
 
-    def new_children(self) -> None:
+    def new_children(self) -> Optional[Union[List[Job], Dict[str, Job]]]:
         """Generate new children jobs.
 
         This method is useful when some of children jobs are not known beforehand and need to be generated based on other children jobs, like for example in any kind of self-consistent procedure.
@@ -670,7 +676,7 @@ class MultiJob(Job):
 
             if isinstance(new, dict) and isinstance(self.children, dict):
                 self.children.update(new)
-                it = new.values()
+                it: Iterable[Job] = new.values()
             elif isinstance(new, list) and isinstance(self.children, list):
                 self.children += new
                 it = new

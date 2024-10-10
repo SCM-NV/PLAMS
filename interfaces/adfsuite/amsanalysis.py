@@ -1,5 +1,5 @@
 import os
-from typing import Dict, Union
+from typing import Dict, Union, Optional
 
 from scm.plams.core.errors import FileError, PlamsError
 from scm.plams.interfaces.adfsuite.scmjob import SCMJob, SCMResults
@@ -35,9 +35,9 @@ class AMSAnalysisPlot:
         self.y = None
         self.y_units = None
         self.y_name = None
-        self.y_sigma = None  # stadard deviation for y_values
+        self.y_sigma = None  # standard deviation for y_values
 
-        self.properties = None
+        self.properties: Optional[Dict] = None
         self.name = None
         self.section = None
 
@@ -104,7 +104,8 @@ class AMSAnalysisPlot:
         """
         # Place property string
         parts = []
-        for propname, prop in self.properties.items():
+        properties = self.properties if self.properties is not None else {}
+        for propname, prop in properties.items():
             parts.append("%-30s %s\n" % (propname, prop))
 
         # Place the string with the column names
@@ -174,8 +175,7 @@ class AMSAnalysisResults(SCMResults):
             raise FileError("File {} not present in {}".format(self.job.name + self.__class__._kfext, self.job.path))
         if self._kf.reader._sections is None:
             self._kf.reader._create_index()
-        sections = self._kf.reader._sections.keys()
-        return sections
+        return self._kf.reader._sections.keys()  # type: ignore
 
     def get_xy(self, section="", i=1):
         """
@@ -260,12 +260,14 @@ class AMSAnalysisResults(SCMResults):
         """
         from scm.plams import AMSJob
 
-        if "system" in self.job.settings.input:
-            self.job.settings.input.ams.system = self.job.settings.input.system
-            del self.job.settings.input.system
-            molecule = AMSJob.settings_to_mol(self.job.settings)
-            del self.job.settings.input.ams
-            return molecule
+        if "system" not in self.job.settings.input:
+            return None
+
+        self.job.settings.input.ams.system = self.job.settings.input.system
+        del self.job.settings.input.system
+        molecule = AMSJob.settings_to_mol(self.job.settings)
+        del self.job.settings.input.ams
+        return molecule
 
 
 class AMSAnalysisJob(SCMJob):

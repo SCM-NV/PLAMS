@@ -12,7 +12,7 @@ import threading
 import time
 import weakref
 from numbers import Integral
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Union, List, Any, Optional
 
 import numpy as np
 
@@ -26,11 +26,11 @@ if os.name == "nt":
     import ctypes.wintypes
     import msvcrt
 
-    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)  # type: ignore
 
     def CheckHandle(result, func, arguments):
         if result == ctypes.wintypes.HANDLE(-1).value:
-            raise ctypes.WinError(ctypes.get_last_error())
+            raise ctypes.WinError(ctypes.get_last_error())  # type: ignore
         else:
             return result
 
@@ -47,9 +47,9 @@ if os.name == "nt":
 
     def CheckConnect(result, func, arguments):
         if result == 0:
-            error = ctypes.get_last_error()
+            error = ctypes.get_last_error()  # type: ignore
             if error != ERROR_PIPE_CONNECTED:
-                raise ctypes.WinError(error)
+                raise ctypes.WinError(error)  # type: ignore
         return result
 
     ConnectNamedPipe = kernel32.ConnectNamedPipe
@@ -262,7 +262,7 @@ class AMSWorkerResults:
         if self._main_ase_atoms is None:
             if self._results is not None and "xyzAtoms" in self._results:
                 lattice = self._results.get("latticeVectors", None)
-                pbc = False
+                pbc: Union[bool, List[bool]] = False
                 cell = None
                 if lattice is not None:
                     nLatticeVectors = len(lattice)
@@ -384,7 +384,7 @@ class AMSWorkerError(PlamsError):
             return "Could not determine error message. Please check the error.stdout and error.stderr manually."
 
 
-_arg2setting = {}
+_arg2setting: Dict[str, Tuple[str, ...]] = {}
 
 for x in ("prev_results", "quiet"):
     _arg2setting[x] = ("amsworker", x)
@@ -529,9 +529,9 @@ class AMSWorker:
             ) as amsoutput, open(os.path.join(self.workerdir, "ams.err"), "w") as amserror:
                 startupinfo = None
                 if os.name == "nt":
-                    startupinfo = subprocess.STARTUPINFO()
-                    startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-                    startupinfo.wShowWindow = subprocess.SW_HIDE
+                    startupinfo = subprocess.STARTUPINFO()  # type: ignore
+                    startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW  # type: ignore
+                    startupinfo.wShowWindow = subprocess.SW_HIDE  # type: ignore
                 self.proc = subprocess.Popen(
                     ["sh", "amsworker.run"],
                     cwd=self.workerdir,
@@ -542,7 +542,7 @@ class AMSWorker:
                     # to enable mass-killing in stop().
                     start_new_session=(os.name == "posix"),
                     startupinfo=startupinfo,
-                    creationflags=(subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0),
+                    creationflags=(subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0),  # type: ignore
                 )
 
         # Start a dedicated watcher thread to rescue us in case the worker never opens its end of the pipes.
@@ -554,7 +554,7 @@ class AMSWorker:
             # This will block until either the worker is ready or the watcher steps in.
             if os.name == "nt":
                 ConnectNamedPipe(pipe, None)
-                pipefd = msvcrt.open_osfhandle(pipe, 0)
+                pipefd = msvcrt.open_osfhandle(pipe, 0)  # type: ignore
                 self.callpipe = os.fdopen(pipefd, "r+b")
                 self.replypipe = self.callpipe
             else:
@@ -586,7 +586,8 @@ class AMSWorker:
     def _startup_watcher(self, workerdir):
         while not self._stop_watcher.is_set():
             try:
-                self.proc.wait(timeout=0.01)
+                # ToDo: verify behaviour with None proc
+                self.proc.wait(timeout=0.01)  # type: ignore
                 # self.proc has died and won't open its end of the pipes ...
                 if not self._stop_watcher.is_set():
                     # ... but the main thread is still expecting someone to do it.
@@ -623,7 +624,7 @@ class AMSWorker:
                 console_pids = (ctypes.wintypes.DWORD * bufsize)()
                 n = GetConsoleProcessList(console_pids, bufsize)
                 if n == 0:
-                    raise ctypes.WinError(ctypes.get_last_error())
+                    raise ctypes.WinError(ctypes.get_last_error())  # type: ignore
                 elif n > bufsize:
                     bufsize *= 2
                 else:
@@ -710,7 +711,7 @@ class AMSWorker:
                     worker_procs = self._find_worker_processes()
                     # Send Ctrl-Break to the entire process group under self.proc.
                     # Ctrl-C is less reliable in convincing processes to quit.
-                    os.kill(self.proc.pid, signal.CTRL_BREAK_EVENT)
+                    os.kill(self.proc.pid, signal.CTRL_BREAK_EVENT)  # type: ignore
                     dead, alive = psutil.wait_procs(worker_procs, timeout=self.timeout)
                     for p in alive:
                         # Forcefully kill any descendant that is still running.
@@ -787,9 +788,9 @@ class AMSWorker:
             return False
 
     @staticmethod
-    def _settings_to_args(s: Settings) -> Tuple[str, Dict]:
+    def _settings_to_args(s: Settings) -> Dict:
         """
-        Return a `tuple(TASK, **request_kwargs)` corresponding to a given settings object.
+        Return a **request_kwargs corresponding to a given settings object.
 
         Raises NotImplementedError if unsupported features are encountered.
         """
@@ -934,7 +935,7 @@ class AMSWorker:
         # This is a good opportunity to let the worker process know about all the results we no longer need ...
         self._prune_restart_cache()
 
-        chemicalSystem = {}
+        chemicalSystem: Dict[str, Any] = {}
         chemicalSystem["atomSymbols"] = np.asarray([atom.symbol for atom in molecule])
         chemicalSystem["coords"] = molecule.as_array() * Units.conversion_ratio("Angstrom", "Bohr")
         if "charge" in molecule.properties:
@@ -1196,7 +1197,7 @@ class AMSWorker:
             return False
 
     def _flatten_arrays(self, d):
-        out = {}
+        out: Dict = {}
         # import numpy as np
         for key, val in d.items():
 
@@ -1246,16 +1247,17 @@ class AMSWorker:
         msg = ubjson.dumpb({method: self._flatten_arrays(args)})
         msglen = struct.pack("=i", len(msg))
         try:
-            self.callpipe.write(msglen + msg)
+            # ToDo: verify behaviour with None callpipe
+            self.callpipe.write(msglen + msg)  # type: ignore
             if method.startswith("Set"):
                 return None
-            self.callpipe.flush()
+            self.callpipe.flush()  # type: ignore
         except OSError as exc:
             raise AMSWorkerError("Error while sending a message " + method + " " + str(len(msg))) from exc
         if method == "Exit":
             return None
 
-        results = []
+        results: List = []
         while True:
             try:
                 msgbuf = self._read_exactly(self.replypipe, 4)
@@ -1352,7 +1354,7 @@ class AMSWorkerPool:
         """
 
         if watch:
-            progress_data = {
+            progress_data: Optional[Dict[str, Any]] = {
                 "starttime": time.time(),
                 "lock": threading.Lock(),
                 "done_event": threading.Event(),
@@ -1376,13 +1378,13 @@ class AMSWorkerPool:
             results = []
             for name, mol, settings in items:
                 results.append(self.workers[0]._solve_from_settings(name, mol, settings))
-                if watch:
+                if watch and progress_data is not None:
                     progress_data["num_done"] += 1
 
         else:  # Build a queue of things to do and spawn threads that grab from from the queue in parallel
 
             results = [None] * len(items)
-            q = queue.Queue()
+            q: queue.Queue = queue.Queue()
 
             threads = [
                 threading.Thread(target=AMSWorkerPool._execute_queue, args=(self.workers[i], q, results, progress_data))
@@ -1405,7 +1407,7 @@ class AMSWorkerPool:
             for t in threads:
                 t.join()
 
-        if watch:
+        if watch and progress_data is not None:
             progress_data["done_event"].set()
             pmt.join()
             log(

@@ -13,6 +13,8 @@ if TYPE_CHECKING:
     from scm.plams.mol.bond import Bond
     from scm.plams.mol.molecule import Molecule
 
+str_type = str  # To avoid type-hinting issues with str() method
+
 
 class Atom:
     """A class representing a single atom in three dimensional space.
@@ -77,7 +79,7 @@ class Atom:
             except ValueError:
                 raise TypeError(f"Atomic number (atnum) must be convertable to an int, but was {type(atnum).__name__}")
             if atnum == 0:
-                self._dummysymbol = "Xx"
+                self._dummysymbol: Optional[str_type] = "Xx"
 
         self.mol = mol
         self.bonds = bonds or []
@@ -93,13 +95,13 @@ class Atom:
                 except ValueError:
                     pass
                 tmp.append(i)
-            self.coords = tuple(tmp)
+            self.coords = tuple(tmp)  # type: ignore
         else:
             raise TypeError("Atom: Invalid coordinates passed")
 
     def str(
         self,
-        symbol: bool = True,
+        symbol: Union[bool, str] = True,
         suffix: str = "",
         suffix_dict: Optional[Dict] = None,
         unit: str = "angstrom",
@@ -179,14 +181,14 @@ class Atom:
         self.coords = (self.coords[0], self.coords[1], value)
 
     @property
-    def symbol(self) -> str:
+    def symbol(self) -> str_type:
         if self.atnum == 0:
-            return self._dummysymbol
+            return self._dummysymbol  # type: ignore
         else:
             return PT.get_symbol(self.atnum)
 
     @symbol.setter
-    def symbol(self, symbol: str) -> None:
+    def symbol(self, symbol: str_type) -> None:
         if symbol.lower().capitalize() in PT.dummysymbols:
             self.atnum = 0
             self._dummysymbol = symbol.lower().capitalize()
@@ -214,7 +216,7 @@ class Atom:
     def is_electronegative(self) -> bool:
         return PT.get_electronegative(self.atnum)
 
-    def translate(self, vector: Iterable[float], unit: str = "angstrom") -> None:
+    def translate(self, vector: Iterable[float], unit: str_type = "angstrom") -> None:
         """Move this atom in space by *vector*, expressed in *unit*.
 
         *vector* should be an iterable container of length 3 (usually tuple, list or numpy array). *unit* describes unit of values stored in *vector*.
@@ -224,7 +226,7 @@ class Atom:
         ratio = Units.conversion_ratio(unit, "angstrom")
         self.coords = tuple(i + j * ratio for i, j in zip(self, vector))
 
-    def move_to(self, point: Iterable[float], unit: str = "angstrom") -> None:
+    def move_to(self, point: Iterable[float], unit: str_type = "angstrom") -> None:
         """Move this atom to a given *point* in space, expressed in *unit*.
 
         *point* should be an iterable container of length 3 (for example: tuple, |Atom|, list, numpy array). *unit* describes unit of values stored in *point*.
@@ -234,7 +236,9 @@ class Atom:
         ratio = Units.conversion_ratio(unit, "angstrom")
         self.coords = tuple(i * ratio for i in point)
 
-    def distance_to(self, point: Iterable[float], unit: str = "angstrom", result_unit: str = "angstrom") -> float:
+    def distance_to(
+        self, point: Iterable[float], unit: str_type = "angstrom", result_unit: str_type = "angstrom"
+    ) -> float:
         """Measure the distance between this atom and *point*.
 
         *point* should be an iterable container of length 3 (for example: tuple, |Atom|, list, numpy array). *unit* describes unit of values stored in *point*. Returned value is expressed in *result_unit*.
@@ -248,7 +252,7 @@ class Atom:
         return Units.convert(math.sqrt(res), "angstrom", result_unit)
 
     def vector_to(
-        self, point: Iterable[float], unit: str = "angstrom", result_unit: str = "angstrom"
+        self, point: Iterable[float], unit: str_type = "angstrom", result_unit: str_type = "angstrom"
     ) -> Tuple[float, float, float]:
         """Calculate a vector from this atom to *point*.
 
@@ -264,9 +268,9 @@ class Atom:
         self,
         point1: Iterable[float],
         point2: Iterable[float],
-        point1unit: str = "angstrom",
-        point2unit: str = "angstrom",
-        result_unit: str = "radian",
+        point1unit: str_type = "angstrom",
+        point2unit: str_type = "angstrom",
+        result_unit: str_type = "radian",
     ) -> float:
         """Calculate an angle between vectors pointing from this atom to *point1* and *point2*.
 

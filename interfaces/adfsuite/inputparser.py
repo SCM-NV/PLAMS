@@ -1,11 +1,12 @@
 import os
 import json
 import threading
+from typing import List
 
 from scm.plams.core.settings import Settings
 from scm.plams.interfaces.adfsuite.amsworker import AMSWorker, AMSWorkerError
 
-__all__ = []
+__all__: List[str] = []
 
 # !!!!!!!  DEPRECATED  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 # The class in this module has been deprecated. The equivalent in scm.libbase

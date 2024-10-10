@@ -1,6 +1,7 @@
 import pytest
 import numpy as np
 
+from scm.plams.core.errors import FileError
 from scm.plams.tools.kftools import KFReader, KFFile, KFHistory
 
 
@@ -132,6 +133,11 @@ class TestKFFile:
         # Missing section and variable
         with pytest.raises(KeyError):
             file.read("Foo", "Bar", return_as_list)
+
+    def test_read_non_existing_file_errors(self):
+        file = KFFile("not-a-file", autosave=False)
+        with pytest.raises(FileError):
+            file.read("foo", "bar")
 
     def test_write_delete_read_sections_for_new_file(self, rkf_folder):
         file = KFFile(rkf_folder / "test_kffile_write.rkf", autosave=False)

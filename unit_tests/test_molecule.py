@@ -224,7 +224,7 @@ class TestNiO(MoleculeTestBase):
 
     @property
     def expected_lattice(self):
-        return [(0.0, 2.085, 2.085), (2.085, 0.0, 2.085), (2.085, 2.085, 0.0)]
+        return [[0.0, 2.085, 2.085], [2.085, 0.0, 2.085], [2.085, 2.085, 0.0]]
 
     def test_supercell(self, mol):
         supercell = mol.supercell(2, 3, 4)
