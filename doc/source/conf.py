@@ -311,6 +311,11 @@ rst_epilog = """
 .. |VibrationsJob| replace:: :class:`~scm.plams.recipes.vibration.VibrationsJob`
 .. |IRJob| replace:: :class:`~scm.plams.recipes.vibration.IRJob`
 .. |VibrationsResults| replace:: :class:`~scm.plams.recipes.vibration.VibrationsResults`
+.. |ADFFragmentJob| replace:: :class:`~scm.plams.recipes.adffragment.ADFFragmentJob`
+.. |ADFFragmentResults| replace:: :class:`~scm.plams.recipes.adffragment.ADFFragmentResults`
+.. |BANDFragmentJob| replace:: :class:`~scm.plams.recipes.bandfragment.BANDFragmentJob`
+.. |BANDFragmentResults| replace:: :class:`~scm.plams.recipes.bandfragment.BANDFragmentResults`
+.. |NOCVBandFragmentJob| replace:: :class:`~scm.plams.recipes.bandfragment.NOCVBandFragmentJob`
 
 .. |RPM| replace:: :ref:`rerun-prevention`
 .. |cleaning| replace:: :ref:`cleaning`
