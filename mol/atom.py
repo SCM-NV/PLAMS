@@ -95,13 +95,13 @@ class Atom:
                 except ValueError:
                     pass
                 tmp.append(i)
-            self.coords = tuple(tmp)
+            self.coords = tuple(tmp)  # type: ignore
         else:
             raise TypeError("Atom: Invalid coordinates passed")
 
     def str(
         self,
-        symbol: bool = True,
+        symbol: Union[bool, str] = True,
         suffix: str = "",
         suffix_dict: Optional[Dict] = None,
         unit: str = "angstrom",

@@ -387,7 +387,7 @@ class Molecule:
 
         self._validate_bond(delbond, msg="Cannot delete bond.")
 
-        if delbond in self.bonds:
+        if delbond is not None and delbond in self.bonds:
             delbond.mol = None
             self.bonds.remove(delbond)
             delbond.atom1.bonds.remove(delbond)
@@ -436,7 +436,7 @@ class Molecule:
         self._validate_atom(atom, msg="Cannot find neighbours.")
         return [b.other_end(atom) for b in atom.bonds]
 
-    def bond_matrix(self) -> np.array:
+    def bond_matrix(self) -> np.ndarray:
         """Return a square numpy array with bond orders. The size of the array is equal to the number of atoms."""
         ret = np.zeros((len(self), len(self)))
         self.set_atoms_id(start=0)
@@ -805,7 +805,7 @@ class Molecule:
             if search_depth is not None:
                 if search_depth <= 0:
                     return en
-            en = [electronegativities[atom.symbol] if atom.symbol in electronegativities else None]
+            en = [electronegativities[atom.symbol] if atom.symbol in electronegativities else None]  # type: ignore
             en = [v for v in en if v is not None]
             if search_depth is not None:
                 search_depth -= 1
@@ -1314,7 +1314,7 @@ class Molecule:
     @overload
     def index(self, value: Atom, start: int = 1, stop: Optional[int] = None) -> int: ...
     @overload
-    def index(self, value: Bond, start: int = 1, stop: Optional[int] = None) -> Tuple[int, int]: ...
+    def index(self, value: Bond, start: int = 1, stop: Optional[int] = None) -> Tuple[int, int]: ...  # type: ignore
     def index(
         self, value: Union[Atom, Bond], start: int = 1, stop: Optional[int] = None
     ) -> Union[int, Tuple[int, int]]:
@@ -2259,7 +2259,9 @@ class Molecule:
             # Fix cell shifts for bonds for atoms that were moved.
             for b in self.bonds:
                 # Check if the mapping has moved the bonded atoms relative to each other.
-                at1, at2 = self.index(b)
+                at1: int
+                at2: int
+                at1, at2 = self.index(b)  # type: ignore
                 at1 = at1 - 1
                 at2 = at2 - 1  # -1 because np.array is indexed from 0
                 relshift = (shift[at2, :n] - shift[at1, :n]).astype(int)
@@ -2524,7 +2526,7 @@ class Molecule:
                 # Update the cell shifts
                 for j, jat in enumerate(neighbors):
                     bond = self.find_bond(self.atoms[atoms[iat]], self.atoms[atoms[jat]])
-                    if bond.has_cell_shifts():
+                    if bond is not None and bond.has_cell_shifts():
                         cell_shifts = np.array([int(cs) for cs in bond.properties.suffix.split()]) + shift[j]
                         if np.all(cell_shifts == 0):
                             # All 0 cell shifts are not written out explicitly
