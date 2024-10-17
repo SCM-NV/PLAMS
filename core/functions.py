@@ -4,7 +4,6 @@ import shutil
 import subprocess
 import sys
 import threading
-import time
 import types
 from os.path import dirname, expandvars, isdir, isfile
 from os.path import join as opj
@@ -13,6 +12,7 @@ import atexit
 from importlib.util import find_spec
 import functools
 
+from scm.plams.core.logging import LogManager
 from scm.plams.core.errors import FileError, MissingOptionalPackageError
 from scm.plams.core.private import retry
 from scm.plams.core.settings import Settings, ConfigSettings
@@ -42,8 +42,7 @@ __all__ = [
 config = ConfigSettings()
 # ===========================================================================
 
-_stdlock = threading.Lock()
-_filelock = threading.Lock()
+_logger = LogManager.get_logger("plams")
 
 
 def log(message: str, level: int = 0) -> None:
@@ -52,29 +51,12 @@ def log(message: str, level: int = 0) -> None:
     Logs are printed independently to the text logfile (a file called ``logfile`` in the main working folder) and to the standard output. If *level* is equal or lower than verbosity (defined by ``config.log.file`` or ``config.log.stdout``) the message is printed. Date and/or time can be added based on ``config.log.date`` and ``config.log.time``. All logging activity is thread safe.
     """
     if config.init and "log" in config:
-        if level <= config.log.file or level <= config.log.stdout:
-            message = str(message)
-            prefix = ""
-            if config.log.date:
-                prefix += "%d.%m|"
-            if config.log.time:
-                prefix += "%H:%M:%S"
-            if prefix:
-                prefix = "[" + prefix.rstrip("|") + "] "
-                message = time.strftime(prefix) + message
-            if level <= config.log.stdout:
-                with _stdlock:
-                    print(message)
-            if level <= config.log.file and config["default_jobmanager"] is not None:
-                try:
-                    with _filelock, open(config.default_jobmanager.logfile, "a") as f:
-                        f.write(message + "\n")
-                except FileNotFoundError:
-                    pass
-    elif level <= 3:
+        logfile = config.default_jobmanager.logfile if config["default_jobmanager"] is not None else None
+        _logger.configure(config.log.stdout, config.log.file, logfile, config.log.date, config.log.time)
+    else:
         # log() is called before plams.init() was called ...
-        with _stdlock:
-            print(message)
+        _logger.configure(3)
+    _logger.log(message, level)
 
 
 # ===========================================================================

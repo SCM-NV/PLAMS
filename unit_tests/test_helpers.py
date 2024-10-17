@@ -3,6 +3,9 @@ from unittest.mock import patch, mock_open
 import pytest
 import os
 from importlib.util import find_spec
+from pathlib import Path
+import uuid
+from contextlib import contextmanager
 
 from scm.plams.core.settings import (
     SafeRunSettings,
@@ -60,6 +63,20 @@ def get_mock_find_spec(patch_module: str, package_name: str):
         return None if name == package_name else find_spec(name)
 
     return patch(f"{patch_module}.find_spec", side_effect=mock_find_spec)
+
+
+@contextmanager
+def temp_file_path(suffix=".txt"):
+    """
+    Get the path to a temporary file in the current directory, which will be deleted after the context.
+    An alternative to tempfile, as the file is not opened on entry into the context.
+    """
+    temp_path = str(Path(__file__).parent.absolute() / f"{uuid.uuid4()}{suffix}")
+    try:
+        yield str(temp_path)
+    finally:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
 
 
 def assert_config_as_expected(
