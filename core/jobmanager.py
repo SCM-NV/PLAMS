@@ -9,6 +9,7 @@ from scm.plams.core.basejob import MultiJob
 from scm.plams.core.errors import FileError, PlamsError
 from scm.plams.core.functions import config, log
 from scm.plams.core.enums import JobStatus
+from scm.plams.core.csv_logger import LoggerCSV
 
 if TYPE_CHECKING:
     from scm.plams.core.basejob import Job
@@ -42,7 +43,7 @@ class JobManager:
 
     """
 
-    def __init__(self, settings, path=None, folder=None, use_existing_folder=False):
+    def __init__(self, settings, path=None, folder=None, use_existing_folder=False, csv_logger: LoggerCSV = None):
 
         self.settings = settings
         self.jobs = []
@@ -77,6 +78,10 @@ class JobManager:
 
         if not (use_existing_folder and os.path.exists(self.workdir)):
             os.mkdir(self.workdir)
+
+        if csv_logger is None:
+            csv_logger = LoggerCSV(log_path=opj(self.workdir, "logfile.csv"))
+        self.logger_csv = csv_logger
 
     def load_job(self, filename):
         """Load previously saved job from *filename*.
