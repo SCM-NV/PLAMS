@@ -3,6 +3,7 @@ from os.path import join as opj
 from typing import Dict, List, Literal, Set, Union
 
 import numpy as np
+
 from scm.plams.core.basejob import SingleJob
 from scm.plams.core.errors import FileError, JobError, PlamsError, PTError, ResultsError
 from scm.plams.core.functions import config, log, parse_heredoc
@@ -66,6 +67,12 @@ try:
                         self._seekto = f.tell()
                 except FileNotFoundError:
                     self._seekto = 0
+
+        def trigger(self):
+            if self._job.path is None:
+                return
+            src_path = os.path.join(self._job.path, "ams.log")
+            self.on_any_event(FileModifiedEvent(src_path))
 
 except ImportError:
     _has_watchdog = False
@@ -2199,7 +2206,8 @@ class AMSJob(SingleJob):
     def run(self, jobrunner=None, jobmanager=None, watch=False, **kwargs) -> AMSResults:
         """Run the job using *jobmanager* and *jobrunner* (or defaults, if ``None``).
 
-        If *watch* is set to ``True``, the contents of the AMS driver logfile will be forwarded line by line to the PLAMS logfile (and stdout), allowing for an easier monitoring of the running job. Not that the forwarding of the AMS driver logfile will cause make the call to this method block until the job's execution has finished, even when using a parallel |JobRunner|.
+        If *watch* is set to ``True``, the contents of the AMS driver logfile will be forwarded line by line to the PLAMS logfile (and stdout), allowing for an easier monitoring of the running job.
+        Not that the forwarding of the AMS driver logfile will make the call to this method block until the job's execution has finished, even when using a parallel |JobRunner|.
 
         Other keyword arguments (*\*\*kwargs*) are stored in ``run`` branch of job's settings.
 
@@ -2220,6 +2228,7 @@ class AMSJob(SingleJob):
             try:
                 results = super().run(jobrunner=jobrunner, jobmanager=jobmanager, **kwargs)
                 results.wait()
+                event_handler.trigger()
             finally:
                 observer.stop()
                 observer.join()

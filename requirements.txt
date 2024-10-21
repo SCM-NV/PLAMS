@@ -4,3 +4,5 @@ scipy==1.9.3
 natsort==8.1.0
 ase==3.22.1
 rdkit==2024.03.1
+networkx==2.8.8
+watchdog==2.1.8
