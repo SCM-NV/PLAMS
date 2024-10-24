@@ -40,7 +40,7 @@ Load PLAMS Molecule from SMILES string
     
     mol = from_smiles("CCCCO")
     print(f"{type(mol)=}")
-    plot_molecule(mol)
+    plot_molecule(mol);
 
 
 .. parsed-literal::
@@ -82,7 +82,7 @@ Load PLAMS Molecule from .xyz file
     
     mol = Molecule(xyz_file)
     print(f"{type(mol)=}")
-    plot_molecule(mol)
+    plot_molecule(mol);
 
 
 .. parsed-literal::
@@ -132,7 +132,7 @@ library, for example ASE or pymatgen.
     
     mol: Molecule = fromASE(read(cif_file))
     print(f"{type(mol)=}")
-    plot_molecule(mol)
+    plot_molecule(mol);
 
 
 .. parsed-literal::
@@ -205,7 +205,7 @@ Load PLAMS Molecule from AMS .in system file
     from scm.plams import Molecule
     
     mol = Molecule("ams_system_block.in")
-    plot_molecule(mol)
+    plot_molecule(mol);
 
 
 
@@ -255,7 +255,7 @@ Load PLAMS Molecule from POSCAR/CONTCAR (VASP input format)
     mol: Molecule = fromASE(read("POSCAR"))
     
     print(f"{type(mol)=}")
-    plot_molecule(mol)
+    plot_molecule(mol);
 
 
 .. parsed-literal::
@@ -310,7 +310,7 @@ Convert ASE Atoms to PLAMS Molecule
     
     mol: Molecule = fromASE(ase_atoms)
     print(f"{type(mol)=}")
-    plot_molecule(mol, rotation="-85x,5y,0z")
+    plot_molecule(mol, rotation="-85x,5y,0z");
 
 
 .. parsed-literal::
@@ -368,7 +368,7 @@ Convert RDKit Mol to PLAMS Molecule
     
     print(f"{type(rdkit_mol)=}")
     print(f"{type(mol)=}")
-    plot_molecule(mol)
+    plot_molecule(mol);
 
 
 .. parsed-literal::
@@ -446,7 +446,7 @@ Convert UnifiedChemicalSystem to PLAMS Molecule
     mol = chemsys_to_plams_molecule(chemsys)
     print(f"{type(chemsys)=}")
     print(f"{type(mol)=}")
-    plot_molecule(mol)
+    plot_molecule(mol);
 
 
 .. parsed-literal::
@@ -651,7 +651,7 @@ Convert pymatgen Molecule (non-periodic) to PLAMS Molecule
     
     mol = pymatgen_molecule_to_plams_molecule(pymatgen_molecule)
     print(f"{type(mol)=}")
-    plot_molecule(mol)
+    plot_molecule(mol);
 
 
 .. parsed-literal::

@@ -1858,7 +1858,7 @@ class AMSResults(Results):
     def get_work_function_results(
         self, energy_unit: str = "hartree", dist_unit: str = "bohr"
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, float, float, Tuple[float, float], Tuple[float, float]]:
-        """Return a tuple with the results of the work function calculation. This function only supports results from the Quantum Espresso engine.
+        """Return a tuple with the results of the work function calculation.
 
         Returns: ``coordinate``, ``planarAverage``, ``macroscopicAverage``, ``Efermi``, ``Vbulk``, ``Vvacuum``, ``WF``.
 
@@ -1883,7 +1883,7 @@ class AMSResults(Results):
             This material is expected to have vacuum regions on *both* sides. Therefore, the potential is evaluated at the furthest point from the surface in each vacuum region. The first element corresponds to the potential at the furthest point from the surface on the left side,
             and the second element corresponds to the potential at the furthest point from the surface on the right side. In units of ``energy_unit``.
 
-            Note: If the calculation uses a dipole correction (see `QuantumEspresso%Control%tefield` parameter in the QE engine), the potential is evaluated right before the x-coordinate where the dipole correction is applied.
+            Note: If the calculation uses a dipole correction with the QE engine (see `QuantumEspresso%Control%tefield` parameter in the QE engine), the potential is evaluated right before the x-coordinate where the dipole correction is applied.
 
         ``WF``: Tuple[float, float].
             The work function, calculated as WF = Vvacuum - Efermi.
@@ -1898,11 +1898,6 @@ class AMSResults(Results):
         ``dist_unit``: str
             Unit of the returned distances
         """
-
-        if "quantumespresso" not in self.engine_names():
-            raise ValueError(
-                "Getting the work function results is only available when using the Quantum Espresso engine."
-            )
 
         to_eunit = Units.conversion_ratio("au", energy_unit)
         to_dunit = Units.conversion_ratio("au", dist_unit)

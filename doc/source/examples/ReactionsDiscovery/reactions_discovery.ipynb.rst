@@ -207,7 +207,7 @@ sensible 2d structure, so instead we plot their 3d structure.
 .. code:: ipython3
 
     for unstable_molecule in molecules["Unstable"][:3]:
-        plams.plot_molecule(unstable_molecule)
+        plams.plot_molecule(unstable_molecule);
 
 
 

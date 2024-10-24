@@ -28,11 +28,11 @@ job.run()
 
 
 x, y_spin_up, y_spin_down, labels, fermi_energy = job.results.get_band_structure(unit="eV")
-plot_band_structure(x, y_spin_up, None, labels, fermi_energy, zero="fermi")
-plt.ylim(-10, 10)
-plt.ylabel("$E - E_{Fermi}$ (eV)")
-plt.xlabel("Path")
-plt.title("Cu with DFTB.org/matsci-0-3")
+ax = plot_band_structure(x, y_spin_up, None, labels, fermi_energy, zero="fermi")
+ax.set_ylim(-10, 10)
+ax.set_ylabel("$E - E_{Fermi}$ (eV)")
+ax.set_xlabel("Path")
+ax.set_title("Cu with DFTB.org/matsci-0-3")
 plt.show()
 
 
@@ -55,11 +55,11 @@ job.run()
 
 # The below call to ``plot_band_structure`` plots both the spin up and spin down. The spin-down bands are plotted as dashed lines. Note that in this case there is no spin polarization so the spin-down bands perfectly overlap the spin-up bands.
 
-plot_band_structure(*job.results.get_band_structure(unit="eV"), zero="vbmax")
-plt.ylim(-10, 10)
-plt.ylabel("$E - E_{VBM}$ (eV)")
-plt.xlabel("Path")
-plt.title("ZnO with GFN1-xTB")
+ax = plot_band_structure(*job.results.get_band_structure(unit="eV"), zero="vbmax")
+ax.set_ylim(-10, 10)
+ax.set_ylabel("$E - E_{VBM}$ (eV)")
+ax.set_xlabel("Path")
+ax.set_title("ZnO with GFN1-xTB")
 plt.show()
 
 
@@ -89,9 +89,9 @@ job = AMSJob(settings=s, molecule=mol, name="NiO")
 job.run()
 
 
-plot_band_structure(*job.results.get_band_structure(unit="eV"), zero="vbmax")
-plt.ylim(-10, 10)
-plt.ylabel("$E - E_{VBM}$ (eV)")
-plt.xlabel("Path")
-plt.title("NiO with DFT+U")
+ax = plot_band_structure(*job.results.get_band_structure(unit="eV"), zero="vbmax")
+ax.set_ylim(-10, 10)
+ax.set_ylabel("$E - E_{VBM}$ (eV)")
+ax.set_xlabel("Path")
+ax.set_title("NiO with DFT+U")
 plt.show()

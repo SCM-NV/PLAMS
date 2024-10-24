@@ -26,7 +26,7 @@ Single alanine molecule
 
     smiles = "CC(N)C(=O)O"
     alanine = plams.from_smiles(smiles)
-    plams.plot_molecule(alanine)
+    plams.plot_molecule(alanine);
 
 
 
@@ -52,7 +52,7 @@ SphericalWall later):
 
 .. code:: ipython3
 
-    plams.plot_molecule(mol, rotation="0x,0y,90z")
+    plams.plot_molecule(mol, rotation="0x,0y,90z");
 
 
 

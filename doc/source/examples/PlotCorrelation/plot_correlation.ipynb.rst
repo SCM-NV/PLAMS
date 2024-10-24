@@ -28,7 +28,7 @@ Let’s use a glycine molecule generated from SMILES:
 .. code:: ipython3
 
     glycine = plams.from_smiles("C(C(=O)O)N")
-    plams.plot_molecule(glycine)
+    plams.plot_molecule(glycine);
 
 
 
@@ -57,21 +57,21 @@ Run a single-point calculation storing the Gradients (negative forces):
 
 .. parsed-literal::
 
-    [13.08|14:41:13] JOB glycine-engine1 STARTED
-    [13.08|14:41:13] JOB glycine-engine1 RUNNING
-    [13.08|14:41:14] JOB glycine-engine1 FINISHED
-    [13.08|14:41:15] JOB glycine-engine1 SUCCESSFUL
-    [13.08|14:41:15] JOB glycine-engine2 STARTED
-    [13.08|14:41:15] JOB glycine-engine2 RUNNING
-    [13.08|14:41:15] JOB glycine-engine2 FINISHED
-    [13.08|14:41:15] JOB glycine-engine2 SUCCESSFUL
+    [23.10|17:57:51] JOB glycine-engine1 STARTED
+    [23.10|17:57:51] JOB glycine-engine1 RUNNING
+    [23.10|17:57:52] JOB glycine-engine1 FINISHED
+    [23.10|17:57:52] JOB glycine-engine1 SUCCESSFUL
+    [23.10|17:57:52] JOB glycine-engine2 STARTED
+    [23.10|17:57:52] JOB glycine-engine2 RUNNING
+    [23.10|17:57:52] JOB glycine-engine2 FINISHED
+    [23.10|17:57:52] JOB glycine-engine2 SUCCESSFUL
 
 
 
 
 .. parsed-literal::
 
-    <scm.plams.interfaces.adfsuite.ams.AMSResults at 0x1524ffa60>
+    <scm.plams.interfaces.adfsuite.ams.AMSResults at 0x150757ca0>
 
 
 
@@ -154,28 +154,28 @@ Compare multiple jobs
 
 .. parsed-literal::
 
-    [13.08|14:41:15] JOB e1propene STARTED
-    [13.08|14:41:15] JOB e1propene RUNNING
-    [13.08|14:41:15] JOB e1propene FINISHED
-    [13.08|14:41:15] JOB e1propene SUCCESSFUL
-    [13.08|14:41:15] JOB e1propanol STARTED
-    [13.08|14:41:15] JOB e1propanol RUNNING
-    [13.08|14:41:16] JOB e1propanol FINISHED
-    [13.08|14:41:16] JOB e1propanol SUCCESSFUL
-    [13.08|14:41:16] JOB e1glycine STARTED
-    [13.08|14:41:16] Job e1glycine previously run as glycine-engine1, using old results
-    [13.08|14:41:16] JOB e1glycine COPIED
-    [13.08|14:41:16] JOB e2propene STARTED
-    [13.08|14:41:16] JOB e2propene RUNNING
-    [13.08|14:41:16] JOB e2propene FINISHED
-    [13.08|14:41:16] JOB e2propene SUCCESSFUL
-    [13.08|14:41:16] JOB e2propanol STARTED
-    [13.08|14:41:16] JOB e2propanol RUNNING
-    [13.08|14:41:16] JOB e2propanol FINISHED
-    [13.08|14:41:16] JOB e2propanol SUCCESSFUL
-    [13.08|14:41:16] JOB e2glycine STARTED
-    [13.08|14:41:16] Job e2glycine previously run as glycine-engine2, using old results
-    [13.08|14:41:16] JOB e2glycine COPIED
+    [23.10|17:57:52] JOB e1propene STARTED
+    [23.10|17:57:52] JOB e1propene RUNNING
+    [23.10|17:57:53] JOB e1propene FINISHED
+    [23.10|17:57:53] JOB e1propene SUCCESSFUL
+    [23.10|17:57:53] JOB e1propanol STARTED
+    [23.10|17:57:53] JOB e1propanol RUNNING
+    [23.10|17:57:53] JOB e1propanol FINISHED
+    [23.10|17:57:53] JOB e1propanol SUCCESSFUL
+    [23.10|17:57:53] JOB e1glycine STARTED
+    [23.10|17:57:53] Job e1glycine previously run as glycine-engine1, using old results
+    [23.10|17:57:53] JOB e1glycine COPIED
+    [23.10|17:57:53] JOB e2propene STARTED
+    [23.10|17:57:53] JOB e2propene RUNNING
+    [23.10|17:57:53] JOB e2propene FINISHED
+    [23.10|17:57:53] JOB e2propene SUCCESSFUL
+    [23.10|17:57:53] JOB e2propanol STARTED
+    [23.10|17:57:53] JOB e2propanol RUNNING
+    [23.10|17:57:54] JOB e2propanol FINISHED
+    [23.10|17:57:54] JOB e2propanol SUCCESSFUL
+    [23.10|17:57:54] JOB e2glycine STARTED
+    [23.10|17:57:54] Job e2glycine previously run as glycine-engine2, using old results
+    [23.10|17:57:54] JOB e2glycine COPIED
 
 
 The correlation plot can be plotted as before. You can also add a unit
@@ -243,17 +243,17 @@ The forces from an MD job can be stored with
 
 .. parsed-literal::
 
-    [13.08|14:41:17] JOB nve-md-e1 STARTED
-    [13.08|14:41:17] JOB nve-md-e1 RUNNING
-    [13.08|14:41:17] JOB nve-md-e1 FINISHED
-    [13.08|14:41:17] JOB nve-md-e1 SUCCESSFUL
+    [23.10|17:57:54] JOB nve-md-e1 STARTED
+    [23.10|17:57:54] JOB nve-md-e1 RUNNING
+    [23.10|17:57:56] JOB nve-md-e1 FINISHED
+    [23.10|17:57:56] JOB nve-md-e1 SUCCESSFUL
 
 
 
 
 .. parsed-literal::
 
-    <scm.plams.interfaces.adfsuite.ams.AMSResults at 0x154531d90>
+    <scm.plams.interfaces.adfsuite.ams.AMSResults at 0x15d0a65e0>
 
 
 
@@ -274,17 +274,17 @@ forces:
 
 .. parsed-literal::
 
-    [13.08|14:41:17] JOB replay-e2 STARTED
-    [13.08|14:41:17] JOB replay-e2 RUNNING
-    [13.08|14:41:19] JOB replay-e2 FINISHED
-    [13.08|14:41:19] JOB replay-e2 SUCCESSFUL
+    [23.10|17:57:56] JOB replay-e2 STARTED
+    [23.10|17:57:56] JOB replay-e2 RUNNING
+    [23.10|17:57:58] JOB replay-e2 FINISHED
+    [23.10|17:57:58] JOB replay-e2 SUCCESSFUL
 
 
 
 
 .. parsed-literal::
 
-    <scm.plams.interfaces.adfsuite.ams.AMSResults at 0x154539b50>
+    <scm.plams.interfaces.adfsuite.ams.AMSResults at 0x15d062190>
 
 
 
@@ -295,17 +295,9 @@ for the second job:
 
 .. code:: ipython3
 
-    plot_correlation(md, replay, section="History", variable="EngineGradients", alt_variable="Gradients", file="ams")
+    plot_correlation(md, replay, section="History", variable="EngineGradients", alt_variable="Gradients", file="ams");
 
 
 
-
-.. parsed-literal::
-
-    <AxesSubplot: title={'center': 'History%EngineGradients\n MAD: 0.00856 RMSD: 0.01171 R^2: 0.724\nLinear fit slope=0.987 intercept=0.000'}, xlabel='nve-md-e1', ylabel='replay-e2'>
-
-
-
-
-.. image:: plot_correlation_files/plot_correlation_27_1.png
+.. image:: plot_correlation_files/plot_correlation_27_0.png
 

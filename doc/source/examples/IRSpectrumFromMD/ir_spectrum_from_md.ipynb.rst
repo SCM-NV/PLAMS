@@ -16,7 +16,7 @@ Molecule
 .. code:: ipython3
 
     mol = plams.from_smiles("NC(CO)OCC=O")
-    plams.plot_molecule(mol)
+    plams.plot_molecule(mol);
 
 
 
@@ -260,7 +260,7 @@ oxygen (giving a lower vibrational frequency):
 
 .. code:: ipython3
 
-    plams.plot_molecule(harmonic_job.results.get_main_molecule())
+    plams.plot_molecule(harmonic_job.results.get_main_molecule());
 
 
 

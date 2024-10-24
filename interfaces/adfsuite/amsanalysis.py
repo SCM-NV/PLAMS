@@ -179,7 +179,7 @@ class AMSAnalysisResults(SCMResults):
 
     def get_xy(self, section="", i=1):
         """
-        Get the AMSAnalysitPlot object for a specific section of the plot KFFile
+        Get the AMSAnalysisPlot object for a specific section of the plot KFFile
         """
         task = self.job.settings.input.Task
         if section == "":

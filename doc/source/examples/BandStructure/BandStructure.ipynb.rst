@@ -17,7 +17,7 @@ Metal band structure relative to Fermi energy
 .. code:: ipython3
 
     Cu = fromASE(ase_build_bulk("Cu", "fcc", a=3.6))  # primitive cell
-    plot_molecule(Cu)
+    plot_molecule(Cu);
 
 
 
@@ -41,20 +41,20 @@ Metal band structure relative to Fermi energy
 
 .. parsed-literal::
 
-    [16.01|17:09:06] JOB Cu STARTED
-    [16.01|17:09:06] JOB Cu RUNNING
-    [16.01|17:09:11] JOB Cu FINISHED
-    [16.01|17:09:11] JOB Cu SUCCESSFUL
+    [23.10|17:50:30] JOB Cu STARTED
+    [23.10|17:50:30] JOB Cu RUNNING
+    [23.10|17:50:34] JOB Cu FINISHED
+    [23.10|17:50:34] JOB Cu SUCCESSFUL
 
 
 .. code:: ipython3
 
     x, y_spin_up, y_spin_down, labels, fermi_energy = job.results.get_band_structure(unit="eV")
-    plot_band_structure(x, y_spin_up, None, labels, fermi_energy, zero="fermi")
-    plt.ylim(-10, 10)
-    plt.ylabel("$E - E_{Fermi}$ (eV)")
-    plt.xlabel("Path")
-    plt.title("Cu with DFTB.org/matsci-0-3")
+    ax = plot_band_structure(x, y_spin_up, None, labels, fermi_energy, zero="fermi")
+    ax.set_ylim(-10, 10)
+    ax.set_ylabel("$E - E_{Fermi}$ (eV)")
+    ax.set_xlabel("Path")
+    ax.set_title("Cu with DFTB.org/matsci-0-3")
     plt.show()
 
 
@@ -71,7 +71,7 @@ VBM (‘vbm’) or CBM (‘cbm’)
 .. code:: ipython3
 
     ZnO = fromASE(ase_build_bulk("ZnO", "wurtzite", a=3.2, c=5.3, u=0.375))
-    plot_molecule(ZnO, rotation=("60x,60y,80z"))
+    plot_molecule(ZnO, rotation=("60x,60y,80z"));
 
 
 
@@ -91,10 +91,10 @@ VBM (‘vbm’) or CBM (‘cbm’)
 
 .. parsed-literal::
 
-    [16.01|17:09:11] JOB ZnO STARTED
-    [16.01|17:09:11] JOB ZnO RUNNING
-    [16.01|17:09:14] JOB ZnO FINISHED
-    [16.01|17:09:14] JOB ZnO SUCCESSFUL
+    [23.10|17:50:35] JOB ZnO STARTED
+    [23.10|17:50:35] JOB ZnO RUNNING
+    [23.10|17:50:37] JOB ZnO FINISHED
+    [23.10|17:50:37] JOB ZnO SUCCESSFUL
 
 
 The below call to ``plot_band_structure`` plots both the spin up and
@@ -104,11 +104,11 @@ overlap the spin-up bands.
 
 .. code:: ipython3
 
-    plot_band_structure(*job.results.get_band_structure(unit="eV"), zero="vbmax")
-    plt.ylim(-10, 10)
-    plt.ylabel("$E - E_{VBM}$ (eV)")
-    plt.xlabel("Path")
-    plt.title("ZnO with GFN1-xTB")
+    ax = plot_band_structure(*job.results.get_band_structure(unit="eV"), zero="vbmax")
+    ax.set_ylim(-10, 10)
+    ax.set_ylabel("$E - E_{VBM}$ (eV)")
+    ax.set_xlabel("Path")
+    ax.set_title("ZnO with GFN1-xTB")
     plt.show()
 
 
@@ -130,7 +130,7 @@ performed together with the BAND engine.
     mol.add_atom(Atom(symbol="Ni", coords=(0, 0, 0)))
     mol.add_atom(Atom(symbol="O", coords=(d, d, d)))
     mol.lattice = [[0.0, d, d], [d, 0.0, d], [d, d, 0.0]]
-    plot_molecule(mol)
+    plot_molecule(mol);
 
 
 
@@ -156,22 +156,23 @@ performed together with the BAND engine.
 
 .. parsed-literal::
 
-    [16.01|17:09:14] JOB NiO STARTED
-    [16.01|17:09:14] JOB NiO RUNNING
-    [16.01|17:09:45] JOB NiO FINISHED
-    [16.01|17:09:45] JOB NiO SUCCESSFUL
+    [23.10|17:50:37] JOB NiO STARTED
+    [23.10|17:50:37] JOB NiO RUNNING
+    [23.10|17:51:32] JOB NiO FINISHED
+    [23.10|17:51:32] JOB NiO SUCCESSFUL
 
 
 .. code:: ipython3
 
-    plot_band_structure(*job.results.get_band_structure(unit="eV"), zero="vbmax")
-    plt.ylim(-10, 10)
-    plt.ylabel("$E - E_{VBM}$ (eV)")
-    plt.xlabel("Path")
-    plt.title("NiO with DFT+U")
+    ax = plot_band_structure(*job.results.get_band_structure(unit="eV"), zero="vbmax")
+    ax.set_ylim(-10, 10)
+    ax.set_ylabel("$E - E_{VBM}$ (eV)")
+    ax.set_xlabel("Path")
+    ax.set_title("NiO with DFT+U")
     plt.show()
 
 
 
 .. image:: BandStructure_files/BandStructure_15_0.png
+
 

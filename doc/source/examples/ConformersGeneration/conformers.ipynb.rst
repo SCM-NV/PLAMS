@@ -20,7 +20,7 @@ Initial structure
 .. code:: ipython3
 
     molecule = from_smiles("OC(CC1c2ccccc2Sc2ccccc21)CN1CCCC1")
-    plot_molecule(molecule)
+    plot_molecule(molecule);
 
 
 

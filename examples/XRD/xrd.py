@@ -41,7 +41,8 @@ at = Atoms(
     cell=[4.01, 4.01, 4.01],
     pbc=(True, True, True),
 )
-plot_molecule(at, rotation="-5x,5y,0z")  # show in Jupyter notebook
+plot_molecule(at, rotation="-5x,5y,0z")
+# show in Jupyter notebook
 
 
 # ## Save ASE Atoms to .cif format

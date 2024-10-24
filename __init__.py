@@ -147,7 +147,14 @@ from scm.plams.tools.geometry import (
 )
 from scm.plams.tools.kftools import KFFile, KFHistory, KFReader
 from scm.plams.tools.periodic_table import PT, PeriodicTable
-from scm.plams.tools.plot import plot_band_structure, plot_molecule, plot_correlation, plot_work_function
+from scm.plams.tools.plot import (
+    plot_band_structure,
+    plot_molecule,
+    plot_correlation,
+    get_correlation_xy,
+    plot_msd,
+    plot_work_function,
+)
 from scm.plams.tools.reaction_energies import (
     balance_equation,
     balance_equation_new,
@@ -311,6 +318,10 @@ __all__ = [
     "PT",
     "plot_band_structure",
     "plot_molecule",
+    "get_correlation_xy",
+    "plot_correlation",
+    "plot_msd",
+    "plot_work_function",
     "SDFTrajectoryFile",
     "create_sdf_string",
     "XYZHistoryFile",
