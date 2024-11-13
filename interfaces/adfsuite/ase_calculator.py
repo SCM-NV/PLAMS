@@ -184,7 +184,7 @@ class AMSCalculator(Calculator):
 
         self.settings = settings.copy()
         self.amsworker = amsworker
-        self.name = name
+        self._name = name
         self.restart = restart
         self.molecule = molecule
         extractors = settings.pop("Extractors", [])
@@ -209,7 +209,7 @@ class AMSCalculator(Calculator):
     @property
     def counter(self):
         # this is needed for deepcopy/pickling etc
-        if not self.name in self._counter:
+        if self.name not in self._counter:
             self.set_counter()
         self._counter[self.name] += 1
         return self._counter[self.name]
@@ -221,6 +221,10 @@ class AMSCalculator(Calculator):
     def implemented_properties(self):
         """Returns the list of properties that this calculator has implemented"""
         return [extractor.name for extractor in self.extractors if extractor.check_settings(self.settings)]
+
+    @property
+    def name(self):
+        return self._name
 
     def calculate(self, atoms=None, properties=["energy"], system_changes=all_changes):
         """Calculate the requested properties. If atoms is not set, it will reuse the last known Atoms object."""
