@@ -1570,7 +1570,7 @@ class Molecule:
         matrix = self.bond_matrix()
         matrix = matrix.astype(np.int32)
         matrix[matrix > 0] = 1
-        graph = networkx.from_numpy_matrix(matrix)
+        graph = networkx.from_numpy_array(matrix)
         rings = networkx.cycle_basis(graph)
         return rings
 
