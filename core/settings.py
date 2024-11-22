@@ -2,7 +2,7 @@ import contextlib
 import textwrap
 from collections import UserDict
 from functools import wraps
-from typing import TYPE_CHECKING, Any, Generic, Literal, Tuple, Type, TypeVar, Union
+from typing import TYPE_CHECKING, Any, Dict, Generic, Hashable, List, Literal, Tuple, Type, TypeVar, Union
 
 __all__ = [
     "Settings",
@@ -424,6 +424,21 @@ class Settings(dict):
             s[key[-1]] = value
 
         return ret
+
+    def compare(self, other: "Settings") -> Tuple[List[Tuple[Hashable]], Dict[Tuple[Hashable], Any]]:
+        """compare this settings to the other settings
+
+        :param other: is the settings object to compare with
+        :type other: Settings
+        :return: missing paths and different values with the values of the current settings
+        :rtype: Tuple[List[Tuple[Hashable]], Dict[Tuple[Hashable]], Any]
+        """
+        assert isinstance(other, Settings)
+        reference = self.flatten().as_dict()
+        cs = other.flatten().as_dict()
+        missing_paths = [k for k in cs.keys() if reference.get(k, "__MissingBlock__") == "__MissingBlock__"]
+        value_different = {k: reference[k] for k, v in cs.items() if k not in missing_paths and reference[k] != v}
+        return missing_paths, value_different
 
     # =======================================================================
 
