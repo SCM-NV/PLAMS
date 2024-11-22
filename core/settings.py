@@ -1,7 +1,8 @@
 import contextlib
 import textwrap
+from collections import UserDict
 from functools import wraps
-from typing import TYPE_CHECKING, TypeVar, Union, Tuple, Type
+from typing import TYPE_CHECKING, Any, Generic, Literal, Tuple, Type, TypeVar, Union
 
 __all__ = [
     "Settings",
@@ -268,25 +269,55 @@ class Settings(dict):
         """
         return SuppressMissing(Settings)
 
-    def get_nested(self, key_tuple, suppress_missing=False):
-        """Retrieve a nested value by, recursively, iterating through this instance using the keys in *key_tuple*.
+    def get_nested(
+        self,
+        key_tuple: Tuple[str],
+        default: Union[Any, Literal["__Settings__"]] = "__Settings__",
+        suppress_missing=False,
+    ):
+        """
+        Retrieve a nested value by, recursively, iterating through this instance using the keys in *key_tuple*.
+        To be backward compatible the default is a special string: "__Settings__" that returns an <empty Settings>.
 
-        The :meth:`.Settings.__getitem__` method is called recursively on this instance until all keys in key_tuple are exhausted.
-
-        Setting *suppress_missing* to ``True`` will internally open the :meth:`.Settings.suppress_missing` context manager, thus raising a :exc:`KeyError` if a key in *key_tuple* is absent from this instance.
-
+        Examples
+        --------
         .. code:: python
-
             >>> s = Settings()
             >>> s.a.b.c = True
             >>> value = s.get_nested(('a', 'b', 'c'))
             >>> print(value)
             True
+            >>> s = plams.Settings()
+            >>> value = s.get_nested(('input', 'task'))
+            >>> print(value)
+            <empty Settings>
+            >>> print(s)
+            <empty Settings>
+
+        Older version
+        -------------
+        .. code:: python
+            >>> import scm.plams as plams
+            >>> s = plams.Settings()
+            >>> value = s.get_nested(('input', 'task'))
+            >>> print(value)
+            <empty Settings>
+            >>> print(s)
+            input:
+                task:     <empty Settings>
         """
+
+        if default == "__Settings__":
+            default = Settings
+
         s = self
         with contextlib.suppress() if not suppress_missing else s.suppress_missing():
             for k in key_tuple:
-                s = s[k]
+                s = s.get(k, default)
+                if s == Settings:  # backward compatibility
+                    return Settings()
+                elif not isinstance(s, Settings):  # returning the default
+                    return s
         return s
 
     def set_nested(self, key_tuple, value, suppress_missing=False):
