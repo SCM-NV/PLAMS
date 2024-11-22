@@ -2,7 +2,21 @@ import contextlib
 import textwrap
 from collections import UserDict
 from functools import wraps
-from typing import TYPE_CHECKING, Any, Dict, Generic, Hashable, List, Literal, Tuple, Type, TypeVar, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    Generic,
+    Hashable,
+    Iterable,
+    List,
+    Literal,
+    Sequence,
+    Tuple,
+    Type,
+    TypeVar,
+    Union,
+)
 
 __all__ = [
     "Settings",
@@ -271,7 +285,7 @@ class Settings(dict):
 
     def get_nested(
         self,
-        key_tuple: Tuple[str],
+        key_tuple: Sequence[Hashable],
         default: Union[Any, Literal["__Settings__"]] = "__Settings__",
         suppress_missing=False,
     ):
@@ -320,7 +334,7 @@ class Settings(dict):
                     return s
         return s
 
-    def set_nested(self, key_tuple, value, suppress_missing=False):
+    def set_nested(self, key_tuple: Sequence[Hashable], value, suppress_missing=False):
         """Set a nested value by, recursively, iterating through this instance using the keys in *key_tuple*.
 
         The :meth:`.Settings.__getitem__` method is called recursively on this instance, followed by :meth:`.Settings.__setitem__`, until all keys in key_tuple are exhausted.
@@ -342,6 +356,22 @@ class Settings(dict):
             for k in key_tuple[:-1]:
                 s = s[k]
         s[key_tuple[-1]] = value
+
+    def pop_nested(self, key_tuple: Sequence[Hashable]):
+        """
+        Remove a branch from a nested dictionary based on a tuple of keys.
+
+        :param nested_dict: The nested dictionary to modify.
+        :param key_tuple: A tuple of keys indicating the path to the branch to be removed.
+        :return: The removed branch, or None if the path does not exist.
+        """
+        current_dict = self
+        for key in key_tuple[:-1]:
+            current_dict = current_dict.get(key, None)
+            if current_dict is None:
+                return None
+
+        return current_dict.pop(key_tuple[-1], None)
 
     def flatten(self, flatten_list=True) -> "Settings":
         """Return a flattened copy of this instance.
