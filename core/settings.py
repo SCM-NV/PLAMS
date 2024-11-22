@@ -1,4 +1,5 @@
 import contextlib
+import json
 import textwrap
 from collections import UserDict
 from functools import wraps
@@ -288,6 +289,7 @@ class Settings(dict):
         key_tuple: Sequence[Hashable],
         default: Union[Any, Literal["__Settings__"]] = "__Settings__",
         suppress_missing=False,
+        simple_nesting=True,
     ):
         """
         Retrieve a nested value by, recursively, iterating through this instance using the keys in *key_tuple*.
@@ -325,6 +327,7 @@ class Settings(dict):
             default = Settings
 
         s = self
+        key_tuple = self._parse_key_tuple(key_tuple, simple_nesting)
         with contextlib.suppress() if not suppress_missing else s.suppress_missing():
             for k in key_tuple:
                 s = s.get(k, default)
@@ -334,7 +337,7 @@ class Settings(dict):
                     return s
         return s
 
-    def set_nested(self, key_tuple: Sequence[Hashable], value, suppress_missing=False):
+    def set_nested(self, key_tuple: Sequence[Hashable], value, suppress_missing=False, simple_nesting=True):
         """Set a nested value by, recursively, iterating through this instance using the keys in *key_tuple*.
 
         The :meth:`.Settings.__getitem__` method is called recursively on this instance, followed by :meth:`.Settings.__setitem__`, until all keys in key_tuple are exhausted.
@@ -352,12 +355,13 @@ class Settings(dict):
                 c: 	True
         """
         s = self
+        key_tuple = self._parse_key_tuple(key_tuple, simple_nesting)
         with contextlib.suppress() if not suppress_missing else s.suppress_missing():
             for k in key_tuple[:-1]:
                 s = s[k]
         s[key_tuple[-1]] = value
 
-    def pop_nested(self, key_tuple: Sequence[Hashable]):
+    def pop_nested(self, key_tuple: Sequence[Hashable], simple_nesting=True):
         """
         Remove a branch from a nested dictionary based on a tuple of keys.
 
@@ -365,6 +369,8 @@ class Settings(dict):
         :param key_tuple: A tuple of keys indicating the path to the branch to be removed.
         :return: The removed branch, or None if the path does not exist.
         """
+        key_tuple = self._parse_key_tuple(key_tuple, simple_nesting)
+
         current_dict = self
         for key in key_tuple[:-1]:
             current_dict = current_dict.get(key, None)
@@ -372,6 +378,12 @@ class Settings(dict):
                 return None
 
         return current_dict.pop(key_tuple[-1], None)
+
+    @staticmethod
+    def _parse_key_tuple(key_tuple: Sequence[Hashable], simple_nesting: bool):
+        if simple_nesting and isinstance(key_tuple, str):
+            key_tuple = key_tuple.split(".")
+        return key_tuple
 
     def flatten(self, flatten_list=True) -> "Settings":
         """Return a flattened copy of this instance.
@@ -456,9 +468,9 @@ class Settings(dict):
         return ret
 
     def compare(self, other: "Settings") -> Tuple[List[Tuple[Hashable]], Dict[Tuple[Hashable], Any]]:
-        """compare this settings to the other settings
+        """compare this settings to the other settings. It is an asymmetric function.
 
-        :param other: is the settings object to compare with
+        :param other: settings object to compare with
         :type other: Settings
         :return: missing paths and different values with the values of the current settings
         :rtype: Tuple[List[Tuple[Hashable]], Dict[Tuple[Hashable]], Any]
@@ -469,6 +481,52 @@ class Settings(dict):
         missing_paths = [k for k in cs.keys() if reference.get(k, "__MissingBlock__") == "__MissingBlock__"]
         value_different = {k: reference[k] for k, v in cs.items() if k not in missing_paths and reference[k] != v}
         return missing_paths, value_different
+
+    def json_serialize(self, **kwargs) -> str:
+        """keys must be str, int, float, bool or None"""
+        return json.dumps(self.as_dict(), **kwargs)
+
+    def write_inp(self, filename: str, **kwargs) -> None:
+        """simple json serializer for Settings. It supports a limited amount of types.
+
+        :param filename: the path to save the settings
+        :type filename: str
+        """
+        with open(filename, "w") as f:
+            f.write(self.json_serialize(**kwargs))
+
+    @classmethod
+    def read_inp(cls, filename: str, **kwargs) -> "Settings":
+        """simple json reader for Settings.
+
+        :param filename: the path to open the settings
+        :type filename: str
+        :return: a settings object
+        :rtype: Settings
+        """
+        with open(filename, "r") as f:
+            data = json.load(f, **kwargs)
+        return cls(data)
+
+    def print_settings(self):
+        """print the settings object as if you are writing it in a python script (useful for copy and paste and compact inspection)"""
+
+        def format_kv(k, v) -> str:
+            def map_special(k_i):
+                if isinstance(k_i, tuple):
+                    return f"[{str(k_i)}]"
+                return str(k_i)
+
+            k_map = map(map_special, k)
+            if v == {}:
+                return f'{".".join(k_map)}'
+            if isinstance(v, str):
+                return f'{".".join(k_map)} = "{v}"'
+            return f'{".".join(k_map)} = {v}'
+
+        str_to_print = "\n".join([format_kv(k, v) for k, v in self.flatten(flatten_list=False).as_dict().items()])
+        str_to_print = str_to_print.replace(".[(", "[(")
+        print(str_to_print)
 
     # =======================================================================
 
