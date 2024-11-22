@@ -13,6 +13,7 @@ from typing import (
     List,
     Literal,
     Sequence,
+    Set,
     Tuple,
     Type,
     TypeVar,
@@ -199,6 +200,11 @@ class Settings(dict):
                     self[name].update(other[name])
             else:
                 self[name] = other[name]
+
+    def subtract(self, other: "Settings"):
+        key_paths = list(other.flatten().as_dict())
+        for key_path_i in key_paths:
+            self.pop_nested(key_path_i)
 
     def merge(self: TSelf, other: "Settings") -> TSelf:
         """Return new instance of |Settings| that is a copy of this instance soft-updated with *other*.
@@ -466,6 +472,27 @@ class Settings(dict):
             s[key[-1]] = value
 
         return ret
+
+    def get_blocks_path(
+        self, flatten_list: bool = False, add_empty_settings_as_block: bool = True
+    ) -> Set[Tuple[Hashable]]:
+        """it returns a set of all the blocks path, a block is identified because it contains a Settings object
+
+        :return: a set of tuples with the blocks path
+        :rtype: set
+        """
+        blocks_path = set()
+        default_dict = self.flatten(flatten_list=flatten_list).as_dict()
+
+        for key in default_dict.keys():
+            for partial in range(1, len(key)):
+                blocks_path = blocks_path.union({key[:-partial]})
+
+        if add_empty_settings_as_block:
+            for key, value in default_dict.items():
+                if value == {}:
+                    blocks_path = blocks_path.union({key})
+        return blocks_path
 
     def compare(self, other: "Settings") -> Tuple[List[Tuple[Hashable]], Dict[Tuple[Hashable], Any]]:
         """compare this settings to the other settings. It is an asymmetric function.
