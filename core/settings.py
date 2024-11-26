@@ -12,6 +12,7 @@ from typing import (
     Iterable,
     List,
     Literal,
+    Optional,
     Sequence,
     Set,
     Tuple,
@@ -508,6 +509,57 @@ class Settings(dict):
         missing_paths = [k for k in cs.keys() if reference.get(k, "__MissingBlock__") == "__MissingBlock__"]
         value_different = {k: reference[k] for k, v in cs.items() if k not in missing_paths and reference[k] != v}
         return missing_paths, value_different
+
+    def convert_free_block(self, key_tuple: Sequence[Hashable], simple_nesting=True, inplace=True) -> Optional[dict]:
+        """converts free blocks to settings
+
+        :param key_tuple: _description_
+        :type key_tuple: Sequence[Hashable]
+        :param simple_nesting: _description_, defaults to True
+        :type simple_nesting: bool, optional
+        :param inplace: _description_, defaults to True
+        :type inplace: bool, optional
+        :raises ValueError: _description_
+        :return: _description_
+        :rtype: Optional[dict]
+        """
+        key_tuple = self._parse_key_tuple(key_tuple, simple_nesting)
+        original_value = self.get_nested(key_tuple, default=None, simple_nesting=False)
+        modified_value = original_value
+
+        def parse_to_dict(list_of_strings: List[str]) -> dict:
+            result_dict = {}
+            for string in list_of_strings:
+                # Split the string on '=' to separate the variable name from the dictionary string
+                parts = string.split("=")
+                if len(parts) > 0:
+                    var_name = parts[0].strip()  # Variable name
+                else:
+                    raise ValueError(f"{string=} has not an = are you sure is a string that can be converted to dict?")
+                dict_obj = {}
+                if len(parts) == 1:
+                    dict_obj = None
+                elif len(parts) == 2:
+                    dict_str = parts[1].strip()  # Dictionary string
+                    dict_obj = eval(dict_str)
+                result_dict[var_name] = dict_obj
+            return result_dict
+
+        if original_value is not None:
+            if isinstance(original_value, str):
+                original_value_i = original_value.split("\n")
+                original_value = [x.lstrip() for x in original_value_i if "=" in x]
+            if isinstance(original_value, list) and isinstance(original_value[0], str):
+                modified_value = parse_to_dict(original_value)
+            if isinstance(key_tuple[-1], str) and key_tuple[-1].startswith("_"):
+                path_to_assign = key_tuple[:-1]
+            else:
+                path_to_assign = key_tuple
+            if inplace:
+                self.set_nested(path_to_assign, modified_value)
+
+        if not inplace:
+            return modified_value
 
     def json_serialize(self, **kwargs) -> str:
         """keys must be str, int, float, bool or None"""
