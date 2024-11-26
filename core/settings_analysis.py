@@ -1,12 +1,12 @@
 import warnings
 from collections import defaultdict
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 import numpy as np
 from scm.plams import Settings
 
 
-def print_in_table(data):
+def print_in_table(data: Dict[str, List]):
     # Extract keys and values
     keys = list(data.keys())  # Keys will form the table header
     values = np.array(list(data.values()), dtype=object).T  # Transpose values to make rows the data points
