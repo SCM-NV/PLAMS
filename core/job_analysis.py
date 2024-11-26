@@ -4,6 +4,8 @@ import warnings
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Type, Union
 
+from matplotlib import pyplot as plt
+from matplotlib.figure import Figure
 from scm.plams import AMSJob, JobManager, Settings, SingleJob, to_smiles
 from scm.plams.core.settings_analysis import compare_settings, print_in_table
 
@@ -327,6 +329,52 @@ class JobsAnalysis:
     ):
         self.data[col_out] = [reasonable_checker(job) for job in self.data[jobs_col]]
 
+    def success_checker_plotter(
+        self,
+        ref_job_idx: int,
+        indexes_to_check: List[int],
+        success_plot: Callable[[SingleJob, SingleJob, plt.Axes]],
+        jobs_col=GroupedColNames.jobs,
+        separate_plot=True,
+        **plt_kwargs,
+    ) -> Figure:
+        """Note: success_plot should first plot the non-ref job and then the reference job, such that the legend is displaced well"""
+        plt_kwargs.setdefault("layout", "tight")
+        if separate_plot:
+            plt_kwargs.setdefault("sharex", True)
+            plt_kwargs.setdefault("sharey", True)
+            plt_kwargs.setdefault(
+                "ncols", 4 if "nrows" not in plt_kwargs else -(-len(indexes_to_check) // plt_kwargs["nrows"])
+            )
+            plt_kwargs.setdefault("nrows", -(-len(indexes_to_check) // plt_kwargs["ncols"]))
+            fig, axes = plt.subplots(**plt_kwargs)
+            axes = axes.ravel()
+        else:
+            plt_kwargs.pop("ncols")
+            plt_kwargs.pop("nrows")
+            fig, axes = plt.subplots(**plt_kwargs)
+            axes = [axes] * len(indexes_to_check)
+
+        text_labels = []
+        for idx_i, ax in zip(indexes_to_check, axes):
+            success_plot(self.data[jobs_col][idx_i], self.data[jobs_col][ref_job_idx], ax)
+            if GroupedColNames.labels in self.data:
+                text_label = self.data[GroupedColNames.labels][idx_i]
+            else:
+                text_label = ""
+                for col_i in self.setting_paths_cols:
+                    text_label += f"{col_i}: {self.data[col_i][idx_i]}\n"
+            text_labels.append(text_label)
+            if not separate_plot:
+                text_labels.append("ref")
+
+        if separate_plot:
+            for ax, text_label in zip(axes, text_labels):
+                ax.set_title(text_label)
+        else:
+            axes[0].legend(text_labels)
+        return fig
+
     def success_checker(
         self,
         ref_job_idx: int,
@@ -341,5 +389,8 @@ class JobsAnalysis:
                     self.data[k] = [None] * len(self.data[jobs_col])
                 self.data[k][idx_i] = v
 
+    ############################################################################
+    ##################               visualize             #####################
+    ############################################################################
     def print_table(self):
         print_in_table(self.data)
