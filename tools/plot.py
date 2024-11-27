@@ -1,9 +1,11 @@
-from scm.plams.mol.molecule import Molecule
+from typing import List, Optional, Tuple, Union
+
+import numpy as np
+from scm.plams import rkf_to_ase_atoms
 from scm.plams.core.errors import MissingOptionalPackageError
 from scm.plams.core.functions import requires_optional_package
 from scm.plams.interfaces.adfsuite.ams import AMSJob
-from typing import Tuple, Union, List, Optional
-import numpy as np
+from scm.plams.mol.molecule import Molecule
 
 __all__ = ["plot_band_structure", "plot_molecule", "plot_correlation", "plot_msd", "plot_work_function"]
 
@@ -496,4 +498,88 @@ def plot_work_function(
             horizontalalignment="right",
         )
 
+    return ax
+
+
+@requires_optional_package("matplotlib")
+def plot_traj_en_forces(
+    job: AMSJob,
+    energy=True,
+    forces=True,
+    ax=None,
+    uncertainty=False,
+    marker="-o",
+    vlines_x_position=None,
+    color_energy="b",
+    color_forces="r",
+):
+    import matplotlib.pyplot as plt
+
+    traj_1 = rkf_to_ase_atoms(job.results.rkfpath(file="ams"))
+    uncertainties_f = uncertainties_en = None
+    if uncertainty:
+        uncertainties_en = np.array(job.results.get_history_property("EngineEnergyU"))
+        uncertainties_f = np.array(job.results.get_history_property("EngineGradientsNormU"))
+    min_en = max_en = energies = None
+    if energy:
+        energies = np.array([atoms.get_potential_energy() for atoms in traj_1])
+        min_en = energies.min()
+        max_en = energies.max()
+    max_forces = None
+    if forces:
+        max_forces = np.array([np.max(atoms.get_forces()) for atoms in traj_1])
+
+    if ax is None:
+        fig, ax = plt.subplots()
+
+    x = np.array(range(len(traj_1)))
+    if energies is not None:
+        ax.plot(x, energies, marker, color=color_energy)
+        if uncertainties_en is not None:
+            delta_minus = energies - uncertainties_en
+            delta_plus = energies + uncertainties_en
+            min_en = delta_minus.min()
+            max_en = delta_plus.max()
+            ax.fill_between(
+                x,
+                delta_minus,
+                delta_plus,
+                color=color_energy,
+                alpha=0.2,
+                label="Uncertainty",
+            )
+        if color_energy:
+            ax.set_ylabel("Energies", color=color_energy)
+            ax.tick_params(axis="y", labelcolor=color_energy)
+        else:
+            ax.set_ylabel("Energies")
+            ax.tick_params(axis="y")
+
+    if max_forces is not None:
+        if max_en is None:
+            ax2 = ax
+        else:
+            ax2 = ax.twinx()
+        ax2.plot(max_forces, marker, color=color_forces)
+        if uncertainties_f is not None:
+            ax2.fill_between(
+                x,
+                max_forces - np.mean(uncertainties_f),
+                max_forces + np.mean(uncertainties_f),
+                color=color_forces,
+                alpha=0.2,
+                label="Uncertainty",
+            )
+        if color_forces:
+            ax2.set_ylabel("max Forces", color=color_forces)
+            ax2.tick_params(axis="y", labelcolor=color_forces)
+        else:
+            ax2.set_ylabel("max Forces")
+            ax2.tick_params(axis="y")
+
+        ax2.set_yscale("log")
+
+    if vlines_x_position is not None and min_en is not None and max_en is not None:
+        ax.vlines(vlines_x_position, ymin=min_en, ymax=max_en, linestyles="dashed")
+    ax.set_xlabel(f"{job.get_task()} step")
     return ax
