@@ -1,13 +1,24 @@
 # %%
+import csv
 import re
 import warnings
+from collections import UserList, defaultdict
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Type, Union
 
 from matplotlib import pyplot as plt
 from matplotlib.figure import Figure
-from scm.plams import AMSJob, JobManager, Settings, SingleJob, to_smiles
-from scm.plams.core.settings_analysis import compare_settings, print_in_table
+from scm.plams import (
+    AMSJob,
+    JobManager,
+    JobManagerSettings,
+    Settings,
+    SingleJob,
+    to_smiles,
+)
+from scm.plams.tools.settings_analysis import compare_settings
+from scm.plams.tools.table_formatter import format_in_table
 
 
 class GroupedColNames:
@@ -31,6 +42,41 @@ class GroupedColNames:
     ########################
 
 
+class HeaderStr(str):
+    @property
+    def is_settings(self):
+        return self._is_settings
+
+    @is_settings.setter
+    def is_settings(self, val: bool):
+        self._is_settings = val
+
+    def __new__(cls, value, is_settings: bool = False):
+        # Create a new instance of str
+        obj = super(HeaderStr, cls).__new__(cls, value)
+        # Add the extra property
+        obj.is_settings = is_settings
+        return obj
+
+
+class SettingsCols:
+
+    def __init__(self, __dict__: Dict[Union[str, HeaderStr], List[Any]]):
+        self.__dict__ = __dict__
+
+    @property
+    def values(self):
+        return [k for k in self.__dict__ if isinstance(k, HeaderStr) and k.is_settings]
+
+    def __repr__(self) -> str:
+        list_repr = str(sorted(self.values)).replace(",", ",\n\t")
+        return f"SettingsCols({list_repr})"
+
+    def rename(self, mapper: Dict[str, str]):
+        for k_in, k_out in mapper.items():
+            self.__dict__[HeaderStr(k_out, is_settings=True)] = self.__dict__.pop(k_in)
+
+
 class JobsAnalysis:
     # _plot_type = ViewJobAnalysis
     _cols = GroupedColNames
@@ -39,7 +85,7 @@ class JobsAnalysis:
         self,
         paths: Optional[Union[List[Optional[str]], List[Optional[Path]], List[Path]]] = None,
         jobs: Optional[List[SingleJob]] = None,
-        data: Optional[Dict[str, List[Any]]] = None,
+        data: Optional[Dict[Union[str, HeaderStr], List[Any]]] = None,
         extra_cols: Optional[Dict[str, List[Any]]] = None,
     ):
         ################### initialization data ####################
@@ -59,21 +105,21 @@ class JobsAnalysis:
         if extra_cols is not None:
             self.data.update(extra_cols)
         ###################### Cache data ######################
-        self.setting_paths_cols: List[str] = []
-        self._cache_free_blocks = []
-        self._params_cols = None
-        self._sal_cols = None
-        self._ir_check = None
+        # self._params_cols = None
+        # self._sal_cols = None
+        # self._ir_check = None
+
+        self.settings_cols = SettingsCols(__dict__=self.data)
 
     def apply(self, fn: Callable, col: str = GroupedColNames.jobs):
         assert col in self.data, f"{col} not in {self.data.keys()=}"
         return [fn(x) for x in self.data[col]]
 
     def _generate_names_paths_from_jobs(
-        self, col_paths=GroupedColNames.paths, col_names=GroupedColNames.paths, col_jobs=GroupedColNames.jobs
+        self, col_paths=GroupedColNames.paths, col_names=GroupedColNames.names, col_jobs=GroupedColNames.jobs
     ):
-        self.names(col_paths, col_jobs)
-        self.paths(col_names, col_jobs)
+        self.names(col_names, col_jobs)
+        self.paths(col_paths, col_jobs)
 
     def paths(self, col_paths=GroupedColNames.paths, col_jobs=GroupedColNames.jobs):
         if col_paths in self.data:
@@ -85,7 +131,7 @@ class JobsAnalysis:
             return self.data[col_paths]
         return None
 
-    def names(self, col_names=GroupedColNames.paths, col_jobs=GroupedColNames.jobs):
+    def names(self, col_names=GroupedColNames.names, col_jobs=GroupedColNames.jobs):
         if col_names in self.data:
             return self.data[col_names]
         if col_jobs in self.data:
@@ -96,7 +142,7 @@ class JobsAnalysis:
     @classmethod
     def load_paths_of_inputs(
         cls,
-        base_path: str,
+        base_path: Union[str, Path],
         pattern: str = "*/*.in",
     ):
         paths = [i.parent for i in Path(base_path).glob(pattern)]
@@ -106,8 +152,9 @@ class JobsAnalysis:
     @classmethod
     def load_only_job_failed(
         cls,
-        logfile_path: Path,
+        logfile_path: Union[str, Path],
     ):
+        logfile_path = Path(logfile_path)
         assert logfile_path.exists(), f"{logfile_path} does not exists"
 
         with open(logfile_path, "r") as log_file:
@@ -136,7 +183,7 @@ class JobsAnalysis:
                 return None
             path_files_in_job = path_folder / (path_folder.name)
             is_dill = path_files_in_job.with_suffix(".dill")
-            jm = JobManager({}, folder=Path.cwd(), use_existing_folder=True)
+            jm = JobManager(JobManagerSettings(), folder=Path.cwd(), use_existing_folder=True)
             job = None
             if is_dill.exists():
                 job = jm.load_job(is_dill)
@@ -185,37 +232,39 @@ class JobsAnalysis:
             return value
 
         added_col = settings_path + col_suffix
-        self.data[added_col] = self.apply(fn=get_value, col=job_col)
-        self.setting_paths_cols.append(added_col)
-        self.setting_paths_cols.sort()
+        self.data[HeaderStr(added_col, is_settings=True)] = self.apply(fn=get_value, col=job_col)
         return added_col
 
     def compare_settings(
         self,
         job_col=GroupedColNames.jobs,
-        blocks_analysis: bool = True,
-        keys_analysis: bool = False,
+        analyze_blocks: bool = True,
+        analyze_keys: bool = False,
         default_settings: Optional[Settings] = None,
         flatten_list: bool = True,
-        clean_singular_value: bool = True,
+        remove_unimportant_columns: bool = True,
+        unimportant_variation_threshold: int = 1,
+        none_is_unimportant: bool = False,
         col_suffix="",
     ):
+        for k in self.settings_cols.values:
+            self.data.pop(k)
         settings_list = [job.settings for job in self.data[job_col]]
         settings_summary = compare_settings(
             settings_list,
-            blocks_analysis=blocks_analysis,
-            keys_analysis=keys_analysis,
+            analyze_blocks=analyze_blocks,
+            analyze_keys=analyze_keys,
             default_settings=default_settings,
             flatten_list=flatten_list,
-            clean_singular_value=clean_singular_value,
+            remove_unimportant_columns=remove_unimportant_columns,
+            unimportant_variation_threshold=unimportant_variation_threshold,
+            none_is_unimportant=none_is_unimportant,
         )
         added_cols = []
         for k, v in settings_summary.items():
             k = ".".join(map(str, k)) + col_suffix
-            self.data[k] = v
+            self.data[HeaderStr(k, is_settings=True)] = v
             added_cols.append(k)
-            self.setting_paths_cols.append(k)
-        self.setting_paths_cols.sort()
         return added_cols
 
     def generate_labels(
@@ -238,16 +287,8 @@ class JobsAnalysis:
                 support_list.append(f"{name_i}: {row[col_i]}")
             return f"{cols_separator}".join(support_list)
 
-        self.data[col_label] = [generate_label(row) for row in self.iterrows()]
+        self.data[col_label] = [generate_label(row) for row in self]
         return col_label
-
-    def iterrows(self):
-        col_names = list(self.data)
-        n_rows = len(self.data[col_names[0]])
-        for i in range(n_rows):
-            yield self[i]
-        # for row in zip(*self.data.values()):
-        # yield {k: v for k, v in zip(col_names, row)}
 
     def __getitem__(self, idx: int):
         row = {}
@@ -288,6 +329,7 @@ class JobsAnalysis:
         self,
         jobs_col=GroupedColNames.jobs,
     ):
+
         def check_not_created(job) -> bool:
             if job.status not in ["created"]:
                 return True
@@ -311,8 +353,11 @@ class JobsAnalysis:
             fn=lambda job: job.get_errormsg() if check_not_created(job) and check_ams_status_not_none(job) else None,
             col=jobs_col,
         )
+        cols_added = ["ok", "check", "error"]
+        return cols_added
 
     def get_timings(self, col_jobs=GroupedColNames.jobs, custom_get_timings: Optional[Callable] = None):
+        cols_added = []
         if self._check_jobs_types(job_type=AMSJob, raise_error=False):
             cols_needed = GroupedColNames.timings
             cols_needed_present = all([i in self.data for i in cols_needed])
@@ -326,6 +371,7 @@ class JobsAnalysis:
                 self.data["ElapsedTime"] = self.apply(
                     fn=lambda job: job.results.readrkf("General", "ElapsedTime"), col=col_jobs
                 )
+                cols_added.extend(["CPUTime", "SysTime", "ElapsedTime"])
         # elif self._check_jobs_types(job_type=params.ParAMSJob, raise_error=False):
 
         #     def get_time(job: params.ParAMSJob):
@@ -339,6 +385,8 @@ class JobsAnalysis:
 
         elif custom_get_timings is not None:
             self.data["timings"] = [custom_get_timings(job) for job in self.data[col_jobs]]
+            cols_added.append("timings")
+        return cols_added
 
     ############################################################################
     #####################          JobSummarize          #######################
@@ -359,7 +407,7 @@ class JobsAnalysis:
         self,
         ref_job_idx: int,
         indexes_to_check: List[int],
-        success_plot: Callable[[SingleJob, SingleJob, plt.Axes]],
+        success_plot: Callable[[SingleJob, plt.Axes], plt.Axes],
         jobs_col=GroupedColNames.jobs,
         separate_plot=True,
         **plt_kwargs,
@@ -376,27 +424,39 @@ class JobsAnalysis:
             fig, axes = plt.subplots(**plt_kwargs)
             axes = axes.ravel()
         else:
-            plt_kwargs.pop("ncols")
-            plt_kwargs.pop("nrows")
+            if "ncols" in plt_kwargs:
+                plt_kwargs.pop("ncols")
+            if "nrows" in plt_kwargs:
+                plt_kwargs.pop("nrows")
             fig, axes = plt.subplots(**plt_kwargs)
             axes = [axes] * len(indexes_to_check)
 
         text_labels = []
-        for idx_i, ax in zip(indexes_to_check, axes):
-            success_plot(self.data[jobs_col][idx_i], self.data[jobs_col][ref_job_idx], ax)
+        for i, (idx_i, ax) in enumerate(zip(indexes_to_check, axes)):
+
             if GroupedColNames.labels in self.data:
                 text_label = self.data[GroupedColNames.labels][idx_i]
             else:
                 text_label = ""
-                for col_i in self.setting_paths_cols:
+                for col_i in self.settings_cols.values:
                     text_label += f"{col_i}: {self.data[col_i][idx_i]}\n"
-            text_labels.append(text_label)
-            if not separate_plot:
+
+            success_plot(self.data[jobs_col][idx_i], ax)
+            if separate_plot:
+                success_plot(self.data[jobs_col][ref_job_idx], ax)
+                text_labels.append([text_label, "ref"])
+            elif i == 0:
+                # plot only once
+                success_plot(self.data[jobs_col][ref_job_idx], ax)
+                text_labels.append(text_label)
                 text_labels.append("ref")
+            else:
+                text_labels.append(text_label)
 
         if separate_plot:
             for ax, text_label in zip(axes, text_labels):
-                ax.set_title(text_label)
+                ax.set_title(text_label[0])
+                ax.legend(text_label)
         else:
             axes[0].legend(text_labels)
         return fig
@@ -418,5 +478,64 @@ class JobsAnalysis:
     ############################################################################
     ##################               visualize             #####################
     ############################################################################
-    def print_table(self):
-        print_in_table(self.data)
+    def view_table(
+        self,
+        indexes=None,
+        ret_str: bool = False,
+        print_on: bool = True,
+        max_col_length: int = -1,
+        max_rows_displayed: int = 30,
+    ):
+
+        if indexes is not None:
+            data = defaultdict(list)
+            for i in indexes:
+                for k, v in self[i].items():
+                    data[k].append(v)
+        else:
+            data = self.data
+        return format_in_table(
+            data,
+            ret_str=ret_str,
+            print_on=print_on,
+            max_col_length=max_col_length,
+            max_rows_displayed=max_rows_displayed,
+        )
+
+    def to_csv(self, data_path: Union[str, Path], pop_jobs_cols=GroupedColNames.jobs):
+        headers = [str(key) for key in self.data.keys()]
+
+        jobs_col_idx = None
+        if pop_jobs_cols in headers:
+            jobs_col_idx = headers.index(pop_jobs_cols)
+            headers.pop(jobs_col_idx)
+
+        with open(data_path, mode="w", newline="", encoding="utf-8") as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow(headers)
+            for row in self:
+                row_l = list(row.values())
+
+                if jobs_col_idx is not None:
+                    row_l.pop(jobs_col_idx)
+
+                writer.writerow(row_l)
+
+        print(f"Data saved to {data_path}")
+
+    @classmethod
+    def from_csv(cls, data_path: str):
+        reconstructed_data: Dict[Union[str, HeaderStr], List[Any]] = {}
+
+        with open(data_path, mode="r", newline="", encoding="utf-8") as csvfile:
+            reader = csv.reader(csvfile)
+            # Read headers
+            headers = next(reader)
+            # Initialize dictionary with headers as keys
+            reconstructed_data = {header: [] for header in headers}
+            # Read rows and populate the dictionary
+            for row in reader:
+                for header, value in zip(headers, row):
+                    # Convert value back to original type (e.g., int if possible)
+                    reconstructed_data[header].append(value if value != "" else None)
+        return cls(data=reconstructed_data)
