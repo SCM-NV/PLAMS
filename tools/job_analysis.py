@@ -2,8 +2,7 @@
 import csv
 import re
 import warnings
-from collections import UserList, defaultdict
-from dataclasses import dataclass
+from collections import defaultdict
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Type, Union
 
