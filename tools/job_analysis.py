@@ -65,6 +65,10 @@ class JobsAnalysis:
         self._sal_cols = None
         self._ir_check = None
 
+    def apply(self, fn: Callable, col: str = GroupedColNames.jobs):
+        assert col in self.data, f"{col} not in {self.data.keys()=}"
+        return [fn(x) for x in self.data[col]]
+
     def _generate_names_paths_from_jobs(
         self, col_paths=GroupedColNames.paths, col_names=GroupedColNames.paths, col_jobs=GroupedColNames.jobs
     ):
@@ -75,7 +79,9 @@ class JobsAnalysis:
         if col_paths in self.data:
             return self.data[col_paths]
         if col_jobs in self.data:
-            self.data[col_paths] = [Path(job.path) if job.status != "created" else None for job in self.data[col_jobs]]
+            self.data[col_paths] = self.apply(
+                fn=lambda job: Path(job.path) if job.status != "created" else None, col=col_jobs
+            )
             return self.data[col_paths]
         return None
 
@@ -83,7 +89,7 @@ class JobsAnalysis:
         if col_names in self.data:
             return self.data[col_names]
         if col_jobs in self.data:
-            self.data[col_names] = [job.name for job in self.data[col_jobs]]
+            self.data[col_names] = self.apply(fn=lambda job: job.name, col=col_jobs)
             return self.data[col_names]
         return None
 
@@ -121,7 +127,7 @@ class JobsAnalysis:
         suffix_out="",
     ):
 
-        def load_job(path_folder, job_loader):
+        def load_job(path_folder):
             """plams.load .dill file is very fast, always try that first"""
             if not isinstance(path_folder, (str, Path)):
                 return None
@@ -138,7 +144,7 @@ class JobsAnalysis:
                 job = job_loader(path_folder)
             return job
 
-        self.data[GroupedColNames.jobs + suffix_out] = [load_job(p, job_loader) for p in self.data[col_path_jobs]]
+        self.data[GroupedColNames.jobs + suffix_out] = self.apply(fn=load_job, col=col_path_jobs)
         self._generate_names_paths_from_jobs(
             col_jobs=GroupedColNames.jobs + suffix_out,
             col_names=GroupedColNames.names + suffix_out,
@@ -179,7 +185,7 @@ class JobsAnalysis:
             return value
 
         added_col = settings_path + col_suffix
-        self.data[added_col] = [get_value(job) for job in self.data[job_col]]
+        self.data[added_col] = self.apply(fn=get_value, col=job_col)
         self.setting_paths_cols.append(added_col)
         self.setting_paths_cols.sort()
         return added_col
@@ -216,12 +222,14 @@ class JobsAnalysis:
         self, select_cols: Union[List[str], Dict[str, str]], cols_separator="\n", col_label=GroupedColNames.labels
     ):
         """you have to give the cols of the data that you want"""
-        col_names = list(self.data)
+        # col_names = list(self.data)
         if isinstance(select_cols, dict):
-            cols = [col_names.index(v) for v in select_cols.values()]
+            # cols = [col_names.index(v) for v in select_cols.values()]
+            cols = list(select_cols.values())
             new_names = list(select_cols)
         else:
-            cols = [col_names.index(v) for v in select_cols]
+            # cols = [col_names.index(v) for v in select_cols]
+            cols = select_cols
             new_names = select_cols
 
         def generate_label(row):
@@ -230,21 +238,35 @@ class JobsAnalysis:
                 support_list.append(f"{name_i}: {row[col_i]}")
             return f"{cols_separator}".join(support_list)
 
-        self.data[col_label] = [generate_label(row) for row in zip(*self.data.values())]
+        self.data[col_label] = [generate_label(row) for row in self.iterrows()]
         return col_label
+
+    def iterrows(self):
+        col_names = list(self.data)
+        n_rows = len(self.data[col_names[0]])
+        for i in range(n_rows):
+            yield self[i]
+        # for row in zip(*self.data.values()):
+        # yield {k: v for k, v in zip(col_names, row)}
+
+    def __getitem__(self, idx: int):
+        row = {}
+        for k in self.data:
+            row[k] = self.data[k][idx]
+        return row
 
     ############################################################################
     ##################          molecule analysis          #####################
     ############################################################################
 
-    def get_molecules_infos(self, gyration_radius=False, smiles=False, jobs_col=GroupedColNames.jobs):
+    def get_molecules_infos(self, gyration_radius=False, smiles=False, col_jobs=GroupedColNames.jobs):
 
-        if not self._check_jobs_types(job_type=SingleJob, raise_error=False, jobs_col=jobs_col):
+        if not self._check_jobs_types(job_type=SingleJob, raise_error=False, jobs_col=col_jobs):
             warnings.warn("the jobs are not of type: plams.AMSJob so no get_molecules_infos are present")
             return
 
-        self.data["n_atoms"] = [len(x.molecule) for x in self.data[jobs_col]]
-        self.data["chemical_formula"] = [x.molecule.get_formula() for x in self.data[jobs_col]]
+        self.data["n_atoms"] = self.apply(fn=lambda x: len(x.molecule), col=col_jobs)
+        self.data["chemical_formula"] = self.apply(fn=lambda x: x.molecule.get_formula(), col=col_jobs)
 
         def _to_smiles(job):
             mol = job.molecule
@@ -253,10 +275,10 @@ class JobsAnalysis:
             return to_smiles(mol, canonical=True)
 
         if smiles:
-            self.data["smiles"] = [to_smiles(x) for x in self.data[jobs_col]]
+            self.data["smiles"] = self.apply(fn=to_smiles, col=col_jobs)
 
         if gyration_radius:
-            self.data["gyration_radius"] = [x.molecule.get_gyration_radius() for x in self.data[jobs_col]]
+            self.data["gyration_radius"] = self.apply(fn=lambda x: x.molecule.get_gyration_radius(), col=col_jobs)
 
     ############################################################################
     ####################    error analysis and timings    ######################
@@ -280,26 +302,30 @@ class JobsAnalysis:
                 return False
             return True
 
-        self.data["ok"] = [job.ok() if check_not_created(job) else None for job in self.data[jobs_col]]
-        self.data["check"] = [
-            job.check() if check_not_created(job) and check_ams_status_not_none(job) else None
-            for job in self.data[jobs_col]
-        ]
-        self.data["error"] = [
-            job.get_errormsg() if check_not_created(job) and check_ams_status_not_none(job) else None
-            for job in self.data[jobs_col]
-        ]
+        self.data["ok"] = self.apply(fn=lambda job: job.ok() if check_not_created(job) else None, col=jobs_col)
+        self.data["check"] = self.apply(
+            fn=lambda job: job.check() if check_not_created(job) and check_ams_status_not_none(job) else None,
+            col=jobs_col,
+        )
+        self.data["error"] = self.apply(
+            fn=lambda job: job.get_errormsg() if check_not_created(job) and check_ams_status_not_none(job) else None,
+            col=jobs_col,
+        )
 
     def get_timings(self, col_jobs=GroupedColNames.jobs, custom_get_timings: Optional[Callable] = None):
         if self._check_jobs_types(job_type=AMSJob, raise_error=False):
             cols_needed = GroupedColNames.timings
             cols_needed_present = all([i in self.data for i in cols_needed])
             if not cols_needed_present:
-                self.data["CPUTime"] = [job.results.readrkf("General", "CPUTime") for job in self.data[col_jobs]]
-                self.data["SysTime"] = [job.results.readrkf("General", "SysTime") for job in self.data[col_jobs]]
-                self.data["ElapsedTime"] = [
-                    job.results.readrkf("General", "ElapsedTime") for job in self.data[col_jobs]
-                ]
+                self.data["CPUTime"] = self.apply(
+                    fn=lambda job: job.results.readrkf("General", "CPUTime"), col=col_jobs
+                )
+                self.data["SysTime"] = self.apply(
+                    fn=lambda job: job.results.readrkf("General", "SysTime"), col=col_jobs
+                )
+                self.data["ElapsedTime"] = self.apply(
+                    fn=lambda job: job.results.readrkf("General", "ElapsedTime"), col=col_jobs
+                )
         # elif self._check_jobs_types(job_type=params.ParAMSJob, raise_error=False):
 
         #     def get_time(job: params.ParAMSJob):
