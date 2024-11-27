@@ -510,7 +510,9 @@ class Settings(dict):
         value_different = {k: reference[k] for k, v in cs.items() if k not in missing_paths and reference[k] != v}
         return missing_paths, value_different
 
-    def convert_free_block(self, key_tuple: Sequence[Hashable], simple_nesting=True, inplace=True) -> Optional[dict]:
+    def convert_free_block(
+        self, key_tuple: Sequence[Hashable], simple_nesting=True, inplace=False
+    ) -> Optional["Settings"]:
         """converts free blocks to settings
 
         :param key_tuple: _description_
@@ -545,6 +547,7 @@ class Settings(dict):
                 result_dict[var_name] = dict_obj
             return result_dict
 
+        path_to_assign = None
         if original_value is not None:
             if isinstance(original_value, str):
                 original_value_i = original_value.split("\n")
@@ -558,8 +561,11 @@ class Settings(dict):
             if inplace:
                 self.set_nested(path_to_assign, modified_value)
 
-        if not inplace:
-            return modified_value
+        if not inplace and path_to_assign is not None:
+            s_new = self.copy()
+            s_new.set_nested(path_to_assign, modified_value)
+            return s_new
+        return None
 
     def json_serialize(self, **kwargs) -> str:
         """keys must be str, int, float, bool or None"""
