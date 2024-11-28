@@ -517,43 +517,49 @@ class TestAMSJobRun:
 
     def test_run_with_watch_forwards_ams_logs_to_stdout(self, config):
         # Patch the config and the stdout
+        from scm.plams.core.logging import get_logger
+
         with patch("scm.plams.interfaces.adfsuite.ams.config", config), patch(
             "sys.stdout", new_callable=StringIO
         ) as mock_stdout:
-            config.log.date = False
-            config.log.time = False
+            logger = get_logger("test_run_with_watch_forwards_ams_logs_to_stdout")
+            with patch("scm.plams.core.functions._logger", logger):
+                config.log.date = False
+                config.log.time = False
 
-            # Given a dummy job
-            job = AMSJob()
+                # Given a dummy job
+                job = AMSJob()
 
-            # Which writes logs to logfile periodically on background thread
-            logfile = os.path.join(config.default_jobmanager.workdir, job.name, "ams.log")
+                # Which writes logs to logfile periodically on background thread
+                logfile = os.path.join(config.default_jobmanager.workdir, job.name, "ams.log")
 
-            def write_logs():
-                for i in range(10):
-                    time.sleep(0.01)
-                    try:
-                        with open(logfile, "a") as f:
-                            f.write(f"<Oct21-2024> <09:34:54>  line {i}\n")
-                            f.flush()
-                    except FileNotFoundError:
-                        pass
+                def write_logs():
+                    for i in range(10):
+                        time.sleep(0.01)
+                        try:
+                            with open(logfile, "a") as f:
+                                f.write(f"<Oct21-2024> <09:34:54>  line {i}\n")
+                                f.flush()
+                        except FileNotFoundError:
+                            pass
 
-            background_thread = threading.Thread(target=write_logs)
+                background_thread = threading.Thread(target=write_logs)
 
-            def get_runscript() -> str:
-                background_thread.start()
-                return "sleep 1"
+                def get_runscript() -> str:
+                    background_thread.start()
+                    return "sleep 1"
 
-            job.get_runscript = get_runscript
+                job.get_runscript = get_runscript
 
-            # When run job and watching output
-            job.run(watch=True)
+                # When run job and watching output
+                job.run(watch=True)
 
-            # Then ams logs are also forwarded to the standard output
-            stdout = mock_stdout.getvalue().replace("\r\n", "\n").split("\n")
-            postrun_lines = [l for l in stdout if re.fullmatch("plamsjob: line \d", l)]
-            status_lines = [l for l in stdout if re.fullmatch("JOB plamsjob (STARTED|RUNNING|FINISHED|FAILED)", l)]
+                # Then ams logs are also forwarded to the standard output
+                stdout = mock_stdout.getvalue().replace("\r\n", "\n").split("\n")
+                postrun_lines = [l for l in stdout if re.fullmatch("plamsjob: line \d", l)]
+                status_lines = [l for l in stdout if re.fullmatch("JOB plamsjob (STARTED|RUNNING|FINISHED|FAILED)", l)]
 
-            assert len(postrun_lines) == 10
-            assert len(status_lines) == 4
+                assert len(postrun_lines) == 10
+                assert len(status_lines) == 4
+
+                logger.close()
