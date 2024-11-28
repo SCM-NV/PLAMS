@@ -1,3 +1,5 @@
+import atexit
+import functools
 import os
 import re
 import shutil
@@ -5,22 +7,20 @@ import subprocess
 import sys
 import threading
 import types
+from importlib.util import find_spec
 from os.path import dirname, expandvars, isdir, isfile
 from os.path import join as opj
-from typing import Dict, Iterable, Optional, TYPE_CHECKING
-import atexit
-from importlib.util import find_spec
-import functools
+from typing import TYPE_CHECKING, Dict, Iterable, Optional
 
-from scm.plams.core.logging import get_logger
-from scm.plams.core.errors import FileError, MissingOptionalPackageError
-from scm.plams.core.private import retry
-from scm.plams.core.settings import Settings, ConfigSettings
 from scm.plams.core.enums import JobStatus
+from scm.plams.core.errors import FileError, MissingOptionalPackageError
+from scm.plams.core.logging import get_logger
+from scm.plams.core.private import retry
+from scm.plams.core.settings import ConfigSettings, Settings
 
 if TYPE_CHECKING:
-    from scm.plams.core.jobmanager import JobManager
     from scm.plams.core.basejob import Job
+    from scm.plams.core.jobmanager import JobManager
 
 __all__ = [
     "init",
@@ -178,7 +178,8 @@ def init(
     config_settings: Optional[Dict] = None,
     quiet: bool = False,
     use_existing_folder: bool = False,
-) -> None:
+    return_folder: bool = False,
+) -> Optional[str]:
     """
     Initialize PLAMS environment. Set up the global ``config`` and its default |JobManager|.
 
@@ -206,7 +207,10 @@ def init(
     """
 
     if config.init and config._explicit_init:
-        return
+        if return_folder:
+            return opj(config.default_jobmanager.path, config.default_jobmanager.foldername)
+        else:
+            return
 
     # Build the config settings via:
     # * (Re)Initialise config with default values
@@ -232,6 +236,8 @@ def init(
 
     config.init = True
     config._explicit_init = True
+    if return_folder:
+        return opj(config.default_jobmanager.path, config.default_jobmanager.foldername)
 
 
 # ===========================================================================
@@ -270,7 +276,7 @@ def _finish():
     config.init = False
 
 
-def finish(otherJM: Optional[Iterable["JobManager"]] = None):
+def finish(otherJM: Optional[Iterable["JobManager"]] = None, erase_workdir: bool = False):
     """
     Clean up the PLAMS environment. This can be explicitly called for |cleaning| to take place.
     If you used some other job managers than just the default one, they need to be passed as *otherJM*.
@@ -286,6 +292,7 @@ def finish(otherJM: Optional[Iterable["JobManager"]] = None):
     if not config.init:
         return
 
+    config.erase_workdir = erase_workdir
     _finish()
 
     if otherJM:
