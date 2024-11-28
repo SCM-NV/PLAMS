@@ -293,7 +293,7 @@ class Settings(dict):
 
     def get_nested(
         self,
-        key_tuple: Sequence[Hashable],
+        key_tuple: Union[Sequence[Hashable], str],
         default: Union[Any, Literal["__Settings__"]] = "__Settings__",
         suppress_missing=False,
         simple_nesting=True,
