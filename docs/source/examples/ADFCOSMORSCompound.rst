@@ -94,7 +94,7 @@ Source code for ``ADFCOSMORSCompound``
    <details>
    <summary style="color:#008000;cursor:pointer">[show/hide code]</summary>
 
-.. literalinclude:: ../../../recipes/adfcosmorscompound.py
+.. literalinclude:: ../../../scm/plams/recipes/adfcosmorscompound.py
 
 .. raw:: html
 
