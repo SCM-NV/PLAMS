@@ -47,12 +47,12 @@ jobs:
 
       - name: Run Unit Tests
         run: |
-          coverage run --source='scm.plams' -m pytest unit_tests
+          coverage run --source='scm.plams' -m pytest tests
 
 #     ToDo: Bump the fail-under threshold over time until acceptable level is reached
       - name: Evaluate Coverage
         run: |
-          coverage report --omit="*/unit_tests/*" -i --fail-under=35
+          coverage report --omit="*/tests/*" -i --fail-under=35
 
   lint:
     runs-on: ubuntu-latest
