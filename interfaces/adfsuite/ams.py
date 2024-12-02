@@ -1,18 +1,34 @@
 import os
 from os.path import join as opj
-from typing import Dict, List, Literal, Set, Tuple, Union, Optional, TYPE_CHECKING, Any
-import numpy as np
+from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Set, Tuple, Union
 
+import numpy as np
 from scm.plams.core.basejob import SingleJob
-from scm.plams.core.errors import FileError, JobError, PlamsError, PTError, ResultsError, MissingOptionalPackageError
-from scm.plams.core.functions import config, log, parse_heredoc, requires_optional_package
+from scm.plams.core.errors import (
+    FileError,
+    JobError,
+    MissingOptionalPackageError,
+    PlamsError,
+    PTError,
+    ResultsError,
+)
+from scm.plams.core.functions import (
+    config,
+    log,
+    parse_heredoc,
+    requires_optional_package,
+)
 from scm.plams.core.private import sha256
 from scm.plams.core.results import Results
 from scm.plams.core.settings import Settings
 from scm.plams.mol.atom import Atom
 from scm.plams.mol.bond import Bond
 from scm.plams.mol.molecule import Molecule
-from scm.plams.tools.converters import gaussian_output_to_ams, qe_output_to_ams, vasp_output_to_ams
+from scm.plams.tools.converters import (
+    gaussian_output_to_ams,
+    qe_output_to_ams,
+    vasp_output_to_ams,
+)
 from scm.plams.tools.kftools import KFFile, KFReader
 from scm.plams.tools.units import Units
 
@@ -31,10 +47,10 @@ except ImportError:
     _has_scm_chemsys = False
 
 if TYPE_CHECKING:
-    from scm.plams.core.jobrunner import JobRunner
-    from scm.plams.core.jobmanager import JobManager
-    from scm.plams.tools.kftools import TRead
     from ase import Atoms as AseAtoms
+    from scm.plams.core.jobmanager import JobManager
+    from scm.plams.core.jobrunner import JobRunner
+    from scm.plams.tools.kftools import TRead
 
 try:
     from watchdog.events import FileModifiedEvent, PatternMatchingEventHandler
@@ -1042,7 +1058,9 @@ class AMSResults(Results):
 
         * ``filename`` -- Name of the RKF file that contains ForceField data
         """
-        from scm.plams.interfaces.adfsuite.forcefieldparams import forcefield_params_from_kf
+        from scm.plams.interfaces.adfsuite.forcefieldparams import (
+            forcefield_params_from_kf,
+        )
 
         return self._process_engine_results(forcefield_params_from_kf, engine)
 
@@ -2478,32 +2496,36 @@ class AMSJob(SingleJob):
             return True
         return False
 
-    def get_errormsg(self) -> Optional[str]:
+    def get_errormsg(self):
         """Tries to get an error message for a failed job. This method returns ``None`` for successful jobs."""
         if self.check():
             return None
         else:
             # Something went wrong. The first place to check is the termination status on the ams.rkf.
             # If the AMS driver stopped with a known error (called StopIt in the Fortran code), the error will be in there.
-            try:
-                msg = self.results.readrkf("General", "termination status")
-                if msg == "NORMAL TERMINATION with errors" or msg is None:
-                    # Apparently this wasn't a hard stop in the middle of the job.
-                    # Let's look for the last error in the logfile ...
-                    msg = self.results.grep_file("ams.log", "ERROR: ")[-1].partition("ERROR: ")[2]
-                elif msg == "IN PROGRESS" and "$JN.err" in self.results:
-                    # If the status is still "IN PROGRESS", that probably means AMS was shut down hard from the outside.
-                    # E.g. it got SIGKILL from the scheduler for exceeding some resource limit.
-                    # In this case useful information may be found on stderr.
-                    with open(self.results["$JN.err"], "r") as err:
-                        errlines = err.read().splitlines()
-                    for el in reversed(errlines):
-                        if el != "" and not el.isspace():
-                            msg = "Killed while IN PROGRESS: " + el
-                            break
-            except:
-                msg = "Could not determine error message. Please check the output manually."
+            msg = self.read_error_msg()
             return msg
+
+    def read_error_msg(self):
+        try:
+            msg = self.results.readrkf("General", "termination status")
+            if msg == "NORMAL TERMINATION with errors" or msg is None:
+                # Apparently this wasn't a hard stop in the middle of the job.
+                # Let's look for the last error in the logfile ...
+                msg = self.results.grep_file("ams.log", "ERROR: ")[-1].partition("ERROR: ")[2]
+            elif msg == "IN PROGRESS" and "$JN.err" in self.results:
+                # If the status is still "IN PROGRESS", that probably means AMS was shut down hard from the outside.
+                # E.g. it got SIGKILL from the scheduler for exceeding some resource limit.
+                # In this case useful information may be found on stderr.
+                with open(self.results["$JN.err"], "r") as err:
+                    errlines = err.read().splitlines()
+                for el in reversed(errlines):
+                    if el != "" and not el.isspace():
+                        msg = "Killed while IN PROGRESS: " + el
+                        break
+        except:  # noqa: E722
+            msg = "Could not determine error message. Please check the output manually."
+        return msg
 
     def hash_input(self) -> str:
         """Calculate the hash of the input file.
