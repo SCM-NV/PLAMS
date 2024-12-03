@@ -89,9 +89,14 @@ Changelog = "https://github.com/SCM-NV/PLAMS/blob/trunk/CHANGELOG.md"
 requires = ["setuptools >= 61.0"]
 build-backend = "setuptools.build_meta"
 
+[tool.setuptools.packages.find]
+include = ["scm.plams*"]
+
 [tool.setuptools]
 script-files = ["scripts/plams"]
-package-dir = { "scm.plams" = "." }
+
+[tool.setuptools.package-data]
+"scm.plams" = ["../../.flake8", "../../examples/**/*", "../../tests/**/*"]
 
 [tool.setuptools.dynamic]
-version = {attr = "version.__version__"}
+version = {attr = "scm.plams.version.__version__"}

@@ -343,5 +343,4 @@ __all__ = [
     "AMSRedoxDirectJob",
     "AMSRedoxScreeningJob",
     "AMSRedoxThermodynamicCycleJob",
-    "__version__",
 ]
