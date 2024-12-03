@@ -4,7 +4,7 @@ from importlib import reload
 from threading import Thread
 
 from scm.plams.core.settings import Settings
-from scm.plams.unit_tests.test_helpers import get_mock_import_function, skip_if_no_ams_installation
+from tests.test_helpers import get_mock_import_function, skip_if_no_ams_installation
 
 
 @pytest.fixture
@@ -72,7 +72,10 @@ End
     md_settings.ams.MolecularDynamics.TimeStep = "1.0"
     md_settings.ams.MolecularDynamics.Trajectory.SamplingFreq = "100"
 
-    yield [(geometry_optimisation_input, geometry_optimisation_settings), (md_input, md_settings)]
+    yield [
+        (geometry_optimisation_input, geometry_optimisation_settings),
+        (md_input, md_settings),
+    ]
 
     # Tear-down: reload module without the patched import function
     import scm.plams.interfaces.adfsuite.inputparser as inputparser
@@ -135,7 +138,10 @@ End
     graphene_system_settings = Settings()
     graphene_system_settings.System = [graphene_settings]
 
-    yield [(water_system_input, water_system_settings), (graphene_system_input, graphene_system_settings)]
+    yield [
+        (water_system_input, water_system_settings),
+        (graphene_system_input, graphene_system_settings),
+    ]
 
     # Tear-down: reload module without the patched import function
     import scm.plams.interfaces.adfsuite.inputparser as inputparser

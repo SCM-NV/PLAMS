@@ -3,8 +3,9 @@ try:
 except ImportError:
     pass
 
-from scm.plams import AMSJob, Settings
-from scm.plams.unit_tests.test_helpers import skip_if_no_ams_installation
+from scm.plams.core.settings import Settings
+from scm.plams.interfaces.adfsuite.ams import AMSJob
+from tests.test_helpers import skip_if_no_ams_installation
 
 
 def test_hybrid_engine_input():

@@ -4,9 +4,15 @@ import re
 
 from scm.plams.mol.molecule import Molecule
 from scm.plams.interfaces.molecule.ase import toASE, fromASE
-from scm.plams.unit_tests.test_helpers import get_mock_find_spec, get_mock_open_function
+from tests.test_helpers import get_mock_find_spec, get_mock_open_function
 from scm.plams.core.errors import MissingOptionalPackageError
-from scm.plams.interfaces.molecule.rdkit import from_rdmol, to_rdmol, from_smiles, to_smiles, from_smarts
+from scm.plams.interfaces.molecule.rdkit import (
+    from_rdmol,
+    to_rdmol,
+    from_smiles,
+    to_smiles,
+    from_smarts,
+)
 from scm.plams.interfaces.molecule.packmol import packmol
 
 
@@ -179,7 +185,10 @@ class TestRDKit:
         to_mol = lambda mol: from_rdmol(mol)
         self.roundtrip_and_assert(plams_mols, from_mol, to_mol)
 
-    @pytest.mark.parametrize("short_smiles,ff", [(True, None), (False, None), (False, "uff"), (False, "mmff")])
+    @pytest.mark.parametrize(
+        "short_smiles,ff",
+        [(True, None), (False, None), (False, "uff"), (False, "mmff")],
+    )
     def test_to_smiles_from_smiles_roundtrip(self, plams_mols, short_smiles, ff):
         from_mol = lambda mol: to_smiles(mol, short_smiles=short_smiles)
         to_mol = lambda mol: from_smiles(mol, forcefield=ff)

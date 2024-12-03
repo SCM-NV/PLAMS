@@ -11,8 +11,8 @@ import random
 from scm.plams.core.errors import FileError, PlamsError
 from scm.plams.core.logging import get_logger, TextLogger, CSVLogger
 from scm.plams.core.formatters import JobCSVFormatter
-from scm.plams.unit_tests.test_helpers import temp_file_path
-from scm.plams.unit_tests.test_basejob import DummySingleJob
+from tests.test_helpers import temp_file_path
+from tests.test_basejob import DummySingleJob
 
 
 class TestGetLogger:
@@ -276,7 +276,11 @@ To 2, level 1
                     logger.configure(5, 5, temp_log_file1)
                     for i in range(num_msgs):
                         logger.configure(
-                            5, 5, temp_log_file1 if i % 2 == 0 else temp_log_file2, i % 5 == 0, i % 11 == 0
+                            5,
+                            5,
+                            temp_log_file1 if i % 2 == 0 else temp_log_file2,
+                            i % 5 == 0,
+                            i % 11 == 0,
                         )
                         logger.log(f"id {id} msg {i}", 5)
 
@@ -574,7 +578,11 @@ class TestJobCSVFormatter:
             setattr(job2, "get_errormsg", get_errormsg)
 
             logger = get_logger(str(uuid.uuid4()), "csv")
-            logger.configure(logfile_level=7, csv_formatter=JobCSVFormatter, logfile_path=temp_log_file)
+            logger.configure(
+                logfile_level=7,
+                csv_formatter=JobCSVFormatter,
+                logfile_path=temp_log_file,
+            )
 
             logger.log(job1, 3)
             logger.log(job2, 3)

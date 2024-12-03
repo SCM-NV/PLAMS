@@ -21,7 +21,11 @@ from scm.plams.core.functions import (
 )
 from scm.plams.core.settings import Settings
 from scm.plams.core.errors import MissingOptionalPackageError
-from scm.plams.unit_tests.test_helpers import assert_config_as_expected, get_mock_open_function, temp_file_path
+from tests.test_helpers import (
+    assert_config_as_expected,
+    get_mock_open_function,
+    temp_file_path,
+)
 
 
 class TestInitAndFinish:
@@ -145,7 +149,13 @@ config.log.stdout = 5
                 init()
 
             # Then config settings set to default values with overrides
-            assert_config_as_expected(config, explicit_init=explicit_init, preview=True, stdout_redirect=True, stdout=5)
+            assert_config_as_expected(
+                config,
+                explicit_init=explicit_init,
+                preview=True,
+                stdout_redirect=True,
+                stdout=5,
+            )
 
             # Then the source used is the expected file
             source = Path(mock_open.new.mock_calls[0].args[0])
@@ -668,7 +678,13 @@ log with level 3
                 self.assert_logs(file2_logs, expected_lines=4, time_expected=True)
 
     def assert_logs(
-        self, logs, line_start=0, line_end=None, expected_lines=None, date_expected=False, time_expected=False
+        self,
+        logs,
+        line_start=0,
+        line_end=None,
+        expected_lines=None,
+        date_expected=False,
+        time_expected=False,
     ):
         # Convert string text to individual lines
         lines = [l for l in logs.replace("\r\n", "\n").split("\n") if l]

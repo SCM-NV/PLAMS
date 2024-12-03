@@ -7,7 +7,7 @@ from scm.plams.interfaces.adfsuite.ams import AMSJob, AMSResults
 from scm.plams.tools.kftools import KFFile
 from scm.plams.core.errors import FileError, MissingOptionalPackageError
 from scm.plams.mol.molecule import Molecule
-from scm.plams.unit_tests.test_helpers import skip_if_no_ams_installation
+from tests.test_helpers import skip_if_no_ams_installation
 
 # ToDo: Add tests for other job types e.g. MD, BAND etc. to test other result functions
 
@@ -453,7 +453,10 @@ class TestWaterOptimizationAMSResults:
 
     @pytest.mark.parametrize(
         "engine,key,expected",
-        [[None, "DFTB Final Energy", -5.766288141072596], ["dftb", "Repulsion Energy", 0.038471496782890316]],
+        [
+            [None, "DFTB Final Energy", -5.766288141072596],
+            ["dftb", "Repulsion Energy", 0.038471496782890316],
+        ],
     )
     def test_get_engine_properties_results_returns_all_results_as_dict(self, water_opt_results, engine, key, expected):
         # Given water optimization results with dftb engine
@@ -609,15 +612,24 @@ class TestWaterOptimizationAMSResults:
         # When get frequencies
         # Then returned in the given unit
         water_opt_results.collect()
-        assert np.allclose(water_opt_results.get_frequencies(), [1427.92373935, 3674.50690527, 3785.96039844])
-        assert np.allclose(water_opt_results.get_frequencies("eV", "dftb"), [0.17703998, 0.45558079, 0.46939927])
+        assert np.allclose(
+            water_opt_results.get_frequencies(),
+            [1427.92373935, 3674.50690527, 3785.96039844],
+        )
+        assert np.allclose(
+            water_opt_results.get_frequencies("eV", "dftb"),
+            [0.17703998, 0.45558079, 0.46939927],
+        )
 
     def test_get_force_constants_as_expected(self, water_opt_results):
         # Given water optimization results with dftb engine
         # When get force contants
         # Then returned as expected
         water_opt_results.collect()
-        assert np.allclose(water_opt_results.get_force_constants(), [0.08366119, 0.53330315, 0.58846565])
+        assert np.allclose(
+            water_opt_results.get_force_constants(),
+            [0.08366119, 0.53330315, 0.58846565],
+        )
 
     def test_get_normal_modes_as_expected(self, water_opt_results):
         # Given water optimization results with dftb engine
@@ -672,7 +684,10 @@ class TestWaterOptimizationAMSResults:
         # When get ir intensitites
         # Then returned as expected
         water_opt_results.collect()
-        assert np.allclose(water_opt_results.get_ir_intensities(), [126.33789359, 31.24055122, 78.6282858])
+        assert np.allclose(
+            water_opt_results.get_ir_intensities(),
+            [126.33789359, 31.24055122, 78.6282858],
+        )
 
     def test_get_orbital_energies_and_occupations_and_homo_lumo_consistent(self, water_opt_results):
         # Given water optimization results with dftb engine
@@ -689,7 +704,16 @@ class TestWaterOptimizationAMSResults:
         assert not water_opt_results.are_orbitals_fractionally_occupied()
         assert np.allclose(
             energies,
-            [-0.75775416, -0.61195531, -0.54473148, -0.49953169, -0.15455526, -0.04850734, 0.34764644, 0.45289103],
+            [
+                -0.75775416,
+                -0.61195531,
+                -0.54473148,
+                -0.49953169,
+                -0.15455526,
+                -0.04850734,
+                0.34764644,
+                0.45289103,
+            ],
         )
         assert np.allclose(occupations, [2, 2, 2, 2, 0, 0, 0, 0])
         assert homo == energies[3]
@@ -701,7 +725,11 @@ class TestWaterOptimizationAMSResults:
         # When get timings
         # Then as expected
         water_opt_results.collect()
-        assert water_opt_results.get_timings() == {"cpu": 0.732007, "elapsed": 0.8396751880645752, "system": 0.042673}
+        assert water_opt_results.get_timings() == {
+            "cpu": 0.732007,
+            "elapsed": 0.8396751880645752,
+            "system": 0.042673,
+        }
 
     def test_recreate_molecule_returns_input_molecule(self, water_opt_results):
         # Given water optimization results
@@ -718,7 +746,10 @@ class TestWaterOptimizationAMSResults:
         water_opt_results.collect()
         assert water_opt_results.recreate_settings()["input"] == {
             "DFTB": {"Model": "GFN1-xTB"},
-            "ams": {"Properties": {"NormalModes": "yes"}, "Task": "GeometryOptimization"},
+            "ams": {
+                "Properties": {"NormalModes": "yes"},
+                "Task": "GeometryOptimization",
+            },
         }
 
     def test_ok_return_value_reflects_job_ok(self, water_opt_results):
@@ -736,7 +767,7 @@ class TestWaterOptimizationAMSResults:
         # Given water optimization results
         # When get toggle job settings ok return value
         call_count = 0
-        water_opt_results.job.get_errormsg.side_effect = lambda: None if call_count % 2 == 0 else "error"
+        water_opt_results.job.get_errormsg.side_effect = lambda: (None if call_count % 2 == 0 else "error")
 
         # Then mirrored in the results return value
         assert water_opt_results.get_errormsg() is None

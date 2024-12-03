@@ -1,7 +1,7 @@
 import pytest
 from pathlib import Path
 
-from scm.plams.unit_tests.test_basejob import DummySingleJob
+from tests.test_basejob import DummySingleJob
 from scm.plams.core.errors import ResultsError
 
 
@@ -82,14 +82,27 @@ class TestResults:
     def test_regex_file_as_expected(self, dummy_job):
         # Given results, when regex output file, then get expected matches
         assert dummy_job.results.regex_file(
-            "$JN.out", "[0-9a-f]{8}-[a-f0-9]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}"
+            "$JN.out",
+            "[0-9a-f]{8}-[a-f0-9]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}",
         ) == [str(dummy_job.id)]
-        assert dummy_job.results.regex_file("$JN.out", "u[a-z]{1}") == ["um", "ut", "ut"]
+        assert dummy_job.results.regex_file("$JN.out", "u[a-z]{1}") == [
+            "um",
+            "ut",
+            "ut",
+        ]
 
     def test_awk_file_as_expected(self, dummy_job):
         # Given results, when awk output file, then get expected content
-        assert dummy_job.results.awk_file("$JN.out", script="{print $3}") == ["", str(dummy_job.id), ""]
-        assert dummy_job.results.awk_output(script="{print $3}") == ["", str(dummy_job.id), ""]
+        assert dummy_job.results.awk_file("$JN.out", script="{print $3}") == [
+            "",
+            str(dummy_job.id),
+            "",
+        ]
+        assert dummy_job.results.awk_output(script="{print $3}") == [
+            "",
+            str(dummy_job.id),
+            "",
+        ]
 
     def test_get_file_chunk_as_expected(self, dummy_job):
         # Given results, when get file chunk, then file chunk as expected
@@ -102,7 +115,10 @@ class TestResults:
             f"Dummy output {dummy_job.id}",
             "# End",
         ]
-        assert dummy_job.results.get_file_chunk("$JN.out", end="# End") == ["# Start", f"Dummy output {dummy_job.id}"]
+        assert dummy_job.results.get_file_chunk("$JN.out", end="# End") == [
+            "# Start",
+            f"Dummy output {dummy_job.id}",
+        ]
         assert dummy_job.results.get_file_chunk(
             "$JN.out",
             begin="# Start",
@@ -121,7 +137,10 @@ class TestResults:
             f"Dummy output {dummy_job.id}",
             "# End",
         ]
-        assert dummy_job.results.get_output_chunk(end="# End") == ["# Start", f"Dummy output {dummy_job.id}"]
+        assert dummy_job.results.get_output_chunk(end="# End") == [
+            "# Start",
+            f"Dummy output {dummy_job.id}",
+        ]
         assert dummy_job.results.get_output_chunk(
             begin="# Start",
             end="# End",

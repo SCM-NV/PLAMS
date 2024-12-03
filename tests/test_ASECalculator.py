@@ -1,4 +1,4 @@
-from scm.plams import Settings
+from scm.plams.core.settings import Settings
 from scm.plams.interfaces.adfsuite.ase_calculator import AMSCalculator
 
 

@@ -1,11 +1,11 @@
 from scm.plams.core.functions import add_to_instance
 from scm.plams.core.settings import Settings
+from scm.plams.mol.molecule import Molecule
 from scm.plams.interfaces.adfsuite.ams import AMSJob, AMSResults
 import numpy as np
 from scm.plams.tools.kftools import KFFile
 from scm.plams.tools.units import Units
 from typing import Union
-import scm.plams as plams
 
 __all__ = ["AMSMDJob", "AMSNVEJob", "AMSNVTJob", "AMSNPTJob"]
 
@@ -141,7 +141,7 @@ class AMSMDJob(AMSJob):
         writecharges=None,
         writeenginegradients=None,
         calcpressure=None,
-        molecule: Union[plams.Molecule, AMSJob, AMSResults] = None,
+        molecule: Union[Molecule, AMSJob, AMSResults] = None,
         temperature: float = None,
         thermostat=None,
         tau=None,

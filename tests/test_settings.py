@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import patch
 
 from scm.plams.core.settings import Settings, ConfigSettings
-from scm.plams.unit_tests.test_helpers import assert_config_as_expected
+from tests.test_helpers import assert_config_as_expected
 
 
 class TestSettings:
@@ -18,7 +18,16 @@ class TestSettings:
         return self.get_flat_settings()
 
     def get_flat_settings(self):
-        return Settings({"a": "ant", "B": "bEAR", "c ": " c at", "_d_": "dingo", "__d__": "dog", "3": "emu"})
+        return Settings(
+            {
+                "a": "ant",
+                "B": "bEAR",
+                "c ": " c at",
+                "_d_": "dingo",
+                "__d__": "dog",
+                "3": "emu",
+            }
+        )
 
     @pytest.fixture
     def nested_settings(self):
@@ -52,7 +61,13 @@ class TestSettings:
                             {"name": "O18", "mass": 18, "abundance": 0.02},
                         ],
                     },
-                    "Fe": {"name": "Iron", "num": 26, "mass": 55.845, "metal": True, "properties": ["common"]},
+                    "Fe": {
+                        "name": "Iron",
+                        "num": 26,
+                        "mass": 55.845,
+                        "metal": True,
+                        "properties": ["common"],
+                    },
                 },
                 False: {"s": "string", True: "bool", 42: "int", 42.99: "float"},
                 1: {1: "one", 2.0: "two", 3.0001: "three"},
@@ -81,7 +96,13 @@ class TestSettings:
                         ],
                         "properties": ["forms oxides"],
                     },
-                    "He": {"name": "Helium", "num": 2, "mass": 4.003, "metal": False, "gas_at_rt": True},
+                    "He": {
+                        "name": "Helium",
+                        "num": 2,
+                        "mass": 4.003,
+                        "metal": False,
+                        "gas_at_rt": True,
+                    },
                 },
             }
         )
@@ -100,8 +121,14 @@ class TestSettings:
                 ("immutable", "key", 2): ["mutable", "value", 2],
                 ("immutable", "key", 3): {
                     ("immutable", "key", 4): ["mutable", "value", 4],
-                    ("immutable", "key", 5): (("immutable", "value", 5), ["mutable", "value", 5]),
-                    ("immutable", "key", 6): [("immutable", "value", 6), ["mutable", "value", 6]],
+                    ("immutable", "key", 5): (
+                        ("immutable", "value", 5),
+                        ["mutable", "value", 5],
+                    ),
+                    ("immutable", "key", 6): [
+                        ("immutable", "value", 6),
+                        ["mutable", "value", 6],
+                    ],
                 },
             }
         )
@@ -130,7 +157,11 @@ class TestSettings:
         assert nested_settings[1][2.00] == "two"
         assert nested_settings[1][3.0001] == "three"
 
-        assert nested_mutable_settings[("immutable", "key", 1)] == ("immutable", "value", 1)
+        assert nested_mutable_settings[("immutable", "key", 1)] == (
+            "immutable",
+            "value",
+            1,
+        )
         assert nested_mutable_settings[("immutable", "key", 3)][("immutable", "key", 6)] == [
             ("immutable", "value", 6),
             ["mutable", "value", 6],
@@ -201,7 +232,11 @@ class TestSettings:
         nested_mutable_settings_copy[("immutable", "key", 2)] = "new value"
         nested_mutable_settings_copy[("immutable", "key", 3)][("immutable", "key", 4)][1] = "new value"
 
-        assert nested_mutable_settings[("immutable", "key", 2)] == ["mutable", "value", 2]
+        assert nested_mutable_settings[("immutable", "key", 2)] == [
+            "mutable",
+            "value",
+            2,
+        ]
         assert nested_mutable_settings[("immutable", "key", 3)][("immutable", "key", 4)] == ["mutable", "new value", 4]
 
     def test_settings_soft_update_does_not_overwrite_existing(self, nested_settings, extra_nested_settings):
@@ -258,8 +293,16 @@ class TestSettings:
         assert nested_settings.elements.o.setdefault("nAme") == "Oxygen"
         assert nested_settings.elements.o.setdefault("gas_at_rt", True)
         assert list(nested_settings.elements.keys()) == ["H", "O"]
-        assert list(nested_settings.elements.H.common_isotopes[0].keys()) == ["name", "mass", "abundance"]
-        assert list(nested_settings.elements.H.common_isotopes[0].values()) == ["H1", 1, 99.99]
+        assert list(nested_settings.elements.H.common_isotopes[0].keys()) == [
+            "name",
+            "mass",
+            "abundance",
+        ]
+        assert list(nested_settings.elements.H.common_isotopes[0].values()) == [
+            "H1",
+            1,
+            99.99,
+        ]
         assert list(nested_settings.elements.H.common_isotopes[1].items()) == [
             ("name", "H2"),
             ("mass", 2),
@@ -288,7 +331,9 @@ class TestSettings:
             nested_settings.elements.Zn.name = "Zinc"
 
     @pytest.mark.parametrize(
-        "suppress_missing", [True, False], ids=["with_suppress_missing", "without_suppress_missing"]
+        "suppress_missing",
+        [True, False],
+        ids=["with_suppress_missing", "without_suppress_missing"],
     )
     def test_settings_get_nested_as_expected(self, suppress_missing, nested_settings):
         assert nested_settings.get_nested(("eleMENTS", "Fe", "NAME")) == "Iron"
@@ -299,7 +344,9 @@ class TestSettings:
             assert nested_settings.get_nested(("eleMENTS", "Zn", "NAME")) == Settings()
 
     @pytest.mark.parametrize(
-        "suppress_missing", [True, False], ids=["with_suppress_missing", "without_suppress_missing"]
+        "suppress_missing",
+        [True, False],
+        ids=["with_suppress_missing", "without_suppress_missing"],
     )
     def test_settings_set_nested_as_expected(self, suppress_missing, nested_settings):
         nested_settings.set_nested(("eleMENTS", "Fe", "NAME"), "Ferrum")

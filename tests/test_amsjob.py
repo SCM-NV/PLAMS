@@ -11,7 +11,7 @@ import threading
 from scm.plams.interfaces.adfsuite.ams import AMSJob, AMSResults
 from scm.plams.core.settings import Settings
 from scm.plams.mol.molecule import Atom, Molecule
-from scm.plams.unit_tests.test_helpers import skip_if_no_scm_pisa, skip_if_no_scm_libbase
+from tests.test_helpers import skip_if_no_scm_pisa, skip_if_no_scm_libbase
 
 
 class TestAMSJob:
@@ -167,7 +167,11 @@ AMS_JOBNAME="plamsjob" AMS_RESULTSDIR=. $AMSBIN/ams -n 8 --input="plamsjob.in" <
         assert job.check() == expected
 
     @pytest.mark.parametrize(
-        "status,expected", [["NORMAL TERMINATION", None], ["NORMAL TERMINATION with errors", "something bad"]]
+        "status,expected",
+        [
+            ["NORMAL TERMINATION", None],
+            ["NORMAL TERMINATION with errors", "something bad"],
+        ],
     )
     def test_get_errormsg_returns_message_from_logfile_on_error_otherwise_none(self, status, expected):
         # Given job with results of certain status

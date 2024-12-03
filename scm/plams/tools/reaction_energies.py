@@ -3,7 +3,7 @@ import os
 from scm.plams.interfaces.adfsuite.ams import AMSJob
 import numpy as np
 from scm.plams.mol.molecule import Molecule
-from scm.plams import ReactionEquation
+from scm.plams.tools.reaction import ReactionEquation
 
 __all__ = ["get_stoichiometry", "balance_equation", "reaction_energy"]
 
