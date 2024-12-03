@@ -15,7 +15,7 @@ Any function that takes results of a single point job and returns a single numbe
 
 The source code of the whole module with both abovementioned classes:
 
-.. literalinclude:: ../../../recipes/numgrad.py
+.. literalinclude:: ../../../scm/plams/recipes/numgrad.py
 
 An example usage:
 

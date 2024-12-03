@@ -15,7 +15,7 @@ No specialized |Results| subclass is defined for ``ADFNBOJob``.
 
 The source code of the whole module:
 
-.. literalinclude:: ../../../recipes/adfnbo.py
+.. literalinclude:: ../../../scm/plams/recipes/adfnbo.py
 
 An example usage:
 (:download:`methane.xyz <../../../examples/ADFNBO/methane.xyz>`,

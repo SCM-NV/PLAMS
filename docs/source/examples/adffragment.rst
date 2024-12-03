@@ -17,7 +17,7 @@ It simply redirects the usual |AMSResults| methods to the results of the full sy
 
 The source code of the whole module with both abovementioned classes:
 
-.. literalinclude:: ../../../recipes/adffragment.py
+.. literalinclude:: ../../../scm/plams/recipes/adffragment.py
 
 An example usage: (:download:`ethene.xyz <../../../examples/ADFFrag/ethene.xyz>`,
 :download:`butadiene.xyz <../../../examples/ADFFrag/butadiene.xyz>`,

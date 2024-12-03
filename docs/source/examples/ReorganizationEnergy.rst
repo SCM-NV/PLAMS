@@ -15,7 +15,7 @@ In this recipe we build a job class ``ReorganizationEnergyJob`` by extending |Mu
 
 In ``ReorganizationEnergyResults``, the reorganization energy is computed by fetching and combining the results from the children jobs.
 
-.. literalinclude:: ../../../recipes/reorganization_energy.py
+.. literalinclude:: ../../../scm/plams/recipes/reorganization_energy.py
 
 **Example usage:**
 
