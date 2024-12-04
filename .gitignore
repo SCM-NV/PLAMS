@@ -72,3 +72,6 @@ svn.authors
 
 # macOS
 .DS_Store
+
+# vi/vim .swp files
+.*.swp

@@ -3,11 +3,14 @@ import uuid
 from unittest.mock import patch
 from datetime import datetime
 from collections import namedtuple
+import shutil
+import re
 
 from scm.plams.core.settings import Settings
 from scm.plams.core.basejob import SingleJob
 from scm.plams.core.errors import PlamsError, FileError
 from scm.plams.core.jobrunner import JobRunner
+from scm.plams.core.jobmanager import JobManager
 from scm.plams.core.functions import add_to_instance
 from scm.plams.core.enums import JobStatus
 
@@ -279,3 +282,36 @@ sleep 0.0 && sed 's/input/output/g' plamsjob.in
         assert job1.path == job2.path
         assert job1.settings == job2.settings
         assert job1._filenames == job2._filenames
+
+    def test_job_summaries_logged(self, config):
+        job1 = DummySingleJob()
+        job2 = DummySingleJob(inp=job1.input)
+        job3 = DummySingleJob(cmd="not_a_cmd")
+
+        job_manager = JobManager(config.jobmanager, folder="test_logging")
+
+        job1.run(jobmanager=job_manager)
+        job2.run(jobmanager=job_manager)
+        job3.run(jobmanager=job_manager)
+
+        with open(job_manager.job_logger.logfile) as f:
+            assert (
+                f.readline()
+                == """asctime,job_base_name,job_name,job_status,job_parent_name,job_parent_path,job_path,job_ok,job_check,job_get_errormsg
+"""
+            )
+
+            assert (
+                re.match(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},plamsjob,plamsjob,successful", f.readline()) is not None
+            )
+            assert (
+                re.match(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},plamsjob,plamsjob\.002,copied", f.readline())
+                is not None
+            )
+            assert (
+                re.match(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},plamsjob,plamsjob\.003,crashed", f.readline())
+                is not None
+            )
+
+        job_manager.job_logger.close()
+        shutil.rmtree(job_manager.workdir)

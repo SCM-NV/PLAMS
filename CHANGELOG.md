@@ -20,7 +20,7 @@ This changelog is effective from the 2025 releases.
 * Script `generate_example.sh` to generate documentation pages from notebook examples
 * GitHub workflows for CI and publishing to PyPI
 * Build using `pyproject.toml`, addition of extras groups to install optional dependencies
-* `LogManager` and `TextLogger` to manage log files and console logging
+* Logging of job summaries to CSV logfile
 
 ### Changed
 * Functions for optional packages (e.g. RDKit, ASE) are available even when these packages are not installed, but will raise an `MissingOptionalPackageError` when called

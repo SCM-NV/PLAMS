@@ -51,7 +51,7 @@ def log(message: str, level: int = 0) -> None:
 
     Logs are printed independently to the text logfile (a file called ``logfile`` in the main working folder) and to the standard output.
     If *level* is equal or lower than verbosity (defined by ``config.log.file`` or ``config.log.stdout``) the message is printed.
-    By convention in PLAMS, level should be between 0-7, with 0 indicating no loggin and 7 indicating the most verbose logging.
+    By convention in PLAMS, level should be between 0-7, with 0 indicating no logging and 7 indicating the most verbose logging.
     Date and/or time can be added based on ``config.log.date`` and ``config.log.time``.
     All logging activity is thread safe.
     """
@@ -266,10 +266,12 @@ def _finish():
             # Close all loggers which have files in the directory to be erased
             workdir = os.path.abspath(config.default_jobmanager.workdir)
             for logger in LogManager._loggers.values():
-                if logger._file_handler is not None:
-                    logfile = os.path.abspath(logger._file_handler.baseFilename)
-                    if os.path.commonpath([workdir]) == os.path.commonpath([workdir, logfile]):
-                        logger.close()
+                if (logfile := logger.logfile) is not None:
+                    try:
+                        if os.path.commonpath([workdir]) == os.path.commonpath([workdir, os.path.abspath(logfile)]):
+                            logger.close()
+                    except ValueError:
+                        pass
 
             shutil.rmtree(config.default_jobmanager.workdir)
 

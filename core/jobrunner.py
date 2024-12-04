@@ -136,6 +136,11 @@ class JobRunner(metaclass=_MetaRunner):
                 job._execute(self)
                 job._finalize()
         finally:
+            try:
+                jobmanager.job_logger.log(job, level=3)
+            except:  # logging should never throw, but best to make sure
+                pass
+
             if self.parallel and self._jobthread_limit:
                 self._jobthread_limit.release()
 
