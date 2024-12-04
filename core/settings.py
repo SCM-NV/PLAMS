@@ -202,10 +202,12 @@ class Settings(dict):
             else:
                 self[name] = other[name]
 
-    def subtract(self, other: "Settings"):
+    def subtract(self, other: "Settings") -> TSelf:
+        ret = self.copy()
         key_paths = list(other.flatten().as_dict())
         for key_path_i in key_paths:
-            self.pop_nested(key_path_i)
+            ret.pop_nested(key_path_i)
+        return ret
 
     def merge(self: TSelf, other: "Settings") -> TSelf:
         """Return new instance of |Settings| that is a copy of this instance soft-updated with *other*.
