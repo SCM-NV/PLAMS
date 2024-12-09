@@ -118,7 +118,7 @@ class AMSResults(Results):
         Results.collect(self)
         self.collect_rkfs()
 
-    def collect_rkfs(self) -> None:
+    def collect_rkfs(self, search_extra=False) -> None:
         rkfname = "ams.rkf"
         if rkfname in self.files:
             main = KFFile(opj(self.job.path, rkfname))
@@ -132,6 +132,11 @@ class AMSResults(Results):
 
         else:
             log("WARNING: Main KF file {} not present in {}".format(rkfname, self.job.path), 1)
+        if search_extra:
+            for rkfname in self.files:
+                if rkfname.endswith(".rkf"):
+                    key = rkfname[:-4]
+                    self.rkfs[key] = KFFile(opj(self.job.path, rkfname))
 
     def _copy_to(self, newresults):
         super()._copy_to(newresults)
@@ -165,6 +170,37 @@ class AMSResults(Results):
         ret.remove("ams")
         return ret
 
+    def get_main_engine_name(self) -> str:
+        """
+        Returns the main engine name.
+
+        For geometry optimizations, this means that it will return the engine.rkf file and not any of the GOStep*.rkf files.
+
+        Raises ValueError if it cannot determine a unique main engine file or if no engine file is present.
+        """
+        engine_names = self.engine_names()
+        original_task = str(self.job.get_task()).lower()
+        if original_task == "geometryoptimization":
+            engine_names = [x for x in engine_names if "GOStep" not in x]
+        # remove hybrid engine sub engines
+        engine_names = [x for x in engine_names if "hybrid-" not in x]
+        if len(engine_names) != 1:
+            # it would be better to not raise a ValueError but some custom exception
+            raise ValueError(
+                f"Cannot get main engine name from {engine_names} for job in: {self.job.path} with {list(self.rkfs.keys())}"
+            )
+        return engine_names[0]
+
+    def name_hybrid_term_rkf(self, term: int, file: str = "engine") -> "TRead":
+        """Reads a Hybrid-termX-subengine.rkf file.
+
+        The engine.rkf file contains a section EngineResults with Files(1), Files(2) etc. that point
+        to the individual term .rkf files.
+
+        This method returns the name of the engine.
+        """
+        return self.readrkf("EngineResults", f"Files({term})", file=file)
+
     def read_hybrid_term_rkf(self, section: str, variable: str, term: int, file: str = "engine") -> "TRead":
         """Reads a Hybrid-termX-subengine.rkf file.
 
@@ -176,7 +212,7 @@ class AMSResults(Results):
         Example: job.results.read_hybrid_term_rkf("AMSResults", "Energy", file="engine", term=1)
         """
 
-        kf_file = self.readrkf("EngineResults", f"Files({term})", file=file)
+        kf_file = self.name_hybrid_term_rkf(term, file=file)
         kf = KFReader(os.path.join(self.job.path, kf_file))
         return kf.read(section, variable)
 
@@ -2788,6 +2824,16 @@ class AMSJob(SingleJob):
         ):
             return self.settings.input.ams.task
         return None
+
+    def get_engine(self) -> Settings:
+        """Returns the AMS Task from the job's settings. If it does not exist, returns None."""
+        if isinstance(self.settings, Settings):
+            s = Settings()
+            ret = self.settings.copy()
+            ret.pop_nested("input.ams")
+            s.input = ret.get("input")
+            return s
+        return Settings()
 
     @staticmethod
     def _atom_suffix(atom):
