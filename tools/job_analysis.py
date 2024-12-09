@@ -538,3 +538,69 @@ class JobsAnalysis:
                     # Convert value back to original type (e.g., int if possible)
                     reconstructed_data[header].append(value if value != "" else None)
         return cls(data=reconstructed_data)
+
+
+class AMSJobErrorChecker:
+
+    @staticmethod
+    def get_out_errors(job: SingleJob) -> Any:
+        out_path = AMSJobErrorChecker._get_out(job)
+        if out_path is None:
+            return None
+        with open(out_path, "r") as file:
+            # [line.strip() for line in job.results.grep_file(f'{job.name}.out', 'ERROR: ')] -> TBN MUCH slower!
+            error_lines = [line.strip() for line in file if "ERROR" in line]
+            error_out = "\n".join(error_lines)
+            return error_out
+        return None
+
+    @staticmethod
+    def get_out_warnings(job: SingleJob) -> Any:
+        out_path = AMSJobErrorChecker._get_out(job)
+        if out_path is None:
+            return None
+        with open(out_path, "r") as file:
+            warning_lines = [line.strip() for line in file if "WARNING" in line]
+            warning_out = "\n".join(warning_lines)
+            return warning_out
+        return None
+
+    @staticmethod
+    def get_log_errors(job: SingleJob) -> Any:
+        log_path = AMSJobErrorChecker._get_log(job)
+        if log_path is None:
+            return None
+        with open(log_path, "r") as file:
+            error_lines = ["ERROR" + line.split("ERROR", 1)[-1].strip() for line in file if "ERROR" in line]
+            error_log = "\n".join(error_lines)
+            return error_log
+        return None
+
+    @staticmethod
+    def get_log_warnings(job: SingleJob) -> Any:
+        log_path = AMSJobErrorChecker._get_log(job)
+        if log_path is None:
+            return None
+        with open(log_path, "r") as file:
+            warning_lines = ["WARNING" + line.split("WARNING", 1)[-1].strip() for line in file if "WARNING" in line]
+            warning_log = "\n".join(warning_lines)
+            return warning_log
+        return None
+
+    @staticmethod
+    def _get_log(job: SingleJob):
+        if job.path is None:
+            return None
+        log_path = Path(job.path) / "ams.log"
+        if not log_path.exists():
+            return None
+        return log_path
+
+    @staticmethod
+    def _get_out(job: SingleJob):
+        if job.path is None:
+            return None
+        out_path = Path(job.path) / str(job._filename("out"))
+        if not out_path.exists():
+            return None
+        return out_path
