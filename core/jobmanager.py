@@ -1,16 +1,20 @@
+import itertools
 import os
 import re
 import shutil
 import threading
+from collections import defaultdict
+from functools import cached_property
+from genericpath import isdir, isfile
 from os.path import join as opj
-from typing import TYPE_CHECKING, Optional, List, Dict
+from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Set
 
 from scm.plams.core.basejob import MultiJob
 from scm.plams.core.enums import JobStatus
 from scm.plams.core.errors import FileError, PlamsError
+from scm.plams.core.formatters import JobCSVFormatter
 from scm.plams.core.functions import config, get_logger, log
 from scm.plams.core.logging import Logger
-from scm.plams.core.formatters import JobCSVFormatter
 
 if TYPE_CHECKING:
     from scm.plams.core.basejob import Job
@@ -53,13 +57,15 @@ class JobManager:
         folder: Optional[str] = None,
         use_existing_folder: bool = False,
         job_logger: Optional[Logger] = None,
+        load_all: bool = False,
+        default_job_loader: Optional[Callable[[str], "Job"]] = None,
     ):
 
         self.settings = settings
         self.jobs: List[Job] = []
         self.names: Dict[str, int] = {}
         self.hashes: Dict[str, Job] = {}
-
+        self.multijob_hashes: Dict[str, Job] = {}
         self._register_lock = threading.RLock()
 
         if path is None:
@@ -100,11 +106,43 @@ class JobManager:
             )
         self.job_logger = job_logger
 
-    def load_job(self, filename):
+        if use_existing_folder and load_all:
+            self.load_all(self.workdir, register=True, default_job_loader=default_job_loader)
+
+    def load_all(self, path, register=False, default_job_loader: Optional[Callable[[str], "Job"]] = None):
+        """Load all jobs from *path*.
+
+        This function works as multiple executions of |load_job|. It searches for ``.dill`` files inside the directory given by *path*, yet not directly in it, but one level deeper. In other words, all files matching ``path/*/*.dill`` are used. That way a path to the main working folder of a previously run script can be used to import all the jobs run by that script.
+
+        In case of partially failed |MultiJob| instances (some children jobs finished successfully, but not all) the function will search for ``.dill`` files in children folders. That means, if ``path/[multijobname]/`` contains some subfolders (for children jobs) but does not contail a ``.dill`` file (the |MultiJob| was not fully successful), it will look into these subfolders. This behavior is recursive up to any folder tree depth.
+
+        The purpose of this function is to provide a quick way of restarting a script. Loading all successful jobs from the previous run prevents double work and allows the new execution of the script to proceed directly to the place where the previous execution failed.
+
+        Jobs are loaded using default job manager stored in ``config.default_jobmanager``. If you wish to use a different one you can pass it as *jobmanager* argument of this function.
+
+        Returned value is a dictionary containing all loaded jobs as values and absolute paths to ``.dill`` files as keys.
+        """
+        loaded_jobs = {}
+        for foldername in filter(lambda x: isdir(opj(path, x)), os.listdir(path)):
+            maybedill = opj(path, foldername, foldername + ".dill")
+            if isfile(maybedill):
+                job = self.load_job(maybedill, default_job_loader=default_job_loader, register=register)
+                if job is not None:
+                    loaded_jobs[os.path.abspath(maybedill)] = job
+            else:
+                loaded_jobs.update(self.load_all(path=opj(path, foldername)))
+        if register:
+            # self._register_jobs_in_hashes()
+            self.jobs = list(self.jobs_hashed)
+        return loaded_jobs
+
+    def load_job(self, filename, register: bool = False, default_job_loader: Callable[[str], "Job"] = None):
         """Load previously saved job from *filename*.
 
+        if *Filename* is a folder it will try to find in the folder the ``.dill`` file
         *Filename* should be a path to a ``.dill`` file in some job folder. A |Job| instance stored there is loaded and returned. All attributes of this instance removed before pickling are restored. That includes ``jobmanager``, ``path`` (the absolute path to the folder containing *filename* is used) and ``default_settings`` (a list containing only ``config.job``).
 
+        If unpickling does not work and and default_job_loader is not None filename.parent is taken as possible path , it will try to load the job by calling default_job_loader(filename.parent)
         See |pickling| for details.
         """
         try:
@@ -112,39 +150,96 @@ class JobManager:
         except ImportError:
             import pickle
 
-        def setstate(job, path, parent=None):
-            job.parent = parent
-            job.jobmanager = self
-            job.default_settings = [config.job]
-            job.path = path
-            if isinstance(job, MultiJob):
-                job._lock = threading.Lock()
-                for child in job:
-                    setstate(child, opj(path, child.name), job)
-                for otherjob in job.other_jobs():
-                    setstate(otherjob, opj(path, otherjob.name), job)
+        filename = os.path.abspath(filename)
+        path = None
+        if os.path.isfile(filename):  # if it is a dill file
+            path = os.path.dirname(filename)
+        elif os.path.isdir(filename):  # if is a job folder
+            path = filename
+            filename = opj(filename, os.path.basename(filename) + ".dill")
 
-            job.results.refresh()
-            h = job.hash()
-            if h is not None:
-                self.hashes[h] = job
-            for key in job._dont_pickle:
-                job.__dict__[key] = None
-
-        if os.path.isfile(filename):
-            filename = os.path.abspath(filename)
-        else:
+        path_exists = path is not None and os.path.exists(path)
+        dill_exists_or_try_default_loader = os.path.isfile(filename) or default_job_loader is not None
+        if not path_exists or not dill_exists_or_try_default_loader:
             raise FileError("File {} not present".format(filename))
+
         path = os.path.dirname(filename)
+        # if os.path.isfile(filename) or
+        if path in set([j.path for j in self.jobs]):
+            return
+
         with open(filename, "rb") as f:
             try:
                 job = pickle.load(f)
             except Exception as e:
                 log("Unpickling of {} failed. Caught the following Exception:\n{}".format(filename, e), 1)
-                return None
+                job = None
 
-        setstate(job, path)
+        if job is None and default_job_loader is not None:
+            try:
+                job = default_job_loader(path)
+            except Exception as e:
+                log(f"Default job loader of {filename} failed. Caught the following Exception:\n{e}", 1)
+                job = None
+        if job is None:
+            return None
+        self._setstate(job, path, register=register)
         return job
+
+    def _setstate(self, job, path, parent=None, register: bool = False):
+        job.parent = parent
+        job.jobmanager = self
+        job.default_settings = [config.job]
+        job.path = path
+        if isinstance(job, MultiJob):
+            job._lock = threading.Lock()
+            for child in job:
+                self._setstate(child, opj(path, child.name), job, register=register)
+            for otherjob in job.other_jobs():
+                self._setstate(otherjob, opj(path, otherjob.name), job, register=register)
+
+        job.results.refresh()
+        h = job.hash()
+        multi_h = None
+        if isinstance(job, MultiJob):
+            multi_h = job.children_hash()
+
+        if h is not None:
+            self.hashes[h] = job
+        if multi_h is not None:
+            self.multijob_hashes[multi_h] = job
+
+        for key in job._dont_pickle:
+            job.__dict__[key] = None
+
+        if register:
+            fname = re.sub(r"(\.\d{%i})+$" % (self.settings.counter_len), "", job._full_name())
+            if fname in self.names:
+                self.names[fname] += 1
+            else:
+                self.names[fname] = 1
+
+    @property
+    def jobs_hashed(self):
+        return itertools.chain(self.hashes.values(), self.multijob_hashes.values())
+
+    @cached_property
+    def names_count(self):
+        names = defaultdict(lambda: 0)
+        for j in self.jobs_hashed:
+            fname = re.sub(r"(\.\d{%i})+$" % (self.settings.counter_len), "", j._full_name())
+            names[fname] += 1
+        return dict(names)
+
+    def _register_jobs_in_hashes(self):
+        """It would have worked if the jobs_hashed would contains also the copied jobs!"""
+        # register the job_name taking into account it might be in a MultiJob
+        for job in self.jobs_hashed:
+            orgfname, fname = self._register_job_name(job)
+            job.jobmanager = self
+        # update the names and jobs accordingly with the jobs saved in self.jobs_hashed
+        self.names = self.names_count.copy()
+        self.jobs = list(self.jobs_hashed)
 
     def remove_job(self, job):
         """Remove *job* from the job manager. Forget its hash."""
@@ -175,15 +270,7 @@ class JobManager:
 
             # If the name ends with the counting suffix, e.g. ".002", remove it.
             # The suffix is just not part of a legitimate job name and users will have to live with it potentially changing.
-            orgfname = job._full_name()
-            job.name = re.sub(r"(\.\d{%i})+$" % (self.settings.counter_len), "", job.name)
-            fname = job._full_name()
-            if fname in self.names:
-                self.names[fname] += 1
-                job.name += "." + str(self.names[fname]).zfill(self.settings.counter_len)
-                fname = job._full_name()
-            else:
-                self.names[fname] = 1
+            orgfname, fname = self._register_job_name(job)
             if fname != orgfname:
                 log("Renaming job {} to {}".format(orgfname, fname), 3)
 
@@ -197,6 +284,18 @@ class JobManager:
             self.jobs.append(job)
             job.status = JobStatus.REGISTERED
             log("Job {} registered".format(job.name), 7)
+
+    def _register_job_name(self, job: "Job"):
+        orgfname = job._full_name()
+        job.name = re.sub(r"(\.\d{%i})+$" % (self.settings.counter_len), "", job.name)
+        fname = job._full_name()
+        if fname in self.names:
+            self.names[fname] += 1
+            job.name += "." + str(self.names[fname]).zfill(self.settings.counter_len)
+            fname = job._full_name()
+        else:
+            self.names[fname] = 1
+        return orgfname, fname
 
     def _check_hash(self, job):
         """Calculate the hash of *job* and, if it is not ``None``, search previously run jobs for the same hash. If such a job is found, return it. Otherwise, return ``None``"""

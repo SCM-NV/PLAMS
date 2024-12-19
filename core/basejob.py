@@ -613,6 +613,13 @@ class MultiJob(Job):
         """Hashing for multijobs is disabled by default. Returns ``None``."""
         return None
 
+    def children_hash(self) -> Optional[str]:
+        """get an hash representative of all the children and other jobs"""
+        collection_hashes = [j.hash() for j in self if j.hash() is not None]
+        collection_hashes += [j.hash() for j in self.other_jobs() if j.hash() is not None]
+        collection_hashes.sort()
+        return sha256("_".join(collection_hashes))
+
     def check(self) -> bool:
         """Check if the execution of this instance was successful, by calling :meth:`Job.ok` of all the children jobs."""
         return all([child.ok() for child in self])

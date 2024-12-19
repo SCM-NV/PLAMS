@@ -10,7 +10,7 @@ import types
 from importlib.util import find_spec
 from os.path import dirname, expandvars, isdir, isfile
 from os.path import join as opj
-from typing import TYPE_CHECKING, Dict, Iterable, Optional
+from typing import TYPE_CHECKING, Callable, Dict, Iterable, Optional
 
 from scm.plams.core.enums import JobStatus
 from scm.plams.core.errors import FileError, MissingOptionalPackageError
@@ -178,7 +178,9 @@ def init(
     config_settings: Optional[Dict] = None,
     quiet: bool = False,
     use_existing_folder: bool = False,
+    load_jobs: bool = False,
     return_folder: bool = False,
+    default_job_loader: Optional[Callable[[str], "Job"]] = None,
 ) -> Optional[str]:
     """
     Initialize PLAMS environment. Set up the global ``config`` and its default |JobManager|.
@@ -222,7 +224,14 @@ def init(
 
     from scm.plams.core.jobmanager import JobManager
 
-    config.default_jobmanager = JobManager(config.jobmanager, path, folder, use_existing_folder)
+    config.default_jobmanager = JobManager(
+        settings=config.jobmanager,
+        path=path,
+        folder=folder,
+        use_existing_folder=use_existing_folder,
+        load_all=load_jobs,
+        default_job_loader=default_job_loader,
+    )
 
     config.slurm = _init_slurm() if "SLURM_JOB_ID" in os.environ else None
 
@@ -236,8 +245,9 @@ def init(
 
     config.init = True
     config._explicit_init = True
+
     if return_folder:
-        return opj(config.default_jobmanager.path, config.default_jobmanager.foldername)
+        return config.default_jobmanager.workdir
 
 
 # ===========================================================================
@@ -320,7 +330,7 @@ def load(filename):
 # ===========================================================================
 
 
-def load_all(path, jobmanager=None):
+def load_all(path, jobmanager=None, default_job_loader: Callable[[str], "Job"] = None):
     """Load all jobs from *path*.
 
     This function works as multiple executions of |load_job|. It searches for ``.dill`` files inside the directory given by *path*, yet not directly in it, but one level deeper. In other words, all files matching ``path/*/*.dill`` are used. That way a path to the main working folder of a previously run script can be used to import all the jobs run by that script.
@@ -338,8 +348,8 @@ def load_all(path, jobmanager=None):
     for foldername in filter(lambda x: isdir(opj(path, x)), os.listdir(path)):
         maybedill = opj(path, foldername, foldername + ".dill")
         if isfile(maybedill):
-            job = jm.load_job(maybedill)
-            if job:
+            job = jm.load_job(maybedill, default_job_loader=default_job_loader)
+            if job is not None:
                 loaded_jobs[os.path.abspath(maybedill)] = job
         else:
             loaded_jobs.update(load_all(path=opj(path, foldername), jobmanager=jm))
