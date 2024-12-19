@@ -297,6 +297,7 @@ class Settings(dict):
         default: Union[Any, Literal["__Settings__"]] = "__Settings__",
         suppress_missing=False,
         simple_nesting=True,
+        ravel_list=True,
     ):
         """
         Retrieve a nested value by, recursively, iterating through this instance using the keys in *key_tuple*.
@@ -333,7 +334,9 @@ class Settings(dict):
         if default == "__Settings__":
             default = Settings
 
-        s = self
+        s = self.copy()
+        if ravel_list:
+            s = s.flatten(flatten_list=True).unflatten(unflatten_list=False)
         key_tuple = self._parse_key_tuple(key_tuple, simple_nesting)
         with contextlib.suppress() if not suppress_missing else s.suppress_missing():
             for k in key_tuple:
@@ -387,9 +390,19 @@ class Settings(dict):
         return current_dict.pop(key_tuple[-1], None)
 
     @staticmethod
-    def _parse_key_tuple(key_tuple: Sequence[Hashable], simple_nesting: bool):
+    def _parse_key_tuple(key_tuple: Sequence[Hashable], simple_nesting: bool, convert_str_to_int=True):
+        def get_int_safe(inp):
+            try:
+                ret = int(inp)
+                return ret
+            except Exception:
+                return inp
+
         if simple_nesting and isinstance(key_tuple, str):
-            key_tuple = key_tuple.split(".")
+            if convert_str_to_int:
+                key_tuple = tuple(map(get_int_safe, key_tuple.split(".")))
+            else:
+                key_tuple = tuple(key_tuple.split("."))
         return key_tuple
 
     def flatten(self, flatten_list=True) -> "Settings":
