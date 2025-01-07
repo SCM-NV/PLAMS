@@ -2305,8 +2305,17 @@ class AMSJob(SingleJob):
         """Check if ``termination status`` variable from ``General`` section of main KF file equals ``NORMAL TERMINATION``."""
         try:
             status = self.results.readrkf("General", "termination status")
-        except:
+        except (FileError, KeyError) as e:
+            log(str(e), 1)
             return False
+        except:
+            log(f"Could not read termination status from file {self.results.rkfpath()}", 1)
+            return False
+
+        if status is None:
+            log(f"Could not read termination status from file {self.results.rkfpath()}", 1)
+            return False
+
         if "NORMAL TERMINATION" in status:
             if "errors" in status:
                 log("Job {} reported errors. Please check the output".format(self._full_name()), 1)
