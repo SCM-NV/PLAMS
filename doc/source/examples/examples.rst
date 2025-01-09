@@ -19,6 +19,7 @@ Getting Started
    AMSSettingsSystem/AMSSettingsSystem
    He2DissociationCurve/He2DissociationCurve
    ManyJobsInParallel/ManyJobsInParallel
+   Logging/Logging
 
 Molecule analysis
 ---------------------

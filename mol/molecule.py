@@ -1487,7 +1487,7 @@ class Molecule:
 
         return ret
 
-    def get_complete_molecules_within_threshold(self, atom_indices, threshold: float):
+    def get_complete_molecules_within_threshold(self, atom_indices: List[int], threshold: float):
         """
         Returns a new molecule containing complete submolecules for any molecules
         that are closer than ``threshold`` to any of the atoms in ``atom_indices``.
@@ -1509,7 +1509,7 @@ class Molecule:
         D = distance_array(solvated_coords, solvated_coords)[zero_based_indices]
         less_equal = np.less_equal(D, threshold)
         within_threshold = np.any(less_equal, axis=0)
-        good_indices = [i for i, value in enumerate(within_threshold) if value]
+        good_indices = [i for i, value in enumerate(within_threshold) if value]  # type: ignore
 
         complete_indices: Set[int] = set()
         for indlist in molecule_indices:
@@ -2000,11 +2000,11 @@ class Molecule:
         unit_conversion_coeff = Units.convert(1.0, "amu", unit)
         return [at.mass * unit_conversion_coeff for at in self.atoms]
 
-    def get_mass(self, unit="amu"):
+    def get_mass(self, unit="amu") -> float:
         """Return the mass of the molecule, by default in atomic mass units."""
         return sum([at.mass for at in self.atoms]) * Units.convert(1.0, "amu", unit)
 
-    def get_density(self):
+    def get_density(self) -> float:
         """Return the density in kg/m^3"""
         vol = self.unit_cell_volume(unit="angstrom") * 1e-30  # in m^3
         mass = self.get_mass(unit="kg")

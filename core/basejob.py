@@ -2,17 +2,20 @@ import copy
 import os
 import stat
 import threading
+import datetime
 import time
 from os.path import join as opj
-from typing import Optional, List, Generator, TYPE_CHECKING, Union, Dict, Iterable
+from typing import TYPE_CHECKING, Dict, Generator, Iterable, List, Optional, Union, Tuple
+from abc import ABC, abstractmethod
+import traceback
 
+from scm.plams.core.enums import JobStatus, JobStatusType
 from scm.plams.core.errors import FileError, JobError, PlamsError, ResultsError
 from scm.plams.core.functions import config, log
 from scm.plams.core.private import sha256
 from scm.plams.core.results import Results
 from scm.plams.core.settings import Settings
 from scm.plams.mol.molecule import Molecule
-from scm.plams.core.enums import JobStatus
 
 try:
     from scm.pisa.block import DriverBlock
@@ -22,13 +25,33 @@ except ImportError:
     _has_scm_pisa = False
 
 if TYPE_CHECKING:
-    from scm.plams.core.jobrunner import JobRunner
     from scm.plams.core.jobmanager import JobManager
+    from scm.plams.core.jobrunner import JobRunner
 
 __all__ = ["SingleJob", "MultiJob"]
 
 
-class Job:
+def _fail_on_exception(func):
+    """Decorator to wrap a job method and mark the job as failed on any exception."""
+
+    def wrapper(self: "Job", *args, **kwargs):
+        try:
+            return func(self, *args, **kwargs)
+        except Exception:
+            # Mark job status as failed and the results as complete
+            self.status = JobStatus.FAILED
+            self.results.finished.set()  # type: ignore
+            self.results.done.set()  # type: ignore
+            # Notify any parent multi-job of the failure
+            if self.parent and self in self.parent:  # type: ignore
+                self.parent._notify()  # type: ignore
+            # Store the exception message to be accessed from get_errormsg
+            self._error_msg = traceback.format_exc()
+
+    return wrapper
+
+
+class Job(ABC):
     """General abstract class for all kind of computational tasks.
 
     Methods common for all kinds of jobs are gathered here. Instances of |Job| should never be created. It should not be subclassed either. If you wish to define a new type of job please subclass either |SingleJob| or |MultiJob|.
@@ -72,6 +95,7 @@ class Job:
     ):
         if os.path.sep in name:
             raise PlamsError("Job name cannot contain {}".format(os.path.sep))
+        self._status_log: List[Tuple[datetime.datetime, str]] = []
         self.status = JobStatus.CREATED
         self.results = self.__class__._result_type(self)
         self.name = name
@@ -82,6 +106,7 @@ class Job:
         self.default_settings = [config.job]
         self.depend = depend or []
         self._dont_pickle: List[str] = []
+        self._error_msg: Optional[str] = None
         if settings is not None:
             if isinstance(settings, Settings):
                 self.settings = settings.copy()
@@ -101,17 +126,26 @@ class Job:
     # =======================================================================
 
     @property
-    def status(self) -> JobStatus:
+    def status(self) -> JobStatusType:
         """
         Current status of the job
         """
         return self._status
 
     @status.setter
-    def status(self, value: JobStatus) -> None:
+    def status(self, value: JobStatusType) -> None:
         # This setter should really be private i.e. internally should use self._status
         # But for backwards compatibility it is exposed and set by e.g. the JobManager
         self._status = value
+        self._status_log.append((datetime.datetime.now(), str(value)))
+
+    @property
+    def status_log(self) -> List[Tuple[datetime.datetime, str]]:
+        """
+        Log of the status changes of the job, in chronological order.
+        Each entry in the list consists of a timestamp and the set status.
+        """
+        return self._status_log
 
     def run(
         self, jobrunner: Optional["JobRunner"] = None, jobmanager: Optional["JobManager"] = None, **kwargs
@@ -128,6 +162,7 @@ class Job:
         """
         if self.status != JobStatus.CREATED:
             raise JobError("Trying to run previously started job {}".format(self.name))
+        self._error_msg = None
         self.status = JobStatus.STARTED
         self._log_status(1)
 
@@ -182,13 +217,24 @@ class Job:
         self.results.wait()
         return self.status in [JobStatus.SUCCESSFUL, JobStatus.COPIED]
 
+    @abstractmethod
     def check(self) -> bool:
-        """Check if the execution of this instance was successful. Abstract method meant for internal use."""
-        raise PlamsError("Trying to run an abstract method Job.check()")
+        """Check if the execution of this instance was successful."""
 
+    def get_errormsg(self) -> Optional[str]:
+        """Tries to get an error message for a failed job. This method returns ``None`` for successful jobs."""
+        if self.check():
+            return None
+
+        return (
+            self._error_msg
+            if self._error_msg
+            else "Could not determine error message. Please check the output manually."
+        )
+
+    @abstractmethod
     def hash(self) -> Optional[str]:
-        """Calculate the hash of this instance. Abstract method meant for internal use."""
-        raise PlamsError("Trying to run an abstract method Job.hash()")
+        """Calculate the hash of this instance."""
 
     def prerun(self) -> None:  # noqa F811
         """Actions to take before the actual job execution.
@@ -204,6 +250,7 @@ class Job:
 
     # =======================================================================
 
+    @_fail_on_exception
     def _prepare(self, jobmanager: "JobManager") -> bool:
         """Prepare the job for execution. This method collects steps 1-7 from :ref:`job-life-cycle`. Should not be overridden. Returned value indicates if job execution should continue (|RPM| did not find this job as previously run)."""
 
@@ -248,14 +295,15 @@ class Job:
         self._log_status(3)
         return prev is None
 
+    @abstractmethod
     def _get_ready(self) -> None:
-        """Get ready for :meth:`~Job._execute`. This is the last step before :meth:`~Job._execute` is called. Abstract method."""
-        raise PlamsError("Trying to run an abstract method Job._get_ready()")
+        """Get ready for :meth:`~Job._execute`. This is the last step before :meth:`~Job._execute` is called."""
 
+    @abstractmethod
     def _execute(self, jobrunner: "JobRunner") -> None:
-        """Execute the job. Abstract method."""
-        raise PlamsError("Trying to run an abstract method Job._execute()")
+        """Execute the job."""
 
+    @_fail_on_exception
     def _finalize(self) -> None:
         """Gather the results of the job execution and organize them. This method collects steps 9-12 from :ref:`job-life-cycle`. Should not be overridden."""
         log("Starting {}._finalize()".format(self.name), 7)
@@ -333,15 +381,16 @@ class SingleJob(Job):
         Job.__init__(self, **kwargs)
         self.molecule = molecule.copy() if isinstance(molecule, Molecule) else molecule
 
+    @abstractmethod
     def get_input(self) -> str:
-        """Generate the input file. Abstract method.
+        """Generate the input file.
 
         This method should return a single string with the full content of the input file. It should process information stored in the ``input`` branch of job settings and in the ``molecule`` attribute.
         """
-        raise PlamsError("Trying to run an abstract method SingleJob._get_input()")
 
+    @abstractmethod
     def get_runscript(self) -> str:
-        """Generate the runscript. Abstract method.
+        """Generate the runscript.
 
         This method should return a single string with the runscript contents. It can process information stored in ``runscript`` branch of job  settings. In general the full runscript has the following form::
 
@@ -355,7 +404,6 @@ class SingleJob(Job):
 
         When overridden, this method should pay attention to ``.runscript.stdout_redirect`` key in job's ``settings``.
         """
-        raise PlamsError("Trying to run an abstract method SingleJob._get_runscript()")
 
     def hash_input(self) -> str:
         """Calculate SHA256 hash of the input file."""
@@ -433,6 +481,7 @@ class SingleJob(Job):
 
         os.chmod(runfile, os.stat(runfile).st_mode | stat.S_IEXEC)
 
+    @_fail_on_exception
     def _execute(self, jobrunner) -> None:
         """Execute previously created runscript using *jobrunner*.
 
@@ -661,6 +710,7 @@ class MultiJob(Job):
         with self._lock:
             self._active_children -= 1
 
+    @_fail_on_exception
     def _execute(self, jobrunner: "JobRunner") -> None:
         """Run all children from ``children``. Then use :meth:`~MultiJob.new_children` and run all jobs produced by it. Repeat this procedure until :meth:`~MultiJob.new_children` returns an empty list. Wait for all started jobs to finish."""
         log("Starting {}._execute()".format(self.name), 7)

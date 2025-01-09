@@ -1,7 +1,7 @@
 import os
 import subprocess
 import tempfile
-from typing import Any, Dict, List, Literal, Optional, Tuple, Union, overload, Sequence
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union, overload, Sequence, TYPE_CHECKING
 
 import numpy as np
 from scm.plams.core.errors import MoleculeError
@@ -11,6 +11,15 @@ from scm.plams.mol.molecule import Molecule
 from scm.plams.tools.periodic_table import PeriodicTable
 from scm.plams.tools.units import Units
 from scm.plams.interfaces.molecule.rdkit import readpdb, writepdb
+from scm.plams.core.functions import requires_optional_package, log
+from scm.plams.core.settings import Settings
+from scm.plams.core.jobmanager import JobManager
+
+if TYPE_CHECKING:
+    try:
+        from scm.libbase import UnifiedChemicalSystem as ChemicalSystem
+    except ImportError:
+        pass
 
 __all__ = [
     "packmol",
@@ -91,6 +100,7 @@ class PackMolStructure:
                 n_molecules = self._get_n_molecules_from_density_and_box_bounds(self.molecule, box_bounds, density)
             assert n_molecules is not None or n_atoms is not None
             if n_molecules is None:
+                assert n_atoms is not None
                 self.n_molecules = self._get_n_molecules(self.molecule, n_atoms)
             else:
                 self.n_molecules = n_molecules
@@ -99,7 +109,9 @@ class PackMolStructure:
             self.fixed = False
             self.sphere = sphere
 
-    def _get_n_molecules_from_density_and_box_bounds(self, molecule: Molecule, box_bounds: List[float], density: float):
+    def _get_n_molecules_from_density_and_box_bounds(
+        self, molecule: Molecule, box_bounds: List[float], density: float
+    ) -> int:
         """density in g/cm^3"""
         molecule_mass = molecule.get_mass(unit="g")
         volume_ang3 = self.get_volume(box_bounds)
@@ -137,9 +149,7 @@ class PackMolStructure:
             """
         elif self.sphere:
             vol = self.get_volume()
-            # vol = 4*pi*r^3 /3
-            # radius = (3*vol/(4*pi))**0.33333
-            radius = (3 * vol / (4 * 3.14159)) ** 0.3333
+            radius = np.cbrt(3 * vol / (4 * np.pi))
             ret = f"""
             structure {fname}
               number {self.n_molecules}
@@ -236,7 +246,7 @@ class PackMol:
         :rtype: float
         """
         volume = self._get_complete_volume()
-        radius = (3 * volume / (4 * 3.14159)) ** 0.3333
+        radius = np.cbrt(3 * volume / (4 * np.pi))
 
         return radius
 
@@ -299,6 +309,11 @@ class PackMol:
         return output_molecule
 
 
+def sum_of_atomic_volumes(molecule: Molecule) -> float:
+    """Returns the sum of atomic volumes (calculated using vdW radii) in angstrom^3."""
+    return (4 / 3) * np.pi * sum(at.radius**3 for at in molecule)
+
+
 def guess_density(molecules: Sequence[Molecule], coeffs: Sequence[Union[int, float]]) -> float:
     """Guess a density for a liquid of the given molecules and stoichiometric coefficients.
 
@@ -323,9 +338,9 @@ def guess_density(molecules: Sequence[Molecule], coeffs: Sequence[Union[int, flo
             if PeriodicTable.get_metallic(at.symbol):
                 radius *= 0.5
             bond_volume_decrease += (
-                coeff * bond_volume_decrease_factor * min(len(at.bonds), 0.3) ** 0.3 * (4 / 3) * 3.14159 * radius**3
+                coeff * bond_volume_decrease_factor * min(len(at.bonds), 0.3) ** 0.3 * (4 / 3) * np.pi * radius**3
             )
-            sum_atomic_volumes += coeff * (4 / 3) * 3.14159 * radius**3  # ang^3
+            sum_atomic_volumes += coeff * (4 / 3) * np.pi * radius**3  # ang^3
             sum_atomic_masses += coeff * PeriodicTable.get_mass(at.symbol)
 
         estimated_volume += sum_atomic_volumes - bond_volume_decrease
@@ -638,7 +653,7 @@ def packmol(
     }
 
     if sphere:
-        details["radius"] = (volume * 3 / (4 * 3.1415926535)) ** (1 / 3.0)
+        details["radius"] = np.cbrt(volume * 3 / (4 * np.pi))
 
     if keep_atom_properties:
         for at, molecule_type_index, atom_index_in_molecule in zip(
@@ -748,6 +763,231 @@ def packmol_in_void(
     return ret
 
 
+def _run_uff_md(
+    ucs: "ChemicalSystem",
+    nsteps: int = 1000,
+    vectors=None,
+    fixed_atoms: Optional[Sequence[int]] = None,
+) -> "ChemicalSystem":
+    """
+    Runs UFF MD with SHAKE all bonds, keeps ``fixed_atoms`` (0-based atom indices) fixed,
+    if ``vectors`` is not None will transform into those vectors
+
+    Returns: The final system from the MD simulation.
+
+    Raises: PackmolError if something goes worng.
+    """
+    from scm.plams import config
+
+    thermostatted_region = "PACKMOL_thermostatted"
+    md_ucs = ucs.copy()
+    md_ucs.set_atoms_in_region(
+        [x for x in range(len(md_ucs)) if fixed_atoms is None or x not in fixed_atoms], thermostatted_region
+    )
+
+    s = Settings()
+    s.input.ForceField.Type = "UFF"
+    s.input.ams.Task = "MolecularDynamics"
+    if fixed_atoms:
+        s.input.ams.Constraints.AtomList = " ".join(str(x + 1) for x in fixed_atoms)
+    s.input.ams.MolecularDynamics.NSteps = nsteps
+    s.input.ams.MolecularDynamics.TimeStep = 0.5
+    s.input.ams.MolecularDynamics.Shake.All = "bonds * *"
+    s.input.ams.MolecularDynamics.InitialVelocities.Type = "Zero"
+    # s.input.ams.MolecularDynamics.InitialVelocities.Temperature = 10
+    s.input.ams.MolecularDynamics.Thermostat.Temperature = 5
+    s.input.ams.MolecularDynamics.Thermostat.Region = thermostatted_region
+    s.input.ams.MolecularDynamics.Thermostat.Tau = 2
+    s.input.ams.MolecularDynamics.Thermostat.Type = "Berendsen"
+
+    if vectors is not None:
+        x = vectors
+        target_lattice_str = f"""
+            {x[0][0]} {x[0][1]} {x[0][2]}
+            {x[1][0]} {x[1][1]} {x[1][2]}
+            {x[2][0]} {x[2][1]} {x[2][2]}
+        """
+
+        s.input.ams.MolecularDynamics.Deformation.StartStep = 1
+        s.input.ams.MolecularDynamics.Deformation.StopStep = (nsteps * 3) // 4
+        s.input.ams.MolecularDynamics.Deformation.TargetLattice._1 = target_lattice_str
+
+    previous_config = config.copy()
+    try:
+        config.job.pickle = False
+        config.log.stdout = 0
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            job_manager = JobManager(config.jobmanager, path=tmp_dir)
+            job = AMSJob(settings=s, molecule=md_ucs, name="shakemd")
+            job.run(jobmanager=job_manager)
+
+            if not job.ok():
+                raise PackMolError(
+                    f"Try a lower density or a less skewed cell! Original file in {job.path} . "
+                    + str(job.results.get_errormsg())
+                )
+            my_packed = job.results.get_main_system()
+            my_packed.remove_region("PACKMOL_thermostatted")
+
+    finally:
+        config.job.pickle = previous_config.job.pickle
+        config.log.stdout = previous_config.log.stdout
+
+    return my_packed
+
+
+@requires_optional_package("scm.libbase")
+def packmol_around(
+    current: Union[Molecule, "ChemicalSystem"],
+    molecules: Union[Molecule, List[Molecule]],
+    return_details: bool = False,
+    always_run_md: bool = False,
+    **kwargs,
+) -> Molecule:
+    """Pack around the current molecule.
+
+    ``current``: Molecule
+        Must have a 3D lattice
+
+    ``always_run_md``: bool
+        If True, will run UFF MD also for orthorhombic cells. For nonorthorhombic cells, MD is always run irrespective of this flag.
+
+    For all other arguments, see the ``packmol`` function.
+
+    In the returned ``Molecule``, the system will be mapped to ``[0..1]``. It has the same lattice has ``current``.
+    """
+    from scm.libbase import (
+        UnifiedChemicalSystem as ChemicalSystem,
+        UnifiedLattice as Lattice,
+    )
+    from scm.utils.conversions import plams_molecule_to_chemsys, chemsys_to_plams_molecule
+
+    loglevel = 7
+
+    if isinstance(current, Molecule):
+        original_ucs = plams_molecule_to_chemsys(current)
+    else:
+        original_ucs = current.copy()
+    assert isinstance(original_ucs, ChemicalSystem)
+    original_ucs.map_atoms(0)
+
+    # step 1: store info about original system
+    if original_ucs.lattice.num_vectors != 3:
+        raise ValueError(f"Input molecule `current` must have 3D lattice, got: {current.lattice}")
+    original_frac_coords = original_ucs.get_fractional_coordinates()
+
+    original_volume = original_ucs.lattice.get_volume()
+    original_lattice = original_ucs.lattice.copy()
+
+    # step 2, get remaining volume
+    current_atomic_volume = (
+        (4 / 3) * np.pi * np.sum(np.fromiter((at.element.radius for at in original_ucs), dtype=np.float32))
+    )
+    current_atomic_volume /= 0.74  # use packing efficiency in ccp as example to take up more volume
+    remaining_volume = original_volume - current_atomic_volume
+    # temporary value to call the original packmol with
+    temp_L = np.cbrt(remaining_volume)
+    box_bounds_for_remaining_volume = [0.0, 0.0, 0.0, temp_L, temp_L, temp_L]
+    # it is unnecessary to actually pack the molecules, this is just used to get the "details"
+    # details will contain the correct number of molecules to pack in the combined system
+    # TODO: reorganize the packmol function so that one can get this info without calling packmol
+    log(f"Initial packing to determine number of molecules: {molecules}, {box_bounds_for_remaining_volume}", loglevel)
+    _, details = packmol(molecules=molecules, return_details=True, box_bounds=box_bounds_for_remaining_volume, **kwargs)
+
+    # find cuboid parallel along x/y/z that is guaranteed to encompass the original lattice
+    maxcomponents = np.max(original_ucs.lattice.vectors, axis=0) - np.min(original_ucs.lattice.vectors, axis=0)
+    box_bounds = [0.0, 0.0, 0.0] + list(maxcomponents)
+
+    will_run_uff_md = always_run_md or any(
+        (not np.isclose(original_lattice.vectors[i][j], 0) for i in range(3) for j in range(3) if i != j)
+    )
+    log(f"will_run_uff_md: {will_run_uff_md}", loglevel)
+    if will_run_uff_md:
+        if np.linalg.det(original_lattice.vectors) < 0:
+            raise PackMolError("packmol_around cannot handle lattice where the determinant of the vectors is negative.")
+
+    target_lattice = np.diag(maxcomponents)
+
+    system_for_packing_type = "supercell"  # "supercell" or "distorted"
+    # system_for_packing_type = "distorted"  # "supercell" or "distorted"
+
+    n_molecules = [1] + details["n_molecules"]
+    if system_for_packing_type == "supercell":
+        # Create a supercell that should encompass the target x/y/z lattice
+        # this is used for the initial packing of molecules to ensure there is no overlap
+        # with the original atoms
+        supercell = original_ucs.copy()
+        trafo = np.linalg.inv(original_ucs.lattice.vectors) @ np.array(target_lattice)
+        trafo = np.sign(trafo) * np.ceil(np.abs(trafo))
+        trafo = np.int_(trafo)
+        supercell.supercell_trafo(trafo)
+        supercell.map_atoms(0)
+        system_for_packing = supercell
+        tolerance = kwargs.get("tolerance", 1.5)
+    else:
+        # now distort the original system to the target lattice
+        distorted = original_ucs.copy()
+        distorted.lattice.vectors = np.diag(maxcomponents)
+        distorted.set_fractional_coordinates(original_frac_coords)
+        system_for_packing = distorted
+        # in general we need higher tolerance here since we may be expanding the original system,
+        # and we do not want the added molecules to enter in artificial "voids"
+        tolerance = kwargs.get("tolerance", 1.5) * 1.3  # should depend on distortion_vol_expansion_factor somehow
+
+    log(f"{system_for_packing_type=}", loglevel)
+    log(f"{n_molecules=}, {box_bounds=}, {tolerance=}", loglevel)
+    my_packed, details = packmol(
+        molecules=[chemsys_to_plams_molecule(system_for_packing)] + tolist(molecules),
+        n_molecules=n_molecules,
+        fix_first=True,
+        box_bounds=box_bounds,
+        return_details=True,
+        tolerance=tolerance,
+    )
+    # remove the original substrate
+    my_packed = plams_molecule_to_chemsys(my_packed)
+    my_packed.remove_atoms(range(len(system_for_packing)))
+    my_packed.map_atoms_continuous()
+    my_packed.lattice = Lattice()  # so that we can add_other without having incompatible lattices
+
+    # now create a distorted system
+    distorted = original_ucs.copy()
+    distorted.lattice.vectors = np.diag(maxcomponents)
+    distorted.set_fractional_coordinates(original_frac_coords)
+
+    # distortion_vol_expansion_factor will be used to modify the tolerance when doing the packing
+    # distortion_vol_expansion_factor = (distorted.lattice.get_volume() / original_volume) ** (1 / 3.0)
+    # remove bonds to be able to do "shake all bonds * *" for the remaining molecules
+    if will_run_uff_md:
+        distorted.bonds.clear_bonds()
+    distorted.add_other(my_packed)
+
+    if will_run_uff_md:
+        log("Running UFF MD", loglevel)
+        distorted = _run_uff_md(
+            distorted,
+            nsteps=1500,
+            vectors=original_ucs.lattice.vectors,
+            fixed_atoms=list(range(len(original_ucs))),
+        )
+
+    distorted.remove_atoms(range(len(original_ucs)))
+    distorted.map_atoms_continuous()
+    distorted.lattice = Lattice()  # so that we can add_other without having incompatible lattices
+
+    # this ensures that the original UCS is exactly preserved (including bonds etc.)
+    out_ucs = original_ucs.copy()
+    out_ucs.add_other(distorted)
+    out_ucs.map_atoms(0)
+
+    out_mol = chemsys_to_plams_molecule(out_ucs)
+
+    if return_details:
+        return out_mol, details
+    return out_mol
+
+
 def packmol_on_slab(
     slab: Molecule,
     molecules: Union[List[Molecule], Molecule],
@@ -802,7 +1042,7 @@ def packmol_on_slab(
     #       The lattice of the liquid is different ...
     liquid.lattice = slab.lattice
     # If the slab has cell-shifts for the bonds, the liquid also needs to have
-    # them. If if would not have cell-shifts, they would not be updated in the
+    # them. If would not have cell-shifts, they would not be updated in the
     # map_to_central_cell call, even though they would become significant when
     # combining with the slab that has them: minimum image convention is only
     # assumed if no bond has cell-shifts.

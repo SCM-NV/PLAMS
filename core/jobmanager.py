@@ -3,15 +3,18 @@ import re
 import shutil
 import threading
 from os.path import join as opj
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional, List, Dict
 
 from scm.plams.core.basejob import MultiJob
-from scm.plams.core.errors import FileError, PlamsError
-from scm.plams.core.functions import config, log
 from scm.plams.core.enums import JobStatus
+from scm.plams.core.errors import FileError, PlamsError
+from scm.plams.core.functions import config, get_logger, log
+from scm.plams.core.logging import Logger
+from scm.plams.core.formatters import JobCSVFormatter
 
 if TYPE_CHECKING:
     from scm.plams.core.basejob import Job
+    from scm.plams.core.settings import Settings
 
 __all__ = ["JobManager"]
 
@@ -23,7 +26,8 @@ class JobManager:
 
     *   ``foldername`` -- the working folder name.
     *   ``workdir`` -- the absolute path to the working folder.
-    *   ``logfile`` -- the absolute path to the logfile.
+    *   ``logfile`` -- the absolute path to the text logfile.
+    *   ``job_logger`` -- the logger used to write job summaries.
     *   ``input`` -- the absolute path to the copy of the input file in the working folder.
     *   ``settings`` -- a |Settings| instance for this job manager (see below).
     *   ``jobs`` -- a list of all jobs managed with this instance (in order of |run| calls).
@@ -42,18 +46,25 @@ class JobManager:
 
     """
 
-    def __init__(self, settings, path=None, folder=None, use_existing_folder=False):
+    def __init__(
+        self,
+        settings: "Settings",
+        path: Optional[str] = None,
+        folder: Optional[str] = None,
+        use_existing_folder: bool = False,
+        job_logger: Optional[Logger] = None,
+    ):
 
         self.settings = settings
-        self.jobs = []
-        self.names = {}
-        self.hashes = {}
+        self.jobs: List[Job] = []
+        self.names: Dict[str, int] = {}
+        self.hashes: Dict[str, Job] = {}
 
         self._register_lock = threading.RLock()
 
         if path is None:
             ams_resultsdir = os.getenv("AMS_RESULTSDIR")
-            if not ams_resultsdir is None and os.path.isdir(ams_resultsdir):
+            if ams_resultsdir is not None and os.path.isdir(ams_resultsdir):
                 self.path = ams_resultsdir
             else:
                 self.path = os.getcwd()
@@ -77,6 +88,17 @@ class JobManager:
 
         if not (use_existing_folder and os.path.exists(self.workdir)):
             os.mkdir(self.workdir)
+
+        if job_logger is None:
+            job_logger = get_logger(os.path.basename(self.workdir), fmt="csv")
+            job_logger.configure(
+                logfile_level=7,
+                logfile_path=opj(self.workdir, "job_logfile.csv"),
+                csv_formatter=JobCSVFormatter,
+                include_date=True,
+                include_time=True,
+            )
+        self.job_logger = job_logger
 
     def load_job(self, filename):
         """Load previously saved job from *filename*.
@@ -202,5 +224,7 @@ class JobManager:
                     fullname = opj(root, dirname)
                     if not os.listdir(fullname):
                         os.rmdir(fullname)
+
+        self.job_logger.close()
 
         log("Job manager cleaned", 7)

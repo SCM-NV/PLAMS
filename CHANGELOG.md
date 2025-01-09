@@ -16,11 +16,14 @@ This changelog is effective from the 2025 releases.
 * `AMSJob` can accept an AMS `ChemicalSystem` instead of a PLAMS `Molecule` as an input system
 * Specific `ConfigSettings` and related settings classes with explicitly defined fields
 * Support for work functions: `AMSResults.get_work_function_results` and `plot_work_function`
+* New `packmol_around` function for packing in non-orthorhombic boxes.
 * Example on `MoleculeFormats`
 * Script `generate_example.sh` to generate documentation pages from notebook examples
 * GitHub workflows for CI and publishing to PyPI
 * Build using `pyproject.toml`, addition of extras groups to install optional dependencies
-* `LogManager` and `TextLogger` to manage log files and console logging
+* Logging of job summaries to CSV logfile
+* Logging of AMS job error messages to stdout and logfile on job failure
+* Method `get_errormsg` enforced on the `Job` base class, with a default implementation
 
 ### Changed
 * Functions for optional packages (e.g. RDKit, ASE) are available even when these packages are not installed, but will raise an `MissingOptionalPackageError` when called
@@ -32,12 +35,15 @@ This changelog is effective from the 2025 releases.
 * Restructuring of examples and conversion of various examples to notebooks
 * Support for `networkx>=3` and `ase>=3.23`
 * Use standard library logger for `log` function
+* Make `Job` class inherit from `ABC` and mark abstract methods 
+* Exceptions raised in `prerun` and `postrun` will always be caught and populate error message
 
 ### Fixed
 * `Molecule.properties.charge` is a numeric instead of string type when loading molecule from a file
 * `Molecule.delete_all_bonds` removes the reference molecule from the removed bond instances
 * `SingleJob.load` returns the correctly loaded job
 * `AMSJob.check` handles a `NoneType` status, returning `False`
+* `MultiJob.run` locking resolved when errors raised within `prerun` and `postrun` methods
 
 ### Deprecated
 * `plams` launch script is deprecated in favour of simply running with `amspython`

@@ -3,7 +3,8 @@
 
 # ## Initial imports
 
-from scm.plams import *
+from scm.plams import plot_molecule, from_smiles, Molecule
+from scm.plams.interfaces.molecule.packmol import packmol, packmol_around
 from ase.visualize.plot import plot_atoms
 from ase.build import fcc111, bulk
 import matplotlib.pyplot as plt
@@ -26,73 +27,50 @@ def printsummary(mol, details=None):
     print(s)
 
 
-def show(mol, figsize=None, **kwargs):
-    """Show a molecule in a Jupyter notebook"""
-    plt.figure(figsize=figsize or (2, 2))
-    plt.axis("off")
-    plot_atoms(toASE(mol), **kwargs)
-
-
 # ## Liquid water (fluid with 1 component)
 # First, create the gasphase molecule:
 
 water = from_smiles("O")
-show(water)
+plot_molecule(water)
 
 
 print("pure liquid from approximate number of atoms and exact density (in g/cm^3), cubic box with auto-determined size")
 out = packmol(water, n_atoms=194, density=1.0)
 printsummary(out)
 out.write("water-1.xyz")
-show(out)
+plot_molecule(out)
 
 
 print("pure liquid from approximate density (in g/cm^3) and an orthorhombic box")
 out = packmol(water, density=1.0, box_bounds=[0.0, 0.0, 0.0, 8.0, 12.0, 14.0])
 printsummary(out)
 out.write("water-2.xyz")
-show(out)
+plot_molecule(out)
 
 
 print("pure liquid with explicit number of molecules and exact density")
 out = packmol(water, n_molecules=64, density=1.0)
 printsummary(out)
 out.write("water-3.xyz")
-show(out)
+plot_molecule(out)
 
 
 print("pure liquid with explicit number of molecules and box")
 out = packmol(water, n_molecules=64, box_bounds=[0.0, 0.0, 0.0, 12.0, 13.0, 14.0])
 printsummary(out)
 out.write("water-4.xyz")
-show(out)
+plot_molecule(out)
 
 
-print("water-5.xyz: pure liquid in non-orthorhombic box (requires AMS2022 or later)")
-# first place the molecules in a cuboid surrounding the desired lattice
-# then gradually change into the desired lattice using refine_lattice()
-# note that the molecules may become distorted by this procedure
-lattice = [[10.0, 2.0, -1.0], [-5.0, 8.0, 0.0], [0.0, -2.0, 11.0]]
-temp_out = packmol(
-    water,
-    n_molecules=32,
-    box_bounds=[
-        0,
-        0,
-        0,
-        max(lattice[i][0] for i in range(3)) - min(lattice[i][0] for i in range(3)),
-        max(lattice[i][1] for i in range(3)) - min(lattice[i][1] for i in range(3)),
-        max(lattice[i][2] for i in range(3)) - min(lattice[i][2] for i in range(3)),
-    ],
-)
-out = refine_lattice(temp_out, lattice=lattice)
-if out is not None:
-    out.write("water-5.xyz")
-    print(
-        "Top: system in surrounding orthorhombic box before calling refine_lattice(). Bottom: System in non-orthorhombic box after calling refine_lattice()"
-    )
-    show(temp_out)
-    show(out)
+print("water-5.xyz: pure liquid in non-orthorhombic box (requires AMS2025 or later)")
+# Non-orthorhombic boxes use UFF MD simulations behind the scenes
+# You can pack inside any lattice using the packmol_around function
+
+box = Molecule()
+box.lattice = [[10.0, 2.0, -1.0], [-5.0, 8.0, 0.0], [0.0, -2.0, 11.0]]
+out = packmol_around(box, molecules=[water], n_molecules=[32])
+out.write("water-5.xyz")
+plot_molecule(out)
 
 
 print("Experimental feature (AMS2025): guess density for pure liquid")
@@ -106,7 +84,7 @@ plot_molecule(out)
 # Let's also create a single acetonitrile molecule:
 
 acetonitrile = from_smiles("CC#N")
-show(acetonitrile)
+plot_molecule(acetonitrile)
 
 
 # Set the desired mole fractions and density. Here, the density is calculated as the weighted average of water (1.0 g/cm^3) and acetonitrile (0.76 g/cm^3) densities, but you could use any other density.
@@ -114,9 +92,8 @@ show(acetonitrile)
 # MIXTURES
 x_water = 0.666  # mole fraction
 x_acetonitrile = 1 - x_water  # mole fraction
-density = (x_water * 1.0 + x_acetonitrile * 0.76) / (
-    x_water + x_acetonitrile
-)  # weighted average of pure component densities
+# weighted average of pure component densities
+density = (x_water * 1.0 + x_acetonitrile * 0.76) / (x_water + x_acetonitrile)
 
 print("MIXTURES")
 print(f"x_water = {x_water:.3f}")
@@ -127,7 +104,8 @@ print(f"target density = {density:.3f} g/cm^3")
 # By setting ``return_details=True``, you can get information about the mole fractions of the returned system. They may not exactly match the mole fractions you put in.
 
 print(
-    "2-1 water-acetonitrile from approximate number of atoms and exact density (in g/cm^3), cubic box with auto-determined size"
+    "2-1 water-acetonitrile from approximate number of atoms and exact density (in g/cm^3), "
+    "cubic box with auto-determined size"
 )
 out, details = packmol(
     molecules=[water, acetonitrile],
@@ -138,7 +116,7 @@ out, details = packmol(
 )
 printsummary(out, details)
 out.write("water-acetonitrile-1.xyz")
-show(out)
+plot_molecule(out)
 
 
 # The ``details`` is a dictionary as follows:
@@ -157,7 +135,7 @@ out, details = packmol(
 )
 printsummary(out, details)
 out.write("water-acetonitrile-2.xyz")
-show(out)
+plot_molecule(out)
 
 
 print("2-1 water-acetonitrile from explicit number of molecules and density, cubic box with auto-determined size")
@@ -169,7 +147,7 @@ out, details = packmol(
 )
 printsummary(out, details)
 out.write("water-acetonitrile-3.xyz")
-show(out)
+plot_molecule(out)
 
 
 print("2-1 water-acetonitrile from explicit number of molecules and box")
@@ -180,7 +158,7 @@ out = packmol(
 )
 printsummary(out)
 out.write("water-acetonitrile-4.xyz")
-show(out)
+plot_molecule(out)
 
 
 print("Experimental feature (AMS2025): guess density for mixture")
@@ -200,11 +178,12 @@ printsummary(out, details)
 print(f"Radius  of sphere: {details['radius']:.3f} ang.")
 print(f"Center of mass xyz (ang): {out.get_center_of_mass()}")
 out.write("water-sphere.xyz")
-show(out)
+plot_molecule(out)
 
 
 print(
-    "2-1 water-acetonitrile in a sphere from exact density (in g/cm^3) and approximate number of atoms and mole fractions"
+    "2-1 water-acetonitrile in a sphere from exact density (in g/cm^3) and "
+    "approximate number of atoms and mole fractions"
 )
 out, details = packmol(
     molecules=[water, acetonitrile],
@@ -216,7 +195,7 @@ out, details = packmol(
 )
 printsummary(out, details)
 out.write("water-acetonitrile-sphere.xyz")
-show(out)
+plot_molecule(out)
 
 
 # ## Packing ions, total system charge
@@ -230,17 +209,19 @@ chloride = from_smiles("[Cl-]")  # chloride.properties.charge == -1
 print("3 water molecules, 3 ammonium, 1 chloride (non-periodic)")
 print("Initial charges:")
 print(f"Water: {water.properties.get('charge', 0)}")
-print(f"Ammonia: {ammonium.properties.get('charge', 0)}")
+print(f"Ammonium: {ammonium.properties.get('charge', 0)}")
 print(f"Chloride: {chloride.properties.get('charge', 0)}")
 out = packmol(molecules=[water, ammonium, chloride], n_molecules=[3, 3, 1], density=0.4, sphere=True)
 tot_charge = out.properties.get("charge", 0)
 print(f"Total charge of packmol-generated system: {tot_charge}")
 out.write("water-ammonium-chloride.xyz")
-show(out)
+plot_molecule(out)
 
 
 # ## Microsolvation
 # ``packmol_microsolvation`` can create a microsolvation sphere around a solute.
+
+from scm.plams import packmol_microsolvation
 
 out = packmol_microsolvation(solute=acetonitrile, solvent=water, density=1.5, threshold=4.0)
 # for microsolvation it's a good idea to have a higher density than normal to get enough solvent molecules
@@ -248,47 +229,65 @@ print(f"Microsolvated structure: {len(out)} atoms.")
 out.write("acetonitrile-microsolvated.xyz")
 
 figsize = (3, 3)
-show(out, figsize=figsize)
+plot_molecule(out, figsize=figsize)
 
 
 # ## Solid-liquid or solid-gas interfaces
 # First, create a slab using the ASE ``fcc111`` function
 
+from scm.plams import plot_molecule, fromASE
+from ase.build import fcc111
+
 rotation = "90x,0y,0z"  # sideview of slab
 slab = fromASE(fcc111("Al", size=(4, 6, 3), vacuum=15.0, orthogonal=True, periodic=True))
-show(slab, figsize=figsize, rotation=rotation)
+plot_molecule(slab, figsize=figsize, rotation=rotation)
 
 
 print("water surrounding an Al slab, from an approximate density")
-out = packmol_on_slab(slab, water, density=1.0)
+out = packmol_around(slab, water, density=1.0)
 printsummary(out)
 out.write("al-water-pure.xyz")
-show(out, figsize=figsize, rotation=rotation)
+plot_molecule(out, figsize=figsize, rotation=rotation)
 
 
 print("2-1 water-acetonitrile mixture surrounding an Al slab, from mole fractions and an approximate density")
-out = packmol_on_slab(slab, [water, acetonitrile], mole_fractions=[x_water, x_acetonitrile], density=density)
+out = packmol_around(slab, [water, acetonitrile], mole_fractions=[x_water, x_acetonitrile], density=density)
 printsummary(out)
 out.write("al-water-acetonitrile.xyz")
-show(out, figsize=figsize, rotation=rotation)
+plot_molecule(out, figsize=figsize, rotation=rotation)
+
+
+from ase.build import surface
+
+print("water surrounding non-orthorhombic Au(211) slab, from an exact number of molecules")
+slab = surface("Au", (2, 1, 1), 6)
+slab.center(vacuum=11.0, axis=2)
+slab.set_pbc(True)
+out = packmol_around(fromASE(slab), [water], n_molecules=[32], tolerance=1.8)
+out.write("Au211-water.xyz")
+plot_molecule(out, figsize=figsize, rotation=rotation)
+print(f"{out.lattice=}")
 
 
 # ## Pack inside voids in crystals
 #
-# Use the ``packmol_in_void`` function. You can decrease ``tolerance`` if you need to pack very tightly. The default value for ``tolerance`` is 2.0.
+# Use the ``packmol_around`` function. You can decrease ``tolerance`` if you need to pack very tightly. The default value for ``tolerance`` is 2.0.
+
+from scm.plams import fromASE
+from ase.build import bulk
 
 bulk_Al = fromASE(bulk("Al", cubic=True).repeat((3, 3, 3)))
-rotation = "90x,5y,5z"
-show(bulk_Al, rotation=rotation, radii=0.4)
+rotation = "-85x,5y,0z"
+plot_molecule(bulk_Al, rotation=rotation, radii=0.4)
 
 
-out = packmol_in_void(
-    host=bulk_Al,
+out = packmol_around(
+    current=bulk_Al,
     molecules=[from_smiles("[H]"), from_smiles("[He]")],
     n_molecules=[50, 20],
     tolerance=1.5,
 )
-show(out, rotation=rotation, radii=0.4)
+plot_molecule(out, rotation=rotation, radii=0.4)
 printsummary(out)
 out.write("al-bulk-with-h-he.xyz")
 
@@ -312,6 +311,8 @@ water[1].properties.region = "oxygen_atom"
 water[2].properties.mass = 2.014  # deuterium
 water.delete_bond(water[1, 2])  # delete bond between atoms 1 and 2 (O and H)
 
+
+from scm.plams import AMSJob
 
 out = packmol([water, n2], n_molecules=[2, 1], density=0.5)
 print(AMSJob(molecule=out).get_input())

@@ -3,11 +3,16 @@ import uuid
 from unittest.mock import patch
 from datetime import datetime
 from collections import namedtuple
+import shutil
+import re
+from io import StringIO
+import csv
 
 from scm.plams.core.settings import Settings
-from scm.plams.core.basejob import SingleJob
-from scm.plams.core.errors import PlamsError, FileError
+from scm.plams.core.basejob import SingleJob, MultiJob
+from scm.plams.core.errors import PlamsError, FileError, ResultsError
 from scm.plams.core.jobrunner import JobRunner
+from scm.plams.core.jobmanager import JobManager
 from scm.plams.core.functions import add_to_instance
 from scm.plams.core.enums import JobStatus
 
@@ -66,7 +71,17 @@ class DummySingleJob(SingleJob):
         return f"sleep {self.wait} && {self.command} {self._filename('inp')}"
 
     def check(self) -> bool:
-        return self.results.read_file(self._filename("err")) == ""
+        try:
+            return self.results.read_file(self._filename("err")) == ""
+        except ResultsError:
+            return True
+
+    def get_errormsg(self) -> str:
+        if self._error_msg:
+            return self._error_msg
+
+        msg = self.results.read_file(self._filename("err"))
+        return msg if msg else None
 
 
 class TestSingleJob:
@@ -117,6 +132,8 @@ sleep 0.0 && sed 's/input/output/g' plamsjob.in
 
         # Then job check passes and output file written
         assert job.check()
+        assert job.ok()
+        assert job.status == JobStatus.SUCCESSFUL
         assert results.read_file("$JN.in") == f"Dummy input {job.id}"
         assert results.read_file("$JN.out") == f"Dummy output {job.id}"
         assert results.read_file("$JN.err") == ""
@@ -128,9 +145,38 @@ sleep 0.0 && sed 's/input/output/g' plamsjob.in
 
         # Then job check fails and error file written
         assert not job.check()
+        assert not job.ok()
+        assert job.status == JobStatus.CRASHED
         assert results.read_file("$JN.in") == f"Dummy input {job.id}"
         assert results.read_file("$JN.out") == ""
         assert results.read_file("$JN.err") != ""
+
+    def test_run_marks_jobs_as_failed_and_stores_exception_on_prerun_or_postrun_error(self):
+        # Given job which error in pre- or post-run
+        job1 = DummySingleJob()
+        job2 = DummySingleJob()
+
+        @add_to_instance(job1)
+        def prerun(s):
+            raise RuntimeError("something went wrong")
+
+        @add_to_instance(job2)
+        def postrun(s):
+            raise RuntimeError("something went wrong")
+
+        # When run jobs
+        job1.run()
+        job2.run()
+
+        # Then status is marked as failed
+        assert job1.status == JobStatus.FAILED
+        assert job2.status == JobStatus.FAILED
+        assert not job1.ok()
+        assert not job2.ok()
+        assert "self.prerun()" in job1.get_errormsg()
+        assert "RuntimeError: something went wrong" in job1.get_errormsg()
+        assert "self.postrun()" in job2.get_errormsg()
+        assert "RuntimeError: something went wrong" in job2.get_errormsg()
 
     @pytest.mark.parametrize(
         "mode,expected",
@@ -177,7 +223,7 @@ sleep 0.0 && sed 's/input/output/g' plamsjob.in
         runner = JobRunner(parallel=True, maxjobs=2)
 
         # When set up two jobs with no dependencies
-        job1 = DummySingleJob(wait=0.2)
+        job1 = DummySingleJob(wait=0.5)
         job2 = DummySingleJob(wait=0.01)
         results = [job1.run(runner), job2.run(runner)]
 
@@ -237,6 +283,27 @@ sleep 0.0 && sed 's/input/output/g' plamsjob.in
         assert job2.status == JobStatus.SUCCESSFUL
         assert job2.call_log[2].timestamp >= job1.call_log[-1].timestamp
 
+    def test_run_multiple_dependent_jobs_first_job_fails_in_prerun(self):
+        # Given two dependent jobs where first errors in prerun
+        job1 = DummySingleJob()
+        job2 = DummySingleJob(depend=[job1])
+
+        @add_to_instance(job1)
+        def prerun(s):
+            raise RuntimeError("something went wrong")
+
+        # When run jobs
+        job1.run()
+        job2.run()
+
+        # Then first job is marked as failed, the dependent job as successful
+        assert job1.status == JobStatus.FAILED
+        assert job2.status == JobStatus.SUCCESSFUL
+        assert not job1.ok()
+        assert job2.ok()
+        assert "RuntimeError" in job1.get_errormsg()
+        assert job2.get_errormsg() is None
+
     def test_ok_waits_on_results_and_checks_status(self):
         # Given job and a copy
         job1 = DummySingleJob(wait=0.1)
@@ -279,3 +346,261 @@ sleep 0.0 && sed 's/input/output/g' plamsjob.in
         assert job1.path == job2.path
         assert job1.settings == job2.settings
         assert job1._filenames == job2._filenames
+
+    def test_job_summaries_logged(self, config):
+        job1 = DummySingleJob()
+        job2 = DummySingleJob(inp=job1.input)
+        job3 = DummySingleJob(cmd="not_a_cmd")
+
+        job_manager = JobManager(config.jobmanager, folder="test_logging")
+
+        job1.run(jobmanager=job_manager)
+        job2.run(jobmanager=job_manager)
+        job3.run(jobmanager=job_manager)
+
+        dt_fmt = "\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}"
+
+        def assert_csv_entry(entry, statuses, postfix="", ok="True", check="True", error_msg=""):
+            assert re.match(dt_fmt, entry[0])
+            assert entry[1] == "plamsjob"
+            assert entry[2] == f"plamsjob{postfix}"
+            assert entry[3] == statuses[-1]
+            assert entry[4].endswith(f"plamsjob{postfix}")
+            assert entry[5] == ok
+            assert entry[6] == check
+            assert error_msg in entry[7]
+            status_pattern = str.join(" -> ", [rf"{dt_fmt} {s}" for s in statuses])
+            assert re.match(status_pattern, entry[8])
+
+        with open(job_manager.job_logger.logfile) as f:
+            reader = csv.reader(f)
+
+            assert next(reader) == [
+                "logged_at",
+                "job_base_name",
+                "job_name",
+                "job_status",
+                "job_path",
+                "job_ok",
+                "job_check",
+                "job_get_errormsg",
+                "job_timeline",
+                "job_parent_name",
+                "job_parent_path",
+            ]
+
+            assert_csv_entry(next(reader), ["created", "started", "registered", "running", "finished", "successful"])
+            assert_csv_entry(next(reader), ["created", "started", "registered", "copied"], postfix=".002")
+            assert_csv_entry(
+                next(reader),
+                ["created", "started", "registered", "running", "crashed"],
+                postfix=".003",
+                error_msg="not_a_cmd",
+                ok="False",
+                check="False",
+            )
+
+        job_manager.job_logger.close()
+        shutil.rmtree(job_manager.workdir)
+
+    def test_job_errors_logged_to_stdout(self, config):
+        from scm.plams.core.logging import get_logger
+
+        logger = get_logger(f"plams-{uuid.uuid4()}")
+
+        with patch("scm.plams.core.functions._logger", logger):
+            with patch("sys.stdout", new_callable=StringIO) as mock_stdout:
+                job1 = DummySingleJob(cmd="not_a_cmd")
+                job2 = DummySingleJob(cmd="x\n" * 50)
+
+                job1.run()
+                job2.run()
+
+                stdout = mock_stdout.getvalue()
+                assert re.match(
+                    f".*Error message for job {job1.name} was:.* 3: not_a_cmd: (command ){{0,1}}not found",
+                    stdout,
+                    re.DOTALL,
+                )
+                assert re.match(
+                    f".*Error message for job {job2.name} was:.* 3: x: (command ){{0,1}}not found.* 32: x: (command ){{0,1}}not found.*(see output for full error)",
+                    stdout,
+                    re.DOTALL,
+                )
+
+
+class TestMultiJob:
+    """
+    Test suite for the Multi Job.
+    Not truly independent as relies upon the job runner/manager and results components.
+    But this suite focuses on testing the methods on the job class itself.
+    """
+
+    def test_run_multiple_independent_single_jobs_all_succeed(self, config):
+        runner = JobRunner(parallel=True, maxjobs=3)
+        config.sleepstep = 0.1
+
+        with patch("scm.plams.core.basejob.config", config):
+            # Given 3 jobs which are independent
+            jobs = [DummySingleJob() for _ in range(3)]
+            multi_job = MultiJob(children=jobs)
+
+            # When run multi-job
+            multi_job.run(jobrunner=runner).wait()
+
+        # Then multi-job ran ok
+        assert multi_job.check()
+        assert multi_job.ok()
+        assert multi_job.status == JobStatus.SUCCESSFUL
+        assert all([j.status == JobStatus.SUCCESSFUL for j in jobs])
+
+    def test_run_multiple_independent_single_jobs_one_fails(self, config):
+        runner = JobRunner(parallel=True, maxjobs=3)
+        config.sleepstep = 0.1
+
+        with patch("scm.plams.core.basejob.config", config):
+            # Given 3 jobs which are independent, one of which fails
+            jobs = [DummySingleJob(), DummySingleJob(cmd="not_a_cmd"), DummySingleJob()]
+            multi_job = MultiJob(children=jobs)
+
+            # When run multi-job
+            multi_job.run(jobrunner=runner).wait()
+
+            # Then multi-job fails
+            assert not multi_job.check()
+            assert not multi_job.ok()
+            assert multi_job.status == JobStatus.FAILED
+            assert [j.status for j in jobs] == [JobStatus.SUCCESSFUL, JobStatus.CRASHED, JobStatus.SUCCESSFUL]
+
+    def test_run_multiple_dependent_single_jobs_all_succeed(self, config):
+        runner = JobRunner(parallel=True, maxjobs=3)
+        config.sleepstep = 0.1
+
+        with patch("scm.plams.core.basejob.config", config):
+            # Given 3 jobs which are dependent
+            jobs = [DummySingleJob() for _ in range(3)]
+
+            @add_to_instance(jobs[1])
+            def prerun(s):
+                jobs[0].results.wait()
+
+            @add_to_instance(jobs[2])
+            def postrun(s):
+                jobs[1].results.wait()
+
+            multi_job = MultiJob(children=jobs)
+
+            # When run multi-job
+            multi_job.run(jobrunner=runner).wait()
+
+            # Then multi-job ran ok
+            assert multi_job.check()
+            assert multi_job.ok()
+            assert multi_job.status == JobStatus.SUCCESSFUL
+            assert all([j.status == JobStatus.SUCCESSFUL for j in jobs])
+
+    def test_run_multiple_independent_single_jobs_error_in_prerun_or_postrun(self, config):
+        runner = JobRunner(parallel=True, maxjobs=3)
+        config.sleepstep = 0.1
+
+        with patch("scm.plams.core.basejob.config", config):
+            # Given 3 jobs which are dependent
+            jobs = [DummySingleJob() for _ in range(3)]
+
+            @add_to_instance(jobs[1])
+            def prerun(s):
+                raise RuntimeError("something went wrong")
+
+            @add_to_instance(jobs[2])
+            def postrun(s):
+                raise RuntimeError("something went wrong")
+
+            multi_job = MultiJob(children=jobs)
+
+            # When run multi-job
+            multi_job.run(jobrunner=runner).wait()
+
+            # Then multi-job failed
+            assert not multi_job.check()
+            assert not multi_job.ok()
+            assert multi_job.status == JobStatus.FAILED
+            assert [j.status for j in jobs] == [JobStatus.SUCCESSFUL, JobStatus.FAILED, JobStatus.FAILED]
+
+    def test_run_multiple_independent_multijobs_all_succeed(self, config):
+        runner = JobRunner(parallel=True, maxjobs=3)
+        config.sleepstep = 0.1
+
+        with patch("scm.plams.core.basejob.config", config):
+            # Given multi-job with multiple multi-jobs
+            jobs = [[DummySingleJob() for _ in range(3)] for _ in range(3)]
+            multi_jobs = [MultiJob(children=js) for js in jobs]
+            multi_job = MultiJob(children=multi_jobs)
+
+            # When run top level job
+            multi_job.run(runner=runner).wait()
+
+            # Then multi-job ran ok
+            assert multi_job.check()
+            assert multi_job.ok()
+            assert multi_job.status == JobStatus.SUCCESSFUL
+            assert all([mj.status == JobStatus.SUCCESSFUL for mj in multi_jobs])
+            assert all([j.status == JobStatus.SUCCESSFUL for js in jobs for j in js])
+
+    def test_run_multiple_dependent_multijobs_all_succeed(self, config):
+        runner = JobRunner(parallel=True, maxjobs=5)
+        config.sleepstep = 0.1
+
+        with patch("scm.plams.core.basejob.config", config):
+            # Given multi-job with multiple dependent multi-jobs
+            jobs = [[DummySingleJob() for _ in range(3)] for _ in range(3)]
+            multi_jobs = [MultiJob(children=js) for js in jobs]
+            multi_job = MultiJob(children=multi_jobs)
+
+            @add_to_instance(jobs[1][0])
+            def prerun(s):
+                jobs[0][0].results.wait()
+
+            @add_to_instance(multi_jobs[1])
+            def postrun(s):
+                multi_jobs[0].results.wait()
+
+            # When run top level job
+            multi_job.run(runner=runner).wait()
+
+            # Then multi-job ran ok
+            assert multi_job.check()
+            assert multi_job.ok()
+            assert multi_job.status == JobStatus.SUCCESSFUL
+            assert all([mj.status == JobStatus.SUCCESSFUL for mj in multi_jobs])
+            assert all([j.status == JobStatus.SUCCESSFUL for js in jobs for j in js])
+
+    def test_run_multiple_dependent_multijobs_one_fails(self, config):
+        runner = JobRunner(parallel=True, maxjobs=5)
+        config.sleepstep = 0.1
+
+        with patch("scm.plams.core.basejob.config", config):
+            # Given multi-job with multiple dependent multi-jobs and one which fails
+            jobs = [[DummySingleJob() for _ in range(3)] for _ in range(3)]
+            jobs[1][1].command = "not a cmd"
+            multi_jobs = [MultiJob(children=js) for js in jobs]
+            multi_job = MultiJob(children=multi_jobs)
+
+            # When run top level job
+            multi_job.run(runner=runner).wait()
+
+            # Then overall multi-job failed
+            assert not multi_job.check()
+            assert not multi_job.ok()
+            assert multi_job.status == JobStatus.FAILED
+            assert [mj.status for mj in multi_jobs] == [
+                JobStatus.SUCCESSFUL,
+                JobStatus.FAILED,
+                JobStatus.SUCCESSFUL,
+            ]
+            assert all([j.status == JobStatus.SUCCESSFUL for j in jobs[0]])
+            assert all([j.status == JobStatus.SUCCESSFUL for j in jobs[2]])
+            assert [j.status for j in jobs[1]] == [
+                JobStatus.SUCCESSFUL,
+                JobStatus.CRASHED,
+                JobStatus.SUCCESSFUL,
+            ]
