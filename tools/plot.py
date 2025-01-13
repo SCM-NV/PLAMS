@@ -1,7 +1,7 @@
 from typing import List, Optional, Tuple, Union
 
 import numpy as np
-from scm.plams import rkf_to_ase_atoms
+from scm.plams import rkf_to_ase_atoms, to_rdmol
 from scm.plams.core.errors import MissingOptionalPackageError
 from scm.plams.core.functions import requires_optional_package
 from scm.plams.interfaces.adfsuite.ams import AMSJob
@@ -114,6 +114,31 @@ def plot_molecule(molecule, figsize=None, ax=None, keep_axis: bool = False, **kw
         ax.axis("off")
 
     return ax
+
+
+@requires_optional_package("rdkit")
+def plot_grid_molecules(mols: List[Molecule], legends="auto", molsPerRow=2, subImgSize=(200, 200), **kwargs):
+    from rdkit import Chem
+    from rdkit.Chem import Draw
+
+    try:
+        from rdkit.Chem.Draw import IPythonConsole
+
+        IPythonConsole.ipython_useSVG = True
+    except:
+        pass
+    [m.guess_bonds() for m in mols]
+    molecules = [to_rdmol(m) for m in mols]
+    if legends == "auto":
+        legends = [f"Mol {i}" for i in range(len(molecules))]
+    img = Draw.MolsToGridImage(
+        mols=molecules,
+        molsPerRow=molsPerRow,  # Number of molecules per row
+        subImgSize=subImgSize,  # Size of each individual image
+        legends=legends,
+        **kwargs,
+    )
+    return img
 
 
 def get_correlation_xy(

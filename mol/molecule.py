@@ -5,23 +5,34 @@ import itertools
 import math
 import os
 from collections import OrderedDict
-import numpy as np
 
-from scm.plams.core.errors import FileError, MoleculeError, PTError, MissingOptionalPackageError
+import numpy as np
+from scm.plams.core.errors import (
+    FileError,
+    MissingOptionalPackageError,
+    MoleculeError,
+    PTError,
+)
 from scm.plams.core.functions import log, requires_optional_package
 from scm.plams.core.private import parse_action, smart_copy
 from scm.plams.core.settings import Settings
 from scm.plams.mol.atom import Atom
 from scm.plams.mol.bond import Bond
 from scm.plams.mol.context import AsArrayContext
-from scm.plams.mol.pdbtools import PDBHandler, PDBAtom
-from scm.plams.tools.geometry import axis_rotation_matrix, cell_angles, cell_lengths, distance_array, rotation_matrix
+from scm.plams.mol.pdbtools import PDBAtom, PDBHandler
+from scm.plams.tools.geometry import (
+    axis_rotation_matrix,
+    cell_angles,
+    cell_lengths,
+    distance_array,
+    rotation_matrix,
+)
 from scm.plams.tools.kftools import KFFile
 from scm.plams.tools.periodic_table import PT
 from scm.plams.tools.units import Units
 
 input_parser_available = "AMSBIN" in os.environ
-from typing import Union, List, Optional, Tuple, overload, Iterable, Dict, Set, Callable
+from typing import Callable, Dict, Iterable, List, Optional, Set, Tuple, Union, overload
 
 __all__ = ["Molecule"]
 
@@ -1778,6 +1789,13 @@ class Molecule:
 
             This method does not check if *matrix* is a proper rotation matrix.
         """
+        from scipy.spatial.transform import Rotation as R
+
+        if isinstance(matrix, tuple):
+            assert isinstance(matrix[0], str), "must be x,y or z"
+            assert isinstance(matrix[1], int), "must be integer in degree"
+            matrix = R.from_euler(matrix[0], matrix[1], degrees=True).as_matrix()
+
         xyz_array = self.as_array()
         matrix = np.array(matrix).reshape(3, 3)
         xyz_array = xyz_array @ matrix.T
@@ -3207,7 +3225,9 @@ class Molecule:
         * ``filename`` -- Name of the RKF file that contains ForceField data
         """
         from scm.plams.interfaces.adfsuite.ams import AMSJob
-        from scm.plams.interfaces.adfsuite.forcefieldparams import forcefield_params_from_kf
+        from scm.plams.interfaces.adfsuite.forcefieldparams import (
+            forcefield_params_from_kf,
+        )
 
         # Read atom types and charges
         kf = KFFile(filename)
@@ -3239,8 +3259,8 @@ class Molecule:
             raise NotImplementedError(
                 "Reading from System blocks from AMS input files requires an AMS installation to be available."
             )
-        from scm.plams.interfaces.adfsuite.inputparser import InputParserFacade
         from scm.plams.interfaces.adfsuite.ams import AMSJob
+        from scm.plams.interfaces.adfsuite.inputparser import InputParserFacade
 
         sett = Settings()
         sett.input.AMS = Settings(InputParserFacade().to_dict("ams", f.read(), string_leafs=True))
@@ -3338,7 +3358,7 @@ class Molecule:
                 3         H      0.327778       0.033891      -0.901672
 
         """
-        from subprocess import DEVNULL, Popen
+        from subprocess import DEVNULL, PIPE, Popen
         from tempfile import NamedTemporaryFile
 
         with NamedTemporaryFile(mode="w+", suffix=".xyz", delete=False) as f_in:
@@ -3347,12 +3367,16 @@ class Molecule:
             with NamedTemporaryFile(mode="w+", suffix=".xyz", delete=False) as f_out:
                 f_out.close()
                 amsprep = os.path.join(os.environ["AMSBIN"], "amsprep")
+                command = f"sh {amsprep} -t SP -m {f_in.name} -addhatoms -exportcoordinates {f_out.name} -bondsonly > {f_out.name}"
                 p = Popen(
-                    f"sh {amsprep} -t SP -m {f_in.name} -addhatoms -exportcoordinates {f_out.name}",
+                    command,
                     shell=True,
                     stdout=DEVNULL,
+                    stderr=PIPE,  # Redirect stderr to a pipe
                 )
-                p.communicate()
+                stdout, stderr = p.communicate()
+                if stderr is not None:
+                    print(f"amsprep raised: {stderr} \n run the command ${command} to get more info")
                 retmol = self.__class__(f_out.name)
                 os.remove(f_out.name)
             os.remove(f_in.name)
