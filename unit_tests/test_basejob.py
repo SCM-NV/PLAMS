@@ -5,6 +5,7 @@ from datetime import datetime
 from collections import namedtuple
 import shutil
 import re
+from io import StringIO
 
 from scm.plams.core.settings import Settings
 from scm.plams.core.basejob import SingleJob
@@ -70,6 +71,9 @@ class DummySingleJob(SingleJob):
 
     def check(self) -> bool:
         return self.results.read_file(self._filename("err")) == ""
+
+    def get_errormsg(self) -> str:
+        return self.results.read_file(self._filename("err"))
 
 
 class TestSingleJob:
@@ -297,7 +301,7 @@ sleep 0.0 && sed 's/input/output/g' plamsjob.in
         with open(job_manager.job_logger.logfile) as f:
             assert (
                 f.readline()
-                == """asctime,job_base_name,job_name,job_status,job_parent_name,job_parent_path,job_path,job_ok,job_check,job_get_errormsg
+                == """logged_at,job_base_name,job_name,job_status,job_path,job_ok,job_check,job_get_errormsg,job_parent_name,job_parent_path
 """
             )
 
@@ -315,3 +319,28 @@ sleep 0.0 && sed 's/input/output/g' plamsjob.in
 
         job_manager.job_logger.close()
         shutil.rmtree(job_manager.workdir)
+
+    def test_job_errors_logged_to_stdout(self, config):
+        from scm.plams.core.logging import get_logger
+
+        logger = get_logger(f"plams-{uuid.uuid4()}")
+
+        with patch("scm.plams.core.functions._logger", logger):
+            with patch("sys.stdout", new_callable=StringIO) as mock_stdout:
+                job1 = DummySingleJob(cmd="not_a_cmd")
+                job2 = DummySingleJob(cmd="x\n" * 50)
+
+                job1.run()
+                job2.run()
+
+                stdout = mock_stdout.getvalue()
+                assert re.match(
+                    f".*Error message for job {job1.name} was:.* 3: not_a_cmd: (command ){{0,1}}not found",
+                    stdout,
+                    re.DOTALL,
+                )
+                assert re.match(
+                    f".*Error message for job {job2.name} was:.* 3: x: (command ){{0,1}}not found.* 32: x: (command ){{0,1}}not found.*(see output for full error)",
+                    stdout,
+                    re.DOTALL,
+                )

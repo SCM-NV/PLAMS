@@ -521,7 +521,7 @@ message
                     )
                 logger.close()
 
-    def test_logger_gets_field_names_from_dictionary(self):
+    def test_log_gets_field_names_from_dictionary(self):
         with temp_file_path(suffix=".log") as temp_log_file:
             name = str(uuid.uuid4())
             logger = get_logger(name, "csv")
@@ -541,12 +541,12 @@ bar2,buzz2
                 )
             logger.close()
 
-    def test_logger_cannot_change_field_names_or_add_fields(self):
+    def test_log_cannot_change_field_names_or_add_fields(self):
         with patch("sys.stderr", new_callable=StringIO) as mock_stderr:
             with patch("sys.stdout", new_callable=StringIO) as mock_stdout:
                 name = str(uuid.uuid4())
                 logger = get_logger(name, "csv")
-                logger.configure(3, 3)
+                logger.configure(3)
 
                 logger.log({"foo": "bar", "fizz": "buzz"}, 3)
                 logger.log({"abc": "bar2", "def": "buzz2"}, 3)
@@ -558,6 +558,52 @@ bar2,buzz2
 bar,buzz
 """
             )
+
+            logger.close()
+
+    def test_log_correctly_escapes_commas_and_multiline_strings(self):
+        with patch("sys.stdout", new_callable=StringIO) as mock_stdout:
+            name = str(uuid.uuid4())
+            logger = get_logger(name, "csv")
+            logger.configure(3)
+
+            logger.log(
+                {
+                    "commas": "a,b,c,'(d,e,f)'",
+                    "multi-line": """See the following:
+    a,b,c
+    d,e,f
+""",
+                },
+                3,
+            )
+            logger.log(
+                {
+                    "commas": 'm,"n,",,,o\'',
+                    "multi-line": """See the following:
+    m,n,o
+
+    p,q,r
+""",
+                },
+                3,
+            )
+
+        assert mock_stdout.getvalue() == (
+            """commas,multi-line
+"a,b,c,\'(d,e,f)\'","See the following:
+    a,b,c
+    d,e,f
+"
+"m,""n,"",,,o\'","See the following:
+    m,n,o
+
+    p,q,r
+"
+"""
+        )
+
+        logger.close()
 
 
 class TestJobCSVFormatter:
@@ -592,11 +638,11 @@ class TestJobCSVFormatter:
             with open(temp_log_file) as tf:
                 assert (
                     tf.read()
-                    == f"""job_base_name,job_name,job_status,job_parent_name,job_parent_path,job_path,job_ok,job_check,job_get_errormsg
+                    == f"""job_base_name,job_name,job_status,job_path,job_ok,job_check,job_get_errormsg,job_parent_name,job_parent_path
 test_job_csv_formatter,test_job_csv_formatter,created,,,,,,
 test_job_csv_formatter,test_job_csv_formatter.002,created,,,,,,
-test_job_csv_formatter,test_job_csv_formatter,successful,,,{path1},True,True,
-test_job_csv_formatter,test_job_csv_formatter.002,crashed,,,{path2},False,False,some error
+test_job_csv_formatter,test_job_csv_formatter,successful,{path1},True,True,,,
+test_job_csv_formatter,test_job_csv_formatter.002,crashed,{path2},False,False,some error,,
 """
                 )
 

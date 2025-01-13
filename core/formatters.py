@@ -25,12 +25,12 @@ class JobCSVFormatter(CSVFormatter):
             "job_base_name": re.sub(r"\.\d+$", "", job.name),
             "job_name": job.name,
             "job_status": job.status,
-            "job_parent_name": "",
-            "job_parent_path": "",
             "job_path": "",
             "job_ok": "",
             "job_check": "",
             "job_get_errormsg": "",
+            "job_parent_name": "",
+            "job_parent_path": "",
         }
 
         if job.status not in [JobStatus.CREATED, JobStatus.STARTED]:

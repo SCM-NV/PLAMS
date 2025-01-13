@@ -80,10 +80,21 @@ def _restrict(func):
             raise ResultsError("Using Results associated with deleted job")
 
         elif self.job.status in [JobStatus.CRASHED, JobStatus.FAILED]:
-            if func.__name__ == "wait":  # waiting for crashed of failed job should not trigger any warnings/exceptions
+            # waiting for crashed of failed job should not trigger any warnings/exceptions
+            # and neither should checking the status from this job with 'ok', 'check' or 'get_errormsg'
+            suppress_errors = func.__name__ == "wait"
+            if not suppress_errors:
+                for frame in inspect.getouterframes(inspect.currentframe()):
+                    cal, arg = _caller_name_and_arg(frame[0])
+                    if arg == self.job and cal in ["ok", "check", "get_errormsg"]:
+                        suppress_errors = True
+                        break
+
+            if suppress_errors:
                 cal, arg = _caller_name_and_arg(inspect.currentframe())
                 if isinstance(arg, Results):
                     return func(self, *args, **kwargs)
+
             if config.ignore_failure:
                 log("WARNING: Trying to obtain results of crashed or failed job {}".format(self.job.name), 3)
                 try:

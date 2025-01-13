@@ -21,6 +21,7 @@ This changelog is effective from the 2025 releases.
 * GitHub workflows for CI and publishing to PyPI
 * Build using `pyproject.toml`, addition of extras groups to install optional dependencies
 * Logging of job summaries to CSV logfile
+* Logging of AMS job error messages to stdout and logfile on job failure
 
 ### Changed
 * Functions for optional packages (e.g. RDKit, ASE) are available even when these packages are not installed, but will raise an `MissingOptionalPackageError` when called

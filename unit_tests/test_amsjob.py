@@ -563,3 +563,51 @@ class TestAMSJobRun:
                 assert len(status_lines) == 4
 
                 logger.close()
+
+    def test_get_errormsg_populates_correctly_for_different_scenarios(self):
+        from scm.plams.core.errors import FileError
+
+        # Invalid license
+        job = AMSJob()
+        results = MagicMock(spec=AMSResults)
+        results.readrkf.side_effect = FileError()
+        results.grep_file.side_effect = FileError()
+        results.get_output_chunk.return_value = [
+            "LICENSE INVALID",
+            "---------------",
+            "Your license does not include module AMS version 2024.206 on this machine.",
+            "Module AMS",
+            "Version 2024.206",
+            "Machine: Foo",
+            "License file: ./license.txt",
+        ]
+        job.results = results
+
+        assert (
+            job.get_errormsg()
+            == """LICENSE INVALID
+---------------
+Your license does not include module AMS version 2024.206 on this machine.
+Module AMS
+Version 2024.206
+Machine: Foo
+License file: ./license.txt"""
+        )
+
+        # Invalid input
+        results.grep_file.side_effect = None
+        results.grep_file.return_value = [
+            '<Dec05-2024> <12:03:49>  ERROR: Input error: value "foo" found in line 13 for multiple choice key "Task" is not an allowed choice'
+        ]
+        assert (
+            job.get_errormsg()
+            == 'Input error: value "foo" found in line 13 for multiple choice key "Task" is not an allowed choice'
+        )
+
+        # Error in calculation
+        results.readrkf.return_value = "NORMAL TERMINATION with errors"
+        results.readrkf.side_effect = None
+        results.grep_file.return_value = [
+            "<Dec05-2024> <13:44:55>  ERROR: Geometry optimization failed! (Did not converge.)"
+        ]
+        assert job.get_errormsg() == "Geometry optimization failed! (Did not converge.)"
