@@ -112,6 +112,7 @@ Added
 
 * Support for AMS ``ChemicalSystem`` within |AMSJob| and |AMSResults|. |AMSJob| can accept a ``ChemicalSystem`` as an input system, and the methods :meth:`~scm.plams.interfaces.adfsuite.ams.AMSResults.get_system`, :meth:`~scm.plams.interfaces.adfsuite.ams.AMSResults.get_input_system` and :meth:`~scm.plams.interfaces.adfsuite.ams.AMSResults.get_main_system` on |AMSResults| return a ``ChemicalSystem``. These provide the option to use a ``ChemicalSystem`` in place of a PLAMS ``Molecule``.
 * Support for work functions through :meth:`~scm.plams.interfaces.adfsuite.ams.AMSResults.get_work_function_results` and :func:`~scm.plams.tools.plot.plot_work_function`
+* Added :meth:`~scm.plams.interfaces.molecule.packmol.packmol_around` method to pack around an existing molecule or pack molecules into a non-orthorhombic box.
 
 Changed
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

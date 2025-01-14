@@ -1,3 +1,5 @@
+from typing import Literal, Union
+
 # Import StrEnum for Python >=3.11, otherwise use backwards compatible class
 try:
     from enum import StrEnum  # type: ignore
@@ -13,7 +15,7 @@ except ImportError:
             return str(self.value)
 
 
-__all__ = ["JobStatus"]
+__all__ = ["JobStatus", "JobStatusType"]
 
 
 class JobStatus(StrEnum):
@@ -32,3 +34,21 @@ class JobStatus(StrEnum):
     COPIED = "copied"
     PREVIEW = "preview"
     DELETED = "deleted"
+
+
+JobStatusType = Union[
+    JobStatus,
+    Literal[
+        "created",
+        "started",
+        "registered",
+        "running",
+        "finished",
+        "crashed",
+        "failed",
+        "successful",
+        "copied",
+        "preview",
+        "deleted",
+    ],
+]

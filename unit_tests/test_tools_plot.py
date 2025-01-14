@@ -1,27 +1,29 @@
 #!/usr/bin/env amspython
 # coding: utf-8
 
+import itertools
 import os
+from pathlib import Path
+
+import matplotlib
 import matplotlib.pyplot as plt
+import numpy as np
 import pytest
 from matplotlib.testing.decorators import image_comparison
-import matplotlib
-from pathlib import Path
-import numpy as np
-
 from scm.plams.core.functions import Settings
-from scm.plams.mol.molecule import Molecule
-from scm.plams.mol.atom import Atom
-from scm.plams.interfaces.molecule.rdkit import from_smiles
 from scm.plams.interfaces.adfsuite.ams import AMSJob
+from scm.plams.interfaces.molecule.rdkit import from_smiles
+from scm.plams.mol.atom import Atom
+from scm.plams.mol.molecule import Molecule
 from scm.plams.recipes.md.trajectoryanalysis import AMSMSDJob, AMSMSDResults
 from scm.plams.tools.plot import (
-    plot_molecule,
-    plot_correlation,
-    plot_band_structure,
-    plot_work_function,
     get_correlation_xy,
+    plot_band_structure,
+    plot_correlation,
+    plot_grid_molecules,
+    plot_molecule,
     plot_msd,
+    plot_work_function,
 )
 
 # Use non-interactive backend for ci env
@@ -64,6 +66,78 @@ def test_plot_molecule():
     )
 
     plot_molecule(glycine, rotation=("90x,45y,0z"), keep_axis=True, figsize=(3, 2))
+
+
+# ----------------------------------------------------------
+# Testing plot_grid_molecules
+# ----------------------------------------------------------
+@image_comparison(baseline_images=["plot_grid_molecules"], remove_text=True, extensions=["png"], style="mpl20", tol=0.1)
+def test_plot_grid_molecules():
+    plt.close("all")
+    ethanol = from_smiles("CCO")
+    ethanol.from_array(
+        [
+            [0.88165321, -0.04478118, -0.01474324],
+            [-0.58159753, -0.3761451, 0.05108011],
+            [-1.35694986, 0.75702494, 0.1824042],
+            [1.26504668, 0.17421359, 1.01224746],
+            [1.01649295, 0.87054063, -0.60898906],
+            [1.48536012, -0.89981469, -0.39366191],
+            [-0.78791391, -0.98893872, 0.96478502],
+            [-0.83504017, -1.00512403, -0.81678084],
+            [-1.08705149, 1.51302455, -0.37634174],
+        ]
+    )
+
+    glycine = from_smiles("C(C(=O)O)N")
+    glycine.from_array(
+        [
+            [1.52585228, -0.36095771, 0.17604921],
+            [0.26794267, 0.21265392, -0.21199336],
+            [-0.90913905, -0.53151974, 0.26695495],
+            [-0.85195920, -1.53060464, 1.04179363],
+            [-2.14637457, -0.16398621, -0.26887301],
+            [2.25707210, 0.02537156, -0.47070660],
+            [1.79020298, -0.01286013, 1.12713073],
+            [0.28233609, 0.31718008, -1.32556763],
+            [0.18775611, 1.26499430, 0.16051118],
+            [-2.40368941, 0.77972858, -0.49529909],
+        ]
+    )
+    molecules = [ethanol, glycine]
+    _, ax = plt.subplots(figsize=(3, 2))
+    ax.axis("off")
+    plot_grid_molecules(molecules, ax=ax)
+
+
+def test_plot_grid_molecules_options_products():
+    """since of the presence of global variables, working with rdkit is difficult. I test the different options products, if no errors are raised it is already good"""
+
+    save_svg_path = Path("mols.svg")
+
+    def svg_plot(molecules):
+        _ = plot_grid_molecules(molecules, molsPerRow=2, save_svg_path=save_svg_path)
+
+    def ax_plot(molecules):
+        _, ax = plt.subplots()
+        ax = plot_grid_molecules(molecules, molsPerRow=2, ax=ax)
+
+    def pil_notebook_plot(molecules):
+        _ = plot_grid_molecules(molecules, molsPerRow=2)
+
+    def iterate_options(molecules, options):
+        for x in options:
+            if x == "svg":
+                svg_plot(molecules)
+            if x == "ax":
+                ax_plot(molecules)
+            if x == "notebook":
+                pil_notebook_plot(molecules)
+
+    molecules = [from_smiles("CCO"), from_smiles("NC")]
+    for options_x in itertools.product(["svg", "ax", "notebook"], repeat=2):
+        iterate_options(molecules, options_x)
+    save_svg_path.unlink(missing_ok=True)
 
 
 # ----------------------------------------------------------

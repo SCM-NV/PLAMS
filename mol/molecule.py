@@ -347,6 +347,26 @@ class Molecule:
             self.delete_bond(b)
         atom.mol = None
 
+    def delete_atoms(self, atoms: Iterable[Atom]) -> None:
+        """Delete multiple *atom* from the molecule.
+
+        *atom* should be an iterable of |Atom| instances which belong to the molecule. All bonds containing these atoms will be removed too.
+
+        Note that this method employs partial success, such that if deleting any atom results in an error, the remaining atoms will
+        still be deleted. An aggregate error will then be raised at the end of the operation if any errors were encountered.
+        """
+
+        errors = []
+        materialised_atoms = [at for at in atoms]  # make sure to materialise the atoms before starting deletion
+        for atom in materialised_atoms:
+            try:
+                self.delete_atom(atom)
+            except MoleculeError as err:
+                errors.append(f"{err}")
+        if any(errors):
+            error_details = str.join("\n", errors)
+            raise MoleculeError(f"Encountered one or more errors when deleting atoms:\n{error_details}")
+
     def add_bond(self, arg1: Union[Bond, Atom], arg2: Optional[Atom] = None, order: float = 1) -> None:
         """Add a new bond to the molecule.
 
@@ -1498,7 +1518,7 @@ class Molecule:
 
         return ret
 
-    def get_complete_molecules_within_threshold(self, atom_indices, threshold: float):
+    def get_complete_molecules_within_threshold(self, atom_indices: List[int], threshold: float):
         """
         Returns a new molecule containing complete submolecules for any molecules
         that are closer than ``threshold`` to any of the atoms in ``atom_indices``.
@@ -1520,7 +1540,7 @@ class Molecule:
         D = distance_array(solvated_coords, solvated_coords)[zero_based_indices]
         less_equal = np.less_equal(D, threshold)
         within_threshold = np.any(less_equal, axis=0)
-        good_indices = [i for i, value in enumerate(within_threshold) if value]
+        good_indices = [i for i, value in enumerate(within_threshold) if value]  # type: ignore
 
         complete_indices: Set[int] = set()
         for indlist in molecule_indices:
@@ -2018,11 +2038,11 @@ class Molecule:
         unit_conversion_coeff = Units.convert(1.0, "amu", unit)
         return [at.mass * unit_conversion_coeff for at in self.atoms]
 
-    def get_mass(self, unit="amu"):
+    def get_mass(self, unit="amu") -> float:
         """Return the mass of the molecule, by default in atomic mass units."""
         return sum([at.mass for at in self.atoms]) * Units.convert(1.0, "amu", unit)
 
-    def get_density(self):
+    def get_density(self) -> float:
         """Return the density in kg/m^3"""
         vol = self.unit_cell_volume(unit="angstrom") * 1e-30  # in m^3
         mass = self.get_mass(unit="kg")
@@ -3361,24 +3381,36 @@ class Molecule:
         from subprocess import DEVNULL, PIPE, Popen
         from tempfile import NamedTemporaryFile
 
-        with NamedTemporaryFile(mode="w+", suffix=".xyz", delete=False) as f_in:
-            self.writexyz(f_in)
+        # Pass an input file to amsprep which contains current geometry and bonding information
+        with NamedTemporaryFile(mode="w+", suffix=".in", delete=False) as f_in:
+            self.writein(f_in)
             f_in.close()
+
+            # Get .xyz file from amsprep containing the geometry to the same precision (.mol file causes rounding)
+            # And then load the bonding information from the output
             with NamedTemporaryFile(mode="w+", suffix=".xyz", delete=False) as f_out:
-                f_out.close()
-                amsprep = os.path.join(os.environ["AMSBIN"], "amsprep")
-                command = f"sh {amsprep} -t SP -m {f_in.name} -addhatoms -exportcoordinates {f_out.name} -bondsonly > {f_out.name}"
-                p = Popen(
-                    command,
-                    shell=True,
-                    stdout=DEVNULL,
-                    stderr=PIPE,  # Redirect stderr to a pipe
-                )
-                stdout, stderr = p.communicate()
-                if stderr is not None:
-                    print(f"amsprep raised: {stderr} \n run the command ${command} to get more info")
-                retmol = self.__class__(f_out.name)
-                os.remove(f_out.name)
+                with NamedTemporaryFile(mode="w+", suffix=".out", delete=False) as f_out_bonds:
+                    f_out.close()
+                    f_out_bonds.close()
+                    amsprep = os.path.join(os.environ["AMSBIN"], "amsprep")
+                    command = f"sh {amsprep} -t SP -m {f_in.name} -addhatoms -exportcoordinates {f_out.name} -bondsonly > {f_out_bonds.name}"
+                    p = Popen(
+                        command,
+                        shell=True,
+                        stdout=DEVNULL,
+                        stderr=PIPE,  # Redirect stderr to a pipe
+                    )
+                    _, stderr = p.communicate()
+                    if stderr:
+                        stderr_str = stderr.decode("utf-8").strip()
+                        log(f"amsprep raised: {stderr_str} \n Run the command ${command} to get more information")
+                    retmol = self.__class__(f_out.name)
+                    with open(f_out_bonds.name) as bonds_file:
+                        for line in bonds_file:
+                            _, i, j, bo = line.split()
+                            retmol.add_bond(retmol[int(i)], retmol[int(j)], float(bo))
+                    os.remove(f_out.name)
+                    os.remove(f_out_bonds.name)
             os.remove(f_in.name)
         return retmol
 

@@ -1,3 +1,4 @@
+import csv
 import os.path
 import re
 import uuid
@@ -562,54 +563,62 @@ bar,buzz
             logger.close()
 
     def test_log_correctly_escapes_commas_and_multiline_strings(self):
-        with patch("sys.stdout", new_callable=StringIO) as mock_stdout:
-            name = str(uuid.uuid4())
-            logger = get_logger(name, "csv")
-            logger.configure(3)
+        with temp_file_path(suffix=".csv") as temp_log_file:
+            with patch("sys.stdout", new_callable=StringIO) as mock_stdout:
+                name = str(uuid.uuid4())
+                logger = get_logger(name, "csv")
+                logger.configure(3, 3, temp_log_file)
 
-            logger.log(
-                {
-                    "commas": "a,b,c,'(d,e,f)'",
-                    "multi-line": """See the following:
+                logger.log(
+                    {
+                        "commas": "a,b,c,'(d,e,f)'",
+                        "multi-line": """See the following:
     a,b,c
     d,e,f
 """,
-                },
-                3,
-            )
-            logger.log(
-                {
-                    "commas": 'm,"n,",,,o\'',
-                    "multi-line": """See the following:
+                    },
+                    3,
+                )
+                logger.log(
+                    {
+                        "commas": 'm,"n,",,,o\'',
+                        "multi-line": """See the following:
     m,n,o
 
     p,q,r
 """,
-                },
-                3,
-            )
+                    },
+                    3,
+                )
 
-        assert mock_stdout.getvalue() == (
-            """commas,multi-line
-"a,b,c,\'(d,e,f)\'","See the following:
+            assert mock_stdout.getvalue() == (
+                """commas,multi-line
+"a,b,c,'(d,e,f)'","See the following:
     a,b,c
     d,e,f
 "
-"m,""n,"",,,o\'","See the following:
+"m,""n,"",,,o'","See the following:
     m,n,o
 
     p,q,r
 "
 """
-        )
+            )
 
-        logger.close()
+            with open(temp_log_file) as tf:
+                reader = csv.reader(tf)
+
+                assert next(reader) == ["commas", "multi-line"]
+                assert next(reader) == ["a,b,c,'(d,e,f)'", "See the following:\n    a,b,c\n    d,e,f\n"]
+                assert next(reader) == ['m,"n,",,,o\'', "See the following:\n    m,n,o\n\n    p,q,r\n"]
+
+            logger.close()
 
 
 class TestJobCSVFormatter:
 
     def test_formatter_populates_job_fields(self):
-        with temp_file_path(suffix=".log") as temp_log_file:
+        with temp_file_path(suffix=".csv") as temp_log_file:
 
             job1 = DummySingleJob(name="test_job_csv_formatter")
             job2 = DummySingleJob(name="test_job_csv_formatter.002", cmd="err")
@@ -636,14 +645,29 @@ class TestJobCSVFormatter:
             path2 = os.path.join(dir, "plams_workdir", "test_job_csv_formatter.002")
 
             with open(temp_log_file) as tf:
+                reader = csv.reader(tf)
+
+                # Read csv and regularise timestamps for easier comparison
+                def read_row():
+                    row = next(reader)
+                    row[7] = re.sub(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}", "<timestamp>", row[7])
+                    return str.join(",", row)
+
                 assert (
-                    tf.read()
-                    == f"""job_base_name,job_name,job_status,job_path,job_ok,job_check,job_get_errormsg,job_parent_name,job_parent_path
-test_job_csv_formatter,test_job_csv_formatter,created,,,,,,
-test_job_csv_formatter,test_job_csv_formatter.002,created,,,,,,
-test_job_csv_formatter,test_job_csv_formatter,successful,{path1},True,True,,,
-test_job_csv_formatter,test_job_csv_formatter.002,crashed,{path2},False,False,some error,,
-"""
+                    read_row()
+                    == "job_base_name,job_name,job_status,job_path,job_ok,job_check,job_get_errormsg,job_timeline,job_parent_name,job_parent_path"
+                )
+                assert read_row() == "test_job_csv_formatter,test_job_csv_formatter,created,,,,,<timestamp> created,,"
+                assert (
+                    read_row() == "test_job_csv_formatter,test_job_csv_formatter.002,created,,,,,<timestamp> created,,"
+                )
+                assert (
+                    read_row()
+                    == f"test_job_csv_formatter,test_job_csv_formatter,successful,{path1},True,True,,<timestamp> created -> <timestamp> started -> <timestamp> registered -> <timestamp> running -> <timestamp> finished -> <timestamp> successful,,"
+                )
+                assert (
+                    read_row()
+                    == f"test_job_csv_formatter,test_job_csv_formatter.002,crashed,{path2},False,False,some error,<timestamp> created -> <timestamp> started -> <timestamp> registered -> <timestamp> running -> <timestamp> crashed,,"
                 )
 
             logger.close()
