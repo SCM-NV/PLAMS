@@ -59,7 +59,10 @@ class MissingOptionalPackageError(PlamsError):
         "natsort": "analysis",
     }
 
-    ams_install = {"scm.amspipe": "$AMSHOME/scripting/scm/amspipe"}
+    ams_install = {
+        "scm.amspipe": "$AMSHOME/scripting/scm/amspipe",
+        "pigeon": "pigeon-jupyter",
+    }
 
     def __init__(self, package_name: str):
         msg = f"The optional package '{package_name}' is required for this PLAMS functionality, but is not available. "

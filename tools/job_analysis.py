@@ -4,7 +4,7 @@ import re
 import warnings
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Type, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union, Hashable
 
 from matplotlib import pyplot as plt
 from matplotlib.figure import Figure
@@ -18,6 +18,7 @@ from scm.plams import (
 )
 from scm.plams.tools.settings_analysis import compare_settings
 from scm.plams.tools.table_formatter import format_in_table
+from scm.plams.core.functions import requires_optional_package
 
 
 class GroupedColNames:
@@ -171,6 +172,7 @@ class JobsAnalysis:
         job_loader,
         col_path_jobs=GroupedColNames.paths,
         suffix_out="",
+        use_dill=True,
     ):
 
         def load_job(path_folder):
@@ -184,7 +186,7 @@ class JobsAnalysis:
             is_dill = path_files_in_job.with_suffix(".dill")
             jm = JobManager(JobManagerSettings(), folder=Path.cwd(), use_existing_folder=True)
             job = None
-            if is_dill.exists():
+            if is_dill.exists() and use_dill:
                 job = jm.load_job(is_dill)
             if job is None:
                 job = job_loader(path_folder)
@@ -295,6 +297,10 @@ class JobsAnalysis:
             row[k] = self.data[k][idx]
         return row
 
+    def __len__(self):
+        first_key = list(self.data)[0]
+        return len(self.data[first_key])
+
     ############################################################################
     ##################          molecule analysis          #####################
     ############################################################################
@@ -402,6 +408,26 @@ class JobsAnalysis:
     ):
         self.data[col_out] = [reasonable_checker(job) for job in self.data[jobs_col]]
 
+    def groupby(self, groupby: Callable[[Dict], Hashable]):
+        groups = defaultdict(list)
+        for i, row in enumerate(iter(self)):
+            groups[groupby(row)].append(i)
+        return dict(groups)
+
+    def assign_reference(self, is_ref: Callable[[Dict], bool], subset_idxs: Optional[List[int]] = None):
+        if subset_idxs is None:
+            subset_idxs = list(range(len(self)))
+        groups_with_ref: Dict[str, Optional[Union[int, List[int]]]] = {"ref": None, "idxs": []}
+        for idx_i in subset_idxs:
+            if is_ref(self[idx_i]):
+                if groups_with_ref["ref"] is not None:
+                    ref_found = groups_with_ref["ref"]
+                    raise ValueError(f"Collision of two refs found for the same group: {ref_found} and {idx_i}")
+                groups_with_ref["ref"] = idx_i
+            else:
+                groups_with_ref["idxs"].append(idx_i)
+        return groups_with_ref
+
     def success_checker_plotter(
         self,
         ref_job_idx: int,
@@ -409,46 +435,46 @@ class JobsAnalysis:
         success_plot: Callable[[SingleJob, plt.Axes], plt.Axes],
         jobs_col=GroupedColNames.jobs,
         separate_plot=True,
+        axes=None,
         **plt_kwargs,
     ) -> Figure:
         """Note: success_plot should first plot the non-ref job and then the reference job, such that the legend is displaced well"""
+
+        n_axes = len(indexes_to_check)
         plt_kwargs.setdefault("layout", "tight")
-        if separate_plot:
+        if separate_plot and axes is None:
             plt_kwargs.setdefault("sharex", True)
             plt_kwargs.setdefault("sharey", True)
-            plt_kwargs.setdefault(
-                "ncols", 4 if "nrows" not in plt_kwargs else -(-len(indexes_to_check) // plt_kwargs["nrows"])
-            )
-            plt_kwargs.setdefault("nrows", -(-len(indexes_to_check) // plt_kwargs["ncols"]))
+            plt_kwargs.setdefault("ncols", 4 if "nrows" not in plt_kwargs else -(-n_axes // plt_kwargs["nrows"]))
+            plt_kwargs.setdefault("nrows", -(-n_axes // plt_kwargs["ncols"]))
             fig, axes = plt.subplots(**plt_kwargs)
             axes = axes.ravel()
         else:
-            if "ncols" in plt_kwargs:
-                plt_kwargs.pop("ncols")
-            if "nrows" in plt_kwargs:
-                plt_kwargs.pop("nrows")
-            fig, axes = plt.subplots(**plt_kwargs)
-            axes = [axes] * len(indexes_to_check)
+            if axes is None:
+                if "ncols" in plt_kwargs:
+                    plt_kwargs.pop("ncols")
+                if "nrows" in plt_kwargs:
+                    plt_kwargs.pop("nrows")
+                fig, axes = plt.subplots(**plt_kwargs)
+                axes = [axes] * n_axes
+            else:
+                axes = axes * n_axes
+                fig = axes[0].get_figure()
 
         text_labels = []
         for i, (idx_i, ax) in enumerate(zip(indexes_to_check, axes)):
-
-            if GroupedColNames.labels in self.data:
-                text_label = self.data[GroupedColNames.labels][idx_i]
-            else:
-                text_label = ""
-                for col_i in self.settings_cols.values:
-                    text_label += f"{col_i}: {self.data[col_i][idx_i]}\n"
+            ref_label = "REF\n" + self.get_label(ref_job_idx)
+            text_label = self.get_label(idx_i)
 
             success_plot(self.data[jobs_col][idx_i], ax)
             if separate_plot:
                 success_plot(self.data[jobs_col][ref_job_idx], ax)
-                text_labels.append([text_label, "ref"])
+                text_labels.append([text_label, ref_label])
             elif i == 0:
                 # plot only once
                 success_plot(self.data[jobs_col][ref_job_idx], ax)
                 text_labels.append(text_label)
-                text_labels.append("ref")
+                text_labels.append(ref_label)
             else:
                 text_labels.append(text_label)
 
@@ -458,6 +484,49 @@ class JobsAnalysis:
                 ax.legend(text_label)
         else:
             axes[0].legend(text_labels)
+        return fig
+
+    def get_label(self, idx: int):
+        if GroupedColNames.labels in self.data:
+            text_label = self.data[GroupedColNames.labels][idx]
+        else:
+            text_label = ""
+            for col_i in self.settings_cols.values:
+                text_label += f"{col_i}: {self.data[col_i][idx]}\n"
+        return text_label
+
+    def success_checker_plotter_2(
+        self,
+        is_ref: Callable[[Dict], bool],
+        groupby: Callable[[Dict], Hashable],
+        success_plot: Callable[[SingleJob, plt.Axes], plt.Axes],
+        jobs_col=GroupedColNames.jobs,
+        **plt_kwargs,
+    ) -> Figure:
+        """Note: success_plot should first plot the non-ref job and then the reference job, such that the legend is displaced well"""
+        groups = self.groupby(groupby)
+        groups_refs = {}
+        for k, vals in groups.items():
+            groups_refs[k] = self.assign_reference(is_ref, subset_idxs=vals)
+
+        n_axes = len(groups_refs)
+        plt_kwargs.setdefault("layout", "tight")
+        plt_kwargs.setdefault("sharex", True)
+        plt_kwargs.setdefault("sharey", False)
+        plt_kwargs.setdefault("ncols", 4 if "nrows" not in plt_kwargs else -(-n_axes // plt_kwargs["nrows"]))
+        plt_kwargs.setdefault("nrows", -(-n_axes // plt_kwargs["ncols"]))
+        fig, axes = plt.subplots(**plt_kwargs)
+        axes = axes.ravel()
+        for (k, vals), ax in zip(groups_refs.items(), axes):
+            fig = self.success_checker_plotter(
+                ref_job_idx=vals["ref"],
+                indexes_to_check=vals["idxs"],
+                success_plot=success_plot,
+                separate_plot=False,
+                axes=[ax],
+                jobs_col=jobs_col,
+            )
+            ax.set_title(f"Group {k}")
         return fig
 
     def success_checker(
@@ -473,6 +542,79 @@ class JobsAnalysis:
                 if k not in self.data:
                     self.data[k] = [None] * len(self.data[jobs_col])
                 self.data[k][idx_i] = v
+
+    @requires_optional_package("pigeon")
+    def notebook_annotate(
+        self,
+        job_plotter: Optional[Callable[[SingleJob, plt.Axes], plt.Axes]] = None,
+        ref_idx: Optional[int] = None,
+        options: Optional[Union[List[str], Tuple[float, float]]] = None,
+        shuffle: bool = False,
+        include_skip: bool = True,
+    ):
+        """Wrap around pigeon
+
+        Parameters
+        ----------
+        options: list(any) or tuple(start, end, [step]) or None
+                if list: list of labels for binary classification task (Dropdown or Buttons)
+                if tuple: range for regression task (IntSlider or FloatSlider)
+                if None: arbitrary text input (TextArea)
+        shuffle: bool, shuffle the examples before annotating
+        include_skip: bool, include option to skip example while annotating
+        job_plotter: func, function for plotting the job
+        :param ref_idx: index for plotting two examples and this one is the ref, defaults to None
+        :type ref_idx: Optional[int], optional
+        """
+        from pigeon import annotate
+        import matplotlib.pyplot as plt
+        from IPython.display import display, Image
+        import io
+
+        def plot_ir(idx, row, job_plotter, ref=None):
+            fig, ax = plt.subplots()
+            job_plotter(row["jobs"], ax)
+            if ref:
+                job_plotter(ref["jobs"], ax)
+            ax.legend(["aaa", "REF"])
+            return fig
+
+        def plt_to_image(fig):
+            buf = io.BytesIO()
+            fig.savefig(buf, format="png")
+            buf.seek(0)
+            plt.close(fig)  # Close the figure to free resources
+            return Image(data=buf.getvalue())
+
+        if ref_idx is not None:
+            ref = self[ref_idx]
+        if job_plotter is not None:
+            display_fn = lambda row: display(plt_to_image(plot_ir(*row, job_plotter, ref=ref)))
+
+        annotations = annotate(
+            enumerate(self),
+            display_fn=display_fn,
+            options=options,
+            shuffle=shuffle,
+            include_skip=include_skip,
+        )
+        self.add_annotations(
+            annotations,
+            annotation_col="annotations",
+        )
+        return annotations
+
+    def add_annotations(
+        self,
+        annotations,
+        annotation_col="annotations",
+    ):
+        pigeon_annotation = {x[0][0]: x[1] for x in annotations}
+        annotations_all = []
+        for i in range(len(self)):
+            annotations_all.append(pigeon_annotation.get(i, None))
+        self.data[annotation_col] = annotations_all
+        return annotation_col
 
     ############################################################################
     ##################               visualize             #####################

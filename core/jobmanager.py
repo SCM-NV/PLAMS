@@ -3,14 +3,14 @@ import re
 import shutil
 import threading
 from os.path import join as opj
-from typing import TYPE_CHECKING, Optional, List, Dict
+from typing import TYPE_CHECKING, Dict, List, Optional
 
 from scm.plams.core.basejob import MultiJob
 from scm.plams.core.enums import JobStatus
 from scm.plams.core.errors import FileError, PlamsError
+from scm.plams.core.formatters import JobCSVFormatter
 from scm.plams.core.functions import config, get_logger, log
 from scm.plams.core.logging import Logger
-from scm.plams.core.formatters import JobCSVFormatter
 
 if TYPE_CHECKING:
     from scm.plams.core.basejob import Job
@@ -94,7 +94,7 @@ class JobManager:
             job_logger.configure(
                 logfile_level=7,
                 logfile_path=opj(self.workdir, "job_logfile.csv"),
-                csv_formatter=JobCSVFormatter,
+                # csv_formatter=JobCSVFormatter,
                 include_date=True,
                 include_time=True,
             )
