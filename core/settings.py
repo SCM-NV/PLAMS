@@ -1,10 +1,23 @@
 import contextlib
 import json
 import textwrap
-from collections import UserDict
-from functools import wraps
 import threading
-from typing import TYPE_CHECKING, TypeVar, Union, Tuple, Type
+from functools import wraps
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    Hashable,
+    List,
+    Literal,
+    Optional,
+    Sequence,
+    Set,
+    Tuple,
+    Type,
+    TypeVar,
+    Union,
+)
 
 __all__ = [
     "Settings",

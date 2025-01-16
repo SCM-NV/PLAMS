@@ -3475,3 +3475,29 @@ def hybrid_committee_engine_settings(settings_list: List[Settings]) -> Settings:
             s.runscript.preamble_lines += ss.runscript.preamble_lines
 
     return s
+
+
+def parse_one_engine(engine_i: Settings):
+    if not bool(engine_i.get("_h", False)):
+        raise ValueError(f"{engine_i} does not have ._h")
+    if not bool(engine_i.get("_1", False)):
+        raise ValueError(f"{engine_i} does not have ._1")
+    engine_in = "Engine "
+    engine_in += engine_i._h + "\n"
+    engine_in += "\n".join(engine_i._1)
+    engine_in += "\nEndEngine"
+    ams = AMSJob.from_input(engine_in)
+    s_engine = ams.settings
+    s_engine.pop_nested("input.ams".split("."))
+    return s_engine
+
+
+def engine_settings_from_hybrid_committee(hybrid_settings: Settings) -> List[Settings]:
+    engines_list = hybrid_settings.get_nested("input.Hybrid.Engine".split("."), None)
+    if engines_list is None:
+        raise ValueError(f"not found input.Hybrid.Engine in {hybrid_settings}")
+    s_coll = []
+    for engine_i in engines_list:
+        s = parse_one_engine(engine_i)
+        s_coll.append(s)
+    return s_coll
