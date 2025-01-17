@@ -54,7 +54,7 @@ def format_in_table(
     header_row = " | ".join(f"{truncated_header[i]:<{col_widths[i]}}" for i in range(len(keys)))
     strs_to_print.append(header_row)
     # Create the separator line
-    separator = "-+-".join("-" * width for width in col_widths)
+    separator = "-|-".join("-" * width for width in col_widths)
     strs_to_print.append(separator)
 
     num_rows = len(values)
