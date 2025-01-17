@@ -303,7 +303,7 @@ class CSVFormatter(logging.Formatter):
         if self.include_level:
             log_record["level"] = 28 - record.levelno
         if self.log_time:
-            log_record["asctime"] = self.formatTime(record, self.datefmt)
+            log_record["logged_at"] = self.formatTime(record, self.datefmt)
 
         if isinstance(record.msg, dict):
             log_record.update(record.msg)

@@ -1889,8 +1889,8 @@ class AMSResults(Results):
 
         start_step, end_step, every, _ = self._get_integer_start_end_every_max(start_fs, end_fs, every_fs, None)
         nEntries = self.readrkf("History", "nEntries")
-        coords = np.array(self.get_history_property("Coords")).reshape(nEntries, -1, 3)
-        coords = coords[start_step:end_step:every]
+        history_coords = np.array(self.get_history_property("Coords")).reshape(nEntries, -1, 3)
+        coords = history_coords[start_step:end_step:every]
         nEntries = len(coords)
 
         axis2index = {"x": 0, "y": 1, "z": 2}
@@ -2570,31 +2570,71 @@ class AMSJob(SingleJob):
         if self.check():
             return None
         else:
-            # Something went wrong. The first place to check is the termination status on the ams.rkf.
-            # If the AMS driver stopped with a known error (called StopIt in the Fortran code), the error will be in there.
-            msg = self.read_error_msg()
-            return msg
+            # Check if there is an error captured during the job process, or a previously cached error
+            if self._error_msg:
+                return self._error_msg
 
-    def read_error_msg(self):
-        try:
-            msg = self.results.readrkf("General", "termination status")
-            if msg == "NORMAL TERMINATION with errors" or msg is None:
-                # Apparently this wasn't a hard stop in the middle of the job.
-                # Let's look for the last error in the logfile ...
-                msg = self.results.grep_file("ams.log", "ERROR: ")[-1].partition("ERROR: ")[2]
-            elif msg == "IN PROGRESS" and "$JN.err" in self.results:
-                # If the status is still "IN PROGRESS", that probably means AMS was shut down hard from the outside.
-                # E.g. it got SIGKILL from the scheduler for exceeding some resource limit.
-                # In this case useful information may be found on stderr.
-                with open(self.results["$JN.err"], "r") as err:
-                    errlines = err.read().splitlines()
-                for el in reversed(errlines):
-                    if el != "" and not el.isspace():
-                        msg = "Killed while IN PROGRESS: " + el
-                        break
-        except:  # noqa: E722
-            msg = "Could not determine error message. Please check the output manually."
-        return msg
+            default_msg = "Could not determine error message. Please check the output manually."
+            msg = None
+            try:
+                # If not, the first place to check is the termination status on the ams.rkf.
+                # If the AMS driver stopped with a known error (called StopIt in the Fortran code), the error will be in there.
+                # Status can be:
+                # - NORMAL TERMINATION with errors: find the error from the ams log file
+                # - IN PROGRESS: probably means AMS was shut down hard from the outside
+                #                e.g. it got SIGKILL from the scheduler for exceeding some resource limit
+                #                find the last error from the stderr
+                # Note AMS can crash before even creating an rkf, then can just check the output and error files.
+                try:
+                    termination_status = self.results.readrkf("General", "termination status")
+                except FileError:
+                    termination_status = None
+
+                # First look for the last error in the logfile
+                try:
+                    log_err_lines = self.results.grep_file("ams.log", "ERROR: ")
+                    if log_err_lines:
+                        self._error_msg: Optional[str] = log_err_lines[-1].partition("ERROR: ")[2]
+                        return self._error_msg
+                except FileError:
+                    pass
+
+                # Then for a licensing issue, check the output logs directly
+                try:
+                    license_err_lines = self.results.get_output_chunk(
+                        begin="LICENSE INVALID",
+                        end="License file",
+                        inc_begin=True,
+                        inc_end=True,
+                        match=1,
+                    )
+                    if license_err_lines:
+                        self._error_msg = str.join("\n", license_err_lines)
+                        return self._error_msg
+                except FileError:
+                    pass
+
+                # For any other issue fall back to the error file directly
+                if "$JN.err" in self.results:
+                    # If the status is still "IN PROGRESS", that probably means AMS was shut down hard from the outside.
+                    # E.g. it got SIGKILL from the scheduler for exceeding some resource limit.
+                    # In this case useful information may be found on stderr.
+                    with open(self.results["$JN.err"]) as err:
+                        errlines = err.read().splitlines()
+                    for el in reversed(errlines):
+                        if el != "" and not el.isspace():
+                            msg = (
+                                f"Termination status: {termination_status}. Message: {el} . "
+                                f"Check the files in {self.path} for more details."
+                            )
+                            break
+            except:
+                pass
+
+            # Cache error message if called again
+            self._error_msg = msg if msg else default_msg
+
+            return self._error_msg
 
     def hash_input(self) -> str:
         """Calculate the hash of the input file.

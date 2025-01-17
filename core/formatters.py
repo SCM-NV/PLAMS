@@ -25,12 +25,13 @@ class JobCSVFormatter(CSVFormatter):
             "job_base_name": re.sub(r"\.\d+$", "", job.name),
             "job_name": job.name,
             "job_status": job.status,
-            "job_parent_name": "",
-            "job_parent_path": "",
             "job_path": "",
             "job_ok": "",
             "job_check": "",
             "job_get_errormsg": "",
+            "job_timeline": str.join(" -> ", [f"{dt.strftime('%Y-%m-%d %H:%M:%S')} {s}" for dt, s in job.status_log]),
+            "job_parent_name": "",
+            "job_parent_path": "",
         }
 
         if job.status not in [JobStatus.CREATED, JobStatus.STARTED]:
@@ -38,15 +39,8 @@ class JobCSVFormatter(CSVFormatter):
 
             if job.status not in [JobStatus.REGISTERED, JobStatus.RUNNING]:
                 message.update({"job_ok": job.ok()})
-                try:
-                    message.update({"job_check": job.check()})
-                except TypeError:
-                    pass
-                try:
-                    # this one it is not supported by the Job class but on many jobs they have it implemented
-                    message.update({"job_get_errormsg": job.get_errormsg()})
-                except (AttributeError, TypeError):
-                    pass
+                message.update({"job_check": job.check()})
+                message.update({"job_get_errormsg": job.get_errormsg()})
 
         if job.parent:
             message["job_parent_name"] = job.parent.name

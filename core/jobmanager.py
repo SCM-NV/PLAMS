@@ -7,7 +7,7 @@ from collections import defaultdict
 from functools import cached_property
 from genericpath import isdir, isfile
 from os.path import join as opj
-from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Set
+from typing import TYPE_CHECKING, Dict, List, Optional
 
 from scm.plams.core.basejob import MultiJob
 from scm.plams.core.enums import JobStatus
@@ -100,7 +100,7 @@ class JobManager:
             job_logger.configure(
                 logfile_level=7,
                 logfile_path=opj(self.workdir, "job_logfile.csv"),
-                csv_formatter=JobCSVFormatter,
+                # csv_formatter=JobCSVFormatter,
                 include_date=True,
                 include_time=True,
             )

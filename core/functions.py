@@ -317,6 +317,7 @@ def finish(otherJM: Optional[Iterable["JobManager"]] = None, erase_workdir: bool
 
 # Register call to _finish on workflow end
 atexit.register(_finish)
+atexit.register(_logger.close)
 
 
 # ===========================================================================

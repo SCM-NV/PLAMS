@@ -216,6 +216,15 @@ class TestWater(MoleculeTestBase):
         with pytest.raises(MoleculeError):
             assert mol.guess_atomic_charges() == [1, 1, 0, 0]
 
+    def test_get_complete_molecules_within_threshold(self, mol):
+        m0 = mol.get_complete_molecules_within_threshold([2], 0)
+        m1 = mol.get_complete_molecules_within_threshold([2], 1)
+        m2 = mol.get_complete_molecules_within_threshold([2], 2)
+
+        assert m0.get_formula() == "H"
+        assert m1.get_formula() == "HO"
+        assert m2.get_formula() == "H2O"
+
 
 class TestNiO(MoleculeTestBase):
     """

@@ -136,7 +136,20 @@ class JobRunner(metaclass=_MetaRunner):
                 job._execute(self)
                 job._finalize()
         finally:
+            # Log job summaries
             try:
+                # Log any error messages to the standard logger
+                if not job.ok(False) or not job.check():
+                    err_msg = job.get_errormsg()
+                    err_lines = err_msg.splitlines()
+                    max_lines = 30
+                    if len(err_lines) > max_lines:
+                        err_lines = err_lines[:max_lines]
+                        err_lines.append("... (see output for full error)")
+                    err_msg = str.join("\n", [f"\t{l}" for l in err_lines])
+                    log(f"""Error message for job {job.name} was:\n{err_msg}""", 3)
+
+                # Log job summary to the csv logger
                 jobmanager.job_logger.log(job, level=3)
             except:  # logging should never throw, but best to make sure
                 pass
