@@ -17,7 +17,10 @@ This changelog is effective from the 2025 releases.
 * Specific `ConfigSettings` and related settings classes with explicitly defined fields
 * Support for work functions: `AMSResults.get_work_function_results` and `plot_work_function`
 * New `packmol_around` function for packing in non-orthorhombic boxes.
-* Example on `MoleculeFormats`
+* New `plot_grid_molecules` function for plotting with rdkit multiple molecules.
+* `Molecule.delete_atoms` method to delete multiple atoms with partial success 
+* Examples on `MoleculeFormats` and `MoleculeTools`
+* Examples on `Logging`
 * Script `generate_example.sh` to generate documentation pages from notebook examples
 * GitHub workflows for CI and publishing to PyPI
 * Build using `pyproject.toml`, addition of extras groups to install optional dependencies
@@ -44,9 +47,10 @@ This changelog is effective from the 2025 releases.
 * `SingleJob.load` returns the correctly loaded job
 * `AMSJob.check` handles a `NoneType` status, returning `False`
 * `MultiJob.run` locking resolved when errors raised within `prerun` and `postrun` methods
+* `Molecule.add_hatoms` to use bonding information if available when adding new hydrogen atoms
 
 ### Deprecated
-* `plams` launch script is deprecated in favour of simply running with `amspython`
+* `plams` launch script is deprecated in favor of simply running with `amspython`
 
 ### Removed
 * Legacy `BANDJob`, `DFTBJob`, `UFFJob`, `MOPACJob`, `ReaxFFJob`, `CSHessianADFJob` and `ADFJob` have been removed

@@ -5,23 +5,34 @@ import itertools
 import math
 import os
 from collections import OrderedDict
-import numpy as np
 
-from scm.plams.core.errors import FileError, MoleculeError, PTError, MissingOptionalPackageError
+import numpy as np
+from scm.plams.core.errors import (
+    FileError,
+    MissingOptionalPackageError,
+    MoleculeError,
+    PTError,
+)
 from scm.plams.core.functions import log, requires_optional_package
 from scm.plams.core.private import parse_action, smart_copy
 from scm.plams.core.settings import Settings
 from scm.plams.mol.atom import Atom
 from scm.plams.mol.bond import Bond
 from scm.plams.mol.context import AsArrayContext
-from scm.plams.mol.pdbtools import PDBHandler, PDBAtom
-from scm.plams.tools.geometry import axis_rotation_matrix, cell_angles, cell_lengths, distance_array, rotation_matrix
+from scm.plams.mol.pdbtools import PDBAtom, PDBHandler
+from scm.plams.tools.geometry import (
+    axis_rotation_matrix,
+    cell_angles,
+    cell_lengths,
+    distance_array,
+    rotation_matrix,
+)
 from scm.plams.tools.kftools import KFFile
 from scm.plams.tools.periodic_table import PT
 from scm.plams.tools.units import Units
 
 input_parser_available = "AMSBIN" in os.environ
-from typing import Union, List, Optional, Tuple, overload, Iterable, Dict, Set, Callable
+from typing import Callable, Dict, Iterable, List, Optional, Set, Tuple, Union, overload
 
 __all__ = ["Molecule"]
 
@@ -335,6 +346,26 @@ class Molecule:
         for b in reversed(atom.bonds):
             self.delete_bond(b)
         atom.mol = None
+
+    def delete_atoms(self, atoms: Iterable[Atom]) -> None:
+        """Delete multiple *atom* from the molecule.
+
+        *atom* should be an iterable of |Atom| instances which belong to the molecule. All bonds containing these atoms will be removed too.
+
+        Note that this method employs partial success, such that if deleting any atom results in an error, the remaining atoms will
+        still be deleted. An aggregate error will then be raised at the end of the operation if any errors were encountered.
+        """
+
+        errors = []
+        materialised_atoms = [at for at in atoms]  # make sure to materialise the atoms before starting deletion
+        for atom in materialised_atoms:
+            try:
+                self.delete_atom(atom)
+            except MoleculeError as err:
+                errors.append(f"{err}")
+        if any(errors):
+            error_details = str.join("\n", errors)
+            raise MoleculeError(f"Encountered one or more errors when deleting atoms:\n{error_details}")
 
     def add_bond(self, arg1: Union[Bond, Atom], arg2: Optional[Atom] = None, order: float = 1) -> None:
         """Add a new bond to the molecule.
@@ -1778,6 +1809,13 @@ class Molecule:
 
             This method does not check if *matrix* is a proper rotation matrix.
         """
+        from scipy.spatial.transform import Rotation as R
+
+        if isinstance(matrix, tuple):
+            assert isinstance(matrix[0], str), "must be x,y or z"
+            assert isinstance(matrix[1], int), "must be integer in degree"
+            matrix = R.from_euler(matrix[0], matrix[1], degrees=True).as_matrix()
+
         xyz_array = self.as_array()
         matrix = np.array(matrix).reshape(3, 3)
         xyz_array = xyz_array @ matrix.T
@@ -3207,7 +3245,9 @@ class Molecule:
         * ``filename`` -- Name of the RKF file that contains ForceField data
         """
         from scm.plams.interfaces.adfsuite.ams import AMSJob
-        from scm.plams.interfaces.adfsuite.forcefieldparams import forcefield_params_from_kf
+        from scm.plams.interfaces.adfsuite.forcefieldparams import (
+            forcefield_params_from_kf,
+        )
 
         # Read atom types and charges
         kf = KFFile(filename)
@@ -3239,8 +3279,8 @@ class Molecule:
             raise NotImplementedError(
                 "Reading from System blocks from AMS input files requires an AMS installation to be available."
             )
-        from scm.plams.interfaces.adfsuite.inputparser import InputParserFacade
         from scm.plams.interfaces.adfsuite.ams import AMSJob
+        from scm.plams.interfaces.adfsuite.inputparser import InputParserFacade
 
         sett = Settings()
         sett.input.AMS = Settings(InputParserFacade().to_dict("ams", f.read(), string_leafs=True))
@@ -3338,23 +3378,39 @@ class Molecule:
                 3         H      0.327778       0.033891      -0.901672
 
         """
-        from subprocess import DEVNULL, Popen
+        from subprocess import DEVNULL, PIPE, Popen
         from tempfile import NamedTemporaryFile
 
-        with NamedTemporaryFile(mode="w+", suffix=".xyz", delete=False) as f_in:
-            self.writexyz(f_in)
+        # Pass an input file to amsprep which contains current geometry and bonding information
+        with NamedTemporaryFile(mode="w+", suffix=".in", delete=False) as f_in:
+            self.writein(f_in)
             f_in.close()
+
+            # Get .xyz file from amsprep containing the geometry to the same precision (.mol file causes rounding)
+            # And then load the bonding information from the output
             with NamedTemporaryFile(mode="w+", suffix=".xyz", delete=False) as f_out:
-                f_out.close()
-                amsprep = os.path.join(os.environ["AMSBIN"], "amsprep")
-                p = Popen(
-                    f"sh {amsprep} -t SP -m {f_in.name} -addhatoms -exportcoordinates {f_out.name}",
-                    shell=True,
-                    stdout=DEVNULL,
-                )
-                p.communicate()
-                retmol = self.__class__(f_out.name)
-                os.remove(f_out.name)
+                with NamedTemporaryFile(mode="w+", suffix=".out", delete=False) as f_out_bonds:
+                    f_out.close()
+                    f_out_bonds.close()
+                    amsprep = os.path.join(os.environ["AMSBIN"], "amsprep")
+                    command = f"sh {amsprep} -t SP -m {f_in.name} -addhatoms -exportcoordinates {f_out.name} -bondsonly > {f_out_bonds.name}"
+                    p = Popen(
+                        command,
+                        shell=True,
+                        stdout=DEVNULL,
+                        stderr=PIPE,  # Redirect stderr to a pipe
+                    )
+                    _, stderr = p.communicate()
+                    if stderr:
+                        stderr_str = stderr.decode("utf-8").strip()
+                        log(f"amsprep raised: {stderr_str} \n Run the command ${command} to get more information")
+                    retmol = self.__class__(f_out.name)
+                    with open(f_out_bonds.name) as bonds_file:
+                        for line in bonds_file:
+                            _, i, j, bo = line.split()
+                            retmol.add_bond(retmol[int(i)], retmol[int(j)], float(bo))
+                    os.remove(f_out.name)
+                    os.remove(f_out_bonds.name)
             os.remove(f_in.name)
         return retmol
 

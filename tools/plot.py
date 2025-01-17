@@ -1,13 +1,25 @@
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union, TYPE_CHECKING
 
 import numpy as np
-from scm.plams import rkf_to_ase_atoms
 from scm.plams.core.errors import MissingOptionalPackageError
 from scm.plams.core.functions import requires_optional_package
 from scm.plams.interfaces.adfsuite.ams import AMSJob
+from scm.plams.interfaces.molecule.rdkit import to_rdmol
 from scm.plams.mol.molecule import Molecule
 
-__all__ = ["plot_band_structure", "plot_molecule", "plot_correlation", "plot_msd", "plot_work_function"]
+if TYPE_CHECKING:
+    import matplotlib.pyplot as plt
+    from os import PathLike
+    from PIL import Image as PilImage
+
+__all__ = [
+    "plot_band_structure",
+    "plot_molecule",
+    "plot_correlation",
+    "plot_msd",
+    "plot_work_function",
+    "plot_grid_molecules",
+]
 
 
 @requires_optional_package("matplotlib")
@@ -114,6 +126,67 @@ def plot_molecule(molecule, figsize=None, ax=None, keep_axis: bool = False, **kw
         ax.axis("off")
 
     return ax
+
+
+@requires_optional_package("rdkit")
+def plot_grid_molecules(
+    molecules: List[Molecule],
+    legends: Optional[List[str]] = None,
+    molsPerRow: int = 2,
+    subImgSize: Tuple[int, int] = (200, 200),
+    ax: Optional["plt.Axes"] = None,
+    save_svg_path: Optional[Union[str, "PathLike"]] = None,
+    **kwargs,
+) -> Union["PilImage", "plt.Axes", str]:
+    """Plot series of molecules in a grid using RDKit
+
+    :param ax: if provided molecules are plotted in these axes, note that the quality of the image might reduce, defaults to None
+    :param save_svg_path: pathlike of the file, with formats .svg to save it as image, it returns the svg string, defaults to None
+    :return: an image of the molecules
+    :rtype: pil.Image or plt.Axes or string
+    """
+    from rdkit.Chem import Draw, rdchem
+    from rdkit.Chem.Draw import IPythonConsole
+
+    # guess bonds, the bonds will be included in the RDKit molecule
+    [m.guess_bonds() for m in molecules]
+    molecules = [to_rdmol(m) for m in molecules]
+
+    if ax is not None or save_svg_path is not None:
+        if hasattr(rdchem.Mol, "_repr_svg_"):
+            IPythonConsole.UninstallIPythonRenderer()
+    else:
+        if not hasattr(rdchem.Mol, "_repr_svg_"):
+            IPythonConsole.InstallIPythonRenderer()
+        IPythonConsole.ipython_useSVG = True
+    if ax is not None:
+        IPythonConsole.ipython_useSVG = False
+        kwargs["useSVG"] = False
+    if save_svg_path is not None:
+        kwargs["useSVG"] = True
+
+    img = Draw.MolsToGridImage(
+        mols=molecules,
+        molsPerRow=molsPerRow,  # Number of molecules per row
+        subImgSize=subImgSize,  # Size of each individual image
+        legends=legends,
+        **kwargs,
+    )
+
+    if save_svg_path is not None:
+        if not isinstance(img, str):
+            raise TypeError(
+                f"{type(img)=} but expected str, most likely it is due to previously using ipy_useSVG=True in a notebook"
+            )
+        with open(save_svg_path, "w") as f:
+            f.write(img)
+        return img
+
+    if ax is not None and save_svg_path is None:
+        image_data = np.array(img, dtype=np.int32)
+        ax.imshow(image_data)
+        return ax
+    return img
 
 
 def get_correlation_xy(

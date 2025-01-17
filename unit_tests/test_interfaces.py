@@ -9,7 +9,10 @@ from scm.plams.unit_tests.test_helpers import skip_if_no_ams_installation
 
 def test_hybrid_engine_input():
     """test :meth:`AMSJob.get_input` for writing sub engines in a hybrid engine block of ams."""
-    AMSinput = """System
+    AMSinput = """\
+Task SinglePoint
+
+System
   Atoms
               C      -1.6447506665       1.4391568332       0.0000000000
               C      -0.5773632247       0.3290989412      -0.0074515501
@@ -30,8 +33,6 @@ def test_hybrid_engine_input():
      8 2 1.0
   End
 End
-
-Task SinglePoint
 
 Engine Hybrid
   Energy
@@ -61,13 +62,14 @@ EndEngine
 
 def test_list_block_input():
     """test :meth:`AMSJob.get_input` for writing list-blocks"""
-    AMSinput = """System
+    AMSinput = """\
+Task SinglePoint
+
+System
   Atoms
               C      -1.6447506665       1.4391568332       0.0000000000
   End
 End
-
-Task SinglePoint
 
 Engine Hybrid
   Energy

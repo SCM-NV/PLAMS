@@ -55,9 +55,12 @@ class TestAMSJob:
         """
         Get expected input file
         """
-        return """Properties
+        return """\
+Properties
   NormalModes Yes
 End
+
+Task GeometryOptimization
 
 System
   Atoms
@@ -66,8 +69,6 @@ System
               H       0.0000000000       1.0000000000       0.0000000000
   End
 End
-
-Task GeometryOptimization
 
 Engine DFTB
   Model GFN1-xTB
@@ -81,8 +82,16 @@ EndEngine
 
         # When get molecule from job
         # Then job molecule is a deep copy
-        assert job.molecule is not job_input.molecule
-        assert job.molecule.atoms is not job_input.molecule.atoms
+        if job_input.molecule is not None:
+            assert job.molecule is not job_input.molecule
+            if isinstance(job_input.molecule, dict):
+                for name, mol in job.molecule.items():
+                    assert mol is not job_input.molecule[name]
+                    assert mol.atoms is not job_input.molecule[name].atoms
+            else:
+                assert job.molecule.atoms is not job_input.molecule.atoms
+        else:
+            assert job.molecule is None
 
     def test_pickle_dumps_and_loads_job_successfully(self, job_input):
         # Given job with molecule and settings
@@ -210,7 +219,8 @@ class TestAMSJobWithPisa(TestAMSJob):
         """
         Get expected input file
         """
-        return """Properties
+        return """\
+Properties
   NormalModes True
 End
 Task GeometryOptimization
@@ -229,6 +239,66 @@ End
 """
 
 
+class TestAMSJobWithPisaOnly(TestAMSJob):
+    """
+    Test suite for AMSJob using PISA for settings and molecule input.
+    Sets up a geometry optimization of water.
+    """
+
+    @staticmethod
+    def get_input_molecule():
+        """
+        Get instance of the Molecule class passed to the AMSJob
+        """
+        return None
+
+    @staticmethod
+    def get_input_settings():
+        """
+        Instance of the Settings class passed to the AMSJob
+        """
+        skip_if_no_scm_pisa()
+        from scm.input_classes.drivers import AMS
+        from scm.input_classes.engines import DFTB
+
+        settings = Settings()
+        driver = AMS()
+        driver.Task = "GeometryOptimization"
+        driver.Properties.NormalModes = "True"
+        driver.Engine = DFTB()
+        driver.Engine.Model = "GFN1-xTB"
+        driver.System.Atoms = [
+            "O       0.0000000000       0.0000000000       0.0000000000",
+            "H       1.0000000000       0.0000000000       0.0000000000",
+            "H       0.0000000000       1.0000000000       0.0000000000",
+        ]
+        settings.input = driver
+        return settings
+
+    @staticmethod
+    def get_expected_input():
+        """
+        Get expected input file
+        """
+        return """\
+Properties
+  NormalModes True
+End
+System
+  Atoms
+    O       0.0000000000       0.0000000000       0.0000000000
+    H       1.0000000000       0.0000000000       0.0000000000
+    H       0.0000000000       1.0000000000       0.0000000000
+  End
+End
+Task GeometryOptimization
+
+Engine DFTB
+  Model GFN1-xTB
+EndEngine
+"""
+
+
 class TestAMSJobWithChemicalSystem(TestAMSJob):
     """
     Test suite for AMSJob using ChemicalSystem for molecule input
@@ -243,9 +313,9 @@ class TestAMSJobWithChemicalSystem(TestAMSJob):
         from scm.libbase import UnifiedChemicalSystem as ChemicalSystem
 
         molecule = ChemicalSystem()
-        molecule.add_atom("O", coords=[0, 0, 0], unit="A")
-        molecule.add_atom("H", coords=[1, 0, 0], unit="A")
-        molecule.add_atom("H", coords=[0, 1, 0], unit="A")
+        molecule.add_atom("O", coords=[0, 0, 0])
+        molecule.add_atom("H", coords=[1, 0, 0])
+        molecule.add_atom("H", coords=[0, 1, 0])
         return molecule
 
     @staticmethod
@@ -253,19 +323,20 @@ class TestAMSJobWithChemicalSystem(TestAMSJob):
         """
         Get expected input file
         """
-        return """Properties
+        return """\
+Properties
   NormalModes Yes
 End
 
-System
-  Atoms
-     O    0.0000000000000000  0.0000000000000000  0.0000000000000000
-     H    1.0000000000000000  0.0000000000000000  0.0000000000000000
-     H    0.0000000000000000  1.0000000000000000  0.0000000000000000
-  End
-End
-
 Task GeometryOptimization
+
+System
+   Atoms
+      O    0.0000000000000000  0.0000000000000000  0.0000000000000000
+      H    1.0000000000000000  0.0000000000000000  0.0000000000000000
+      H    0.0000000000000000  1.0000000000000000  0.0000000000000000
+   End
+End
 
 Engine DFTB
   Model GFN1-xTB
@@ -273,8 +344,48 @@ EndEngine
 
 """
 
-    def test_pickle_dumps_and_loads_job_successfully(self, job_input):
-        pytest.skip("Cannot pickle ChemicalSystem")
+
+class TestAMSJobWithChemicalSystemAndPisa(TestAMSJobWithPisa):
+    """
+    Test suite for AMSJob using ChemicalSystem for molecule input and PISA for settings input
+    """
+
+    @staticmethod
+    def get_input_molecule():
+        """
+        Instance of the Molecule class passed to the AMSJob
+        """
+        skip_if_no_scm_libbase()
+        from scm.libbase import UnifiedChemicalSystem as ChemicalSystem
+
+        molecule = ChemicalSystem()
+        molecule.add_atom("O", coords=[0, 0, 0])
+        molecule.add_atom("H", coords=[1, 0, 0])
+        molecule.add_atom("H", coords=[0, 1, 0])
+        return molecule
+
+    @staticmethod
+    def get_expected_input():
+        """
+        Get expected input file
+        """
+        return """\
+Properties
+  NormalModes True
+End
+Task GeometryOptimization
+
+Engine DFTB
+  Model GFN1-xTB
+EndEngine
+
+System
+   Atoms
+      O    0.0000000000000000  0.0000000000000000  0.0000000000000000
+      H    1.0000000000000000  0.0000000000000000  0.0000000000000000
+      H    0.0000000000000000  1.0000000000000000  0.0000000000000000
+   End
+End"""
 
 
 class TestAMSJobWithMultipleMolecules(TestAMSJob):
@@ -310,7 +421,7 @@ class TestAMSJobWithMultipleMolecules(TestAMSJob):
         settings.input.ams.NEB.Images = 9
         settings.input.ams.NEB.Iterations = 100
         settings.input.DFTB.Model = "DFTB3"
-        settings.input.DFTB.ResourcesDir = "DFTB.org/3ob-3-1"
+        settings.input.DFTB.ResourcesDir = "3ob-3-1"
         settings.input.DFTB.DispersionCorrection = "D3-BJ"
         return settings
 
@@ -319,10 +430,13 @@ class TestAMSJobWithMultipleMolecules(TestAMSJob):
         """
         Get expected input file
         """
-        return """NEB
+        return """\
+NEB
   Images 9
   Iterations 100
 End
+
+Task NEB
 
 System
   Atoms
@@ -339,31 +453,160 @@ System final
   End
 End
 
+Engine DFTB
+  DispersionCorrection D3-BJ
+  Model DFTB3
+  ResourcesDir 3ob-3-1
+EndEngine
+
+"""
+
+
+class TestAMSJobWithMultipleMoleculesAndPisa(TestAMSJobWithMultipleMolecules):
+    """
+    Test suite for AMSJob using multiple molecules and PISA for settings input.
+    Sets up a NEB calculation for the isomerisation of HCN.
+    """
+
+    @staticmethod
+    def get_input_settings():
+        """
+        Instance of the Settings class passed to the AMSJob
+        """
+        skip_if_no_scm_pisa()
+        from scm.input_classes.drivers import AMS
+        from scm.input_classes.engines import DFTB
+
+        settings = Settings()
+        driver = AMS()
+        driver.Task = "NEB"
+        driver.NEB.Images = 9
+        driver.NEB.Iterations = 100
+        driver.Engine = DFTB()
+        driver.Engine.Model = "DFTB3"
+        driver.Engine.ResourcesDir = "3ob-3-1"
+        driver.Engine.DispersionCorrection = "D3-BJ"
+        settings.input = driver
+        return settings
+
+    @staticmethod
+    def get_expected_input():
+        """
+        Get expected input file
+        """
+        return """\
+NEB
+  Images 9
+  Iterations 100
+End
 Task NEB
 
 Engine DFTB
   DispersionCorrection D3-BJ
   Model DFTB3
-  ResourcesDir DFTB.org/3ob-3-1
+  ResourcesDir 3ob-3-1
 EndEngine
 
+System
+  Atoms
+              C       0.0000000000       0.0000000000       0.0000000000
+              N       1.1800000000       0.0000000000       0.0000000000
+              H       2.1960000000       0.0000000000       0.0000000000
+  End
+End
+
+System final
+  Atoms
+              C       0.0000000000       0.0000000000       0.0000000000
+              N       1.1630000000       0.0000000000       0.0000000000
+              H      -1.0780000000       0.0000000000       0.0000000000
+  End
+End
 """
 
-    def test_init_deep_copies_molecule(self, job_input):
-        # Given job with molecule
-        job = AMSJob(molecule=job_input.molecule)
 
-        # When get molecule from job
-        # Then job molecule is a deep copy
-        assert job.molecule is not job_input.molecule
-        for name, mol in job.molecule.items():
-            assert mol is not job_input.molecule[name]
-            assert mol.atoms is not job_input.molecule[name].atoms
+class TestAMSJobWithMultipleMoleculesAndPisaOnly(TestAMSJobWithMultipleMolecules):
+    """
+    Test suite for AMSJob using multiple molecules and PISA for settings and molecule input.
+    Sets up a NEB calculation for the isomerisation of HCN.
+    """
+
+    @staticmethod
+    def get_input_molecule():
+        """
+        Get instance of the Molecule class passed to the AMSJob
+        """
+        return None
+
+    @staticmethod
+    def get_input_settings():
+        """
+        Instance of the Settings class passed to the AMSJob
+        """
+        skip_if_no_scm_pisa()
+        from scm.input_classes.drivers import AMS
+        from scm.input_classes.engines import DFTB
+
+        settings = Settings()
+        driver = AMS()
+        driver.Task = "NEB"
+        driver.NEB.Images = 9
+        driver.NEB.Iterations = 100
+        driver.Engine = DFTB()
+        driver.Engine.Model = "DFTB3"
+        driver.Engine.ResourcesDir = "3ob-3-1"
+        driver.Engine.DispersionCorrection = "D3-BJ"
+        driver.System[0].Atoms = [
+            "C       0.0000000000       0.0000000000       0.0000000000",
+            "N       1.1800000000       0.0000000000       0.0000000000",
+            "H       2.1960000000       0.0000000000       0.0000000000",
+        ]
+        driver.System[1].header = "final"
+        driver.System[1].Atoms = [
+            "C       0.0000000000       0.0000000000       0.0000000000",
+            "N       1.1630000000       0.0000000000       0.0000000000",
+            "H      -1.0780000000       0.0000000000       0.0000000000",
+        ]
+        settings.input = driver
+        return settings
+
+    @staticmethod
+    def get_expected_input():
+        """
+        Get expected input file
+        """
+        return """\
+NEB
+  Images 9
+  Iterations 100
+End
+System
+  Atoms
+    C       0.0000000000       0.0000000000       0.0000000000
+    N       1.1800000000       0.0000000000       0.0000000000
+    H       2.1960000000       0.0000000000       0.0000000000
+  End
+End
+System final
+  Atoms
+    C       0.0000000000       0.0000000000       0.0000000000
+    N       1.1630000000       0.0000000000       0.0000000000
+    H      -1.0780000000       0.0000000000       0.0000000000
+  End
+End
+Task NEB
+
+Engine DFTB
+  DispersionCorrection D3-BJ
+  Model DFTB3
+  ResourcesDir 3ob-3-1
+EndEngine
+"""
 
 
 class TestAMSJobWithMultipleChemicalSystems(TestAMSJobWithMultipleMolecules):
     """
-    Test suite for AMSJob using multiple Chemical Systems.
+    Test suite for AMSJob using multiple Chemical Systems for molecule input.
     Sets up a NEB calculation for the isomerisation of HCN.
     """
 
@@ -376,9 +619,9 @@ class TestAMSJobWithMultipleChemicalSystems(TestAMSJobWithMultipleMolecules):
         from scm.libbase import UnifiedChemicalSystem as ChemicalSystem
 
         main_molecule = ChemicalSystem()
-        main_molecule.add_atom("C", coords=(0, 0, 0), unit="A")
-        main_molecule.add_atom("N", coords=(1, 0, 0), unit="A")
-        main_molecule.add_atom("H", coords=(2, 0, 0), unit="A")
+        main_molecule.add_atom("C", coords=(0, 0, 0))
+        main_molecule.add_atom("N", coords=(1, 0, 0))
+        main_molecule.add_atom("H", coords=(2, 0, 0))
         final_molecule = main_molecule.copy()
         final_molecule.atoms[2].coords[0] = -1
         molecule = {"": main_molecule, "final": final_molecule}
@@ -390,38 +633,959 @@ class TestAMSJobWithMultipleChemicalSystems(TestAMSJobWithMultipleMolecules):
         """
         Get expected input file
         """
-        return """NEB
+        return """\
+NEB
   Images 9
   Iterations 100
 End
 
+Task NEB
+
 System
-  Atoms
-     C    0.0000000000000000  0.0000000000000000  0.0000000000000000
-     N    1.0000000000000000  0.0000000000000000  0.0000000000000000
-     H    2.0000000000000000  0.0000000000000000  0.0000000000000000
-  End
+   Atoms
+      C    0.0000000000000000  0.0000000000000000  0.0000000000000000
+      N    1.0000000000000000  0.0000000000000000  0.0000000000000000
+      H    2.0000000000000000  0.0000000000000000  0.0000000000000000
+   End
 End
 System final
-  Atoms
-     C    0.0000000000000000  0.0000000000000000  0.0000000000000000
-     N    1.0000000000000000  0.0000000000000000  0.0000000000000000
-     H   -1.0000000000000000  0.0000000000000000  0.0000000000000000
-  End
+   Atoms
+      C    0.0000000000000000  0.0000000000000000  0.0000000000000000
+      N    1.0000000000000000  0.0000000000000000  0.0000000000000000
+      H   -1.0000000000000000  0.0000000000000000  0.0000000000000000
+   End
 End
 
+Engine DFTB
+  DispersionCorrection D3-BJ
+  Model DFTB3
+  ResourcesDir 3ob-3-1
+EndEngine
+
+"""
+
+
+class TestAMSJobWithMultipleChemicalSystemsAndPisa(TestAMSJobWithMultipleMoleculesAndPisa):
+    """
+    Test suite for AMSJob using multiple Chemical Systems for molecule input and PISA for settings input.
+    Sets up a NEB calculation for the isomerisation of HCN.
+    """
+
+    @staticmethod
+    def get_input_molecule():
+        """
+        Instance of the Molecule class passed to the AMSJob
+        """
+        skip_if_no_scm_libbase()
+        from scm.libbase import UnifiedChemicalSystem as ChemicalSystem
+
+        main_molecule = ChemicalSystem()
+        main_molecule.add_atom("C", coords=(0, 0, 0))
+        main_molecule.add_atom("N", coords=(1, 0, 0))
+        main_molecule.add_atom("H", coords=(2, 0, 0))
+        final_molecule = main_molecule.copy()
+        final_molecule.atoms[2].coords[0] = -1
+        molecule = {"": main_molecule, "final": final_molecule}
+
+        return molecule
+
+    @staticmethod
+    def get_expected_input():
+        """
+        Get expected input file
+        """
+        return """\
+NEB
+  Images 9
+  Iterations 100
+End
 Task NEB
 
 Engine DFTB
   DispersionCorrection D3-BJ
   Model DFTB3
-  ResourcesDir DFTB.org/3ob-3-1
+  ResourcesDir 3ob-3-1
 EndEngine
 
+System
+   Atoms
+      C    0.0000000000000000  0.0000000000000000  0.0000000000000000
+      N    1.0000000000000000  0.0000000000000000  0.0000000000000000
+      H    2.0000000000000000  0.0000000000000000  0.0000000000000000
+   End
+End
+System final
+   Atoms
+      C    0.0000000000000000  0.0000000000000000  0.0000000000000000
+      N    1.0000000000000000  0.0000000000000000  0.0000000000000000
+      H   -1.0000000000000000  0.0000000000000000  0.0000000000000000
+   End
+End"""
+
+
+class TestAMSJobWithSystemBlockSettings(TestAMSJob):
+    """
+    Test suite for AMSJob with system block overrides/settings in the settings object.
+    Sets up MD of Lennard-Jones system.
+    """
+
+    @staticmethod
+    def get_input_molecule():
+        """
+        Get instance of the Molecule class passed to the AMSJob
+        """
+        molecule = Molecule()
+        molecule.add_atom(Atom(symbol="Ar", coords=(0, 0, 0)))
+        molecule.add_atom(Atom(symbol="Ar", coords=(1.605, 0.9266471820493496, 2.605)))
+        molecule.lattice = [[3.21, 0.0, 0.0], [1.605, 2.779941546148048, 0.0], [0.0, 0.0, 5.21]]
+        molecule.properties.charge = 42  # value to be overridden
+        return molecule
+
+    @staticmethod
+    def get_input_settings():
+        """
+        Get instance of the Settings class passed to the AMSJob
+        """
+        settings = Settings()
+        settings.input.ams.Task = "MolecularDynamics"
+        settings.input.ams.MolecularDynamics.nSteps = 200
+        settings.input.ams.MolecularDynamics.TimeStep = 5.0
+        settings.input.ams.MolecularDynamics.Thermostat.Type = "NHC"
+        settings.input.ams.MolecularDynamics.Thermostat.Temperature = 298.15
+        settings.input.ams.MolecularDynamics.Thermostat.Tau = 100
+        settings.input.ams.MolecularDynamics.Trajectory.SamplingFreq = 20
+        settings.input.ams.MolecularDynamics.InitialVelocities.Type = "random"
+        settings.input.ams.MolecularDynamics.InitialVelocities.Temperature = 200
+        settings.input.ams.System.SuperCell = "4 4 4"
+        settings.input.ams.System.PerturbCoordinates = 0.1
+        settings.input.ams.System.Charge = 0
+
+        return settings
+
+    @staticmethod
+    def get_expected_input():
+        """
+        Get expected input file
+        """
+        return """\
+MolecularDynamics
+  InitialVelocities
+    Temperature 200
+    Type random
+  End
+  Thermostat
+    Tau 100
+    Temperature 298.15
+    Type NHC
+  End
+  TimeStep 5.0
+  Trajectory
+    SamplingFreq 20
+  End
+  nSteps 200
+End
+
+Task MolecularDynamics
+
+System
+  Atoms
+             Ar       0.0000000000       0.0000000000       0.0000000000
+             Ar       1.6050000000       0.9266471820       2.6050000000
+  End
+  Charge 0
+  Lattice
+         3.2100000000     0.0000000000     0.0000000000
+         1.6050000000     2.7799415461     0.0000000000
+         0.0000000000     0.0000000000     5.2100000000
+  End
+  PerturbCoordinates 0.1
+  SuperCell 4 4 4
+End
 """
 
-    def test_pickle_dumps_and_loads_job_successfully(self, job_input):
-        pytest.skip("Cannot pickle ChemicalSystem")
+
+class TestAMSJobWithSystemBlockSettingsAndPisa(TestAMSJobWithSystemBlockSettings):
+    """
+    Test suite for AMSJob with system block overrides/settings in the PISA settings object.
+    Sets up MD of Lennard-Jones system.
+    """
+
+    @staticmethod
+    def get_input_settings():
+        """
+        Get instance of the Settings class passed to the AMSJob
+        """
+        skip_if_no_scm_pisa()
+        from scm.input_classes.drivers import AMS
+
+        settings = Settings()
+        driver = AMS()
+        driver.Task = "MolecularDynamics"
+        driver.MolecularDynamics.NSteps = 200
+        driver.MolecularDynamics.TimeStep = 5.0
+        driver.MolecularDynamics.Thermostat.Type = "NHC"
+        driver.MolecularDynamics.Thermostat.Temperature = [298.15]
+        driver.MolecularDynamics.Thermostat.Tau = 100
+        driver.MolecularDynamics.Trajectory.SamplingFreq = 20
+        driver.MolecularDynamics.InitialVelocities.Type = "random"
+        driver.MolecularDynamics.InitialVelocities.Temperature = 200
+        driver.System.SuperCell = [4, 4, 4]
+        driver.System.PerturbCoordinates = 0.1
+        driver.System.Charge = 0
+        settings.input = driver
+
+        return settings
+
+    @staticmethod
+    def get_expected_input():
+        """
+        Get expected input file
+        """
+        return """\
+MolecularDynamics
+  InitialVelocities
+    Temperature 200.0
+    Type Random
+  End
+  NSteps 200
+  Thermostat
+    Tau 100.0
+    Temperature 298.15
+    Type NHC
+  End
+  TimeStep 5.0
+  Trajectory
+    SamplingFreq 20
+  End
+End
+
+System
+  Atoms
+             Ar       0.0000000000       0.0000000000       0.0000000000
+             Ar       1.6050000000       0.9266471820       2.6050000000
+  End
+  Charge 0.0
+  Lattice
+         3.2100000000     0.0000000000     0.0000000000
+         1.6050000000     2.7799415461     0.0000000000
+         0.0000000000     0.0000000000     5.2100000000
+  End
+  PerturbCoordinates 0.1
+  SuperCell 4 4 4
+End
+Task MolecularDynamics
+"""
+
+
+class TestAMSJobWithSystemBlockSettingsAndPisaOnly(TestAMSJobWithSystemBlockSettings):
+    """
+    Test suite for AMSJob with system block overrides/settings in the PISA settings.
+    Sets up MD of Lennard-Jones system.
+    """
+
+    @staticmethod
+    def get_input_molecule():
+        """
+        Get instance of the Molecule class passed to the AMSJob
+        """
+        return None
+
+    @staticmethod
+    def get_input_settings():
+        """
+        Get instance of the Settings class passed to the AMSJob
+        """
+        skip_if_no_scm_pisa()
+        from scm.input_classes.drivers import AMS
+
+        settings = Settings()
+        driver = AMS()
+        driver.Task = "MolecularDynamics"
+        driver.MolecularDynamics.NSteps = 200
+        driver.MolecularDynamics.TimeStep = 5.0
+        driver.MolecularDynamics.Thermostat.Type = "NHC"
+        driver.MolecularDynamics.Thermostat.Temperature = [298.15]
+        driver.MolecularDynamics.Thermostat.Tau = 100
+        driver.MolecularDynamics.Trajectory.SamplingFreq = 20
+        driver.MolecularDynamics.InitialVelocities.Type = "random"
+        driver.MolecularDynamics.InitialVelocities.Temperature = 200
+        driver.System.Atoms = [
+            "Ar 0.0000000000       0.0000000000       0.0000000000",
+            "Ar 1.6050000000       0.9266471820       2.6050000000",
+        ]
+        driver.System.Lattice = [
+            "3.2100000000     0.0000000000     0.0000000000",
+            "1.6050000000     2.7799415461     0.0000000000",
+            "0.0000000000     0.0000000000     5.2100000000",
+        ]
+        driver.System.SuperCell = [4, 4, 4]
+        driver.System.PerturbCoordinates = 0.1
+        driver.System.Charge = 0
+        settings.input = driver
+
+        return settings
+
+    @staticmethod
+    def get_expected_input():
+        """
+        Get expected input file
+        """
+        return """\
+MolecularDynamics
+  InitialVelocities
+    Temperature 200.0
+    Type Random
+  End
+  NSteps 200
+  Thermostat
+    Tau 100.0
+    Temperature 298.15
+    Type NHC
+  End
+  TimeStep 5.0
+  Trajectory
+    SamplingFreq 20
+  End
+End
+System
+  Atoms
+    Ar 0.0000000000       0.0000000000       0.0000000000
+    Ar 1.6050000000       0.9266471820       2.6050000000
+  End
+  Charge 0.0
+  Lattice
+    3.2100000000     0.0000000000     0.0000000000
+    1.6050000000     2.7799415461     0.0000000000
+    0.0000000000     0.0000000000     5.2100000000
+  End
+  PerturbCoordinates 0.1
+  SuperCell 4 4 4
+End
+Task MolecularDynamics
+"""
+
+
+class TestAMSJobWithSystemBlockSettingsAndChemicalSystem(TestAMSJobWithSystemBlockSettings):
+    """
+    Test suite for AMSJob with system block overrides/settings in the settings object and a chemical system as the molecule input.
+    Sets up MD of Lennard-Jones system.
+    """
+
+    @staticmethod
+    def get_input_molecule():
+        """
+        Get instance of the Molecule class passed to the AMSJob
+        """
+        skip_if_no_scm_libbase()
+        from scm.libbase import UnifiedChemicalSystem as ChemicalSystem, UnifiedLattice as Lattice
+
+        molecule = ChemicalSystem()
+        molecule.add_atom("Ar", coords=(0, 0, 0))
+        molecule.add_atom("Ar", coords=(1.605, 0.9266471820493496, 2.605))
+        molecule.lattice = Lattice([[3.21, 0.0, 0.0], [1.605, 2.779941546148048, 0.0], [0.0, 0.0, 5.21]])
+        molecule.charge = 42  # value to be overridden
+        return molecule
+
+    @staticmethod
+    def get_expected_input():
+        """
+        Get expected input file
+        """
+        return """\
+MolecularDynamics
+  InitialVelocities
+    Temperature 200
+    Type random
+  End
+  Thermostat
+    Tau 100
+    Temperature 298.15
+    Type NHC
+  End
+  TimeStep 5.0
+  Trajectory
+    SamplingFreq 20
+  End
+  nSteps 200
+End
+
+Task MolecularDynamics
+
+System
+  Atoms
+     Ar   0.0000000000000000  0.0000000000000000  0.0000000000000000
+     Ar   1.6050000000000000  0.9266471820493496  2.6050000000000000
+  End
+  Charge 0
+  Lattice
+     3.2100000000000000   0.0000000000000000   0.0000000000000000
+     1.6050000000000000   2.7799415461480477   0.0000000000000000
+     0.0000000000000000   0.0000000000000000   5.2100000000000000
+  End
+  PerturbCoordinates 0.1
+  SuperCell 4 4 4
+End
+"""
+
+
+class TestAMSJobWithSystemBlockSettingsAndChemicalSystemAndPisa(TestAMSJobWithSystemBlockSettingsAndPisa):
+    """
+    Test suite for AMSJob with system block overrides/settings in the Pisa settings object and a chemical system as the molecule input.
+    Sets up MD of Lennard-Jones system.
+    """
+
+    @staticmethod
+    def get_input_molecule():
+        """
+        Get instance of the Molecule class passed to the AMSJob
+        """
+        skip_if_no_scm_libbase()
+        from scm.libbase import UnifiedChemicalSystem as ChemicalSystem, UnifiedLattice as Lattice
+
+        molecule = ChemicalSystem()
+        molecule.add_atom("Ar", coords=(0, 0, 0))
+        molecule.add_atom("Ar", coords=(1.605, 0.9266471820493496, 2.605))
+        molecule.lattice = Lattice([[3.21, 0.0, 0.0], [1.605, 2.779941546148048, 0.0], [0.0, 0.0, 5.21]])
+        molecule.charge = 42  # value to be overridden
+        return molecule
+
+    @staticmethod
+    def get_expected_input():
+        """
+        Get expected input file
+        """
+        return """\
+MolecularDynamics
+  InitialVelocities
+    Temperature 200.0
+    Type Random
+  End
+  NSteps 200
+  Thermostat
+    Tau 100.0
+    Temperature 298.15
+    Type NHC
+  End
+  TimeStep 5.0
+  Trajectory
+    SamplingFreq 20
+  End
+End
+
+System
+  Atoms
+     Ar   0.0000000000000000  0.0000000000000000  0.0000000000000000
+     Ar   1.6050000000000000  0.9266471820493496  2.6050000000000000
+  End
+  Charge 0.0
+  Lattice
+     3.2100000000000000   0.0000000000000000   0.0000000000000000
+     1.6050000000000000   2.7799415461480477   0.0000000000000000
+     0.0000000000000000   0.0000000000000000   5.2100000000000000
+  End
+  PerturbCoordinates 0.1
+  SuperCell 4 4 4
+End
+Task MolecularDynamics
+"""
+
+
+class TestAMSJobWithSystemBlockSettingsAndMultipleMolecules(TestAMSJob):
+    """
+    Test suite for AMSJob using multiple molecules with system block overrides/settings.
+    Sets up a PES scan.
+    """
+
+    @staticmethod
+    def get_input_molecule():
+        """
+        Get instance of the Molecule class passed to the AMSJob
+        """
+        main_molecule = Molecule()
+        main_molecule.add_atom(Atom(symbol="C", coords=(-0.13949723, -0.08053322, -0.12698191)))
+        main_molecule.add_atom(Atom(symbol="C", coords=(0.14718597, -0.17422444, 1.25723648)))
+        main_molecule.add_atom(Atom(symbol="O", coords=(1.12643603, 0.42644528, 1.83497366)))
+        main_molecule.add_atom(Atom(symbol="C", coords=(-1.17969400, -0.73436273, -0.69479265)))
+        main_molecule.add_atom(Atom(symbol="H", coords=(1.73538143, 1.00860600, 1.24790832)))
+        main_molecule.add_atom(Atom(symbol="H", coords=(0.51558278, 0.54974352, -0.75249667)))
+        main_molecule.add_atom(Atom(symbol="H", coords=(-0.42536492, -0.76321853, 2.00541072)))
+        main_molecule.add_atom(Atom(symbol="H", coords=(-1.40444698, -0.66207335, -1.76629803)))
+        main_molecule.add_atom(Atom(symbol="H", coords=(-1.87423948, -1.37900373, -0.15129934)))
+
+        second_molecule = main_molecule.copy()
+        second_molecule.properties.charge = 42
+
+        molecule = {"": main_molecule, "state2": second_molecule}
+
+        return molecule
+
+    @staticmethod
+    def get_input_settings():
+        """
+        Instance of the Settings class passed to the AMSJob
+        """
+        settings = Settings()
+        settings.input.ams.Task = "PESExploration"
+        settings.input.ams.PESExploration.Job = "LandscapeRefinement"
+        settings.input.ams.PESExploration.LoadEnergyLandscape.Path = "foo.results"
+        settings.input.ams.PESExploration.LoadEnergyLandscape.Remove = "2 5 6 7"
+        settings.input.ams.PESExploration.Optimizer.ConvergedForce = 0.01
+        settings.input.ams.PESExploration.SaddleSearch.RelaxFromSaddlePoint = "T"
+        settings.input.ams.GeometryOptimization.InitialHessian.Type = "Calculate"
+        settings.input.ams.system = []
+        settings.input.ams.system.append(Settings({"Charge": 1.0}))
+        settings.input.ams.system.append(Settings({"_h": "state2", "Charge": 1.0, "PerturbCoordinates": 0.1}))
+        return settings
+
+    @staticmethod
+    def get_expected_input():
+        """
+        Get expected input file
+        """
+        return """\
+GeometryOptimization
+  InitialHessian
+    Type Calculate
+  End
+End
+
+PESExploration
+  Job LandscapeRefinement
+  LoadEnergyLandscape
+    Path foo.results
+    Remove 2 5 6 7
+  End
+  Optimizer
+    ConvergedForce 0.01
+  End
+  SaddleSearch
+    RelaxFromSaddlePoint T
+  End
+End
+
+Task PESExploration
+
+System
+  Atoms
+              C      -0.1394972300      -0.0805332200      -0.1269819100
+              C       0.1471859700      -0.1742244400       1.2572364800
+              O       1.1264360300       0.4264452800       1.8349736600
+              C      -1.1796940000      -0.7343627300      -0.6947926500
+              H       1.7353814300       1.0086060000       1.2479083200
+              H       0.5155827800       0.5497435200      -0.7524966700
+              H      -0.4253649200      -0.7632185300       2.0054107200
+              H      -1.4044469800      -0.6620733500      -1.7662980300
+              H      -1.8742394800      -1.3790037300      -0.1512993400
+  End
+  Charge 1.0
+End
+System state2
+  Atoms
+              C      -0.1394972300      -0.0805332200      -0.1269819100
+              C       0.1471859700      -0.1742244400       1.2572364800
+              O       1.1264360300       0.4264452800       1.8349736600
+              C      -1.1796940000      -0.7343627300      -0.6947926500
+              H       1.7353814300       1.0086060000       1.2479083200
+              H       0.5155827800       0.5497435200      -0.7524966700
+              H      -0.4253649200      -0.7632185300       2.0054107200
+              H      -1.4044469800      -0.6620733500      -1.7662980300
+              H      -1.8742394800      -1.3790037300      -0.1512993400
+  End
+  Charge 1.0
+  PerturbCoordinates 0.1
+End
+"""
+
+
+class TestAMSJobWithSystemBlockSettingsAndMultipleMoleculesAndPisa(
+    TestAMSJobWithSystemBlockSettingsAndMultipleMolecules
+):
+    """
+    Test suite for AMSJob using multiple molecules with system block overrides/settings and PISA for settings input.
+    Sets up a PES scan.
+    """
+
+    @staticmethod
+    def get_input_settings():
+        """
+        Instance of the Settings class passed to the AMSJob
+        """
+        skip_if_no_scm_pisa()
+        from scm.input_classes.drivers import AMS
+
+        settings = Settings()
+        driver = AMS()
+        driver.Task = "PESExploration"
+        driver.PESExploration.Job = "LandscapeRefinement"
+        driver.PESExploration.LoadEnergyLandscape.Path = "foo.results"
+        driver.PESExploration.LoadEnergyLandscape.Remove = [2, 5, 6, 7]
+        driver.PESExploration.Optimizer.ConvergedForce = 0.01
+        driver.PESExploration.SaddleSearch.RelaxFromSaddlePoint = "T"
+        driver.GeometryOptimization.InitialHessian.Type = "Calculate"
+        driver.System[0].Charge = 1.0
+        driver.System[1].Charge = 1.0
+        driver.System[1].PerturbCoordinates = 0.1
+        driver.System[1].header = "state2"
+        settings.input = driver
+        return settings
+
+    @staticmethod
+    def get_expected_input():
+        """
+        Get expected input file
+        """
+        return """\
+GeometryOptimization
+  InitialHessian
+    Type Calculate
+  End
+End
+PESExploration
+  Job LandscapeRefinement
+  LoadEnergyLandscape
+    Path foo.results
+    Remove 2 5 6 7
+  End
+  Optimizer
+    ConvergedForce 0.01
+  End
+  SaddleSearch
+    RelaxFromSaddlePoint True
+  End
+End
+
+System
+  Atoms
+              C      -0.1394972300      -0.0805332200      -0.1269819100
+              C       0.1471859700      -0.1742244400       1.2572364800
+              O       1.1264360300       0.4264452800       1.8349736600
+              C      -1.1796940000      -0.7343627300      -0.6947926500
+              H       1.7353814300       1.0086060000       1.2479083200
+              H       0.5155827800       0.5497435200      -0.7524966700
+              H      -0.4253649200      -0.7632185300       2.0054107200
+              H      -1.4044469800      -0.6620733500      -1.7662980300
+              H      -1.8742394800      -1.3790037300      -0.1512993400
+  End
+  Charge 1.0
+End
+
+System state2
+  Atoms
+              C      -0.1394972300      -0.0805332200      -0.1269819100
+              C       0.1471859700      -0.1742244400       1.2572364800
+              O       1.1264360300       0.4264452800       1.8349736600
+              C      -1.1796940000      -0.7343627300      -0.6947926500
+              H       1.7353814300       1.0086060000       1.2479083200
+              H       0.5155827800       0.5497435200      -0.7524966700
+              H      -0.4253649200      -0.7632185300       2.0054107200
+              H      -1.4044469800      -0.6620733500      -1.7662980300
+              H      -1.8742394800      -1.3790037300      -0.1512993400
+  End
+  Charge 1.0
+  PerturbCoordinates 0.1
+End
+Task PESExploration
+"""
+
+
+class TestAMSJobWithSystemBlockSettingsAndMultipleMoleculesAndPisaOnly(
+    TestAMSJobWithSystemBlockSettingsAndMultipleMolecules
+):
+    """
+    Test suite for AMSJob using multiple molecules with system block overrides/settings and PISA for settings and molecule input.
+    Sets up a PES scan.
+    """
+
+    @staticmethod
+    def get_input_molecule():
+        return None
+
+    @staticmethod
+    def get_input_settings():
+        """
+        Instance of the Settings class passed to the AMSJob
+        """
+        skip_if_no_scm_pisa()
+        from scm.input_classes.drivers import AMS
+
+        settings = Settings()
+        driver = AMS()
+        driver.Task = "PESExploration"
+        driver.PESExploration.Job = "LandscapeRefinement"
+        driver.PESExploration.LoadEnergyLandscape.Path = "foo.results"
+        driver.PESExploration.LoadEnergyLandscape.Remove = [2, 5, 6, 7]
+        driver.PESExploration.Optimizer.ConvergedForce = 0.01
+        driver.PESExploration.SaddleSearch.RelaxFromSaddlePoint = "T"
+        driver.GeometryOptimization.InitialHessian.Type = "Calculate"
+        driver.System[0].Atoms = [
+            "C      -0.1394972300      -0.0805332200      -0.1269819100",
+            "C       0.1471859700      -0.1742244400       1.2572364800",
+            "O       1.1264360300       0.4264452800       1.8349736600",
+            "C      -1.1796940000      -0.7343627300      -0.6947926500",
+            "H       1.7353814300       1.0086060000       1.2479083200",
+            "H       0.5155827800       0.5497435200      -0.7524966700",
+            "H      -0.4253649200      -0.7632185300       2.0054107200",
+            "H      -1.4044469800      -0.6620733500      -1.7662980300",
+            "H      -1.8742394800      -1.3790037300      -0.1512993400",
+        ]
+        driver.System[1].Atoms = [
+            "C      -0.1394972300      -0.0805332200      -0.1269819100",
+            "C       0.1471859700      -0.1742244400       1.2572364800",
+            "O       1.1264360300       0.4264452800       1.8349736600",
+            "C      -1.1796940000      -0.7343627300      -0.6947926500",
+            "H       1.7353814300       1.0086060000       1.2479083200",
+            "H       0.5155827800       0.5497435200      -0.7524966700",
+            "H      -0.4253649200      -0.7632185300       2.0054107200",
+            "H      -1.4044469800      -0.6620733500      -1.7662980300",
+            "H      -1.8742394800      -1.3790037300      -0.1512993400",
+        ]
+        driver.System[0].Charge = 1.0
+        driver.System[1].Charge = 1.0
+        driver.System[1].PerturbCoordinates = 0.1
+        driver.System[1].header = "state2"
+        settings.input = driver
+        return settings
+
+    @staticmethod
+    def get_expected_input():
+        """
+        Get expected input file
+        """
+        return """\
+GeometryOptimization
+  InitialHessian
+    Type Calculate
+  End
+End
+PESExploration
+  Job LandscapeRefinement
+  LoadEnergyLandscape
+    Path foo.results
+    Remove 2 5 6 7
+  End
+  Optimizer
+    ConvergedForce 0.01
+  End
+  SaddleSearch
+    RelaxFromSaddlePoint True
+  End
+End
+System
+  Atoms
+    C      -0.1394972300      -0.0805332200      -0.1269819100
+    C       0.1471859700      -0.1742244400       1.2572364800
+    O       1.1264360300       0.4264452800       1.8349736600
+    C      -1.1796940000      -0.7343627300      -0.6947926500
+    H       1.7353814300       1.0086060000       1.2479083200
+    H       0.5155827800       0.5497435200      -0.7524966700
+    H      -0.4253649200      -0.7632185300       2.0054107200
+    H      -1.4044469800      -0.6620733500      -1.7662980300
+    H      -1.8742394800      -1.3790037300      -0.1512993400
+  End
+  Charge 1.0
+End
+System state2
+  Atoms
+    C      -0.1394972300      -0.0805332200      -0.1269819100
+    C       0.1471859700      -0.1742244400       1.2572364800
+    O       1.1264360300       0.4264452800       1.8349736600
+    C      -1.1796940000      -0.7343627300      -0.6947926500
+    H       1.7353814300       1.0086060000       1.2479083200
+    H       0.5155827800       0.5497435200      -0.7524966700
+    H      -0.4253649200      -0.7632185300       2.0054107200
+    H      -1.4044469800      -0.6620733500      -1.7662980300
+    H      -1.8742394800      -1.3790037300      -0.1512993400
+  End
+  Charge 1.0
+  PerturbCoordinates 0.1
+End
+Task PESExploration
+"""
+
+
+class TestAMSJobWithSystemBlockSettingsAndMultipleChemicalSystems(
+    TestAMSJobWithSystemBlockSettingsAndMultipleMolecules
+):
+    """
+    Test suite for AMSJob using multiple chemical systems with system block overrides/settings.
+    Sets up a PES scan.
+    """
+
+    @staticmethod
+    def get_input_molecule():
+        """
+        Get instance of the Molecule class passed to the AMSJob
+        """
+        skip_if_no_scm_libbase()
+        from scm.libbase import UnifiedChemicalSystem as ChemicalSystem
+
+        main_molecule = ChemicalSystem()
+        main_molecule.add_atom("C", coords=(-0.13949723, -0.08053322, -0.12698191))
+        main_molecule.add_atom("C", coords=(0.14718597, -0.17422444, 1.25723648))
+        main_molecule.add_atom("O", coords=(1.12643603, 0.42644528, 1.83497366))
+        main_molecule.add_atom("C", coords=(-1.17969400, -0.73436273, -0.69479265))
+        main_molecule.add_atom("H", coords=(1.73538143, 1.00860600, 1.24790832))
+        main_molecule.add_atom("H", coords=(0.51558278, 0.54974352, -0.75249667))
+        main_molecule.add_atom("H", coords=(-0.42536492, -0.76321853, 2.00541072))
+        main_molecule.add_atom("H", coords=(-1.40444698, -0.66207335, -1.76629803))
+        main_molecule.add_atom("H", coords=(-1.87423948, -1.37900373, -0.15129934))
+
+        second_molecule = main_molecule.copy()
+        second_molecule.charge = 42
+
+        molecule = {"": main_molecule, "state2": second_molecule}
+
+        return molecule
+
+    @staticmethod
+    def get_expected_input():
+        """
+        Get expected input file
+        """
+        return """\
+GeometryOptimization
+  InitialHessian
+    Type Calculate
+  End
+End
+
+PESExploration
+  Job LandscapeRefinement
+  LoadEnergyLandscape
+    Path foo.results
+    Remove 2 5 6 7
+  End
+  Optimizer
+    ConvergedForce 0.01
+  End
+  SaddleSearch
+    RelaxFromSaddlePoint T
+  End
+End
+
+Task PESExploration
+
+System
+  Atoms
+     C   -0.1394972300000000 -0.0805332200000000 -0.1269819100000000
+     C    0.1471859700000000 -0.1742244400000000  1.2572364800000000
+     O    1.1264360299999998  0.4264452800000000  1.8349736600000000
+     C   -1.1796939999999998 -0.7343627300000000 -0.6947926500000000
+     H    1.7353814299999999  1.0086059999999999  1.2479083199999998
+     H    0.5155827800000000  0.5497435200000000 -0.7524966700000000
+     H   -0.4253649200000000 -0.7632185299999998  2.0054107200000000
+     H   -1.4044469799999997 -0.6620733500000000 -1.7662980299999997
+     H   -1.8742394800000000 -1.3790037300000000 -0.1512993400000000
+  End
+  Charge 1.0
+End
+System state2
+  Atoms
+     C   -0.1394972300000000 -0.0805332200000000 -0.1269819100000000
+     C    0.1471859700000000 -0.1742244400000000  1.2572364800000000
+     O    1.1264360299999998  0.4264452800000000  1.8349736600000000
+     C   -1.1796939999999998 -0.7343627300000000 -0.6947926500000000
+     H    1.7353814299999999  1.0086059999999999  1.2479083199999998
+     H    0.5155827800000000  0.5497435200000000 -0.7524966700000000
+     H   -0.4253649200000000 -0.7632185299999998  2.0054107200000000
+     H   -1.4044469799999997 -0.6620733500000000 -1.7662980299999997
+     H   -1.8742394800000000 -1.3790037300000000 -0.1512993400000000
+  End
+  Charge 1.0
+  PerturbCoordinates 0.1
+End
+"""
+
+
+class TestAMSJobWithSystemBlockSettingsAndMultipleChemicalSystemsAndPisa(
+    TestAMSJobWithSystemBlockSettingsAndMultipleMolecules
+):
+    """
+    Test suite for AMSJob using multiple chemical systems with system block overrides/settings and PISA for settings input.
+    Sets up a PES scan.
+    """
+
+    @staticmethod
+    def get_input_settings():
+        """
+        Instance of the Settings class passed to the AMSJob
+        """
+        skip_if_no_scm_pisa()
+        from scm.input_classes.drivers import AMS
+
+        settings = Settings()
+        driver = AMS()
+        driver.Task = "PESExploration"
+        driver.PESExploration.Job = "LandscapeRefinement"
+        driver.PESExploration.LoadEnergyLandscape.Path = "foo.results"
+        driver.PESExploration.LoadEnergyLandscape.Remove = [2, 5, 6, 7]
+        driver.PESExploration.Optimizer.ConvergedForce = 0.01
+        driver.PESExploration.SaddleSearch.RelaxFromSaddlePoint = "T"
+        driver.GeometryOptimization.InitialHessian.Type = "Calculate"
+        driver.System[0].Charge = 1.0
+        driver.System[1].Charge = 1.0
+        driver.System[1].PerturbCoordinates = 0.1
+        driver.System[1].header = "state2"
+        settings.input = driver
+        return settings
+
+    @staticmethod
+    def get_expected_input():
+        """
+        Get expected input file
+        """
+        return """\
+GeometryOptimization
+  InitialHessian
+    Type Calculate
+  End
+End
+PESExploration
+  Job LandscapeRefinement
+  LoadEnergyLandscape
+    Path foo.results
+    Remove 2 5 6 7
+  End
+  Optimizer
+    ConvergedForce 0.01
+  End
+  SaddleSearch
+    RelaxFromSaddlePoint True
+  End
+End
+
+System
+  Atoms
+              C      -0.1394972300      -0.0805332200      -0.1269819100
+              C       0.1471859700      -0.1742244400       1.2572364800
+              O       1.1264360300       0.4264452800       1.8349736600
+              C      -1.1796940000      -0.7343627300      -0.6947926500
+              H       1.7353814300       1.0086060000       1.2479083200
+              H       0.5155827800       0.5497435200      -0.7524966700
+              H      -0.4253649200      -0.7632185300       2.0054107200
+              H      -1.4044469800      -0.6620733500      -1.7662980300
+              H      -1.8742394800      -1.3790037300      -0.1512993400
+  End
+  Charge 1.0
+End
+
+System state2
+  Atoms
+              C      -0.1394972300      -0.0805332200      -0.1269819100
+              C       0.1471859700      -0.1742244400       1.2572364800
+              O       1.1264360300       0.4264452800       1.8349736600
+              C      -1.1796940000      -0.7343627300      -0.6947926500
+              H       1.7353814300       1.0086060000       1.2479083200
+              H       0.5155827800       0.5497435200      -0.7524966700
+              H      -0.4253649200      -0.7632185300       2.0054107200
+              H      -1.4044469800      -0.6620733500      -1.7662980300
+              H      -1.8742394800      -1.3790037300      -0.1512993400
+  End
+  Charge 1.0
+  PerturbCoordinates 0.1
+End
+Task PESExploration
+"""
 
 
 class TestAMSJobWithChainOfMolecules(TestAMSJob):
@@ -463,7 +1627,8 @@ class TestAMSJobWithChainOfMolecules(TestAMSJob):
         """
         Get expected input file
         """
-        return """EngineDebugging
+        return """\
+EngineDebugging
   IgnoreGradientsRequest No
 End
 
@@ -477,6 +1642,8 @@ End
 Properties
   Gradients Yes
 End
+
+Task SinglePoint
 
 System
   Atoms
@@ -500,8 +1667,6 @@ System
         12.0000000000     0.0000000000     0.0000000000
   End
 End
-
-Task SinglePoint
 
 Engine Mopac
   SCF

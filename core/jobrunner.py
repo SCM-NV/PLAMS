@@ -95,6 +95,7 @@ class JobRunner(metaclass=_MetaRunner):
     def __init__(self, parallel=False, maxjobs=0, maxthreads=256):
         self.parallel = parallel
         self.maxjobs = maxjobs
+        self.maxthreads = maxthreads
         self.semaphore = threading.BoundedSemaphore(maxjobs) if maxjobs else None
         self._jobthread_limit = threading.BoundedSemaphore(maxthreads) if maxthreads else None
 
@@ -156,6 +157,9 @@ class JobRunner(metaclass=_MetaRunner):
 
             if self.parallel and self._jobthread_limit:
                 self._jobthread_limit.release()
+
+    def __repr__(self) -> str:
+        return f"JobRunner(hex_id={hex(id(self))}, parallel={self.parallel}, maxjobs={self.maxjobs}, maxthreads={self.maxthreads})"
 
 
 # ===========================================================================

@@ -1,6 +1,6 @@
-import numpy as np
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
+import numpy as np
 from scm.plams.core.functions import add_to_class, requires_optional_package
 from scm.plams.core.settings import Settings
 from scm.plams.mol.molecule import Atom, Molecule

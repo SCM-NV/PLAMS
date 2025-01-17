@@ -823,12 +823,15 @@ def _run_uff_md(
             job.run(jobmanager=job_manager)
 
             if not job.ok():
+                error_msg = job.results.get_errormsg()
+                job_manager._clean()
                 raise PackMolError(
-                    f"Try a lower density or a less skewed cell! Original file in {job.path} . "
-                    + str(job.results.get_errormsg())
+                    f"Try a lower density or a less skewed cell! Original file in {job.path}. {error_msg}"
                 )
+
             my_packed = job.results.get_main_system()
             my_packed.remove_region("PACKMOL_thermostatted")
+            job_manager._clean()
 
     finally:
         config.job.pickle = previous_config.job.pickle
@@ -917,11 +920,10 @@ def packmol_around(
         # Create a supercell that should encompass the target x/y/z lattice
         # this is used for the initial packing of molecules to ensure there is no overlap
         # with the original atoms
-        supercell = original_ucs.copy()
         trafo = np.linalg.inv(original_ucs.lattice.vectors) @ np.array(target_lattice)
         trafo = np.sign(trafo) * np.ceil(np.abs(trafo))
         trafo = np.int_(trafo)
-        supercell.supercell_trafo(trafo)
+        supercell = original_ucs.make_supercell_trafo(trafo)
         supercell.map_atoms(0)
         system_for_packing = supercell
         tolerance = kwargs.get("tolerance", 1.5)

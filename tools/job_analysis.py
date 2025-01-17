@@ -16,6 +16,7 @@ from scm.plams import (
     SingleJob,
     to_smiles,
 )
+from scm.plams.core.functions import get_logger
 from scm.plams.tools.settings_analysis import compare_settings
 from scm.plams.tools.table_formatter import format_in_table
 from scm.plams.core.functions import requires_optional_package
@@ -184,7 +185,12 @@ class JobsAnalysis:
                 return None
             path_files_in_job = path_folder / (path_folder.name)
             is_dill = path_files_in_job.with_suffix(".dill")
-            jm = JobManager(JobManagerSettings(), folder=Path.cwd(), use_existing_folder=True)
+            jm = JobManager(
+                JobManagerSettings(),
+                folder=Path.cwd(),
+                use_existing_folder=True,
+                job_logger=get_logger("none", fmt="csv"),
+            )
             job = None
             if is_dill.exists() and use_dill:
                 job = jm.load_job(is_dill)
