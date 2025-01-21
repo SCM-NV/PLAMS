@@ -7,7 +7,7 @@ from collections import defaultdict
 from functools import cached_property
 from genericpath import isdir, isfile
 from os.path import join as opj
-from typing import TYPE_CHECKING, Dict, List, Optional
+from typing import TYPE_CHECKING, Callable, Dict, List, Optional
 
 from scm.plams.core.basejob import MultiJob
 from scm.plams.core.enums import JobStatus

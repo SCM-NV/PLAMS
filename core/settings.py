@@ -403,10 +403,6 @@ class Settings(dict):
                 key_tuple = tuple(map(get_int_safe, key_tuple.split(".")))
             else:
                 key_tuple = tuple(key_tuple.split("."))
-            if convert_str_to_int:
-                key_tuple = tuple(map(get_int_safe, key_tuple.split(".")))
-            else:
-                key_tuple = tuple(key_tuple.split("."))
         return key_tuple
 
     def flatten(self, flatten_list=True) -> "Settings":
