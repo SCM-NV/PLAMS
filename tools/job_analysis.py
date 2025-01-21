@@ -3,8 +3,9 @@ import csv
 import re
 import warnings
 from collections import defaultdict
+from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union, Hashable
+from typing import Any, Callable, Dict, Hashable, List, Optional, Tuple, Type, Union
 
 from matplotlib import pyplot as plt
 from matplotlib.figure import Figure
@@ -16,10 +17,9 @@ from scm.plams import (
     SingleJob,
     to_smiles,
 )
-from scm.plams.core.functions import get_logger
+from scm.plams.core.functions import get_logger, requires_optional_package
 from scm.plams.tools.settings_analysis import compare_settings
 from scm.plams.tools.table_formatter import format_in_table
-from scm.plams.core.functions import requires_optional_package
 
 
 class GroupedColNames:
@@ -77,6 +77,9 @@ class SettingsCols:
         for k_in, k_out in mapper.items():
             self.__dict__[HeaderStr(k_out, is_settings=True)] = self.__dict__.pop(k_in)
 
+    def __iter__(self):
+        return iter(self.values)
+
 
 class JobsAnalysis:
     # _plot_type = ViewJobAnalysis
@@ -86,9 +89,10 @@ class JobsAnalysis:
         self,
         paths: Optional[Union[List[Optional[str]], List[Optional[Path]], List[Path]]] = None,
         jobs: Optional[List[SingleJob]] = None,
-        data: Optional[Dict[Union[str, HeaderStr], List[Any]]] = None,
+        data: Optional[Dict[Union[str, HeaderStr], List[Any]]] = None,  # df_jobs.to_dict("list")
         extra_cols: Optional[Dict[str, List[Any]]] = None,
     ):
+
         ################### initialization data ####################
         self.data = {}
         if data is not None:
@@ -112,9 +116,15 @@ class JobsAnalysis:
 
         self.settings_cols = SettingsCols(__dict__=self.data)
 
-    def apply(self, fn: Callable, col: str = GroupedColNames.jobs):
-        assert col in self.data, f"{col} not in {self.data.keys()=}"
-        return [fn(x) for x in self.data[col]]
+    def apply(self, fn: Callable, col: Optional[str] = GroupedColNames.jobs, indexes=None):
+        if indexes is None:
+            indexes = range(len(self))
+        if col is not None:
+            if col not in self.data:
+                raise KeyError(f"{col} not in {self.data.keys()=}")
+            return [fn(self.data[col][i]) for i in indexes]
+
+        return [fn(self.data[i]) for i in indexes]
 
     def _generate_names_paths_from_jobs(
         self, col_paths=GroupedColNames.paths, col_names=GroupedColNames.names, col_jobs=GroupedColNames.jobs
@@ -317,8 +327,18 @@ class JobsAnalysis:
             warnings.warn("the jobs are not of type: plams.AMSJob so no get_molecules_infos are present")
             return
 
-        self.data["n_atoms"] = self.apply(fn=lambda x: len(x.molecule), col=col_jobs)
-        self.data["chemical_formula"] = self.apply(fn=lambda x: x.molecule.get_formula(), col=col_jobs)
+        def get_natoms(job):
+            if job.molecule is None:
+                return None
+            return len(job.molecule)
+
+        def get_formula(job):
+            if job.molecule is None:
+                return None
+            return job.molecule.get_formula()
+
+        self.data["n_atoms"] = self.apply(get_natoms, col=col_jobs)
+        self.data["chemical_formula"] = self.apply(get_formula, col=col_jobs)
 
         def _to_smiles(job):
             mol = job.molecule
@@ -327,7 +347,7 @@ class JobsAnalysis:
             return to_smiles(mol, canonical=True)
 
         if smiles:
-            self.data["smiles"] = self.apply(fn=to_smiles, col=col_jobs)
+            self.data["smiles"] = self.apply(fn=_to_smiles, col=col_jobs)
 
         if gyration_radius:
             self.data["gyration_radius"] = self.apply(fn=lambda x: x.molecule.get_gyration_radius(), col=col_jobs)
@@ -414,10 +434,12 @@ class JobsAnalysis:
     ):
         self.data[col_out] = [reasonable_checker(job) for job in self.data[jobs_col]]
 
-    def groupby(self, groupby: Callable[[Dict], Hashable]):
+    def groupby(self, groupby: Callable[[Dict], Hashable], idxs=None):
         groups = defaultdict(list)
-        for i, row in enumerate(iter(self)):
-            groups[groupby(row)].append(i)
+        if idxs is None:
+            idxs = range(len(self))
+        for i in idxs:
+            groups[groupby(self[i])].append(i)
         return dict(groups)
 
     def assign_reference(self, is_ref: Callable[[Dict], bool], subset_idxs: Optional[List[int]] = None):
@@ -434,11 +456,46 @@ class JobsAnalysis:
                 groups_with_ref["idxs"].append(idx_i)
         return groups_with_ref
 
+    def job_plotter(
+        self,
+        success_plot: Callable[[SingleJob, str, plt.Axes], str],
+        jobs_col=GroupedColNames.jobs,
+        grouped_indexes: Union[Dict[str, List[int]], List[int]] = None,
+        **plt_kwargs,
+    ):
+        if grouped_indexes is None or isinstance(grouped_indexes, list):
+            if not isinstance(grouped_indexes, list):
+                grouped_indexes = range(len(self))
+            support = {}
+            n_jobs = len(f"{len(self)}")
+            for i in grouped_indexes:
+                support["Job {:0{}}".format(i, n_jobs)] = [i]
+            grouped_indexes = support
+
+        print(grouped_indexes)
+
+        n_axes = len(grouped_indexes)
+        plt_kwargs.setdefault("layout", "tight")
+        plt_kwargs.setdefault("sharex", True)
+        plt_kwargs.setdefault("sharey", False)
+        plt_kwargs.setdefault("ncols", 4 if "nrows" not in plt_kwargs else -(-n_axes // plt_kwargs["nrows"]))
+        plt_kwargs.setdefault("nrows", -(-n_axes // plt_kwargs["ncols"]))
+        fig, axes = plt.subplots(**plt_kwargs)
+        axes = axes.ravel()
+
+        for i, (title_i, ax) in enumerate(zip(grouped_indexes, axes)):
+            for idx_i in grouped_indexes[title_i]:
+                text_label = self.get_label(idx_i)
+                success_plot(self.data[jobs_col][idx_i], text_label, ax)
+            ax.legend()
+            ax.set_title(f"{title_i}")
+        return fig
+
     def success_checker_plotter(
         self,
         ref_job_idx: int,
         indexes_to_check: List[int],
-        success_plot: Callable[[SingleJob, plt.Axes], plt.Axes],
+        success_plot: Callable[[SingleJob, str, plt.Axes], plt.Axes],
         jobs_col=GroupedColNames.jobs,
         separate_plot=True,
         axes=None,
@@ -467,29 +524,24 @@ class JobsAnalysis:
                 axes = axes * n_axes
                 fig = axes[0].get_figure()
 
-        text_labels = []
         for i, (idx_i, ax) in enumerate(zip(indexes_to_check, axes)):
+            if idx_i is None:
+                continue
             ref_label = "REF\n" + self.get_label(ref_job_idx)
             text_label = self.get_label(idx_i)
 
-            success_plot(self.data[jobs_col][idx_i], ax)
+            success_plot(self.data[jobs_col][idx_i], text_label, ax)
             if separate_plot:
-                success_plot(self.data[jobs_col][ref_job_idx], ax)
-                text_labels.append([text_label, ref_label])
+                success_plot(self.data[jobs_col][ref_job_idx], ref_label, ax)
             elif i == 0:
                 # plot only once
-                success_plot(self.data[jobs_col][ref_job_idx], ax)
-                text_labels.append(text_label)
-                text_labels.append(ref_label)
-            else:
-                text_labels.append(text_label)
+                success_plot(self.data[jobs_col][ref_job_idx], ref_label, ax)
 
         if separate_plot:
-            for ax, text_label in zip(axes, text_labels):
-                ax.set_title(text_label[0])
-                ax.legend(text_label)
+            for ax in axes:
+                ax.legend()
         else:
-            axes[0].legend(text_labels)
+            axes[0].legend()
         return fig
 
     def get_label(self, idx: int):
@@ -515,6 +567,16 @@ class JobsAnalysis:
         for k, vals in groups.items():
             groups_refs[k] = self.assign_reference(is_ref, subset_idxs=vals)
 
+        fig = self.plot_groups(groups_refs, success_plot=success_plot, jobs_col=jobs_col, **plt_kwargs)
+        return fig
+
+    def plot_groups(
+        self,
+        groups_refs,
+        success_plot: Callable[[SingleJob, plt.Axes], plt.Axes],
+        jobs_col=GroupedColNames.jobs,
+        **plt_kwargs,
+    ):
         n_axes = len(groups_refs)
         plt_kwargs.setdefault("layout", "tight")
         plt_kwargs.setdefault("sharex", True)
@@ -572,12 +634,13 @@ class JobsAnalysis:
         :param ref_idx: index for plotting two examples and this one is the ref, defaults to None
         :type ref_idx: Optional[int], optional
         """
-        from pigeon import annotate
-        import matplotlib.pyplot as plt
-        from IPython.display import display, Image
         import io
 
-        def plot_ir(idx, row, job_plotter, ref=None):
+        import matplotlib.pyplot as plt
+        from IPython.display import Image, display
+        from pigeon import annotate
+
+        def plt_plot(idx, row, job_plotter, ref=None):
             fig, ax = plt.subplots()
             job_plotter(row["jobs"], ax)
             if ref:
@@ -595,7 +658,7 @@ class JobsAnalysis:
         if ref_idx is not None:
             ref = self[ref_idx]
         if job_plotter is not None:
-            display_fn = lambda row: display(plt_to_image(plot_ir(*row, job_plotter, ref=ref)))
+            display_fn = lambda row: display(plt_to_image(plt_plot(*row, job_plotter, ref=ref)))
 
         annotations = annotate(
             enumerate(self),
@@ -691,8 +754,129 @@ class JobsAnalysis:
 class AMSJobErrorChecker:
 
     @staticmethod
-    def get_out_errors(job: SingleJob) -> Any:
-        out_path = AMSJobErrorChecker._get_out(job)
+    def find_log_file(job: AMSJob):
+        """get the ams.log path or if not exists returns None"""
+        if job.path is None:
+            return None
+        log_path = Path(job.path) / "ams.log"
+        if not log_path.exists():
+            return None
+        return log_path
+
+    @staticmethod
+    def find_out_file(job: SingleJob):
+        if job.path is None:
+            return None
+        out_path = Path(job.path) / f"{job.name}.out"
+        if not out_path.exists():
+            return None
+        return out_path
+
+    @staticmethod
+    def stop_calculation(job: AMSJob, file_name="interactive.in", reason="Stop") -> Any:
+        if job.path is None:
+            return None
+        with open(Path(job.path) / file_name, "w") as f:
+            f.write(reason)
+
+    @staticmethod
+    def stop_has_occurred(job: AMSJob, value="calculation interrupted by user.") -> bool:
+        out_path = AMSJobErrorChecker.find_out_file(job)
+        if out_path is None:
+            return None
+        with open(out_path, "r") as f:
+            file = f.read()
+        return value in file
+
+    @staticmethod
+    def status_rkf(job: AMSJob):
+        if "ams" not in job.results.rkfs:
+            if job.path is None:
+                return None
+            if (Path(job.path) / f"{job.name}.in").exists():
+                return "Not Started"
+            return None
+        return job.results.rkfs["ams"].read(section="General", variable="termination status")
+
+    @staticmethod
+    def status_log(job: AMSJob):
+        logfile_path = AMSJobErrorChecker.find_log_file(job)
+        if logfile_path is None:
+            return "not run"
+        with open(logfile_path) as f:
+            lines = f.readlines()
+        if "NORMAL TERMINATION" in lines[-1]:
+            return "normal"
+        for line in lines[::-1]:
+            if "*** MDStep" in line:
+                return int(line.split("*** ")[-1].replace(" ***\n", ""))
+        return "Not known"
+
+    @staticmethod
+    def status_log_md_step(job: AMSJob):
+        logfile_path = AMSJobErrorChecker.find_log_file(job)
+        if logfile_path is None:
+            return None
+        with open(logfile_path) as f:
+            lines = f.readlines()
+        for line in lines[::-1]:
+            if "*** MDStep" in line:
+                return int(line.split("*** ")[-1].replace(" ***\n", "").replace("MDStep", ""))
+        return None
+
+    @staticmethod
+    def time_duration_log(job: AMSJob):
+        log_file = AMSJobErrorChecker.find_log_file(job)
+        if log_file is None:
+            return None
+
+        def timestamp_log(part: str):
+            part = part.split(">  ", 1)[0]
+            try:
+                timestamp = datetime.strptime(part, "<%b%d-%Y> <%H:%M:%S")
+                return timestamp
+            except ValueError:
+                return None
+
+        with open(log_file) as f:
+            lines = f.readlines()
+            initial = timestamp_log(lines[0])
+            final = timestamp_log(lines[-1])
+            if initial is None or final is None:
+                return None
+            duration_seconds = (final - initial).total_seconds()
+        return duration_seconds
+
+    @staticmethod
+    def time_expected_end_md(job: AMSJob):
+        def last_md_step_log(logfile_path: Path):
+            with open(logfile_path) as f:
+                lines = f.readlines()
+            for line in lines[::-1]:
+                if "*** MDStep" in line:
+                    return int(line.split("*** ")[-1].replace(" ***\n", "").replace("MDStep", ""))
+            return None
+
+        log_file = AMSJobErrorChecker.find_log_file(job)
+        if log_file is None:
+            return None
+        step_status = last_md_step_log(log_file)
+        if not isinstance(step_status, int):
+            return None
+        md_end = job.settings.get_nested("input.ams.MolecularDynamics.NSteps".split("."), None)
+        if md_end is None:
+            return md_end
+        md_end = int(md_end)
+        time_spent = AMSJobErrorChecker.time_duration_log(job)
+        if time_spent is None:
+            return None
+        time_left = time_spent / step_status * (md_end - step_status)
+        date_time = datetime.now() + timedelta(seconds=time_left)
+        return date_time
+
+    @staticmethod
+    def errors_out(job: AMSJob) -> Any:
+        out_path = AMSJobErrorChecker.find_out_file(job)
         if out_path is None:
             return None
         with open(out_path, "r") as file:
@@ -703,19 +887,8 @@ class AMSJobErrorChecker:
         return None
 
     @staticmethod
-    def get_out_warnings(job: SingleJob) -> Any:
-        out_path = AMSJobErrorChecker._get_out(job)
-        if out_path is None:
-            return None
-        with open(out_path, "r") as file:
-            warning_lines = [line.strip() for line in file if "WARNING" in line]
-            warning_out = "\n".join(warning_lines)
-            return warning_out
-        return None
-
-    @staticmethod
-    def get_log_errors(job: SingleJob) -> Any:
-        log_path = AMSJobErrorChecker._get_log(job)
+    def errors_log(job: AMSJob) -> Any:
+        log_path = AMSJobErrorChecker.find_log_file(job)
         if log_path is None:
             return None
         with open(log_path, "r") as file:
@@ -725,8 +898,19 @@ class AMSJobErrorChecker:
         return None
 
     @staticmethod
-    def get_log_warnings(job: SingleJob) -> Any:
-        log_path = AMSJobErrorChecker._get_log(job)
+    def warnings_out(job: AMSJob) -> Any:
+        out_path = AMSJobErrorChecker.find_out_file(job)
+        if out_path is None:
+            return None
+        with open(out_path, "r") as file:
+            warning_lines = [line.strip() for line in file if "WARNING" in line]
+            warning_out = "\n".join(warning_lines)
+            return warning_out
+        return None
+
+    @staticmethod
+    def warnings_log(job: AMSJob) -> Any:
+        log_path = AMSJobErrorChecker.find_log_file(job)
         if log_path is None:
             return None
         with open(log_path, "r") as file:
@@ -734,21 +918,3 @@ class AMSJobErrorChecker:
             warning_log = "\n".join(warning_lines)
             return warning_log
         return None
-
-    @staticmethod
-    def _get_log(job: SingleJob):
-        if job.path is None:
-            return None
-        log_path = Path(job.path) / "ams.log"
-        if not log_path.exists():
-            return None
-        return log_path
-
-    @staticmethod
-    def _get_out(job: SingleJob):
-        if job.path is None:
-            return None
-        out_path = Path(job.path) / str(job._filename("out"))
-        if not out_path.exists():
-            return None
-        return out_path
