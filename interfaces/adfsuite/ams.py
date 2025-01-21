@@ -102,6 +102,7 @@ __all__ = ["AMSJob", "AMSResults"]
 
 
 class AMSResults(Results):
+    job: "AMSJob"
     """A specialized |Results| subclass for accessing the results of |AMSJob|."""
 
     def __init__(self, *args, **kwargs):
@@ -998,7 +999,9 @@ class AMSResults(Results):
     def get_ir_spectrum(
         self,
         engine: Optional[str] = None,
-        broadening_type: Literal["gaussian", "lorentzian"] = "gaussian",
+        broadening_type: Literal[
+            "gaussian_height", "gaussian_area", "lorentzian_area", "lorentzian_height"
+        ] = "gaussian_height",
         broadening_width=40,
         min_x=0,
         max_x=4000,
@@ -2033,6 +2036,7 @@ class AMSResults(Results):
         This method is used by |load_external|. If ``ams.rkf`` is present in the job folder,
         extract data from the ``InputMolecule`` and ``InputMolecule(*)`` sections.
         """
+        find_file = [f for f in self.files if f"{self.job.name}.in" in f]
         if "ams" in self.rkfs:
             mols = self.get_input_molecules()
             if len(mols) == 0:
@@ -2048,22 +2052,28 @@ class AMSResults(Results):
 
         If ``ams.rkf`` is present in the job folder, extract user input and parse it back to a |Settings| instance using ``scm.libbase`` module. Remove the ``system`` branch from that instance.
         """
+        find_file = [f for f in self.files if f"{self.job.name}.in" in f]
         if "ams" in self.rkfs:
             user_input = self.readrkf("General", "user input")
-            try:
-                from scm.plams.interfaces.adfsuite.inputparser import InputParserFacade
+        elif len(find_file) == 1:
+            with open(opj(self.job.path, find_file[0])) as f:
+                user_input = f.read()
+        else:
+            return None
 
-                inp = InputParserFacade().to_settings("ams", user_input)
-            except:
-                log("Failed to recreate input settings from {}".format(self.rkfs["ams"].path))
-                return None
-            s = Settings()
-            s.input = inp
-            if "system" in s.input.ams:
-                del s.input.ams.system
-            s.soft_update(config.job)
-            return s
-        return None
+        try:
+            from scm.plams.interfaces.adfsuite.inputparser import InputParserFacade
+
+            inp = InputParserFacade().to_settings("ams", user_input)
+        except:
+            log("Failed to recreate input settings from {}".format(self.rkfs["ams"].path))
+            return None
+        s = Settings()
+        s.input = inp
+        if "system" in s.input.ams:
+            del s.input.ams.system
+        s.soft_update(config.job)
+        return s
 
     def ok(self) -> bool:
         """Check if the execution of the associated :attr:`job` was successful or not.
@@ -3140,7 +3150,11 @@ class AMSJob(SingleJob):
                 raise FileError("Path {} does not exist, cannot load from it.".format(path))
 
         job = super(AMSJob, cls).load_external(path, settings, molecule, finalize)
-
+        if job.molecule is None:
+            j = AMSJob.from_inputfile(opj(job.path, f"{job.name}.in"))
+            job.settings += j.settings
+            if len(j.molecule) == 1:
+                job.molecule = j.molecule[""]
         if preferred_name is not None:
             job.name = preferred_name
 
