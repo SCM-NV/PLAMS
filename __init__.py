@@ -146,6 +146,7 @@ from scm.plams.tools.plot import (
     plot_grid_molecules,
     plot_molecule,
     plot_msd,
+    plot_trajectory_energy_forces,
     plot_work_function,
 )
 from scm.plams.tools.reaction import ReactionEquation

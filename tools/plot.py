@@ -1,4 +1,4 @@
-from typing import List, Optional, Tuple, Union, TYPE_CHECKING
+from typing import TYPE_CHECKING, List, Optional, Tuple, Union
 
 import numpy as np
 from scm.plams.core.errors import MissingOptionalPackageError
@@ -6,10 +6,12 @@ from scm.plams.core.functions import requires_optional_package
 from scm.plams.interfaces.adfsuite.ams import AMSJob
 from scm.plams.interfaces.molecule.rdkit import to_rdmol
 from scm.plams.mol.molecule import Molecule
+from scm.plams.tools.converters import rkf_to_ase_atoms
 
 if TYPE_CHECKING:
-    import matplotlib.pyplot as plt
     from os import PathLike
+
+    import matplotlib.pyplot as plt
     from PIL import Image as PilImage
 
 __all__ = [
@@ -575,7 +577,7 @@ def plot_work_function(
 
 
 @requires_optional_package("matplotlib")
-def plot_traj_en_forces(
+def plot_trajectory_energy_forces(
     job: AMSJob,
     energy=True,
     forces=True,
