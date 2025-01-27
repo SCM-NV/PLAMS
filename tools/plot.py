@@ -72,6 +72,16 @@ def plot_band_structure(x, y_spin_up, y_spin_down=None, labels=None, fermi_energ
 
     labels = labels or []
 
+    for i, label in enumerate(labels):
+        if label:
+            label = (
+                label.replace("GAMMA", "\\Gamma")
+                .replace("DELTA", "\\Delta")
+                .replace("LAMBDA", "\\Lambda")
+                .replace("SIGMA", "\\Sigma")
+            )
+            labels[i] = f"${label}$"
+
     if ax is None:
         _, ax = plt.subplots()
 

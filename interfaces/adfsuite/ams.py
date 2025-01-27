@@ -632,22 +632,6 @@ class AMSResults(Results):
         fermi_energy = self.readrkf("BandStructure", "FermiEnergy", file="engine")
         fermi_energy = Units.convert(fermi_energy, "hartree", unit)
 
-        try:
-            path_source = self.readrkf("band_curves", "path_source", file="engine")
-        except KeyError:
-            path_source = "kpath"
-
-        if path_source == "seekpath":
-            for i, label in enumerate(labels):
-                if label:
-                    label = (
-                        label.replace("GAMMA", "\\Gamma")
-                        .replace("DELTA", "\\Delta")
-                        .replace("LAMBDA", "\\Lambda")
-                        .replace("SIGMA", "\\Sigma")
-                    )
-                    labels[i] = f"${label}$"
-
         return x, complete_spinup_data, complete_spindown_data, labels, fermi_energy  # type: ignore
 
     def get_engine_results(self, engine: Optional[str] = None) -> Dict:
