@@ -4,7 +4,10 @@
 # ## Initial Imports
 
 import numpy as np
-from scm.plams import Settings, Molecule, Atom, AMSJob
+from scm.plams import Settings, Molecule, Atom, AMSJob, init
+
+# this line is not required in AMS2025+
+init()
 
 
 # ## Setup Dimer

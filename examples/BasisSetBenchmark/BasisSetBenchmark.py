@@ -4,7 +4,10 @@
 # ## Initial Imports
 
 import multiprocessing
-from scm.plams import JobRunner, config, from_smiles, Settings, AMSJob
+from scm.plams import JobRunner, config, from_smiles, Settings, AMSJob, init
+
+# this line is not required in AMS2025+
+init()
 
 
 # ## Set Up Job Runner

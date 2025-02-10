@@ -8,6 +8,9 @@ from ase.build import bulk as ase_build_bulk
 import matplotlib.pyplot as plt
 import numpy as np
 
+# this line is not required in AMS2025+
+init()
+
 
 # ## Metal band structure relative to Fermi energy
 
@@ -27,13 +30,35 @@ job = AMSJob(settings=s, name="Cu", molecule=Cu)
 job.run()
 
 
-x, y_spin_up, y_spin_down, labels, fermi_energy = job.results.get_band_structure(unit="eV")
-ax = plot_band_structure(x, y_spin_up, None, labels, fermi_energy, zero="fermi")
-ax.set_ylim(-10, 10)
-ax.set_ylabel("$E - E_{Fermi}$ (eV)")
-ax.set_xlabel("Path")
-ax.set_title("Cu with DFTB.org/matsci-0-3")
-plt.show()
+def check_ams_version():
+    try:
+        from scm.plams import __version__
+
+        return __version__ >= "2024.2"
+    except ImportError:
+        return False
+
+
+is_ams_2025_or_higher = check_ams_version()
+
+
+if is_ams_2025_or_higher:
+    # get_band_structure returns an axis in AMS2025+
+    x, y_spin_up, y_spin_down, labels, fermi_energy = job.results.get_band_structure(unit="eV")
+    ax = plot_band_structure(x, y_spin_up, None, labels, fermi_energy, zero="fermi")
+    ax.set_ylim(-10, 10)
+    ax.set_ylabel("$E - E_{Fermi}$ (eV)")
+    ax.set_xlabel("Path")
+    ax.set_title("Cu with DFTB.org/matsci-0-3")
+    plt.show()
+else:
+    x, y_spin_up, y_spin_down, labels, fermi_energy = job.results.get_band_structure(unit="eV")
+    plot_band_structure(x, y_spin_up, None, labels, fermi_energy, zero="fermi")
+    plt.ylim(-10, 10)
+    plt.ylabel("$E - E_{Fermi}$ (eV)")
+    plt.xlabel("Path")
+    plt.title("Cu with DFTB.org/matsci-0-3")
+    plt.show()
 
 
 # ## Semiconductor band structure relative to VBM
@@ -55,12 +80,21 @@ job.run()
 
 # The below call to ``plot_band_structure`` plots both the spin up and spin down. The spin-down bands are plotted as dashed lines. Note that in this case there is no spin polarization so the spin-down bands perfectly overlap the spin-up bands.
 
-ax = plot_band_structure(*job.results.get_band_structure(unit="eV"), zero="vbmax")
-ax.set_ylim(-10, 10)
-ax.set_ylabel("$E - E_{VBM}$ (eV)")
-ax.set_xlabel("Path")
-ax.set_title("ZnO with GFN1-xTB")
-plt.show()
+if is_ams_2025_or_higher:
+    # get_band_structure returns an axis in AMS2025+
+    ax = plot_band_structure(*job.results.get_band_structure(unit="eV"), zero="vbmax")
+    ax.set_ylim(-10, 10)
+    ax.set_ylabel("$E - E_{VBM}$ (eV)")
+    ax.set_xlabel("Path")
+    ax.set_title("ZnO with GFN1-xTB")
+    plt.show()
+else:
+    plot_band_structure(*job.results.get_band_structure(unit="eV"), zero="vbmax")
+    plt.ylim(-10, 10)
+    plt.ylabel("$E - E_{VBM}$ (eV)")
+    plt.xlabel("Path")
+    plt.title("ZnO with GFN1-xTB")
+    plt.show()
 
 
 # ## Spin-up and spin-down band structures
@@ -89,9 +123,18 @@ job = AMSJob(settings=s, molecule=mol, name="NiO")
 job.run()
 
 
-ax = plot_band_structure(*job.results.get_band_structure(unit="eV"), zero="vbmax")
-ax.set_ylim(-10, 10)
-ax.set_ylabel("$E - E_{VBM}$ (eV)")
-ax.set_xlabel("Path")
-ax.set_title("NiO with DFT+U")
-plt.show()
+if is_ams_2025_or_higher:
+    # get_band_structure returns an axis in AMS2025+
+    ax = plot_band_structure(*job.results.get_band_structure(unit="eV"), zero="vbmax")
+    ax.set_ylim(-10, 10)
+    ax.set_ylabel("$E - E_{VBM}$ (eV)")
+    ax.set_xlabel("Path")
+    ax.set_title("NiO with DFT+U")
+    plt.show()
+else:
+    plot_band_structure(*job.results.get_band_structure(unit="eV"), zero="vbmax")
+    plt.ylim(-10, 10)
+    plt.ylabel("$E - E_{VBM}$ (eV)")
+    plt.xlabel("Path")
+    plt.title("NiO with DFT+U")
+    plt.show()

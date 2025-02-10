@@ -5,7 +5,10 @@
 #
 #
 
-from scm.plams import Settings, AMSJob
+from scm.plams import Settings, AMSJob, init
+
+# this line is not required in AMS2025+
+init()
 
 
 # To start with, in order to see the input that will be passed to AMS from the Settings, make a function to create an AMSJob and print the input:
@@ -60,10 +63,24 @@ settings.update(pbe_settings)
 print_input(settings)
 
 
-# Settings can also be removed using the `-` and `-=` operators:
+# In AMS2025+, settings can also be removed using the `-` and `-=` operators:
 
-settings -= nm_settings
-print_input(settings)
+
+def check_ams_version():
+    try:
+        from scm.plams import __version__
+
+        return __version__ >= "2024.2"
+    except ImportError:
+        return False
+
+
+is_ams_2025_or_higher = check_ams_version()
+
+
+if is_ams_2025_or_higher:
+    settings -= nm_settings
+    print_input(settings)
 
 
 # Multiple values in a settings block can be configured using a list:
@@ -86,36 +103,40 @@ print_input(hybrid_settings)
 
 # ## Nested Keys
 
-# It can be useful to access values from a Settings object using "nested" keys. These are tuples of keys, where each successive element of the tuple corresponds to a further layer in the settings. Lists are flattened so their elements can be accessed with the corresponding index.
+# It can be useful to access values from a Settings object using "nested" keys, available in AMS2025+. These are tuples of keys, where each successive element of the tuple corresponds to a further layer in the settings. Lists are flattened so their elements can be accessed with the corresponding index.
 
-list(hybrid_settings.nested_keys())
-
-
-hybrid_settings.get_nested(("input", "AMS", "Task"))
+if is_ams_2025_or_higher:
+    print(list(hybrid_settings.nested_keys()))
 
 
-if hybrid_settings.contains_nested(("input", "AMS", "Hybrid", "Engine", 0)):
-    hybrid_settings.set_nested(("input", "AMS", "Hybrid", "Engine", 0, "Basis", "Type"), "TZP")
-print(hybrid_settings.get_nested(("input", "AMS", "Hybrid", "Engine", 0, "Basis")))
+if is_ams_2025_or_higher:
+    print(hybrid_settings.get_nested(("input", "AMS", "Task")))
+
+
+if is_ams_2025_or_higher:
+    if hybrid_settings.contains_nested(("input", "AMS", "Hybrid", "Engine", 0)):
+        hybrid_settings.set_nested(("input", "AMS", "Hybrid", "Engine", 0, "Basis", "Type"), "TZP")
+    print(hybrid_settings.get_nested(("input", "AMS", "Hybrid", "Engine", 0, "Basis")))
 
 
 # ## Comparison
 
-# Two settings objects can be compared to check the differences between them. The result will show the nested key and value of any added, removed and modified entries.
+# In AMS2025+, two settings objects can be compared to check the differences between them. The result will show the nested key and value of any added, removed and modified entries.
 
-import os
+if is_ams_2025_or_higher:
+    import os
 
-settings1 = go_settings + lda_settings + nm_settings
-settings2 = go_settings.copy()
-settings2.input.AMS.Task = "SinglePoint"
-settings2.input.DFTB.Model = "GFN1-xTB"
-comparison = settings2.compare(settings1)
-print(
-    f"Items in settings2 not in settings1:{os.linesep}{os.linesep.join(f'  - {k}: {v}' for k, v in comparison['added'].items())}"
-)
-print(
-    f"Items in settings1 not in settings2:{os.linesep}{os.linesep.join(f'  - {k}: {v}' for k, v in comparison['removed'].items())}"
-)
-print(
-    f"Items modified from settings1 to settings2:{os.linesep}{os.linesep.join(f'  - {k}: {v[1]} -> {v[0]}' for k, v in comparison['modified'].items())}"
-)
+    settings1 = go_settings + lda_settings + nm_settings
+    settings2 = go_settings.copy()
+    settings2.input.AMS.Task = "SinglePoint"
+    settings2.input.DFTB.Model = "GFN1-xTB"
+    comparison = settings2.compare(settings1)
+    print(
+        f"Items in settings2 not in settings1:{os.linesep}{os.linesep.join(f'  - {k}: {v}' for k, v in comparison['added'].items())}"
+    )
+    print(
+        f"Items in settings1 not in settings2:{os.linesep}{os.linesep.join(f'  - {k}: {v}' for k, v in comparison['removed'].items())}"
+    )
+    print(
+        f"Items modified from settings1 to settings2:{os.linesep}{os.linesep.join(f'  - {k}: {v[1]} -> {v[0]}' for k, v in comparison['modified'].items())}"
+    )

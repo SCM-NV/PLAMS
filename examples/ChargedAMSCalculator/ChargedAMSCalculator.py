@@ -8,11 +8,14 @@ from scm.plams.interfaces.adfsuite.ase_calculator import AMSCalculator
 from ase import Atoms
 from ase.visualize.plot import plot_atoms
 
+# this line is not required in AMS2025+
+init()
+
 
 # ## Example 1: Total system charge
 #
 # ### Create the charged molecule (ion)
-# Create a charged ion using using `ase.Atoms` and setting the `info` dictionairy.
+# Create a charged ion using using `ase.Atoms` and setting the `info` dictionary.
 
 atoms = Atoms("OH", positions=[[1.0, 0.0, 0.0], [0.0, 0.0, 0.0]])
 # define a total charge

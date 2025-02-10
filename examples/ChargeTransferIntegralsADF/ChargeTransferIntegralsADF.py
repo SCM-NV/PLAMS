@@ -3,7 +3,10 @@
 
 # ## Initial Imports
 
-from scm.plams import Settings, ADFFragmentResults, Molecule, log, ADFFragmentJob, add_to_class
+from scm.plams import Settings, ADFFragmentResults, Molecule, log, ADFFragmentJob, add_to_class, init
+
+# this line is not required in AMS2025+
+init()
 
 
 # ## Helper Functions

@@ -1,5 +1,8 @@
-from scm.plams import Settings, Molecule
+from scm.plams import Settings, Molecule, init
 from scm.plams.recipes.adfnbo import ADFNBOJob
+
+ # this line is not required in AMS2025+
+init()
 
 mol = Molecule("methane.xyz")
 

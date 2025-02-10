@@ -8,6 +8,9 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 
+# this line is not required in AMS2025+
+init()
+
 
 # ## Initial system
 #
