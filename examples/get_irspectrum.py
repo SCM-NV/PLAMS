@@ -17,7 +17,7 @@ def main():
     """
     # this line is not required in AMS2025+
     init()
-    
+
     # Write the XYZ file
     xyzfile = open("2h2o.xyz", "w")
     xyzfile.write(text)

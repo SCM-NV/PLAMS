@@ -6,7 +6,7 @@ from scm.plams.recipes.redox import AMSRedoxScreeningJob, AMSRedoxDirectJob, AMS
 def main():
     # this line is not required in AMS2025+
     init()
-    
+
     mol = from_smiles("C1=CC(=O)C=CC1=O", forcefield="uff")  # benzoquinone
     solvent_name = "Water"  # Solvent for AMSRedoxDirectJob and AMSRedoxThermodynamicCycleJob. See the ADF Solvation documentation for which solvents are available.
     solvent_coskf = CRSJob.database() + "/Water.coskf"  # .coskf file or AMSRedoxScreeningJob

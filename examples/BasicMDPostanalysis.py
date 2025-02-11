@@ -9,7 +9,7 @@ from scm.plams import *
 def run_md():
     # this line is not required in AMS2025+
     init()
-    
+
     mol = packmol(from_smiles("O"), n_molecules=16, density=1.0)
     s = Settings()
     s.input.ams.Task = "MolecularDynamics"

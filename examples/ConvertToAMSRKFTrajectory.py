@@ -16,7 +16,7 @@ def main():
 def convert_to_ams_rkf_with_bond_guessing(filename, outfile="out.rkf", task="moleculardynamics", timestep=0.5):
     # this line is not required in AMS2025+
     init()
-    
+
     temp_traj = "out.traj"
     file_to_traj(filename, temp_traj)
     traj_to_rkf(temp_traj, outfile, task=task, timestep=timestep)

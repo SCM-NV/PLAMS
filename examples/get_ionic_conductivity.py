@@ -8,7 +8,7 @@ def main(filename, chargelines):
     """
     # this line is not required in AMS2025+
     init()
-    
+
     # Get the molecular system
     job = AMSJob.load_external(filename)
     mol = job.molecule

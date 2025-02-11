@@ -11,7 +11,7 @@ def main():
     """
     # this line is not required in AMS2025+
     init()
-    
+
     if sys.argv[1] == "-h":
         raise SystemExit("amspython get_hbonds.py path/to/ams.rkf path/to/indices.txt")
 

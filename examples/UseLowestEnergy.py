@@ -19,10 +19,9 @@ $AMSBIN/amspython UseLowestEnergy.py
 
 def main():
     # config.job.runscript.nproc = 1 # uncomment to run all jobs in serial
-    
+
     # this line is not required in AMS2025+
     init()
-
 
     pesscan_job = initial_pesscan()
     rkf = pesscan_job.results.rkfpath()
