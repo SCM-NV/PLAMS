@@ -16,6 +16,9 @@ from rdkit.Chem.Draw import IPythonConsole
 IPythonConsole.ipython_useSVG = True
 IPythonConsole.molSize = 250, 250
 
+# this line is not required in AMS2025+
+plams.init()
+
 
 # ## Helpers for showing molecules
 
@@ -126,7 +129,10 @@ nx.write_gml(graph, "reaction_network.gml")
 
 # ## Load a job not originally run by PLAMS
 
-job = ReactionsDiscoveryJob.load_external("plams_workdir/MyDiscovery")
+from scm.plams import FileError
 
-
-graph, molecules, categories = job.results.get_network()
+try:
+    job = ReactionsDiscoveryJob.load_external("plams_workdir/MyDiscovery")
+    graph, molecules, categories = job.results.get_network()
+except FileError:
+    pass

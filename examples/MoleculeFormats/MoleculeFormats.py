@@ -7,8 +7,8 @@ import os
 from os.path import expandvars
 from pathlib import Path
 
-# make sure to source amsbashrc.sh before launching this example so that
-# the AMSHOME environment variable is set.
+# Make sure to source amsbashrc.sh before launching this example so that
+# the AMSHOME environment variable is set. Requires AMS2025+ to run this example.
 
 AMSHOME = os.environ["AMSHOME"]
 cif_file = f"{AMSHOME}/atomicdata/Molecules/IZA-Zeolites/ABW.cif"

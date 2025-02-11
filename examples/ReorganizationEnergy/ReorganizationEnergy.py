@@ -1,5 +1,8 @@
 #!/usr/bin/env amspython
-from scm.plams import Molecule, Settings, ReorganizationEnergyJob
+from scm.plams import Molecule, Settings, ReorganizationEnergyJob, init
+
+# this line is not required in AMS2025+
+init()
 
 # Compute the neutral-anion reorganization energy of pyrrole
 # using ADF as computational engine

@@ -5,7 +5,10 @@
 
 import multiprocessing
 import numpy as np
-from scm.plams import Settings, Results, MultiJob, JobRunner, config, Molecule, Atom, AMSJob
+from scm.plams import Settings, Results, MultiJob, JobRunner, config, Molecule, Atom, AMSJob, init
+
+# this line is not required in AMS2025+
+init()
 
 
 # ## Helper Classes

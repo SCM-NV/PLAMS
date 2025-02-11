@@ -4,7 +4,10 @@
 # ## Initial Imports
 
 import multiprocessing
-from scm.plams import JobRunner, config, Settings, read_molecules, AMSJob
+from scm.plams import JobRunner, config, Settings, read_molecules, AMSJob, init
+
+# this line is not required in AMS2025+
+init()
 
 
 # ## Configure Job Runner
