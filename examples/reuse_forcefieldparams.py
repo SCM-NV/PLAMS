@@ -2,7 +2,10 @@
 
 import sys
 
-from scm.plams import AMSJob, Settings
+from scm.plams import AMSJob, Settings, init
+
+# this line is not required in AMS2025+
+init()
 
 # Read from a previous result file
 path = sys.argv[1]

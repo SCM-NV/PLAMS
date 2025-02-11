@@ -1,7 +1,10 @@
 #!/usr/bin/env amspython
 import numpy as np
 from scm.plams.recipes.numgrad import NumGradJob
-from scm.plams import config, JobRunner, AMSJob, Settings, AMSResults, Units
+from scm.plams import config, JobRunner, AMSJob, Settings, AMSResults, Units, init
+
+# this line is not required in AMS2025+
+init()
 
 config.default_jobrunner = JobRunner(parallel=True, maxjobs=8)
 

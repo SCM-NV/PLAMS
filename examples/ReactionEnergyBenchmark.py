@@ -1,5 +1,5 @@
 #!/usr/bin/env amspython
-from scm.plams import read_molecules, Settings, AMSJob
+from scm.plams import read_molecules, Settings, AMSJob, init
 
 """
 Script for evaluating the HC7-11 and ISOL6 benchmark sets with different computational methods.
@@ -8,6 +8,9 @@ Modify the s_engine_dict variable below to specify which settings will be used.
 
 A table with reaction energies will be printed to summary.txt
 """
+
+# this line is not required in AMS2025+
+init()
 
 summary_fname = "summary.txt"
 with open(summary_fname, "w", buffering=1) as summary_file:

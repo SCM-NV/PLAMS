@@ -244,6 +244,8 @@ def run_md():
     """
     Define the simulation box as mixture of H2/O2 and run a short NVE at high T
     """
+    # this line is not required in AMS2025+
+    init()
 
     o2 = from_smiles("O=O")
     h2 = from_smiles("[HH]")

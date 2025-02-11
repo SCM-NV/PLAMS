@@ -1,12 +1,15 @@
 import sys
 import numpy
-from scm.plams import AMSJob, Settings
+from scm.plams import AMSJob, Settings, init
 
 
 def main(filename):
     """
     Main functionality (charge assignment to ions)
     """
+    # this line is not required in AMS2025+
+    init()
+    
     # Get the molecular system
     job = AMSJob.load_external(filename)
     mol = job.molecule

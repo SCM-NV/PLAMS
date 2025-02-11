@@ -1,8 +1,10 @@
 #!/usr/bin/env amspython
-from scm.plams import AMSJob, Atom, Molecule, Settings
+from scm.plams import AMSJob, Atom, Molecule, Settings, init
 
 
 def main():
+    # this line is not required in AMS2025+
+    init()
 
     mol = get_system()
     s = get_settings()
