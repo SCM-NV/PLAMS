@@ -65,18 +65,28 @@ echo "Running black formatter for '${py_file}'"
 $AMSBIN/amspython -m black -t py38  -l 120 "${example_dir}/${py_file}"
 
 # create the .rst file
+# do this via markdown as this gives better control over the pandoc conversion e.g. the width of lines for tables
+md_file="${name}.md"
 rst_file="${name}.rst"
 rst_ipynb_file="${name}.ipynb.rst"
-$AMSBIN/amspython -m nbconvert --to rst "${example_dir}/${nb_file}"
+$AMSBIN/amspython -m nbconvert --Exporter.preprocessors="nbconvert_utils.PlamsPreprocessor" --to markdown "${example_dir}/${nb_file}"
+pandoc --from markdown --to rst --columns=2000 "${example_dir}/${md_file}" -o "${example_dir}/${rst_file}"
 
-# anonymize the paths
+# perform some post-manipulation
+# - anonymize the paths 
+# - convert python to ipython3
+# - remove figure captions
 if [ "$(uname)" = "Darwin" ]; then
     sed -i '' -e "
     s#/.*/plams/#/path/plams/#g;
+    s#code:: python#code:: ipython3#g;
+    /^\.\. figure:: / {n;N;N; d;}
     " "${example_dir}/${nb_file}" "${example_dir}/${rst_file}"
 else
     sed -i -e "
     s#/.*/plams/#/path/plams/#g;
+    s#code:: python#code:: ipython3#g;
+    /^\.\. figure:: / {n;N;N; d;}
     " "${example_dir}/${nb_file}" "${example_dir}/${rst_file}"
 fi
 
@@ -102,7 +112,7 @@ awk '
 
 # move the required files over to the doc directory
 cp "${example_dir}/${rst_ipynb_file}" "${target_dir}/"
-rm "${example_dir}/${rst_file}" "${example_dir}/${rst_ipynb_file}"
+rm "${example_dir}/${md_file}" "${example_dir}/${rst_file}" "${example_dir}/${rst_ipynb_file}"
 echo "Generated the ipynb rst file '${target_dir}/${rst_ipynb_file}'"
 
 # move and generated image files
@@ -110,16 +120,20 @@ img_dir="${name}_files"
 if [ -d "${example_dir}/${img_dir}" ]; then
 
   # change a line in any generated .svg files to make them show up correctly in Firefox
-  for svg_file in "${example_dir}"/"${img_dir}"/*.svg; do
-    if [ "$(uname)" = "Darwin" ]; then
-      sed -i '' 's/xmlns:svg/xmlns/' "${svg_file}"
-    else
-      sed -i 's/xmlns:svg/xmlns/' "${svg_file}"
+  svg_files="${example_dir}/${img_dir}/*.svg"
+  for svg_file in ${svg_files}; do
+    if [ "$svg_file" != "${svg_files}" ]; then  # avoid error when no svgs are found
+      if [ "$(uname)" = "Darwin" ]; then
+        sed -i '' 's/xmlns:svg/xmlns/' "${svg_file}"
+      else
+        sed -i 's/xmlns:svg/xmlns/' "${svg_file}"
+      fi
     fi
   done
 
-  cp -r "${example_dir}/${img_dir}" "${target_dir}/"
-  rm -r "${example_dir}/${img_dir}"
+  if [ -d "${target_dir}/${img_dir}" ]; then rm -rf "${target_dir:?}/${img_dir:?}"; fi
+  cp -r "${example_dir}/${img_dir}" "${target_dir}/${img_dir}/"
+  rm -r "${example_dir:?}/${img_dir:?}"
   echo "Generated the image directory '${target_dir}/${img_dir}'"
 fi
 
