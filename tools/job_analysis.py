@@ -606,7 +606,7 @@ class JobsAnalysis:
     ):
         for idx_i in indexes_to_check:
             res = success_checker(self.data[jobs_col][idx_i], self.data[jobs_col][ref_job_idx])
-            for k, v in res:
+            for k, v in res.items():
                 if k not in self.data:
                     self.data[k] = [None] * len(self.data[jobs_col])
                 self.data[k][idx_i] = v

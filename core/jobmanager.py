@@ -100,7 +100,7 @@ class JobManager:
             job_logger.configure(
                 logfile_level=7,
                 logfile_path=opj(self.workdir, "job_logfile.csv"),
-                # csv_formatter=JobCSVFormatter,
+                csv_formatter=JobCSVFormatter,
                 include_date=True,
                 include_time=True,
             )
@@ -125,12 +125,20 @@ class JobManager:
         loaded_jobs = {}
         for foldername in filter(lambda x: isdir(opj(path, x)), os.listdir(path)):
             maybedill = opj(path, foldername, foldername + ".dill")
+            maybedefault = opj(path, foldername, foldername + ".in")
+            job = None
             if isfile(maybedill):
                 job = self.load_job(maybedill, default_job_loader=default_job_loader, register=register)
                 if job is not None:
                     loaded_jobs[os.path.abspath(maybedill)] = job
-            else:
-                loaded_jobs.update(self.load_all(path=opj(path, foldername)))
+            elif isfile(maybedefault):
+                job = self.load_job(opj(path, foldername), default_job_loader=default_job_loader, register=register)
+                if job is not None:
+                    loaded_jobs[os.path.abspath(opj(path, foldername))] = job
+            if job is None:
+                loaded_jobs.update(
+                    self.load_all(path=opj(path, foldername), register=register, default_job_loader=default_job_loader)
+                )
         if register:
             # self._register_jobs_in_hashes()
             self.jobs = list(self.jobs_hashed)
@@ -161,19 +169,23 @@ class JobManager:
         path_exists = path is not None and os.path.exists(path)
         dill_exists_or_try_default_loader = os.path.isfile(filename) or default_job_loader is not None
         if not path_exists or not dill_exists_or_try_default_loader:
-            raise FileError("File {} not present".format(filename))
+            if not path_exists:
+                raise FileError("File {} not present".format(filename))
+            else:
+                raise FileError("Default job loader {} is None".format(default_job_loader))
 
         path = os.path.dirname(filename)
         # if os.path.isfile(filename) or
         if path in set([j.path for j in self.jobs]):
             return
 
-        with open(filename, "rb") as f:
-            try:
-                job = pickle.load(f)
-            except Exception as e:
-                log("Unpickling of {} failed. Caught the following Exception:\n{}".format(filename, e), 1)
-                job = None
+        job = None
+        if os.path.exists(filename):
+            with open(filename, "rb") as f:
+                try:
+                    job = pickle.load(f)
+                except Exception as e:
+                    log("Unpickling of {} failed. Caught the following Exception:\n{}".format(filename, e), 1)
 
         if job is None and default_job_loader is not None:
             try:
