@@ -2,22 +2,9 @@ import contextlib
 import json
 import textwrap
 import threading
-from functools import wraps
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Dict,
-    Hashable,
-    List,
-    Literal,
-    Optional,
-    Sequence,
-    Set,
-    Tuple,
-    Type,
-    TypeVar,
-    Union,
-)
+import numbers
+from typing import TYPE_CHECKING, TypeVar, Union, Tuple, Type, Hashable, Any, Optional, Dict, Generator
+from collections.abc import Iterable as ColIterable
 
 __all__ = [
     "Settings",
@@ -216,7 +203,40 @@ class Settings(dict):
         ret.soft_update(other)
         return ret
 
-    def find_case(self, key):
+    def remove(self, other: "Settings"):
+        """
+        Update this instance removing keys from *other*. Nested |Settings| instances are updated recursively.
+
+        Shortcut ``A -= B`` can be used instead of ``A.remove(B)``.
+        """
+
+        def sort_key(t):
+            """
+            Sort tuples based on:
+            - Number of elements (fewest first), this prunes larger branches of the nested settings first
+            - Numeric values from highest to lowest, this ensures that popping on lists works as expected
+            - Everything else from the natural sort
+            """
+            elements = tuple((str(-el) if isinstance(el, numbers.Real) else str(el)) for el in t)
+            return len(t), elements
+
+        sorted_keys = sorted(other.flatten().keys(), key=sort_key)
+
+        for key in sorted_keys:
+            self.pop_nested(key)
+        return self
+
+    def difference(self: TSelf, other: "Settings") -> TSelf:
+        """
+        Return new instance of |Settings| that is a copy of this instance with keys of *other* removed.
+
+        Shortcut ``A - B`` can be used instead of ``A.difference(B)``.
+        """
+        ret = self.copy()
+        ret.remove(other)
+        return ret
+
+    def find_case(self, key: Hashable) -> Hashable:
         """Check if this instance contains a key consisting of the same letters as *key*, but possibly with different case. If found, return such a key. If not, return *key*."""
         if not isinstance(key, str):
             return key
@@ -229,29 +249,29 @@ class Settings(dict):
                 pass
         return key
 
-    def get(self, key, default=None):
+    def get(self, key: Hashable, default: Optional[Any] = None) -> Optional[Any]:
         """Like regular ``get``, but ignore the case."""
         return dict.get(self, self.find_case(key), default)
 
-    def pop(self, key, *args):
+    def pop(self, key: Hashable, *args) -> Optional[Any]:
         """Like regular ``pop``, but ignore the case."""
         # A single positional argument can be supplied `*args`,
         # functioning as a default return value in case `key` is not present in this instance
         return dict.pop(self, self.find_case(key), *args)
 
-    def popitem(self):
+    def popitem(self) -> Any:
         """Like regular ``popitem``, but ignore the case."""
         return dict.popitem(self)
 
-    def setdefault(self, key, default=None):
+    def setdefault(self, key: Hashable, default: Optional[Any] = None):
         """Like regular ``setdefault``, but ignore the case and if the value is a dict, convert it to |Settings|."""
         if isinstance(default, dict) and not isinstance(default, Settings):
             default = Settings(default)
-        return dict.setdefault(self, self.find_case(key), default)
+        return dict.setdefault(self, self.find_case(key), default)  # type: ignore
 
-    def as_dict(self):
+    def as_dict(self) -> Dict:
         """Return a copy of this instance with all |Settings| replaced by regular Python dictionaries."""
-        d = {}
+        d: Dict = {}
         for k, v in self.items():
             if isinstance(v, Settings):
                 d[k] = v.as_dict()
@@ -291,20 +311,63 @@ class Settings(dict):
         """
         return SuppressMissing(Settings)
 
+    def contains_nested(self, key_tuple: Tuple[Hashable, ...], suppress_missing: bool = False) -> bool:
+        """Check if a nested key is present by recursively iterating through this instance using the keys in *key_tuple*.
+
+        The get item method is called recursively on this instance until all keys in key_tuple are exhausted.
+
+        Setting *suppress_missing* to ``True`` will raise a :exc:`KeyError` if a key in *key_tuple* cannot be accessed in this instance,
+
+        .. code:: python
+
+            >>> s = Settings()
+            >>> s.a.b.c = 1
+            >>> value = s.contains_nested(('a', 'b', 'c'))
+            >>> print(value)
+            True
+
+        """
+        # Allow a slightly wider definition for the key_tuple than the type-hint suggests for backwards-compatibility
+        if not isinstance(key_tuple, ColIterable) or isinstance(key_tuple, (str, bytes)):
+            raise TypeError(
+                f"Argument 'key_tuple' must be a non-string iterable but was type {type(key_tuple).__name__}"
+            )
+
+        s = self
+        for k in key_tuple:
+            if isinstance(s, Settings):
+                # Add explicit check for key and use get instead of getitem to avoid calling __missing__ and adding phantom entries to the settings
+                if k not in s:
+                    if suppress_missing:
+                        raise KeyError(f"Key '{k}' not present in the nested Settings object.")
+                    else:
+                        return False
+                else:
+                    s = s[k]
+            else:
+                try:
+                    s = s[k]
+                except (KeyError, TypeError) as e:
+                    if suppress_missing:
+                        raise KeyError(f"Cannot access key '{k}' in the nested Settings object. Error was: {str(e)}.")
+                    else:
+                        return False
+
+        return True
+
     def get_nested(
         self,
-        key_tuple: Union[Sequence[Hashable], str],
-        default: Union[Any, Literal["__Settings__"]] = "__Settings__",
-        suppress_missing=False,
-        simple_nesting=True,
-        ravel_list=False,
-    ):
-        """
-        Retrieve a nested value by, recursively, iterating through this instance using the keys in *key_tuple*.
-        To be backward compatible the default is a special string: "__Settings__" that returns an <empty Settings>.
+        key_tuple: Tuple[Hashable, ...],
+        suppress_missing: bool = False,
+        default: Optional[Any] = None,
+    ) -> Optional[Any]:
+        """Retrieve a nested value by, recursively, iterating through this instance using the keys in *key_tuple*.
 
-        Examples
-        --------
+        The get item method is called recursively on this instance until all keys in key_tuple are exhausted.
+
+        Setting *suppress_missing* to ``True`` will raise a :exc:`KeyError` if a key in *key_tuple* cannot be accessed in this instance,
+        Otherwise, the default value will be returned.
+
         .. code:: python
             >>> s = Settings()
             >>> s.a.b.c = True
@@ -330,30 +393,22 @@ class Settings(dict):
             input:
                 task:     <empty Settings>
         """
+        if not self.contains_nested(key_tuple, suppress_missing):
+            return default
 
-        if default == "__Settings__":
-            default = Settings
+        s = self
+        for k in key_tuple:
+            s = s[k]
 
-        s = self.copy()
-        if ravel_list:
-            s = s.flatten(flatten_list=True).unflatten(unflatten_list=False)
-        key_tuple = self._parse_key_tuple(key_tuple, simple_nesting, convert_str_to_int=ravel_list)
-        with contextlib.suppress() if not suppress_missing else s.suppress_missing():
-            for k in key_tuple:
-                s = s.get(k, default)
-                if s == Settings:  # backward compatibility
-                    return Settings()
-                elif not isinstance(s, Settings):  # returning the default
-                    return s
         return s
 
-    def set_nested(self, key_tuple: Sequence[Hashable], value, suppress_missing=False, simple_nesting=True):
+    def set_nested(self, key_tuple: Tuple[Hashable, ...], value: Optional[Any], suppress_missing: bool = False):
         """Set a nested value by, recursively, iterating through this instance using the keys in *key_tuple*.
 
-        The :meth:`.Settings.__getitem__` method is called recursively on this instance, followed by :meth:`.Settings.__setitem__`, until all keys in key_tuple are exhausted.
+        The get item method followed finally by set item is called recursively on this instance until all keys in key_tuple are exhausted.
 
-
-        Setting *suppress_missing* to ``True`` will internally open the :meth:`.Settings.suppress_missing` context manager, thus raising a :exc:`KeyError` if a key in *key_tuple* is absent from this instance.
+        Setting *suppress_missing* to ``True`` will raise a :exc:`KeyError` if a key in *key_tuple* cannot be accessed in this instance,
+        Otherwise, no set operation will be performed.
 
         .. code:: python
 
@@ -364,48 +419,148 @@ class Settings(dict):
               b:
                 c: 	True
         """
+        self.contains_nested(key_tuple[:-1], suppress_missing)
+
         s = self
-        key_tuple = self._parse_key_tuple(key_tuple, simple_nesting)
-        with contextlib.suppress() if not suppress_missing else s.suppress_missing():
-            for k in key_tuple[:-1]:
-                s = s[k]
+        for k in key_tuple[:-1]:
+            s = s[k]
+
         s[key_tuple[-1]] = value
 
-    def pop_nested(self, key_tuple: Sequence[Hashable], simple_nesting=True):
+    def pop_nested(
+        self,
+        key_tuple: Tuple[Hashable, ...],
+        suppress_missing: bool = False,
+        default: Optional[Any] = None,
+    ) -> Optional[Any]:
         """
-        Remove a branch from a nested dictionary based on a tuple of keys.
+        Pop a nested value by, recursively, iterating through this instance using the keys in *key_tuple*.
 
-        :param nested_dict: The nested dictionary to modify.
-        :param key_tuple: A tuple of keys indicating the path to the branch to be removed.
-        :return: The removed branch, or None if the path does not exist.
+        The get item method followed finally by pop item is called recursively on this instance until all keys in key_tuple are exhausted.
+
+        Setting *suppress_missing* to ``True`` will raise a :exc:`KeyError` if a key in *key_tuple* cannot be accessed in this instance,
+        Otherwise, the default value will be returned.
+
+        .. code:: python
+
+            >>> s = Settings()
+            >>> s.a.b.c = True
+            >>> value = s.pop_nested(('a', 'b', 'c'))
+            >>> print(value)
+            True
+            >>> print(s)
+            <empty Settings>
         """
-        key_tuple = self._parse_key_tuple(key_tuple, simple_nesting)
+        if not self.contains_nested(key_tuple, suppress_missing):
+            return default
 
-        current_dict = self
-        for key in key_tuple[:-1]:
-            current_dict = current_dict.get(key, None)
-            if current_dict is None:
-                return None
+        s = self
+        for k in key_tuple[:-1]:
+            s = s[k]
 
-        return current_dict.pop(key_tuple[-1], None)
+        return s.pop(key_tuple[-1])
 
-    @staticmethod
-    def _parse_key_tuple(key_tuple: Sequence[Hashable], simple_nesting: bool, convert_str_to_int=False):
-        def get_int_safe(inp):
-            try:
-                ret = int(inp)
-                return ret
-            except Exception:
-                return inp
+    def nested_keys(
+        self, flatten_list: bool = True, include_empty: bool = False
+    ) -> Generator[Tuple[Hashable, ...], None, None]:
+        """
+        Get the nested keys corresponding to all nodes in this instance, both 'branches' and 'leaves'.
 
-        if simple_nesting and isinstance(key_tuple, str):
-            if convert_str_to_int:
-                key_tuple = tuple(map(get_int_safe, key_tuple.split(".")))
-            else:
-                key_tuple = tuple(key_tuple.split("."))
-        return key_tuple
+        If *flatten_list* is set to ``True``, all nested lists will be flattened and elements converted to nodes.
 
-    def flatten(self, flatten_list=True) -> "Settings":
+        If *include_empty* is set to ``True``, nodes without values are also returned.
+
+        .. code:: python
+
+            >>> s = Settings()
+            >>> s.a.b.c = True
+            >>> value = list(s.nested_keys())
+            >>> print(value)
+            [('a',), ('a', 'b'), ('a', 'b', 'c')]
+
+        """
+
+        def iter_block(bk):
+            return bk.items() if isinstance(bk, Settings) else enumerate(bk)
+
+        block_keys = list(self.block_keys(flatten_list, include_empty))
+        for bk in block_keys:
+            yield bk
+            for k, v in iter_block(self.get_nested(bk)):
+                # Maintain ordering by skipping branch keys here
+                fk = bk + (k,)
+                if (include_empty or v) and fk not in block_keys:
+                    yield fk
+
+    def block_keys(
+        self, flatten_list: bool = True, include_empty: bool = False
+    ) -> Generator[Tuple[Hashable, ...], None, None]:
+        """
+        Get the nested keys corresponding to the internal nodes in this instance, also referred to as 'blocks' or 'branches'.
+        These internal nodes correspond to |Settings| objects.
+
+        If *flatten_list* is set to ``True``, all nested lists will be flattened and elements converted to internal nodes.
+
+        If *include_empty* is set to ``True``, nodes without values in the |Settings| are also returned.
+
+        .. code:: python
+
+            >>> s = Settings()
+            >>> s.a.b.c = True
+            >>> value = list(s.branch_keys())
+            >>> print(value)
+            [('a',), ('a', 'b')]
+
+        """
+        seen = set()
+        for k, v in self.flatten(flatten_list=flatten_list).items():
+            for i in range(len(k) - 1, 0, -1):
+                bk = k[:-i]
+                if bk not in seen:
+                    seen.add(bk)
+                    yield bk
+            if include_empty and isinstance(v, Settings) and not v:
+                yield k
+
+    def compare(self, other: "Settings") -> Dict[str, Union[Dict[Any, Any], Dict[Any, Tuple[Any, Any]]]]:
+        """
+        Compare this settings object to another to get the difference between them.
+
+        The result is a dictionary containing three entries:
+            - added: the flattened keys present in this settings object and not in the other, with their values
+            - removed: the flattened keys present in the other settings object and not in this, with their values
+            - modified: the flattened keys present in both settings objects, with both values in this and the other object
+
+        .. code:: python
+
+            >>> s = Settings()
+            >>> t = Settings()
+            >>> s.a.b = 1
+            >>> s.c.d = 2
+            >>> t.c.d = 3
+            >>> t.e.f = 4
+            >>> value = s.compare(t)
+            >>> print(value)
+            {'added': {('a', 'b'): 1}, 'modified': {('c', 'd'): (2, 3)}, 'removed': {('e', 'f'): 4}}
+        """
+        ref = self.flatten()
+        cs = other.flatten()
+
+        ref_keys = set(ref.keys())
+        cs_keys = set(cs.keys())
+
+        added_keys = ref_keys - cs_keys
+        removed_keys = cs_keys - ref_keys
+        modified_keys = ref_keys & cs_keys
+
+        # Iterate over dict keys and check in set to maintain original ordering
+        added = {k: ref[k] for k in ref.keys() if k in added_keys}
+        removed = {k: cs[k] for k in cs.keys() if k in removed_keys}
+        modified = {k: (ref[k], cs[k]) for k in ref.keys() if k in modified_keys and ref[k] != cs[k]}
+
+        return {"added": added, "removed": removed, "modified": modified}
+
+    def flatten(self, flatten_list: bool = True) -> "Settings":
         """Return a flattened copy of this instance.
 
         New keys are constructed by concatenating the (nested) keys of this instance into tuples.
@@ -448,7 +603,7 @@ class Settings(dict):
         _concatenate((), self)
         return ret
 
-    def unflatten(self, unflatten_list=True) -> "Settings":
+    def unflatten(self, unflatten_list: bool = True) -> "Settings":
         """Return a nested copy of this instance.
 
         New keys are constructed by expanding the keys of this instance (*e.g.* tuples) into new nested |Settings| instances.
@@ -712,6 +867,8 @@ class Settings(dict):
     __repr__ = __str__
     __iadd__ = soft_update
     __add__ = merge
+    __isub__ = remove
+    __sub__ = difference
     __copy__ = copy
 
 
@@ -783,6 +940,7 @@ class LogSettings(Settings):
 
         self.file = 5
         self.stdout = 3
+        self.csv = 7
         self.time = True
         self.date = True
 
@@ -807,6 +965,17 @@ class LogSettings(Settings):
     @stdout.setter
     def stdout(self, value: int) -> None:
         self["stdout"] = value
+
+    @property
+    def csv(self) -> int:
+        """
+        Verbosity of the log printed to .csv job log file in the main working folder. Defaults to ``7``.
+        """
+        return self["csv"]
+
+    @csv.setter
+    def csv(self, value: int) -> None:
+        self["csv"] = value
 
     @property
     def time(self) -> bool:

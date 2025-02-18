@@ -58,3 +58,13 @@ def rkf_folder():
     p = Path(__file__).parent.absolute() / "rkf"
     assert p.exists()
     return p
+
+
+@pytest.fixture
+def coskf_folder():
+    """
+    Returns the path to the COSKF folder
+    """
+    p = Path(__file__).parent.absolute() / "coskf"
+    assert p.exists()
+    return p

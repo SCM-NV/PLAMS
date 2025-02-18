@@ -3,7 +3,7 @@
 Examples
 ========
 
-In this chapter we present example PLAMS scripts covering various applications, from very simple tasks (like running the same calculation for multiple molecules) to more advanced dynamic workflows.
+In this section we present example PLAMS scripts covering various applications, from very simple tasks (like running the same calculation for multiple molecules) to more advanced dynamic workflows.
 
 The example scripts use computational engines from the Amsterdam Modeling Suite, and you will need a license to run them. Contact license@scm.com for further questions.
 
@@ -17,6 +17,7 @@ Getting Started
  
    WaterOptimization/WaterOptimization
    AMSSettingsSystem/AMSSettingsSystem
+   AMSSettingsInput/AMSSettingsInput
    He2DissociationCurve/He2DissociationCurve
    ManyJobsInParallel/ManyJobsInParallel
    Logging/Logging

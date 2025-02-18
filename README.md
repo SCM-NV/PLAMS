@@ -92,6 +92,11 @@ One or more of these can be installed using the command `pip install 'plams[chem
 
 Users of the AMS will also have to install the `scm.amspipe` package using the command `pip install $AMSHOME/scripting/scm/amspipe`.
 
+A final option is to download PLAMS directly from the [GitHub page](https://github.com/SCM-NV/PLAMS).
+[Released versions](https://github.com/SCM-NV/PLAMS/releases) are available since `AMS2024.103`.
+The latest (unreleased) development version can be downloaded from the [trunk branch](https://github.com/SCM-NV/PLAMS/archive/refs/heads/trunk.zip).
+Once the downloaded zip file has been extracted, navigate to its location and run `pip install .` to install into your python environment.
+
 License
 -------
 

@@ -76,3 +76,6 @@ svn.authors
 
 # vi/vim .swp files
 .*.swp
+
+# jupyter checkpoints
+.ipynb_checkpoints/

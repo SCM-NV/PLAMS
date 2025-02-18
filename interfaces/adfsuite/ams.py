@@ -59,7 +59,6 @@ try:
     _has_watchdog = True
 
     class AMSJobLogTailHandler(PatternMatchingEventHandler):
-
         def __init__(self, job, jobmanager):
             super().__init__(
                 patterns=[os.path.join(jobmanager.workdir, f"{job.name}*", "ams.log")],
@@ -685,6 +684,22 @@ class AMSResults(Results):
 
         fermi_energy = self.readrkf("BandStructure", "FermiEnergy", file="engine")
         fermi_energy = Units.convert(fermi_energy, "hartree", unit)
+
+        try:
+            path_source = self.readrkf("band_curves", "path_source", file="engine")
+        except KeyError:
+            path_source = "kpath"
+
+        if path_source == "seekpath":
+            for i, label in enumerate(labels):
+                if label:
+                    label = (
+                        label.replace("GAMMA", "\\Gamma")
+                        .replace("DELTA", "\\Delta")
+                        .replace("LAMBDA", "\\Lambda")
+                        .replace("SIGMA", "\\Sigma")
+                    )
+                    labels[i] = f"${label}$"
 
         return x, complete_spinup_data, complete_spindown_data, labels, fermi_energy  # type: ignore
 
@@ -2091,7 +2106,6 @@ class AMSResults(Results):
         return self.job.name
 
     class EnergyLandscape:
-
         class State:
             def __init__(
                 self,
@@ -2768,7 +2782,9 @@ class AMSJob(SingleJob):
                     input_system_settings_list = (
                         input_system_settings if isinstance(input_system_settings, list) else [input_system_settings]
                     )
-                    input_systems_settings = {s._h if "_h" in s else "": s for s in input_system_settings_list}
+                    input_systems_settings = {
+                        s._h if "_h" in s else "": s for s in input_system_settings_list if isinstance(s, Settings)
+                    }
 
             systems_settings = {n: self._serialize_single_molecule(n, m) for n, m in systems.items()}
 
@@ -2877,7 +2893,6 @@ class AMSJob(SingleJob):
 
     @staticmethod
     def _serialize_single_molecule(name: str, mol: Union[Molecule, "ChemicalSystem"]) -> Settings:
-
         def serialize_unichemsys_to_settings(mol: "ChemicalSystem") -> Settings:
             from scm.plams.interfaces.adfsuite.inputparser import InputParserFacade
 
@@ -3339,7 +3354,6 @@ class AMSJob(SingleJob):
 
     @staticmethod
     def _atom_suffix_to_settings(suffix) -> Settings:
-
         def is_int(s):
             if "." in s:
                 return False

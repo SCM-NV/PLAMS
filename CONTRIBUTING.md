@@ -1,6 +1,6 @@
-Thank you for your interest in contributing to the PLAMS project! 
+# Contributing to PLAMS
 
-# How to contribute
+Thank you for your interest in contributing to the PLAMS project! 
 
 We want to keep it as easy as possible to contribute changes that
 get things working in your environment. There are a few guidelines that we
@@ -10,32 +10,39 @@ top of things.
 ## Getting Started
 
 * Make sure you have a [GitHub account](https://github.com/signup/free)
-* Fork the repository on GitHub
+* [Fork](https://github.com/SCM-NV/PLAMS/fork) the repository on GitHub
 
 ## Making Changes
 
-* Create a topic branch from where you want to base your work.
-  * This is usually the master branch.
-  * Only target release branches if you are certain your fix must be on that
-    branch.
-  * To quickly create a topic branch based on master; `git checkout -b
-    fix/master/my_contribution master`. Please avoid working directly on the
-    `master` branch.
-* Make commits of logical units.
-* Check for unnecessary whitespace with `git diff --check` before committing.
-* Make sure your commit messages are informative.
-* Make sure you have added the necessary tests for your changes.
-* Run _all_ the tests to assure nothing else was accidentally broken.
+* Create a feature branch from where you want to base your work
+  * This is usually the trunk branch - only target release branches if you are certain your fix must be on that
+    branch
+  * To quickly create a feature branch based on trunk run `git checkout -b
+    MyName/my_contribution trunk`
+* Make commits of logical units
+* Make sure your commit messages are informative
+* Make sure you have added the necessary tests for your changes
 
 ## Submitting Changes
 
-* Sign the [Contributor License Agreement](https://www.clahub.com/agreements/SCM-NV/PLAMS).
-* Push your changes to a topic branch in your fork of the repository.
-* Submit a pull request to the repository in the SCM-NV organization.
-* The core team looks at Pull Requests on a regular basis.
+* Push your changes to a feature branch in your fork of the repository
+* Submit a pull request to the repository in the SCM-NV organization
+* The core team reviews Pull Requests on a regular basis and will provide feedback / approval
 
-# Additional Resources
+## Developer Tools
 
-* [Contributor License Agreement](https://www.clahub.com/agreements/SCM-NV/PLAMS)
-* [General GitHub documentation](https://help.github.com/)
-* [GitHub pull request documentation](https://help.github.com/send-pull-requests/)
+In order to maintain a high code quality, we use a variety of code developer tools in our repo.
+These include:
+
+| Tool                                        | Purpose                                  |
+|:--------------------------------------------|:-----------------------------------------|
+| [black](https://black.readthedocs.io/)      | code formatting                          |
+| [mypy](https://mypy.readthedocs.io/)        | static type checking                     |
+| [pytest](https://docs.pytest.org/)          | testing                                  |
+| [coverage](https://coverage.readthedocs.io) | measuring test coverage                  |
+| [sphinx](https://www.sphinx-doc.org/)       | generating documentation                 |
+
+These can be installed with the command `pip install '.[dev]'`.
+
+A series of checks are conducted in our CI pipeline, which must pass 
+before your pull request is considered ready for review.

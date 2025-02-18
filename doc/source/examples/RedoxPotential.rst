@@ -118,9 +118,9 @@ Details about individual calculations
 
 The paper by Belic et al. describes four ways to calculate the oxidation potential which are described in the tabs below, however we have extended them to allow for calculation of the reduction potential. In general, :math:`g_p^i` denotes the optimised geometry of the molecule in phase :math:`p` (solvent [sol] or gaseous [gas]) and in state :math:`i` (oxidised [+]/reduced [-] or neutral [0]), :math:`G_P^I(g_p^i)` denotes the Gibbs free energy of the geometry :math:`g_p^i` calculated in phase :math:`P` and state :math:`I`, similarly :math:`E_P(g_p^i)` denotes the bond energy of the geometry :math:`g_p^i` calculated in phase :math:`P`. The electron Gibbs free energy :math:`G_{gas}(e^-)=0.0375 \text{eV}` is also used in these calculations.
 
-.. tabs::
+.. tab-set::
 
-  .. tab:: Direct (DC)
+  .. tab-item:: Direct (DC)
 
     Direct method of calculating oxidation potential using the COSMO solvation model.
     
@@ -158,7 +158,7 @@ The paper by Belic et al. describes four ways to calculate the oxidation potenti
 
 
 
-  .. tab:: Thermodynamic Cycle (TC)
+  .. tab-item:: Thermodynamic Cycle (TC)
 
     Thermodynamic cycle using either the COSMO or the COSMO-RS solvation model. 
 
@@ -248,7 +248,7 @@ The paper by Belic et al. describes four ways to calculate the oxidation potenti
         - No
 
 
-  .. tab:: Screening
+  .. tab-item:: Screening
 
     This method also implements the thermodynamic cycle, but uses lower theory methods (DFTB) to greatly increase speed of calculation. This method uses COSMO-RS as the solvation method.
 

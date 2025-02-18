@@ -4,7 +4,7 @@ import struct
 import subprocess
 from bisect import bisect
 from collections import OrderedDict
-from typing import Dict, Set, Union, List, Iterator, Optional, Any
+from typing import Dict, Set, Union, List, Sequence, Iterator, Optional, Any
 
 import numpy as np
 from scm.plams.core.errors import FileError
@@ -16,8 +16,8 @@ __all__ = ["KFFile", "KFReader", "KFHistory"]
 
 TMultiValue = Union[int, float, bool]
 TValue = Union[TMultiValue, str]
-TRead = Union[TValue, List[TMultiValue]]
-TWrite = Union[TValue, List[TValue]]
+TRead = Union[TValue, Sequence[TMultiValue]]
+TWrite = Union[TValue, Sequence[TValue]]
 
 
 def _run_kftool(*args, **kwargs):

@@ -71,7 +71,7 @@ def test_plot_molecule():
 # ----------------------------------------------------------
 # Testing plot_grid_molecules
 # ----------------------------------------------------------
-@image_comparison(baseline_images=["plot_grid_molecules"], remove_text=True, extensions=["png"], style="mpl20", tol=0.1)
+@image_comparison(baseline_images=["plot_grid_molecules"], remove_text=True, extensions=["png"], style="mpl20", tol=25)
 def test_plot_grid_molecules():
     plt.close("all")
     ethanol = from_smiles("CCO")

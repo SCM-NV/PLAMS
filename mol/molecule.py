@@ -3273,6 +3273,20 @@ class Molecule:
         for bo in self.bonds:
             bo.mol = self
 
+    def readcoskf(self, filename: str_type, **other):
+        kf = KFFile(filename)
+        natom = kf.read("COSMO", "Number of Atoms")
+        atom_symbols = kf.read("COSMO", "Atom Type").split()
+        atom_coords = np.array(kf.read("COSMO", "Atom Coordinates"))
+        atom_coords = np.reshape(atom_coords, (natom, 3))
+        mol_charge = -np.round(np.sum(kf.read("COSMO", "Segment Charge")), 1)
+        self.properties.charge = mol_charge
+
+        for s, (x, y, z) in zip(atom_symbols, atom_coords):
+            atom = Atom(symbol=s, coords=(x, y, z))
+            self.add_atom(atom)
+        self.guess_bonds()
+
     def readin(self, f, **other):
         """Read a file containing a System block used in AMS driver input files."""
         if not input_parser_available:
@@ -3316,6 +3330,8 @@ class Molecule:
         if inputformat in self.__class__._readformat:
             if inputformat == "rkf":
                 return self.readrkf(filename, **other)
+            elif inputformat == "coskf":
+                return self.readcoskf(filename, **other)
             else:
                 with open(filename) as f:
                     ret = self._readformat[inputformat](self, f, **other)
@@ -3352,6 +3368,7 @@ class Molecule:
         "mol2": readmol2,
         "pdb": readpdb,
         "rkf": readrkf,
+        "coskf": readcoskf,
     }
     _writeformat: Dict[str_type, Callable] = {"xyz": writexyz, "mol": writemol, "mol2": writemol2, "pdb": writepdb}
     if input_parser_available:

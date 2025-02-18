@@ -20,3 +20,4 @@ They offer a way of using PLAMS |Molecule| class with other libraries capable of
     orca
     raspa
     vasp
+    serenity

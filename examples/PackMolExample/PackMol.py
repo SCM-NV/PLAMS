@@ -259,7 +259,8 @@ plot_molecule(out, figsize=figsize, rotation=rotation)
 
 from ase.build import surface
 
-print("water surrounding non-orthorhombic Au(211) slab, from an exact number of molecules")
+print("water surrounding non-orthorhombic Au(211) slab, from an approximate number of molecules")
+print("NOTE: non-orthorhombic cell, results are approximate")
 slab = surface("Au", (2, 1, 1), 6)
 slab.center(vacuum=11.0, axis=2)
 slab.set_pbc(True)
@@ -297,6 +298,8 @@ out.write("al-bulk-with-h-he.xyz")
 # The ``packmol()`` function accepts the arguments ``keep_bonds`` and ``keep_atom_properties``. These options will keep the bonds defined for the constitutent molecules, as well as any atomic properties.
 #
 # The bonds and atom properties are easiest to see by printing the System block for an AMS job:
+
+from scm.plams import Settings
 
 water = from_smiles("O")
 n2 = from_smiles("N#N")

@@ -3,87 +3,87 @@ from typing import Dict, List
 import numpy as np
 
 
+__all__ = ["format_in_table"]
+
+
 def format_in_table(
     data: Dict[str, List],
-    ret_str: bool = False,
-    print_on: bool = True,
-    max_col_length: int = -1,
-    max_rows_displayed: int = 30,
-):
-    """_summary_
-
-    :param data: _description_
-    :type data: Dict[str, List]
-    :param ret_str: _description_, defaults to False
-    :type ret_str: bool, optional
-    :param print_on: _description_, defaults to True
-    :type print_on: bool, optional
-    :param max_col_length: can be integer positive value or -1, defaults to -1
-    :type max_col_length: int, optional
-    :param max_rows_displayed: can be integer positive value or -1, defaults to 10
-    :type max_rows_displayed: int, optional
-    :return: _description_
-    :rtype: _type_
+    max_col_width: int = -1,
+    max_rows: int = 30,
+) -> str:
     """
+    Create a table from a dictionary of data, with the keys as column headers and the values as rows.
 
-    # Function to truncate strings
+    This will appear in a Markdown compatible format, as follows:
+
+    .. code-block:: python
+
+        | A | B    | C        |
+        |---|------|----------|
+        | 1 | one  | row o... |
+        | . | ...  | ...      |
+        | 5 | five | row f... |
+
+    :param data: data to format in the table
+    :param max_col_width: can be integer positive value or -1, defaults to -1 (no maximum width)
+    :param max_rows: can be integer positive value or -1, defaults to 30
+    :return: formatted string table
+    """
+    elip = "..."
+
     def truncate(s, max_len):
         s = str(s)
-        if max_len > 0 and len(s) > max_len:
-            return s[:max_len] + "..."
-        else:
-            return s
+        return f"{s[:max_len]}{elip}" if 0 < max_len < len(s) else s
 
-    # Extract keys and values
-    keys = list(data.keys())  # Keys will form the table header
+    # Extract keys for headers
+    keys = list(data.keys())
 
-    # Truncate headers
-    truncated_header = [truncate(str(key), max_col_length) for key in keys]
-
-    # Truncate values
-    columns = [[truncate(value, max_col_length) for value in col_values] for col_values in data.values()]
+    # Truncate headers and values based on maximum column width
+    truncated_header = [truncate(str(key), max_col_width) for key in keys]
+    columns = [[truncate(value, max_col_width) for value in col_values] for col_values in data.values()]
 
     # Transpose columns to get rows
-    values = np.array(columns, dtype=object).T  # Transpose to get rows
+    values = np.array(columns, dtype=object).T
 
-    # Calculate column widths dynamically based on truncated headers and values
-    col_widths = [max(len(truncated_header[i]), max(len(str(row[i])) for row in values)) for i in range(len(keys))]
+    # Calculate column widths dynamically based on truncated headers and values and values of displayed rows
+    num_rows = len(values)
+    write_all_rows = num_rows <= max_rows or max_rows == -1
+    rows_at_start = num_rows if write_all_rows else max_rows // 2
+    rows_at_end = 0 if write_all_rows else max_rows - rows_at_start
+    width_values = [v for i, v in enumerate(values) if i < rows_at_start or i >= (num_rows - rows_at_end)]
+    col_widths = [
+        max(len(truncated_header[i]), max(len(str(row[i])) for row in width_values)) for i in range(len(keys))
+    ]
+
+    # Create the separator line
+    separator = f"|-{'-|-'.join('-' * width for width in col_widths)}-|"
 
     # Prepare the table
-    strs_to_print = []
-    header_row = " | ".join(f"{truncated_header[i]:<{col_widths[i]}}" for i in range(len(keys)))
-    strs_to_print.append(header_row)
-    # Create the separator line
-    separator = "-|-".join("-" * width for width in col_widths)
-    strs_to_print.append(separator)
+    table_rows = []
+    header_row = f"| {' | '.join(f'{truncated_header[i].ljust(col_widths[i])}' for i in range(len(keys)))} |"
+    table_rows.append(header_row)
+    table_rows.append(separator)
 
-    num_rows = len(values)
-    if num_rows <= max_rows_displayed or max_rows_displayed == -1:
-        # Print all rows
+    if write_all_rows:
+        # Make all rows
         for row in values:
-            row_text = " | ".join(f"{str(row[i]):<{col_widths[i]}}" for i in range(len(keys)))
-            strs_to_print.append(row_text)
+            row_text = f"| {' | '.join(f'{str(row[i]).ljust(col_widths[i])}' for i in range(len(keys)))} |"
+            table_rows.append(row_text)
     else:
-        # Determine how many rows to show at the start and end
-        rows_to_show = max_rows_displayed - 1  # Subtract 1 for the separator row
-        rows_at_start = rows_to_show // 2
-        rows_at_end = rows_to_show - rows_at_start
-
         # First part of the rows
         for row in values[:rows_at_start]:
-            row_text = " | ".join(f"{str(row[i]):<{col_widths[i]}}" for i in range(len(keys)))
-            strs_to_print.append(row_text)
+            row_text = f"| {' | '.join(f'{str(row[i]).ljust(col_widths[i])}' for i in range(len(keys)))} |"
+            table_rows.append(row_text)
 
         # Separator row with '...'
-        dots_row = " | ".join(f"{'...'[:col_widths[i]]:<{col_widths[i]}}" for i in range(len(keys)))
-        strs_to_print.append(dots_row)
+        dots_row = f"| {' | '.join(f'{elip[:col_widths[i]].ljust(col_widths[i])}' for i in range(len(keys)))} |"
+        table_rows.append(dots_row)
 
         # Last part of the rows
         for row in values[-rows_at_end:]:
-            row_text = " | ".join(f"{str(row[i]):<{col_widths[i]}}" for i in range(len(keys)))
-            strs_to_print.append(row_text)
-    str_to_print = "\n".join(strs_to_print)
-    if print_on:
-        print(str_to_print)
-    if ret_str:
-        return str_to_print
+            row_text = f"| {' | '.join(f'{str(row[i]).ljust(col_widths[i])}' for i in range(len(keys)))} |"
+            table_rows.append(row_text)
+
+    table = "\n".join(table_rows)
+
+    return table

@@ -1108,6 +1108,26 @@ def test_write_multiple_molecules_to_pdb(pdb_folder, tmp_path):
             np.testing.assert_allclose(at.coords, at_ref.coords, atol=1e-08)
 
 
+def test_read_multiple_molecules_from_coskf(coskf_folder):
+    """
+    Test for COSKF reading
+    """
+    filenames = [os.path.join(coskf_folder, fn) for fn in os.listdir(coskf_folder)]
+
+    mols = [(os.path.basename(fn).rstrip(".coskf"), Molecule(fn)) for fn in filenames]
+
+    actual = {k: {"n_atoms": len(v.atoms), "n_bonds": len(v.bonds), "charge": v.properties.charge} for k, v in mols}
+
+    expected = {
+        "Water": {"n_atoms": 3, "n_bonds": 2, "charge": 0.0},
+        "IL_cation_ethylpyridinium": {"n_atoms": 18, "n_bonds": 18, "charge": 1.0},
+        "Benzene": {"n_atoms": 12, "n_bonds": 12, "charge": 0.0},
+        "IL_anion_acetate": {"n_atoms": 7, "n_bonds": 6, "charge": -1.0},
+    }
+
+    assert actual == expected
+
+
 def test_as_array_context():
     expected = np.array(
         [

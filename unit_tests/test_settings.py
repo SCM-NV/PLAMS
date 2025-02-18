@@ -246,6 +246,58 @@ class TestSettings:
         # Settings objects should be deep copied
         assert merged.elements is not nested_settings.elements
 
+    def test_settings_remove_deletes_matching_keys(self, nested_settings):
+        nested_settings.remove(
+            Settings(
+                {
+                    "elements": {
+                        "H": {
+                            "mass": 1.008,
+                            "metal": False,
+                            "common_isotopes": {},
+                            "properties": ["gas", "dimer"],
+                        },
+                        "O": None,
+                        "Fe": {"name": "Iron", "num": 26, "mass": 55.845, "metal": True, "properties": ["common"]},
+                    },
+                    False: {},
+                    2: {1: "one", 2.0: "two", 3.0001: "three"},
+                }
+            )
+        )
+
+        assert nested_settings["elements"] == {
+            "Fe": {"properties": []},
+            "H": {"name": "Hydrogen", "num": 1, "properties": []},
+        }
+        assert False not in nested_settings
+
+    def test_settings_difference_returns_keys_not_in_other(self, nested_settings):
+        diff = nested_settings.difference(
+            Settings(
+                {
+                    "elements": {
+                        "H": {
+                            "mass": 1.008,
+                            "metal": False,
+                            "common_isotopes": {},
+                            "properties": ["gas", "dimer"],
+                        },
+                        "O": None,
+                        "Fe": {"name": "Iron", "num": 26, "mass": 55.845, "metal": True, "properties": ["common"]},
+                    },
+                    False: {},
+                    2: {1: "one", 2.0: "two", 3.0001: "three"},
+                }
+            )
+        )
+
+        assert diff["elements"] == {
+            "Fe": {"properties": []},
+            "H": {"name": "Hydrogen", "num": 1, "properties": []},
+        }
+        assert False not in diff
+
     def test_settings_dictionary_equivalent_methods_case_insensitive(self, nested_settings):
         # Variety of dictionary methods should behave as usual but with case-insensitivity
         assert nested_settings.get("Elements").get("FE").get("NAME") == "Iron"
@@ -290,13 +342,50 @@ class TestSettings:
     @pytest.mark.parametrize(
         "suppress_missing", [True, False], ids=["with_suppress_missing", "without_suppress_missing"]
     )
+    def test_settings_contains_nested_as_expected(self, suppress_missing, nested_settings):
+        assert nested_settings.contains_nested(("eleMENTS", "Fe", "NAME"))
+        assert nested_settings.contains_nested([1, 2])
+        assert nested_settings.contains_nested((False,))
+        assert nested_settings.contains_nested(("elements", "H", "common_isotopes"))
+        assert nested_settings.contains_nested({"elements": 1, "H": 2, "common_isotopes": 3})
+        assert nested_settings.contains_nested(("elements", "H", "common_isotopes", 0, "name"))
+
+        if suppress_missing:
+            with pytest.raises(KeyError):
+                nested_settings.contains_nested(("eleMENTS", "Zn", "NAME"), True)
+            with pytest.raises(KeyError):
+                nested_settings.contains_nested(("elements", "Fe", "num", 32), True)
+        else:
+            assert not nested_settings.contains_nested(("eleMENTS", "Zn", "NAME"))
+            assert not nested_settings.contains_nested(("elements", "Fe", "num", 32))
+
+        with pytest.raises(TypeError):
+            nested_settings.contains_nested("elements")
+
+    @pytest.mark.parametrize(
+        "suppress_missing", [True, False], ids=["with_suppress_missing", "without_suppress_missing"]
+    )
     def test_settings_get_nested_as_expected(self, suppress_missing, nested_settings):
         assert nested_settings.get_nested(("eleMENTS", "Fe", "NAME")) == "Iron"
+        assert nested_settings.get_nested([1, 2]) == "two"
+        assert nested_settings.get_nested((False,)) == {"s": "string", True: "bool", 42: "int", 42.99: "float"}
+        assert nested_settings.get_nested(("elements", "H", "common_isotopes")) == [
+            {"name": "H1", "mass": 1, "abundance": 99.99},
+            {"name": "H2", "mass": 2, "abundance": 0.01},
+        ]
+        assert nested_settings.get_nested(("elements", "H", "common_isotopes", 0, "name")) == "H1"
+
         if suppress_missing:
             with pytest.raises(KeyError):
                 nested_settings.get_nested(("eleMENTS", "Zn", "NAME"), True)
+            with pytest.raises(KeyError):
+                nested_settings.get_nested(("elements", "Fe", "num", 32), True)
         else:
-            assert nested_settings.get_nested(("eleMENTS", "Zn", "NAME")) == Settings()
+            assert nested_settings.get_nested(("eleMENTS", "Zn", "NAME")) is None
+            assert nested_settings.get_nested(("elements", "Fe", "num", 32), default=42) == 42
+
+        with pytest.raises(TypeError):
+            nested_settings.get_nested("elements")
 
     @pytest.mark.parametrize(
         "suppress_missing", [True, False], ids=["with_suppress_missing", "without_suppress_missing"]
@@ -304,12 +393,334 @@ class TestSettings:
     def test_settings_set_nested_as_expected(self, suppress_missing, nested_settings):
         nested_settings.set_nested(("eleMENTS", "Fe", "NAME"), "Ferrum")
         assert nested_settings.elements.Fe.name == "Ferrum"
+
+        nested_settings.set_nested([1, 2], "2")
+        assert nested_settings.get_nested((1, 2)) == "2"
+
+        nested_settings.set_nested((False,), {"s": "string", False: "bool", 43: "int"})
+        assert nested_settings.get_nested((False,)) == {"s": "string", False: "bool", 43: "int"}
+
+        nested_settings.set_nested(
+            ("elements", "H", "common_isotopes"),
+            [
+                {"name": "H1", "mass": 1, "abundance": 99.999},
+                {"name": "H_2", "mass": 2, "abundance": 0.001},
+            ],
+        )
+        nested_settings.set_nested(("elements", "H", "common_isotopes", 0, "name"), "H_1")
+        assert nested_settings.get_nested(("elements", "H", "common_isotopes")) == [
+            {"name": "H_1", "mass": 1, "abundance": 99.999},
+            {"name": "H_2", "mass": 2, "abundance": 0.001},
+        ]
+
         if suppress_missing:
             with pytest.raises(KeyError):
                 nested_settings.set_nested(("eleMENTS", "Zn", "NAME"), "Zinc", True)
         else:
             nested_settings.set_nested(("eleMENTS", "Zn", "NAME"), "Zinc")
             assert nested_settings.elements.Zn.name == "Zinc"
+
+    @pytest.mark.parametrize(
+        "suppress_missing", [True, False], ids=["with_suppress_missing", "without_suppress_missing"]
+    )
+    def test_settings_pop_nested_as_expected(self, suppress_missing, nested_settings):
+        assert nested_settings.pop_nested(("eleMENTS", "Fe", "NAME")) == "Iron"
+        assert nested_settings.pop_nested((1, 2)) == "two"
+        assert nested_settings.pop_nested((False,)) == {"s": "string", True: "bool", 42: "int", 42.99: "float"}
+        assert nested_settings.pop_nested(("elements", "H", "common_isotopes", 0, "name")) == "H1"
+        assert nested_settings.pop_nested(("elements", "H", "common_isotopes")) == [
+            {"mass": 1, "abundance": 99.99},
+            {"name": "H2", "mass": 2, "abundance": 0.01},
+        ]
+
+        if suppress_missing:
+            with pytest.raises(KeyError):
+                nested_settings.pop_nested(("eleMENTS", "Zn", "NAME"), True)
+            with pytest.raises(KeyError):
+                nested_settings.pop_nested(("elements", "Fe", "num", 32), True)
+        else:
+            assert nested_settings.pop_nested(("eleMENTS", "Zn", "NAME")) is None
+            assert nested_settings.pop_nested(("elements", "Fe", "num", 32), default=42) == 42
+
+        with pytest.raises(TypeError):
+            nested_settings.pop_nested("elements")
+
+    def test_settings_nested_keys(self, nested_settings):
+        sett = Settings()
+        sett.elements = nested_settings.elements
+        sett.empty  # Add empty branches
+        sett.elements.Fe.empty
+        sett.elements.empty_list = []
+        sett.elements.half_empty = [Settings(), Settings({"k": "v", "empty": ""})]
+
+        keys = list(sett.nested_keys(flatten_list=False))
+        assert keys == [
+            ("elements",),
+            ("elements", "half_empty"),
+            ("elements", "H"),
+            ("elements", "H", "name"),
+            ("elements", "H", "num"),
+            ("elements", "H", "mass"),
+            ("elements", "H", "common_isotopes"),
+            ("elements", "H", "properties"),
+            ("elements", "O"),
+            ("elements", "O", "name"),
+            ("elements", "O", "num"),
+            ("elements", "O", "mass"),
+            ("elements", "O", "common_isotopes"),
+            ("elements", "Fe"),
+            ("elements", "Fe", "name"),
+            ("elements", "Fe", "num"),
+            ("elements", "Fe", "mass"),
+            ("elements", "Fe", "metal"),
+            ("elements", "Fe", "properties"),
+        ]
+        assert all([sett.contains_nested(k) for k in keys])
+
+        keys = list(sett.nested_keys(flatten_list=False, include_empty=True))
+        assert keys == [
+            ("elements",),
+            ("elements", "empty_list"),
+            ("elements", "half_empty"),
+            ("elements", "H"),
+            ("elements", "H", "name"),
+            ("elements", "H", "num"),
+            ("elements", "H", "mass"),
+            ("elements", "H", "metal"),
+            ("elements", "H", "common_isotopes"),
+            ("elements", "H", "properties"),
+            ("elements", "O"),
+            ("elements", "O", "name"),
+            ("elements", "O", "num"),
+            ("elements", "O", "mass"),
+            ("elements", "O", "metal"),
+            ("elements", "O", "common_isotopes"),
+            ("elements", "Fe"),
+            ("elements", "Fe", "name"),
+            ("elements", "Fe", "num"),
+            ("elements", "Fe", "mass"),
+            ("elements", "Fe", "metal"),
+            ("elements", "Fe", "properties"),
+            ("elements", "Fe", "empty"),
+            ("empty",),
+        ]
+        assert all([sett.contains_nested(k) for k in keys])
+
+        keys = list(sett.nested_keys())
+        assert keys == [
+            ("elements",),
+            ("elements", "H"),
+            ("elements", "H", "name"),
+            ("elements", "H", "num"),
+            ("elements", "H", "mass"),
+            ("elements", "H", "common_isotopes"),
+            ("elements", "H", "common_isotopes", 0),
+            ("elements", "H", "common_isotopes", 0, "name"),
+            ("elements", "H", "common_isotopes", 0, "mass"),
+            ("elements", "H", "common_isotopes", 0, "abundance"),
+            ("elements", "H", "common_isotopes", 1),
+            ("elements", "H", "common_isotopes", 1, "name"),
+            ("elements", "H", "common_isotopes", 1, "mass"),
+            ("elements", "H", "common_isotopes", 1, "abundance"),
+            ("elements", "H", "properties"),
+            ("elements", "H", "properties", 0),
+            ("elements", "H", "properties", 1),
+            ("elements", "O"),
+            ("elements", "O", "name"),
+            ("elements", "O", "num"),
+            ("elements", "O", "mass"),
+            ("elements", "O", "common_isotopes"),
+            ("elements", "O", "common_isotopes", 0),
+            ("elements", "O", "common_isotopes", 0, "name"),
+            ("elements", "O", "common_isotopes", 0, "mass"),
+            ("elements", "O", "common_isotopes", 0, "abundance"),
+            ("elements", "O", "common_isotopes", 1),
+            ("elements", "O", "common_isotopes", 1, "name"),
+            ("elements", "O", "common_isotopes", 1, "mass"),
+            ("elements", "O", "common_isotopes", 1, "abundance"),
+            ("elements", "Fe"),
+            ("elements", "Fe", "name"),
+            ("elements", "Fe", "num"),
+            ("elements", "Fe", "mass"),
+            ("elements", "Fe", "metal"),
+            ("elements", "Fe", "properties"),
+            ("elements", "Fe", "properties", 0),
+            ("elements", "half_empty"),
+            ("elements", "half_empty", 1),
+            ("elements", "half_empty", 1, "k"),
+        ]
+        assert all([sett.contains_nested(k) for k in keys])
+
+        keys = list(sett.nested_keys(include_empty=True))
+        assert keys == [
+            ("elements",),
+            ("elements", "empty_list"),
+            ("elements", "H"),
+            ("elements", "H", "name"),
+            ("elements", "H", "num"),
+            ("elements", "H", "mass"),
+            ("elements", "H", "metal"),
+            ("elements", "H", "common_isotopes"),
+            ("elements", "H", "common_isotopes", 0),
+            ("elements", "H", "common_isotopes", 0, "name"),
+            ("elements", "H", "common_isotopes", 0, "mass"),
+            ("elements", "H", "common_isotopes", 0, "abundance"),
+            ("elements", "H", "common_isotopes", 1),
+            ("elements", "H", "common_isotopes", 1, "name"),
+            ("elements", "H", "common_isotopes", 1, "mass"),
+            ("elements", "H", "common_isotopes", 1, "abundance"),
+            ("elements", "H", "properties"),
+            ("elements", "H", "properties", 0),
+            ("elements", "H", "properties", 1),
+            ("elements", "O"),
+            ("elements", "O", "name"),
+            ("elements", "O", "num"),
+            ("elements", "O", "mass"),
+            ("elements", "O", "metal"),
+            ("elements", "O", "common_isotopes"),
+            ("elements", "O", "common_isotopes", 0),
+            ("elements", "O", "common_isotopes", 0, "name"),
+            ("elements", "O", "common_isotopes", 0, "mass"),
+            ("elements", "O", "common_isotopes", 0, "abundance"),
+            ("elements", "O", "common_isotopes", 1),
+            ("elements", "O", "common_isotopes", 1, "name"),
+            ("elements", "O", "common_isotopes", 1, "mass"),
+            ("elements", "O", "common_isotopes", 1, "abundance"),
+            ("elements", "Fe"),
+            ("elements", "Fe", "name"),
+            ("elements", "Fe", "num"),
+            ("elements", "Fe", "mass"),
+            ("elements", "Fe", "metal"),
+            ("elements", "Fe", "properties"),
+            ("elements", "Fe", "properties", 0),
+            ("elements", "Fe", "empty"),
+            ("elements", "half_empty"),
+            ("elements", "half_empty", 0),
+            ("elements", "half_empty", 1),
+            ("elements", "half_empty", 1, "k"),
+            ("elements", "half_empty", 1, "empty"),
+            ("empty",),
+        ]
+        assert all([sett.contains_nested(k) for k in keys])
+
+    def test_settings_block_keys(self, nested_settings):
+        sett = Settings()
+        sett.elements = nested_settings.elements
+        sett.empty  # Add empty branches
+        sett.elements.Fe.empty
+        sett.elements.empty_list = []
+        sett.elements.half_empty = [Settings(), Settings({"k": "v", "empty": ""})]
+
+        keys = list(sett.block_keys(flatten_list=False))
+        assert keys == [("elements",), ("elements", "H"), ("elements", "O"), ("elements", "Fe")]
+        assert all([sett.contains_nested(k) for k in keys])
+
+        keys = list(sett.block_keys(flatten_list=False, include_empty=True))
+        assert keys == [
+            ("elements",),
+            ("elements", "H"),
+            ("elements", "O"),
+            ("elements", "Fe"),
+            ("elements", "Fe", "empty"),
+            ("empty",),
+        ]
+        assert all([sett.contains_nested(k) for k in keys])
+
+        keys = list(sett.block_keys())
+        assert keys == [
+            ("elements",),
+            ("elements", "H"),
+            ("elements", "H", "common_isotopes"),
+            ("elements", "H", "common_isotopes", 0),
+            ("elements", "H", "common_isotopes", 1),
+            ("elements", "H", "properties"),
+            ("elements", "O"),
+            ("elements", "O", "common_isotopes"),
+            ("elements", "O", "common_isotopes", 0),
+            ("elements", "O", "common_isotopes", 1),
+            ("elements", "Fe"),
+            ("elements", "Fe", "properties"),
+            ("elements", "half_empty"),
+            ("elements", "half_empty", 1),
+        ]
+        assert all([sett.contains_nested(k) for k in keys])
+
+        keys = list(sett.block_keys(include_empty=True))
+        assert keys == [
+            ("elements",),
+            ("elements", "H"),
+            ("elements", "H", "common_isotopes"),
+            ("elements", "H", "common_isotopes", 0),
+            ("elements", "H", "common_isotopes", 1),
+            ("elements", "H", "properties"),
+            ("elements", "O"),
+            ("elements", "O", "common_isotopes"),
+            ("elements", "O", "common_isotopes", 0),
+            ("elements", "O", "common_isotopes", 1),
+            ("elements", "Fe"),
+            ("elements", "Fe", "properties"),
+            ("elements", "Fe", "empty"),
+            ("elements", "half_empty"),
+            ("elements", "half_empty", 0),
+            ("elements", "half_empty", 1),
+            ("empty",),
+        ]
+        assert all([sett.contains_nested(k) for k in keys])
+
+    def test_settings_compare_added_removed_and_modified(self, nested_settings):
+        no_diff = nested_settings.compare(nested_settings)
+
+        assert no_diff == {"added": {}, "removed": {}, "modified": {}}
+
+        other = Settings(
+            {
+                "H": {
+                    "name": "Hydrogen",
+                    "num": 1,
+                    "mass": 1.00799,
+                    "common_isotopes": [
+                        {"name": "H1", "mass": 1, "abundance": 99.99},
+                        {"name": "H2", "mass": 2, "abundance": 0.01},
+                    ],
+                    "properties": ["gas", "dimer", "combustible"],
+                },
+                "O": {
+                    "name": "Oxygen",
+                    "num": 8,
+                    "mass": 15.9999,
+                    "metal": False,
+                    "colour": {"liquid": "blue", "gas": "colourless"},
+                    "common_isotopes": [
+                        {"name": "O16", "mass": 16, "abundance": 99.8},
+                        {"name": "O18", "mass": 18, "abundance": 0.02},
+                    ],
+                },
+                "C": {"name": "Carbon"},
+            }
+        )
+
+        diff = nested_settings["elements"].compare(other)
+
+        assert diff["added"] == {
+            ("Fe", "mass"): 55.845,
+            ("Fe", "metal"): True,
+            ("Fe", "name"): "Iron",
+            ("Fe", "num"): 26,
+            ("Fe", "properties", 0): "common",
+            ("H", "metal"): False,
+        }
+
+        assert diff["removed"] == {
+            ("C", "name"): "Carbon",
+            ("H", "properties", 2): "combustible",
+            ("O", "colour", "gas"): "colourless",
+            ("O", "colour", "liquid"): "blue",
+        }
+
+        assert diff["modified"] == {
+            ("H", "mass"): (1.008, 1.00799),
+            ("O", "mass"): (15.999, 15.9999),
+        }
 
     def test_settings_flatten_as_expected(self, nested_settings, extra_nested_settings):
         # Flatten, with a case of not flattening lists
@@ -570,6 +981,7 @@ jobmanager:
 log: 	
     file: 	5
     stdout: 	3
+    csv: 	7
     time: 	True
     date: 	True
 preview: 	False

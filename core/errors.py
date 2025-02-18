@@ -57,6 +57,7 @@ class MissingOptionalPackageError(PlamsError):
         "pandas": "analysis",
         "networkx": "analysis",
         "natsort": "analysis",
+        "h5py": "analysis",
     }
 
     ams_install = {

@@ -2,6 +2,7 @@ import os
 import subprocess
 import tempfile
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union, overload, Sequence, TYPE_CHECKING
+from collections import Counter
 
 import numpy as np
 from scm.plams.core.errors import MoleculeError
@@ -23,6 +24,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "packmol",
+    "packmol_around",
     "packmol_in_void",
     "packmol_on_slab",
     "packmol_microsolvation",
@@ -81,14 +83,20 @@ class PackMolStructure:
             assert density is None
             self.n_molecules = 1
             if molecule.lattice and len(molecule.lattice) == 3:
-                self.box_bounds = [
-                    0.0,
-                    0.0,
-                    0.0,
-                    molecule.lattice[0][0],
-                    molecule.lattice[1][1],
-                    molecule.lattice[2][2],
-                ]
+                vecs = np.array(molecule.lattice)
+                positive_mask = vecs >= 0
+                negative_mask = vecs <= 0
+                minxyz = np.sum(vecs * negative_mask, axis=0)
+                maxxyz = np.sum(vecs * positive_mask, axis=0)
+                self.box_bounds = minxyz.tolist() + maxxyz.tolist()
+                # self.box_bounds = [
+                #     0.0,
+                #     0.0,
+                #     0.0,
+                #     molecule.lattice[0][0],
+                #     molecule.lattice[1][1],
+                #     molecule.lattice[2][2],
+                # ]
             else:
                 self.box_bounds = None
             self.fixed = True
@@ -199,6 +207,7 @@ class PackMol:
         self.tolerance = tolerance
         self.structures = structures or []
         self.filetype = filetype
+        self.seed = -1
         self.executable = executable or os.path.join(os.path.expandvars("$AMSBIN"), "packmol.exe")
         if not os.path.exists(self.executable):
             raise RuntimeError("PackMol exectuable not found: " + self.executable)
@@ -280,6 +289,7 @@ class PackMol:
             input_fname = os.path.join(tmpdir, "input.inp")
             with open(input_fname, "w") as input_file:
                 input_file.write(f"tolerance {self.tolerance}\n")
+                input_file.write(f"seed {self.seed}\n")
                 input_file.write(f"filetype {self.filetype}\n")
                 input_file.write(f"output {output_fname}\n")
 
@@ -366,6 +376,7 @@ def packmol(
     return_details: Literal[False] = ...,
     tolerance: float = ...,
     executable: Optional[str] = ...,
+    _return_only_details: bool = ...,
 ) -> Molecule: ...
 
 
@@ -385,6 +396,7 @@ def packmol(
     return_details: Literal[True] = ...,
     tolerance: float = ...,
     executable: Optional[str] = ...,
+    _return_only_details: bool = ...,
 ) -> Tuple[Molecule, Dict[str, Any]]: ...
 
 
@@ -403,6 +415,7 @@ def packmol(
     return_details: bool = False,
     tolerance: float = 2.0,
     executable: Optional[str] = None,
+    _return_only_details: bool = False,  # get values of n_molecules, n_atoms, and mole_fractions in the returned dictionary
 ) -> Union[Molecule, Tuple[Molecule, Dict[str, Any]]]:
     """
     Create a fluid of the given ``molecules``. The function will use the
@@ -536,6 +549,9 @@ def packmol(
         if region_names is not None and isinstance(region_names, list):
             raise ValueError("Illegal combination of arguments: region_names is a list, when molecules is not")
 
+    if _return_only_details:
+        return_details = True
+
     molecules = tolist(molecules)
     if mole_fractions is None:
         mole_fractions = [1.0 / len(molecules)] * len(molecules)
@@ -593,27 +609,33 @@ def packmol(
 
     if coeffs is None:
         raise ValueError(
-            f"Illegal combination of arguments: n_atoms={n_atoms}, n_molecules={n_molecules}, box_bounds={box_bounds}, density={density}"
+            f"Illegal combination of arguments: n_atoms={n_atoms}, "
+            f"n_molecules={n_molecules}, box_bounds={box_bounds}, density={density}"
         )
 
     pm = PackMol(executable=executable, tolerance=tolerance)
     if sphere and len(molecules) == 2 and n_molecules and n_molecules[0] == 1:
         # Special case used by packmol_microsolvation
-        pm.add_structure(
-            PackMolStructure(molecules[0], n_molecules[0], box_bounds=box_bounds, sphere=False, fixed=True)
-        )
-        pm.add_structure(
-            PackMolStructure(molecules[1], n_molecules[1], box_bounds=box_bounds, sphere=True, fixed=False)
-        )
+        s1 = PackMolStructure(molecules[0], n_molecules[0], box_bounds=box_bounds, sphere=False, fixed=True)
+        s2 = PackMolStructure(molecules[1], n_molecules[1], box_bounds=box_bounds, sphere=True, fixed=False)
+        pm.add_structure(s1)
+        pm.add_structure(s2)
     else:
         for i, (mol, n_mol) in enumerate(zip(molecules, coeffs)):
             if fix_first and i == 0:
-                pm.add_structure(
-                    PackMolStructure(mol, n_molecules=n_mol, box_bounds=box_bounds, sphere=False, fixed=True)
-                )
+                s1 = PackMolStructure(mol, n_molecules=n_mol, box_bounds=box_bounds, sphere=False, fixed=True)
+                pm.add_structure(s1)
             else:
-                pm.add_structure(PackMolStructure(mol, n_molecules=n_mol, box_bounds=box_bounds, sphere=sphere))
+                s1 = PackMolStructure(mol, n_molecules=n_mol, box_bounds=box_bounds, sphere=sphere)
+                pm.add_structure(s1)
 
+    if _return_only_details:
+        ret = {
+            "n_molecules": coeffs.tolist(),
+            "mole_fractions": (coeffs / np.sum(coeffs)).tolist() if np.sum(coeffs) > 0 else [0.0] * len(coeffs),
+            "n_atoms": np.dot([len(x) for x in molecules], coeffs),
+        }
+        return None, ret
     out = pm.run()
 
     # packmol returns the molecules sorted
@@ -637,10 +659,13 @@ def packmol(
     try:
         volume = out.unit_cell_volume(unit="angstrom")
         density = out.get_density() * 1e-3  # g / cm^3
-    except ValueError:  # not periodic, presumably when sphere=True
+    except (ValueError, ZeroDivisionError):  # not periodic, presumably when sphere=True
         volume = pm._get_complete_volume()
-        mass = out.get_mass(unit="g")
-        density = mass / (volume * 1e-24)  # g / cm^3
+        if volume == 0:
+            density = 0
+        else:
+            mass = out.get_mass(unit="g")
+            density = mass / (volume * 1e-24)  # g / cm^3
     details = {
         "n_molecules": coeffs.tolist(),
         "mole_fractions": (coeffs / np.sum(coeffs)).tolist() if np.sum(coeffs) > 0 else [0.0] * len(coeffs),
@@ -843,151 +868,196 @@ def _run_uff_md(
 @requires_optional_package("scm.libbase")
 def packmol_around(
     current: Union[Molecule, "ChemicalSystem"],
-    molecules: Union[Molecule, List[Molecule]],
+    molecules: Union[List[Molecule], Molecule],
+    mole_fractions: Optional[List[float]] = None,
+    density: Optional[float] = None,
+    n_atoms: Optional[int] = None,
+    n_molecules: Union[List[int], int, None] = None,
+    keep_bonds: bool = True,
+    keep_atom_properties: bool = True,
+    region_names: Union[List[str], str, None] = None,
     return_details: bool = False,
-    always_run_md: bool = False,
-    **kwargs,
-) -> Molecule:
+    tolerance: float = 2.0,
+    executable: Optional[str] = None,
+) -> Union[Molecule, Tuple[Molecule, Dict[str, Any]]]:
     """Pack around the current molecule.
 
     ``current``: Molecule
         Must have a 3D lattice
 
-    ``always_run_md``: bool
-        If True, will run UFF MD also for orthorhombic cells. For nonorthorhombic cells, MD is always run irrespective of this flag.
+    ``density``: float
+        Density in g/cm^3 of the *added* molecules (excluding ``current``).
+        Example: To pack liquid water around a metal slab, set density to 1.0.
+        The density is *estimated* from the available free volume and may
+        be inaccurate.
 
-    For all other arguments, see the ``packmol`` function.
+    ``mole_fractions``: list of float
+        Mole fractions of the *added* molecules.
+
+    ``n_atoms``: float
+        Approximate number of *added* molecules.
+
+    ``region_names``: list of str
+        Region names for the *added* molecules.
+
+    In general, the arguments refer to the *added* molecules. For all other arguments, see the ``packmol`` function.
 
     In the returned ``Molecule``, the system will be mapped to ``[0..1]``. It has the same lattice has ``current``.
-    """
-    from scm.libbase import (
-        UnifiedChemicalSystem as ChemicalSystem,
-        UnifiedLattice as Lattice,
-    )
-    from scm.utils.conversions import plams_molecule_to_chemsys, chemsys_to_plams_molecule
 
-    loglevel = 7
+    .. important::
+
+        The results from this function are almost always approximate! The output
+        system will not exactly match your request.
+
+    .. important::
+
+        For non-orthorhombic cells, the results are always approximate. Typically,
+        the density will be lower than what you request.
+
+    """
+    from scm.libbase import UnifiedChemicalSystem as ChemicalSystem
+    from scm.utils.conversions import plams_molecule_to_chemsys, chemsys_to_plams_molecule
 
     if isinstance(current, Molecule):
         original_ucs = plams_molecule_to_chemsys(current)
     else:
         original_ucs = current.copy()
     assert isinstance(original_ucs, ChemicalSystem)
-    original_ucs.map_atoms(0)
 
-    # step 1: store info about original system
     if original_ucs.lattice.num_vectors != 3:
         raise ValueError(f"Input molecule `current` must have 3D lattice, got: {current.lattice}")
-    original_frac_coords = original_ucs.get_fractional_coordinates()
 
+    lattice_is_orthorhombic = all(
+        np.isclose(original_ucs.lattice.vectors[i][j], 0) for i in range(3) for j in range(3) if i != j
+    )
+
+    # step 1: store info about original system
+    original_ucs.map_atoms(0)
     original_volume = original_ucs.lattice.get_volume()
-    original_lattice = original_ucs.lattice.copy()
 
     # step 2, get remaining volume
-    current_atomic_volume = (
-        (4 / 3) * np.pi * np.sum(np.fromiter((at.element.radius for at in original_ucs), dtype=np.float32))
-    )
-    current_atomic_volume /= 0.74  # use packing efficiency in ccp as example to take up more volume
-    remaining_volume = original_volume - current_atomic_volume
-    # temporary value to call the original packmol with
-    temp_L = np.cbrt(remaining_volume)
-    box_bounds_for_remaining_volume = [0.0, 0.0, 0.0, temp_L, temp_L, temp_L]
-    # it is unnecessary to actually pack the molecules, this is just used to get the "details"
-    # details will contain the correct number of molecules to pack in the combined system
-    # TODO: reorganize the packmol function so that one can get this info without calling packmol
-    log(f"Initial packing to determine number of molecules: {molecules}, {box_bounds_for_remaining_volume}", loglevel)
-    _, details = packmol(molecules=molecules, return_details=True, box_bounds=box_bounds_for_remaining_volume, **kwargs)
+    def get_details_for_remaining_volume(original_ucs, molecules, **kwargs):
+        sum_r3 = np.sum(np.fromiter((at.element.radius**3 for at in original_ucs), dtype=np.float32))
+        current_atomic_volume = (4 / 3) * np.pi * sum_r3
+        current_atomic_volume /= 0.74  # use packing efficiency in ccp as example to take up more volume
+        remaining_volume = original_volume - current_atomic_volume
+        # temporary value to call the original packmol with
+        temp_L = np.cbrt(remaining_volume)
+        box_bounds_for_remaining_volume = [0.0, 0.0, 0.0, temp_L, temp_L, temp_L]
+        # it is unnecessary to actually pack the molecules, this is just used to get the "details"
+        # details will contain the correct number of molecules to pack in the combined system
+        _, details = packmol(
+            molecules=molecules,
+            return_details=True,
+            box_bounds=box_bounds_for_remaining_volume,
+            _return_only_details=True,
+            **kwargs,
+        )
 
+        details["current_atomic_volume"] = current_atomic_volume
+        return details
+
+    details = get_details_for_remaining_volume(
+        original_ucs,
+        molecules,
+        mole_fractions=mole_fractions,
+        n_atoms=n_atoms,
+        n_molecules=n_molecules,
+        density=density,
+        executable=executable,
+    )
     # find cuboid parallel along x/y/z that is guaranteed to encompass the original lattice
-    maxcomponents = np.max(original_ucs.lattice.vectors, axis=0) - np.min(original_ucs.lattice.vectors, axis=0)
-    box_bounds = [0.0, 0.0, 0.0] + list(maxcomponents)
-
-    will_run_uff_md = always_run_md or any(
-        (not np.isclose(original_lattice.vectors[i][j], 0) for i in range(3) for j in range(3) if i != j)
-    )
-    log(f"will_run_uff_md: {will_run_uff_md}", loglevel)
-    if will_run_uff_md:
-        if np.linalg.det(original_lattice.vectors) < 0:
-            raise PackMolError("packmol_around cannot handle lattice where the determinant of the vectors is negative.")
-
-    target_lattice = np.diag(maxcomponents)
-
-    system_for_packing_type = "supercell"  # "supercell" or "distorted"
-    # system_for_packing_type = "distorted"  # "supercell" or "distorted"
-
     n_molecules = [1] + details["n_molecules"]
-    if system_for_packing_type == "supercell":
-        # Create a supercell that should encompass the target x/y/z lattice
-        # this is used for the initial packing of molecules to ensure there is no overlap
-        # with the original atoms
-        trafo = np.linalg.inv(original_ucs.lattice.vectors) @ np.array(target_lattice)
-        trafo = np.sign(trafo) * np.ceil(np.abs(trafo))
-        trafo = np.int_(trafo)
-        supercell = original_ucs.make_supercell_trafo(trafo)
-        supercell.map_atoms(0)
-        system_for_packing = supercell
-        tolerance = kwargs.get("tolerance", 1.5)
-    else:
-        # now distort the original system to the target lattice
-        distorted = original_ucs.copy()
-        distorted.lattice.vectors = np.diag(maxcomponents)
-        distorted.set_fractional_coordinates(original_frac_coords)
-        system_for_packing = distorted
-        # in general we need higher tolerance here since we may be expanding the original system,
-        # and we do not want the added molecules to enter in artificial "voids"
-        tolerance = kwargs.get("tolerance", 1.5) * 1.3  # should depend on distortion_vol_expansion_factor somehow
 
-    log(f"{system_for_packing_type=}", loglevel)
-    log(f"{n_molecules=}, {box_bounds=}, {tolerance=}", loglevel)
+    system_for_packing = original_ucs.copy()
+    if lattice_is_orthorhombic:
+        box_bounds = [0, 0, 0] + np.diag(original_ucs.lattice.vectors).tolist()
+    else:
+        positive_mask = original_ucs.lattice.vectors >= 0
+        negative_mask = original_ucs.lattice.vectors <= 0
+        minxyz = np.sum(original_ucs.lattice.vectors * negative_mask, axis=0)
+        maxxyz = np.sum(original_ucs.lattice.vectors * positive_mask, axis=0)
+        box_bounds = minxyz.tolist() + maxxyz.tolist()
+        v_occ = details["current_atomic_volume"]
+        v_orig_free = original_ucs.lattice.get_volume() - v_occ
+        v_new_free = np.prod(maxxyz - minxyz) - v_occ
+        volume_multiplier = v_new_free / v_orig_free
+        new_n_atoms = int(np.round(details["n_atoms"] * volume_multiplier))
+        new_details = get_details_for_remaining_volume(
+            system_for_packing,
+            molecules,
+            n_atoms=new_n_atoms,
+            mole_fractions=details["mole_fractions"],
+            executable=executable,
+        )
+        n_molecules = [1] + new_details["n_molecules"]
+
+    my_molecules = [chemsys_to_plams_molecule(system_for_packing)] + tolist(molecules)
+    if region_names is not None:
+        region_names = tolist(region_names)
+        if len(region_names) == len(my_molecules) - 1:
+            # insert a dummy region name, it will not be returned anyway
+            region_names = ["current"] + region_names
     my_packed, details = packmol(
-        molecules=[chemsys_to_plams_molecule(system_for_packing)] + tolist(molecules),
+        molecules=my_molecules,
         n_molecules=n_molecules,
         fix_first=True,
         box_bounds=box_bounds,
         return_details=True,
         tolerance=tolerance,
+        executable=executable,
+        keep_bonds=keep_bonds,
+        keep_atom_properties=keep_atom_properties,
+        region_names=region_names,
     )
+
     # remove the original substrate
     my_packed = plams_molecule_to_chemsys(my_packed)
-    my_packed.remove_atoms(range(len(system_for_packing)))
-    my_packed.map_atoms_continuous()
-    my_packed.lattice = Lattice()  # so that we can add_other without having incompatible lattices
+    my_packed.remove_atoms(range(len(original_ucs)))
 
-    # now create a distorted system
-    distorted = original_ucs.copy()
-    distorted.lattice.vectors = np.diag(maxcomponents)
-    distorted.set_fractional_coordinates(original_frac_coords)
+    ### start removing molecules outside the unit cell for non-orthorhombic cells
+    ### for orthorhombic cells the fractional coordiantes are all in (0,1)
+    ### so nothing will happen here
+    # packed_n_molecules = my_packed.num_molecules()
+    my_packed.lattice = original_ucs.lattice.copy()
+    fractional_coords = my_packed.get_fractional_coordinates()
+    # TODO: work out some reasonable margin depending on lattice vector lengths
+    mask = (fractional_coords < 0) | (fractional_coords >= 1)
+    row_indices = np.any(mask, axis=1).nonzero()[0]
+    my_packed.select_atoms(row_indices)
+    # TODO: select_molecule assumes that there are bonds defined - perhaps
+    # one should really go through the details dictionary to find the indices
+    # of added molecules regardless of connectivity
+    my_packed.select_molecule()
+    removed_atoms_from_my_packed = my_packed.get_selected_atoms()
+    my_packed.remove_atoms(my_packed.get_selected_atoms())
+    # removed_n_molecules = packed_n_molecules - my_packed.num_molecules()
 
-    # distortion_vol_expansion_factor will be used to modify the tolerance when doing the packing
-    # distortion_vol_expansion_factor = (distorted.lattice.get_volume() / original_volume) ** (1 / 3.0)
-    # remove bonds to be able to do "shake all bonds * *" for the remaining molecules
-    if will_run_uff_md:
-        distorted.bonds.clear_bonds()
-    distorted.add_other(my_packed)
+    mti = details["molecule_type_indices"]
+    removed_molecules_types = [mti[i + len(original_ucs)] for i in removed_atoms_from_my_packed]
 
-    if will_run_uff_md:
-        log("Running UFF MD", loglevel)
-        distorted = _run_uff_md(
-            distorted,
-            nsteps=1500,
-            vectors=original_ucs.lattice.vectors,
-            fixed_atoms=list(range(len(original_ucs))),
-        )
+    counter = Counter(removed_molecules_types)
+    ret_details = dict(n_molecules=[])
+    for imol, nmol in enumerate(details["n_molecules"]):
+        if imol == 0:  # skip "current"
+            continue
+        lenmol = len(my_molecules[imol])
+        if lenmol == 0:
+            new_nmol = nmol
+        else:
+            new_nmol = nmol - counter[imol] // lenmol
+        ret_details["n_molecules"].append(new_nmol)
+    sum_molecules = np.sum(ret_details["n_molecules"])
+    if sum_molecules == 0:
+        ret_details["mole_fractions"] = [0] * len(ret_details["n_molecules"])
+    else:
+        ret_details["mole_fractions"] = (np.array(ret_details["n_molecules"]) / sum_molecules).tolist()
 
-    distorted.remove_atoms(range(len(original_ucs)))
-    distorted.map_atoms_continuous()
-    distorted.lattice = Lattice()  # so that we can add_other without having incompatible lattices
-
-    # this ensures that the original UCS is exactly preserved (including bonds etc.)
-    out_ucs = original_ucs.copy()
-    out_ucs.add_other(distorted)
-    out_ucs.map_atoms(0)
-
-    out_mol = chemsys_to_plams_molecule(out_ucs)
-
+    ret = original_ucs + my_packed
+    ret = chemsys_to_plams_molecule(ret)
     if return_details:
-        return out_mol, details
-    return out_mol
+        return ret, ret_details
+    return ret
 
 
 def packmol_on_slab(
@@ -1133,3 +1203,155 @@ def packmol_microsolvation(
     newmolecule = plams_solvated.get_complete_molecules_within_threshold(solute_indices, threshold=threshold)
 
     return newmolecule
+
+
+@requires_optional_package("scm.libbase")
+def packmol_around_md(
+    current: Union[Molecule, "ChemicalSystem"],
+    molecules: Union[Molecule, List[Molecule]],
+    return_details: bool = False,
+    always_run_md: bool = False,
+    **kwargs,
+) -> Molecule:
+    """Pack around the current molecule, relax structure with MD.
+
+    Experimental feature.
+
+    ``current``: Molecule
+        Must have a 3D lattice
+
+    ``always_run_md``: bool
+        If True, will run UFF MD also for orthorhombic cells. For nonorthorhombic cells, MD is always run irrespective of this flag.
+
+    For all other arguments, see the ``packmol`` function.
+
+    In the returned ``Molecule``, the system will be mapped to ``[0..1]``. It has the same lattice has ``current``.
+    """
+    from scm.libbase import (
+        UnifiedChemicalSystem as ChemicalSystem,
+        UnifiedLattice as Lattice,
+    )
+    from scm.utils.conversions import plams_molecule_to_chemsys, chemsys_to_plams_molecule
+
+    loglevel = 7
+
+    if isinstance(current, Molecule):
+        original_ucs = plams_molecule_to_chemsys(current)
+    else:
+        original_ucs = current.copy()
+    assert isinstance(original_ucs, ChemicalSystem)
+    original_ucs.map_atoms(0)
+
+    # step 1: store info about original system
+    if original_ucs.lattice.num_vectors != 3:
+        raise ValueError(f"Input molecule `current` must have 3D lattice, got: {current.lattice}")
+    original_frac_coords = original_ucs.get_fractional_coordinates()
+
+    original_volume = original_ucs.lattice.get_volume()
+    original_lattice = original_ucs.lattice.copy()
+
+    # step 2, get remaining volume
+    current_atomic_volume = (
+        (4 / 3) * np.pi * np.sum(np.fromiter((at.element.radius for at in original_ucs), dtype=np.float32))
+    )
+    current_atomic_volume /= 0.74  # use packing efficiency in ccp as example to take up more volume
+    remaining_volume = original_volume - current_atomic_volume
+    # temporary value to call the original packmol with
+    temp_L = np.cbrt(remaining_volume)
+    box_bounds_for_remaining_volume = [0.0, 0.0, 0.0, temp_L, temp_L, temp_L]
+    # it is unnecessary to actually pack the molecules, this is just used to get the "details"
+    # details will contain the correct number of molecules to pack in the combined system
+    # TODO: reorganize the packmol function so that one can get this info without calling packmol
+    log(f"Initial packing to determine number of molecules: {molecules}, {box_bounds_for_remaining_volume}", loglevel)
+    _, details = packmol(molecules=molecules, return_details=True, box_bounds=box_bounds_for_remaining_volume, **kwargs)
+
+    # find cuboid parallel along x/y/z that is guaranteed to encompass the original lattice
+    maxcomponents = np.max(original_ucs.lattice.vectors, axis=0) - np.min(original_ucs.lattice.vectors, axis=0)
+    box_bounds = [0.0, 0.0, 0.0] + list(maxcomponents)
+
+    will_run_uff_md = always_run_md or any(
+        (not np.isclose(original_lattice.vectors[i][j], 0) for i in range(3) for j in range(3) if i != j)
+    )
+    log(f"will_run_uff_md: {will_run_uff_md}", loglevel)
+    if will_run_uff_md:
+        if np.linalg.det(original_lattice.vectors) < 0:
+            raise PackMolError("packmol_around cannot handle lattice where the determinant of the vectors is negative.")
+
+    target_lattice = np.diag(maxcomponents)
+
+    system_for_packing_type = "supercell"  # "supercell" or "distorted"
+    # system_for_packing_type = "distorted"  # "supercell" or "distorted"
+
+    n_molecules = [1] + details["n_molecules"]
+    if system_for_packing_type == "supercell":
+        # Create a supercell that should encompass the target x/y/z lattice
+        # this is used for the initial packing of molecules to ensure there is no overlap
+        # with the original atoms
+        trafo = np.linalg.inv(original_ucs.lattice.vectors) @ np.array(target_lattice)
+        trafo = np.sign(trafo) * np.ceil(np.abs(trafo))
+        trafo = np.int_(trafo)
+        supercell = original_ucs.make_supercell_trafo(trafo)
+        supercell.map_atoms(0)
+        system_for_packing = supercell
+        tolerance = kwargs.get("tolerance", 1.5)
+    else:
+        # now distort the original system to the target lattice
+        distorted = original_ucs.copy()
+        distorted.lattice.vectors = np.diag(maxcomponents)
+        distorted.set_fractional_coordinates(original_frac_coords)
+        system_for_packing = distorted
+        # in general we need higher tolerance here since we may be expanding the original system,
+        # and we do not want the added molecules to enter in artificial "voids"
+        tolerance = kwargs.get("tolerance", 1.5) * 1.3  # should depend on distortion_vol_expansion_factor somehow
+
+    log(f"{system_for_packing_type=}", loglevel)
+    log(f"{n_molecules=}, {box_bounds=}, {tolerance=}", loglevel)
+    my_packed, details = packmol(
+        molecules=[chemsys_to_plams_molecule(system_for_packing)] + tolist(molecules),
+        n_molecules=n_molecules,
+        fix_first=True,
+        box_bounds=box_bounds,
+        return_details=True,
+        tolerance=tolerance,
+    )
+    # remove the original substrate
+    my_packed = plams_molecule_to_chemsys(my_packed)
+    my_packed.remove_atoms(range(len(system_for_packing)))
+    my_packed.map_atoms_continuous()
+    my_packed.lattice = Lattice()  # so that we can add_other without having incompatible lattices
+
+    # now create a distorted system
+    distorted = original_ucs.copy()
+    distorted.lattice.vectors = np.diag(maxcomponents)
+    distorted.set_fractional_coordinates(original_frac_coords)
+
+    # distortion_vol_expansion_factor will be used to modify the tolerance when doing the packing
+    # distortion_vol_expansion_factor = (distorted.lattice.get_volume() / original_volume) ** (1 / 3.0)
+    # remove bonds to be able to do "shake all bonds * *" for the remaining molecules
+    if will_run_uff_md:
+        distorted.bonds.clear_bonds()
+    distorted.add_other(my_packed)
+
+    if will_run_uff_md:
+        log("Running UFF MD", loglevel)
+        distorted = _run_uff_md(
+            distorted,
+            nsteps=1500,
+            vectors=original_ucs.lattice.vectors,
+            fixed_atoms=list(range(len(original_ucs))),
+        )
+
+    distorted.remove_atoms(range(len(original_ucs)))
+    distorted.map_atoms_continuous()
+    distorted.lattice = Lattice()  # so that we can add_other without having incompatible lattices
+
+    # this ensures that the original UCS is exactly preserved (including bonds etc.)
+    out_ucs = original_ucs.copy()
+    out_ucs.add_other(distorted)
+    out_ucs.map_atoms(0)
+
+    out_mol = chemsys_to_plams_molecule(out_ucs)
+
+    if return_details:
+        return out_mol, details
+    return out_mol

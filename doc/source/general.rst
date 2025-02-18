@@ -103,6 +103,11 @@ One or more of these can be installed using the command ``pip install 'plams[che
 
 Users of the AMS will also have to install the ``scm.amspipe`` package using the command ``pip install $AMSHOME/scripting/scm/amspipe``.
 
+A final option is to download PLAMS directly from the `GitHub page <https://github.com/SCM-NV/PLAMS>`_.
+`Released versions <https://github.com/SCM-NV/PLAMS/releases>`_ are available since ``AMS2024.103``.
+The latest (unreleased) development version can be downloaded from the `trunk branch <https://github.com/SCM-NV/PLAMS/archive/refs/heads/trunk.zip>`_.
+Once the downloaded zip file has been extracted, navigate to its location and run ``pip install .`` to install into your python environment.
+
 
 What's new in PLAMS for AMS2025?
 --------------------------------------
@@ -110,26 +115,36 @@ What's new in PLAMS for AMS2025?
 Added
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-* Support for AMS ``ChemicalSystem`` within |AMSJob| and |AMSResults|. |AMSJob| can accept a ``ChemicalSystem`` as an input system, and the methods :meth:`~scm.plams.interfaces.adfsuite.ams.AMSResults.get_system`, :meth:`~scm.plams.interfaces.adfsuite.ams.AMSResults.get_input_system` and :meth:`~scm.plams.interfaces.adfsuite.ams.AMSResults.get_main_system` on |AMSResults| return a ``ChemicalSystem``. These provide the option to use a ``ChemicalSystem`` in place of a PLAMS ``Molecule``.
+* Support for `AMS ChemicalSystem <../Scripting/LibBase/ChemicalSystem.html>`__ within |AMSJob| and |AMSResults|. |AMSJob| can accept a ``ChemicalSystem`` as an input system, and the methods :meth:`~scm.plams.interfaces.adfsuite.ams.AMSResults.get_system`, :meth:`~scm.plams.interfaces.adfsuite.ams.AMSResults.get_input_system` and :meth:`~scm.plams.interfaces.adfsuite.ams.AMSResults.get_main_system` on |AMSResults| return a ``ChemicalSystem``. These provide the option to use a ``ChemicalSystem`` in place of a PLAMS |Molecule|.
 * Support for work functions through :meth:`~scm.plams.interfaces.adfsuite.ams.AMSResults.get_work_function_results` and :func:`~scm.plams.tools.plot.plot_work_function`
-* Added :meth:`~scm.plams.interfaces.molecule.packmol.packmol_around` method to pack around an existing molecule or pack molecules into a non-orthorhombic box.
+* Interface to the `Serenity program <https://github.com/qcserenity/serenity>`_ through classes such as |SerenityJob|, |SerenitySettings|, and |SerenityResults|.
+* Improved job logging. The method :meth:`~ scm.plams.core.basejob.Job.get_errormsg` is enforced on the |Job| base class and job errors now appear in the PLAMS output. In addition a summary csv logfile ``job_logfile.csv`` is created in the main directory with details about job timings and status.
+* Additional methods:
+    * :meth:`~scm.plams.interfaces.molecule.packmol.packmol_around` to pack around an existing molecule or pack molecules into a non-orthorhombic box
+    * :meth:`~scm.plams.tools.plot.plot_grid_molecules` for plotting multiple molecules with rdkit
+    * :meth:`~scm.plams.mol.Molecule.delete_atoms` for deleting multiple atoms with partial success
 
 Changed
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-* Calling |init| and |finish| functions in a script is now optional
-* Functions for optional packages (e.g. RDKit, ASE) are available even when these packages are not installed, but will raise an |MissingOptionalPackageError| when called
-* :meth:`~scm.plams.interfaces.adfsuite.ams.AMSResults.get_main_ase_atoms` also includes atomic charges
-* Global ``config`` is initialized with |ConfigSettings| instead of loading from the standard ``plams_defaults`` file (see |global-settings|)
 
-* :attr:`~scm.plams.core.basejob.Job.status` is a ``JobStatus`` string enum
-* Supercell and RDKit properties are no longer serialized to AMS input
+* Calling |init| and |finish| functions in a script is now optional
+* Exceptions raised in |prerun| and |postrun| will always be caught and populate error message
+* Functions for optional packages (e.g. ``RDKit``, ``ASE``) are available even when these packages are not installed, but will raise an |MissingOptionalPackageError| when called
+* Global ``config`` is initialized with |ConfigSettings| instead of loading from the standard ``plams_defaults`` file (see |global-settings|)
+* :meth:`~scm.plams.interfaces.adfsuite.ams.AMSResults.get_main_ase_atoms` also includes atomic charges
+* :attr:`~scm.plams.core.basejob.Job.status` is a :class:`~scm.plams.core.enums.JobStatus` string enum
+* Make :class:`~scm.plams.core.basejob.Job` class inherit from ``ABC`` and mark abstract methods
 
 Fixed
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-* ``charge`` property on a |Molecule| is a numeric instead of string type when loading molecule from a file
-* :meth:`~scm.plams.mol.molecule.Molecule.delete_all_bonds` removes the reference molecule from the removed bond instances
-* :meth:`~scm.plams.core.basejob.SingleJob.load` returns the correctly loaded job
-* :meth:`~scm.plams.interfaces.adfsuite.ams.AMSJob.check` handles a ``NoneType`` status, returning ``False``
+* In |Molecule|:
+    * :meth:`~scm.plams.mol.molecule.Molecule.delete_all_bonds` removes the reference molecule from the removed bond instances
+    * :meth:`~scm.plams.mol.molecule.Molecule.add_hatoms` to use bonding information if available when adding new hydrogen atoms
+    * ``charge`` property on a |Molecule| is a numeric instead of string type when loading molecule from a file
+* In |Job| classes:
+    * :meth:`~scm.plams.core.basejob.SingleJob.load` returns the correctly loaded job
+    * :meth:`~scm.plams.core.basejob.MultiJob.run` locking issues resolved when errors raised within |prerun| and |postrun| methods
+    * :meth:`~scm.plams.interfaces.adfsuite.ams.AMSJob.check` handles a ``NoneType`` status, returning ``False``
 
 Deprecated
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -139,6 +154,8 @@ Removed
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 * Legacy ``BANDJob``, ``DFTBJob``, ``UFFJob``, ``MOPACJob``, ``ReaxFFJob``, ``CSHessianADFJob`` and ``ADFJob`` have been removed. These were deprecated since AMS2019, and replaced by |AMSJob|.
 * Exception classes ``AMSPipeDecodeError``, ``AMSPipeError``, ``AMSPipeInvalidArgumentError``, ``AMSPipeLogicError``, ``AMSPipeRuntimeError``, ``AMSPipeUnknownArgumentError``, ``AMSPipeUnknownMethodError``, ``AMSPipeUnknownVersionError``, were moved from ``scm.plams`` to ``scm.amspipe``.
+
+For a fine-grained changelog including technical details, see the `GitHub changelog <https://github.com/SCM-NV/PLAMS/blob/trunk/CHANGELOG.md>`_.
 
 What's new in PLAMS for AMS2024?
 --------------------------------------
