@@ -7,6 +7,9 @@ import scm.plams as plams
 import matplotlib.pyplot as plt
 import numpy as np
 
+# this line is not required in AMS2025+
+plams.init()
+
 
 # ## Molecule
 

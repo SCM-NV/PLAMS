@@ -3,7 +3,10 @@
 
 # ## Initial Imports
 
-from scm.plams import AMSResults, Units, add_to_class, Settings, read_molecules, AMSJob
+from scm.plams import AMSResults, Units, add_to_class, Settings, read_molecules, AMSJob, init
+
+# this line is not required in AMS2025+
+init()
 
 
 # ## Helper Functions

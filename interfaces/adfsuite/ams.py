@@ -685,22 +685,6 @@ class AMSResults(Results):
         fermi_energy = self.readrkf("BandStructure", "FermiEnergy", file="engine")
         fermi_energy = Units.convert(fermi_energy, "hartree", unit)
 
-        try:
-            path_source = self.readrkf("band_curves", "path_source", file="engine")
-        except KeyError:
-            path_source = "kpath"
-
-        if path_source == "seekpath":
-            for i, label in enumerate(labels):
-                if label:
-                    label = (
-                        label.replace("GAMMA", "\\Gamma")
-                        .replace("DELTA", "\\Delta")
-                        .replace("LAMBDA", "\\Lambda")
-                        .replace("SIGMA", "\\Sigma")
-                    )
-                    labels[i] = f"${label}$"
-
         return x, complete_spinup_data, complete_spindown_data, labels, fermi_energy  # type: ignore
 
     def get_engine_results(self, engine: Optional[str] = None) -> Dict:
@@ -2826,9 +2810,7 @@ class AMSJob(SingleJob):
                 system_blocks: Dict[str, str] = {}
                 for name, system in systems.items():
                     if _has_scm_chemsys and isinstance(system, ChemicalSystem):
-                        system_input = str(system)
-                        if name:
-                            system_input = system_input.replace("System", f"System {name}", 1)
+                        system_input = system.__format__(f'in:name="{name}"' if name else "in")
                     else:
                         system_settings = AMSJob._serialize_single_molecule(name, system)
                         system_input = serialize("System", system_settings, 0)

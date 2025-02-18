@@ -4,11 +4,14 @@
 # ## Initial Imports
 # Import PLAMS components and set up to run jobs in tandem.
 
-from scm.plams import Settings, AMSJob, Molecule, Atom, FCFJob, config, JobRunner
+from scm.plams import Settings, AMSJob, Molecule, Atom, FCFJob, config, JobRunner, init
 from scm.plams.recipes.fcf_dos import FCFDOS
 
 
 config.default_jobrunner.parallel = JobRunner(parallel=True, maxjobs=2)
+
+# this line is not required in AMS2025+
+init()
 
 
 # ## Setup Molecules

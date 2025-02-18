@@ -13,7 +13,10 @@
 #
 # The level of logging that is written to stdout and the logfile can be changed through the `config.LogSettings`.
 
-from scm.plams import Settings, AMSJob, from_smiles, log, config
+from scm.plams import Settings, AMSJob, from_smiles, log, config, init
+
+# this line is not required in AMS2025+
+init()
 
 counter = 0
 
@@ -49,7 +52,7 @@ job.run(watch=True)
 
 # ### Job Summary Logger
 
-# PLAMS also writes summaries of jobs to a CSV file, the location of which by default is also determined by the job manager. It is called `job_logfile.csv`.
+# For AMS2025+, PLAMS also writes summaries of jobs to a CSV file, the location of which by default is also determined by the job manager. It is called `job_logfile.csv`.
 
 from scm.plams import MultiJob
 
@@ -63,10 +66,12 @@ for job in jobs:
 
 # These CSVs give overall information on the status of all jobs run by a given job manager.
 
-try:
-    import pandas as pd
+import csv
 
-    df = pd.read_csv(config.default_jobmanager.job_logger.logfile)
-    print(df[["job_name", "job_status", "job_ok", "job_get_errormsg"]])
-except ImportError:
+try:
+    with open(config.default_jobmanager.job_logger.logfile, newline="") as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            print(f"{row['job_name']} {row['job_status']}: {row['job_get_errormsg']}")
+except AttributeError:
     pass

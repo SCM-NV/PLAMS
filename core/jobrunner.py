@@ -9,6 +9,7 @@ from scm.plams.core.errors import PlamsError
 from scm.plams.core.functions import config, log
 from scm.plams.core.private import saferun
 from scm.plams.core.settings import Settings
+from scm.plams.core.threading_utils import LimitedSemaphore
 
 __all__ = ["JobRunner", "GridRunner"]
 
@@ -51,12 +52,12 @@ def _in_limited_thread(func):
 
 
 def _limit(func):
-    """Decorator for an instance method. If ``semaphore`` attribute of given instance is not ``None``, use this attribute to wrap decorated method via :ref:`with<with-locks>` statement."""
+    """Decorator for an instance method. If ``_job_limit`` attribute of given instance is not ``None``, use this attribute to wrap decorated method via :ref:`with<with-locks>` statement."""
 
     @functools.wraps(func)
     def wrapper(self, *args, **kwargs):
-        if self.semaphore:
-            with self.semaphore:
+        if self._job_limit:
+            with self._job_limit:
                 return func(self, *args, **kwargs)
         else:
             return func(self, *args, **kwargs)
@@ -92,12 +93,86 @@ class JobRunner(metaclass=_MetaRunner):
     A |JobRunner| instance can be passed to |run| with a keyword argument ``jobrunner``. If this argument is omitted, the instance stored in ``config.default_jobrunner`` is used.
     """
 
-    def __init__(self, parallel=False, maxjobs=0, maxthreads=256):
-        self.parallel = parallel
+    def __init__(self, parallel: bool = False, maxjobs: int = 0, maxthreads: int = 256):
+        # Initialize protected attributes
+        self._parallel = parallel
+        self._job_limit = None
+        self._jobthread_limit = None
+
+        # Set properties
         self.maxjobs = maxjobs
         self.maxthreads = maxthreads
-        self.semaphore = threading.BoundedSemaphore(maxjobs) if maxjobs else None
-        self._jobthread_limit = threading.BoundedSemaphore(maxthreads) if maxthreads else None
+
+    @property
+    def parallel(self) -> bool:
+        """
+        Whether jobs can be run simultaneously or not. Defaults to ``False``.
+
+        When set to ``True``, jobs can be run in parallel, with the level of parallelization determined by the properties :attr:`~scm.plams.core.jobrunner.JobRunner.maxjobs` and :attr:`~scm.plams.core.jobrunner.JobRunner.maxthreads`.
+        """
+        return self._parallel
+
+    @parallel.setter
+    def parallel(self, value: bool) -> None:
+        self._parallel = value
+
+    @property
+    def maxjobs(self) -> int:
+        """
+        Maximum number of jobs which can be run in parallel. Defaults to ``0``.
+
+        When set to ``0``, no job limit is enforced.
+
+        Note that to take effect, this requires :attr:`~scm.plams.core.jobrunner.JobRunner.parallel` to be ``True``.
+        The number of jobs may also be limited by :attr:`~scm.plams.core.jobrunner.JobRunner.maxthreads`.
+
+        When jobs are running using this, updating this value will block until its usage is complete.
+        """
+        return self._job_limit.max_value if self._job_limit else 0
+
+    @maxjobs.setter
+    def maxjobs(self, value: int) -> None:
+        if value < 0:
+            raise ValueError(f"Value of 'maxjobs' must be greater or equal to zero, but was {value}")
+
+        if self._job_limit:
+            # safely update maximum value (this will block on decrease)
+            self._job_limit.max_value = value
+            if value == 0:
+                self._job_limit = None
+        else:
+            self._job_limit = LimitedSemaphore(value) if value else None
+
+    @property
+    def maxthreads(self) -> int:
+        """
+        Maximum number of threads which can be started in parallel. Defaults to ``256``.
+
+        When set to ``0``, no thread limit is enforced.
+
+        As each job is runs in a separate thread, this number necessarily acts as an upper limit for the number of jobs that can run in parallel.
+        If the limit is exhausted, running further jobs with this |JobRunner| instance will block execution until another already running job thread terminates.
+        The ``maxthreads`` limit should be set as large as possible, but not so large as to exceed any limits imposed by the operating system.
+
+        Note that to take effect, this requires :attr:`~scm.plams.core.jobrunner.JobRunner.parallel` to be ``True``.
+        The number of jobs may also be limited by :attr:`~scm.plams.core.jobrunner.JobRunner.maxjobs`.
+
+        When jobs are running using this, updating this value will block until its usage is complete.
+        """
+        return self._jobthread_limit.max_value if self._jobthread_limit else 0
+
+    @maxthreads.setter
+    def maxthreads(self, value: int) -> None:
+        if value < 0:
+            raise ValueError(f"Value of 'maxthreads' must be greater or equal to zero, but was {value}")
+
+        if self._jobthread_limit:
+            # safely update maximum value (this will block on decrease)
+            self._jobthread_limit.max_value = value
+            if value == 0:
+                self._jobthread_limit = None
+        else:
+            self._jobthread_limit = LimitedSemaphore(value) if value else None
 
     def call(self, runscript, workdir, out, err, runflags):
         """call(runscript, workdir, out, err, runflags)

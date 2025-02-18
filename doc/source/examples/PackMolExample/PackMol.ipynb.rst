@@ -7,10 +7,15 @@ Initial imports
 .. code:: ipython3
 
     from scm.plams import plot_molecule, from_smiles, Molecule
-    from scm.plams.interfaces.molecule.packmol import packmol, packmol_around
+    from scm.plams.interfaces.molecule.packmol import packmol
     from ase.visualize.plot import plot_atoms
     from ase.build import fcc111, bulk
     import matplotlib.pyplot as plt
+    import importlib.metadata
+    
+    AMS2025 = importlib.metadata.version("scm") >= "2024.201"
+    if AMS2025:
+        from scm.plams import packmol_around
 
 Helper functions
 ~~~~~~~~~~~~~~~~
@@ -123,20 +128,21 @@ First, create the gasphase molecule:
 
 .. code:: ipython3
 
-    print("water-5.xyz: pure liquid in non-orthorhombic box (requires AMS2025 or later)")
-    # Non-orthorhombic boxes use UFF MD simulations behind the scenes
-    # You can pack inside any lattice using the packmol_around function
-    
-    box = Molecule()
-    box.lattice = [[10.0, 2.0, -1.0], [-5.0, 8.0, 0.0], [0.0, -2.0, 11.0]]
-    out = packmol_around(box, molecules=[water], n_molecules=[32])
-    out.write("water-5.xyz")
-    plot_molecule(out);
+    if AMS2025:
+        print("water-5.xyz: pure liquid in non-orthorhombic box (requires AMS2025 or later)")
+        print("NOTE: Non-orthorhombic boxes may yield inaccurate results, always carefully check the output")
+        # You can pack inside any lattice using the packmol_around function
+        box = Molecule()
+        box.lattice = [[10.0, 2.0, -1.0], [-5.0, 8.0, 0.0], [0.0, -2.0, 11.0]]
+        out = packmol_around(box, molecules=[water], n_molecules=[32])
+        out.write("water-5.xyz")
+        plot_molecule(out);
 
 
 .. parsed-literal::
 
     water-5.xyz: pure liquid in non-orthorhombic box (requires AMS2025 or later)
+    NOTE: Non-orthorhombic boxes may yield inaccurate results, always carefully check the output
 
 
 
@@ -145,11 +151,12 @@ First, create the gasphase molecule:
 
 .. code:: ipython3
 
-    print("Experimental feature (AMS2025): guess density for pure liquid")
-    print("Note: This density is meant to be equilibrated with NPT MD. It can be very inaccurate!")
-    out = packmol(water, n_atoms=100)
-    print(f"Guessed density: {out.get_density():.2f} kg/m^3")
-    plot_molecule(out);
+    if AMS2025:
+        print("Experimental feature (AMS2025): guess density for pure liquid")
+        print("Note: This density is meant to be equilibrated with NPT MD. It can be very inaccurate!")
+        out = packmol(water, n_atoms=100)
+        print(f"Guessed density: {out.get_density():.2f} kg/m^3")
+        plot_molecule(out);
 
 
 .. parsed-literal::
@@ -334,11 +341,12 @@ The ``details`` is a dictionary as follows:
 
 .. code:: ipython3
 
-    print("Experimental feature (AMS2025): guess density for mixture")
-    print("Note: This density is meant to be equilibrated with NPT MD. It can be very inaccurate!")
-    out = packmol([water, acetonitrile], mole_fractions=[x_water, x_acetonitrile], n_atoms=100)
-    print(f"Guessed density: {out.get_density():.2f} kg/m^3")
-    plot_molecule(out);
+    if AMS2025:
+        print("Experimental feature (AMS2025): guess density for mixture")
+        print("Note: This density is meant to be equilibrated with NPT MD. It can be very inaccurate!")
+        out = packmol([water, acetonitrile], mole_fractions=[x_water, x_acetonitrile], n_atoms=100)
+        print(f"Guessed density: {out.get_density():.2f} kg/m^3")
+        plot_molecule(out);
 
 
 .. parsed-literal::
@@ -375,7 +383,7 @@ periodic box. The sphere will be centered near the origin.
     300 atoms, density = 1.000 g/cm^3, formula = H200O100
     #added molecules per species: [100], mole fractions: [1.0]
     Radius  of sphere: 8.939 ang.
-    Center of mass xyz (ang): (-0.4387310024277284, -0.13878223396461692, -0.24909134060025434)
+    Center of mass xyz (ang): (0.3501425085592405, 0.29762514209081564, -0.5227405711205764)
 
 
 
@@ -471,7 +479,7 @@ solute.
 
 .. parsed-literal::
 
-    Microsolvated structure: 78 atoms.
+    Microsolvated structure: 72 atoms.
 
 
 
@@ -500,10 +508,11 @@ First, create a slab using the ASE ``fcc111`` function
 .. code:: ipython3
 
     print("water surrounding an Al slab, from an approximate density")
-    out = packmol_around(slab, water, density=1.0)
-    printsummary(out)
-    out.write("al-water-pure.xyz")
-    plot_molecule(out, figsize=figsize, rotation=rotation);
+    if AMS2025:
+        out = packmol_around(slab, water, density=1.0)
+        printsummary(out)
+        out.write("al-water-pure.xyz")
+        plot_molecule(out, figsize=figsize, rotation=rotation);
 
 
 .. parsed-literal::
@@ -519,10 +528,11 @@ First, create a slab using the ASE ``fcc111`` function
 .. code:: ipython3
 
     print("2-1 water-acetonitrile mixture surrounding an Al slab, from mole fractions and an approximate density")
-    out = packmol_around(slab, [water, acetonitrile], mole_fractions=[x_water, x_acetonitrile], density=density)
-    printsummary(out)
-    out.write("al-water-acetonitrile.xyz")
-    plot_molecule(out, figsize=figsize, rotation=rotation);
+    if AMS2025:
+        out = packmol_around(slab, [water, acetonitrile], mole_fractions=[x_water, x_acetonitrile], density=density)
+        printsummary(out)
+        out.write("al-water-acetonitrile.xyz")
+        plot_molecule(out, figsize=figsize, rotation=rotation);
 
 
 .. parsed-literal::
@@ -539,21 +549,22 @@ First, create a slab using the ASE ``fcc111`` function
 
     from ase.build import surface
     
-    print("water surrounding non-orthorhombic Au(211) slab, from an approximate number of molecules")
-    print("NOTE: non-orthorhombic cell, results are approximate")
-    slab = surface("Au", (2, 1, 1), 6)
-    slab.center(vacuum=11.0, axis=2)
-    slab.set_pbc(True)
-    out = packmol_around(fromASE(slab), [water], n_molecules=[32], tolerance=1.8)
-    out.write("Au211-water.xyz")
-    plot_molecule(out, figsize=figsize, rotation=rotation)
-    print(f"{out.lattice=}")
+    if AMS2025:
+        print("water surrounding non-orthorhombic Au(211) slab, from an approximate number of molecules")
+        print("NOTE: non-orthorhombic cell, results are approximate, requires AMS2025")
+        slab = surface("Au", (2, 1, 1), 6)
+        slab.center(vacuum=11.0, axis=2)
+        slab.set_pbc(True)
+        out = packmol_around(fromASE(slab), [water], n_molecules=[32], tolerance=1.8)
+        out.write("Au211-water.xyz")
+        plot_molecule(out, figsize=figsize, rotation=rotation)
+        print(f"{out.lattice=}")
 
 
 .. parsed-literal::
 
     water surrounding non-orthorhombic Au(211) slab, from an approximate number of molecules
-    NOTE: non-orthorhombic cell, results are approximate
+    NOTE: non-orthorhombic cell, results are approximate, requires AMS2025
     out.lattice=[(9.1231573482, 0.0, 0.0), (3.6492629392999993, 4.4694160692, 0.0), (0.0, 0.0, 31.161091638)]
 
 
@@ -584,15 +595,16 @@ you need to pack very tightly. The default value for ``tolerance`` is
 
 .. code:: ipython3
 
-    out = packmol_around(
-        current=bulk_Al,
-        molecules=[from_smiles("[H]"), from_smiles("[He]")],
-        n_molecules=[50, 20],
-        tolerance=1.5,
-    )
-    plot_molecule(out, rotation=rotation, radii=0.4)
-    printsummary(out)
-    out.write("al-bulk-with-h-he.xyz")
+    if AMS2025:
+        out = packmol_around(
+            current=bulk_Al,
+            molecules=[from_smiles("[H]"), from_smiles("[He]")],
+            n_molecules=[50, 20],
+            tolerance=1.5,
+        )
+        plot_molecule(out, rotation=rotation, radii=0.4)
+        printsummary(out)
+        out.write("al-bulk-with-h-he.xyz")
 
 
 .. parsed-literal::
@@ -643,14 +655,14 @@ block for an AMS job:
 
     System
       Atoms
-                  O       4.1868320000       4.4500920000       1.8690070000 region=mol0,oxygen_atom
-                  H       4.9590880000       4.9673550000       2.1803550000 mass=2.014 region=mol0
-                  H       3.6334950000       4.9619400000       1.2396860000 region=mol0
-                  O       4.9424240000       1.9897370000       0.9183610000 region=mol0,oxygen_atom
-                  H       4.9815840000       1.0191060000       1.0495930000 mass=2.014 region=mol0
-                  H       4.0386210000       2.3429420000       1.0686990000 region=mol0
-                  N       4.8437790000       1.3182120000       3.2341500000 region=mol1
-                  N       4.3966890000       1.2649030000       4.2487370000 region=mol1
+                  O       4.4683970000       4.0274410000       4.8301830000 region=mol0,oxygen_atom
+                  H       4.1911940000       3.4970360000       4.0538400000 mass=2.014 region=mol0
+                  H       4.0904700000       4.9334700000       4.8078930000 region=mol0
+                  O       2.4022380000       2.5119780000       4.9388470000 region=mol0,oxygen_atom
+                  H       2.1168150000       1.5763270000       4.8758370000 mass=2.014 region=mol0
+                  H       1.7828170000       3.1154120000       4.4736580000 region=mol0
+                  N       3.8850350000       1.5479000000       0.9974040000 region=mol1
+                  N       4.9682670000       1.4976690000       1.2344790000 region=mol1
       End
       BondOrders
          1 3 1.0
@@ -685,14 +697,14 @@ option lets you set custom names.
 
     System
       Atoms
-                  O       4.9617580000       2.2332440000       1.6599170000 region=oxygen_atom,water
-                  H       4.1774520000       2.4776920000       1.1251390000 mass=2.014 region=water
-                  H       4.8211850000       2.4073480000       2.6160250000 region=water
-                  O       4.1824310000       4.9939520000       1.8730120000 region=oxygen_atom,water
-                  H       5.0127480000       4.4730110000       1.8816480000 mass=2.014 region=water
-                  H       3.7965120000       5.0520740000       0.9719550000 region=water
-                  N       0.9478880000       3.8558950000       1.9641230000 region=nitrogen_molecule
-                  N       1.8296180000       4.1568080000       1.3606970000 region=nitrogen_molecule
+                  O       1.8954680000       3.1933380000       0.9222520000 region=oxygen_atom,water
+                  H       1.9676630000       4.1631210000       1.0454880000 mass=2.014 region=water
+                  H       0.9891960000       2.8669170000       1.1128710000 region=water
+                  O       4.1055510000       2.5003860000       3.7622970000 region=oxygen_atom,water
+                  H       4.8926280000       3.0404560000       3.5393350000 mass=2.014 region=water
+                  H       4.2556640000       1.5457960000       3.5878300000 region=water
+                  N       1.6662680000       1.6519680000       4.9161680000 region=nitrogen_molecule
+                  N       1.0030750000       1.0752030000       4.2382030000 region=nitrogen_molecule
       End
       BondOrders
          1 3 1.0
@@ -721,14 +733,14 @@ previous regions (in this example “oxygen_atom”) and mass.
 
     System
       Atoms
-                  O       1.2922270000       3.3160950000       3.5142980000 region=mol0
-                  H       1.9940210000       3.1635420000       2.8471450000 region=mol0
-                  H       1.3400110000       4.2198660000       3.8952550000 region=mol0
-                  O       2.0561390000       1.6731900000       1.3318470000 region=mol0
-                  H       2.2821350000       1.0258670000       2.0324020000 region=mol0
-                  H       1.0879980000       1.7182780000       1.1740960000 region=mol0
-                  N       2.8191350000       1.0085650000       4.9655680000 region=mol1
-                  N       1.7342850000       1.2434740000       4.9594530000 region=mol1
+                  O       4.0652730000       3.9544190000       4.3862680000 region=mol0
+                  H       3.2286770000       3.6326620000       4.7830780000 region=mol0
+                  H       4.1543770000       4.9294310000       4.4612820000 region=mol0
+                  O       2.0684390000       4.1227080000       1.7583370000 region=mol0
+                  H       2.6733500000       3.4138690000       1.4541850000 region=mol0
+                  H       1.5374060000       4.4922430000       1.0196470000 region=mol0
+                  N       5.0006200000       1.0167660000       1.2504450000 region=mol1
+                  N       4.9354770000       2.0781350000       0.9320530000 region=mol1
       End
       BondOrders
          1 3 1.0
@@ -763,14 +775,14 @@ previous regions (in this example “oxygen_atom”) and mass.
 
     System
       Atoms
-                  O       2.0075010000       3.8174160000       4.9838470000 region=water
-                  H       2.4140220000       2.9254410000       4.9834030000 region=water
-                  H       1.0265950000       3.7722760000       4.9840460000 region=water
-                  O       1.4781560000       3.6028820000       2.6012400000 region=water
-                  H       2.3307040000       3.1618840000       2.4023410000 region=water
-                  H       1.6051760000       4.5361890000       2.8787640000 region=water
-                  N       1.5376520000       1.0427900000       1.0074390000 region=nitrogen_molecule
-                  N       1.7385590000       1.0476680000       2.0991030000 region=nitrogen_molecule
+                  O       1.5148360000       1.2112720000       3.1575050000 region=water
+                  H       1.2508580000       1.6795210000       2.3377870000 region=water
+                  H       2.4909520000       1.1559460000       3.2488970000 region=water
+                  O       3.7560190000       3.1343020000       2.3314320000 region=water
+                  H       3.1742240000       2.7225030000       1.6585170000 region=water
+                  H       4.1497860000       2.4655170000       2.9330050000 region=water
+                  N       1.1894490000       4.9504330000       4.6443000000 region=nitrogen_molecule
+                  N       1.8753900000       4.1414680000       4.9716820000 region=nitrogen_molecule
       End
       Lattice
              5.9692549746     0.0000000000     0.0000000000

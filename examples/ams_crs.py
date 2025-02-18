@@ -2,7 +2,7 @@
 import os
 
 import matplotlib.pyplot as plt
-from scm.plams import Settings, Units, from_smiles, CRSJob
+from scm.plams import Settings, Units, from_smiles, CRSJob, init
 from scm.plams.recipes.adfcosmorscompound import ADFCOSMORSCompoundJob
 
 
@@ -93,6 +93,8 @@ def plot_sigma_profile(results):
 
 
 def main():
+    # this line is not required in AMS2025+
+    init()
     solubility()
 
 

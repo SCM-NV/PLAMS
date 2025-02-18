@@ -6,7 +6,15 @@ from scm.plams.mol.molecule import Molecule
 from scm.plams.interfaces.molecule.ase import toASE, fromASE
 from scm.plams.unit_tests.test_helpers import get_mock_find_spec, get_mock_open_function
 from scm.plams.core.errors import MissingOptionalPackageError
-from scm.plams.interfaces.molecule.rdkit import from_rdmol, to_rdmol, from_smiles, to_smiles, from_smarts
+from scm.plams.interfaces.molecule.rdkit import (
+    from_rdmol,
+    to_rdmol,
+    from_smiles,
+    to_smiles,
+    from_smarts,
+    to_image,
+    get_reaction_image,
+)
 from scm.plams.interfaces.molecule.packmol import packmol
 
 
@@ -22,7 +30,16 @@ def plams_mols(xyz_folder, pdb_folder, rkf_folder):
     water_molecule_in_box.lattice = [[100, 0, 0], [0, 100, 0], [0, 0, 100]]
     benzene = Molecule(xyz_folder / "benzene.xyz")
     chlorophyl = Molecule(xyz_folder / "chlorophyl1.xyz")
+    chlorophyl.guess_bonds()
     chymotrypsin = Molecule(pdb_folder / "chymotrypsin.pdb")
+    chymotrypsin.guess_bonds()
+    o_hydroxybenzoate = Molecule(xyz_folder / "reactant2.xyz")
+    o_hydroxybenzoate.guess_bonds()
+    hydronium = from_smiles("[OH3+]")
+    # Remove the charge, so that it becomes a difficult molecule for RDKit
+    for at in hydronium.atoms:
+        if at.symbol == "O":
+            del at.properties.rdkit.charge
 
     return {
         "water": water_molecule,
@@ -31,6 +48,8 @@ def plams_mols(xyz_folder, pdb_folder, rkf_folder):
         "benzene": benzene,
         "chlorophyl": chlorophyl,
         "chymotrypsin": chymotrypsin,
+        "o_hydroxybenzoate": o_hydroxybenzoate,
+        "hydronium": hydronium,
     }
 
 
@@ -177,7 +196,19 @@ class TestRDKit:
     def test_to_rdmol_from_rdmol_roundtrip(self, plams_mols):
         from_mol = lambda mol: to_rdmol(mol)
         to_mol = lambda mol: from_rdmol(mol)
-        self.roundtrip_and_assert(plams_mols, from_mol, to_mol)
+        from_bad_mol = lambda mol: to_rdmol(mol, presanitize=True)
+
+        # These molecules throw errors when sanitized by RDKit
+        badmolnames = ["chlorophyl", "chymotrypsin", "o_hydroxybenzoate", "hydronium"]
+
+        # Most molecules do not change at all during round trip
+        molecules = {k: v for k, v in plams_mols.items() if k not in badmolnames}
+
+        # This molecule needs presanitization, meaning bond orders and charge change
+        badmols = {k: v for k, v in plams_mols.items() if k in badmolnames}
+
+        self.roundtrip_and_assert(molecules, from_mol, to_mol)
+        self.roundtrip_and_assert(badmols, from_bad_mol, to_mol, level=1)
 
     @pytest.mark.parametrize("short_smiles,ff", [(True, None), (False, None), (False, "uff"), (False, "mmff")])
     def test_to_smiles_from_smiles_roundtrip(self, plams_mols, short_smiles, ff):
@@ -189,7 +220,10 @@ class TestRDKit:
 
         # For chlorophyl we get a kekulize error...
         # For chymotrypsin we get a aromatic error...
-        err_mols = {k: v for k, v in plams_mols.items() if k in ["chlorophyl", "chymotrypsin"]}
+        # For o_hydroxybenzoate we get a kekulize error...
+        # For hydronium we get a valence error...
+        errmolnames = ["chlorophyl", "chymotrypsin", "o_hydroxybenzoate", "hydronium"]
+        err_mols = {k: v for k, v in plams_mols.items() if k in errmolnames}
 
         # Everything else should match up to bond order level
         lvl2_mols = {k: v for k, v in plams_mols.items() if k not in lvl1_mols.keys() and k not in err_mols.keys()}
@@ -229,6 +263,38 @@ class TestRDKit:
                 to_smiles(plams_mols["water"])
             with pytest.raises(MissingOptionalPackageError):
                 from_smiles(smiles[0])
+
+    def test_to_image_and_get_reaction_image_can_generate_img_files(self, xyz_folder):
+        from pathlib import Path
+        import shutil
+
+        # Given molecules
+        reactants = [Molecule(f"{xyz_folder}/reactant{i}.xyz") for i in range(1, 3)]
+        products = [Molecule(f"{xyz_folder}/product{i}.xyz") for i in range(1, 3)]
+
+        # When create images for molecules and reactions
+        result_dir = Path("result_images/rdkit")
+        try:
+            shutil.rmtree(result_dir)
+        except FileNotFoundError:
+            pass
+        result_dir.mkdir(parents=True, exist_ok=True)
+
+        for i, m in enumerate(reactants):
+            m.guess_bonds()
+            to_image(m, filename=f"{result_dir}/reactant{i+1}.png")
+
+        for i, m in enumerate(products):
+            m.guess_bonds()
+            to_image(m, filename=f"{result_dir}/product{i+1}.png")
+
+        get_reaction_image(reactants, products, filename=f"{result_dir}/reaction.png")
+
+        # Then image files are successfully created
+        # N.B. for this test just check the files are generated, not that the contents is correct
+        for f in ["reactant1.png", "reactant2.png", "product1.png", "product2.png", "reaction.png"]:
+            file = result_dir / f
+            assert file.exists()
 
 
 class TestPackmol:

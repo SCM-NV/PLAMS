@@ -3,8 +3,13 @@
 
 # ## Initial Imports
 
+import sys
 import multiprocessing
-from scm.plams import JobRunner, config, from_smiles, Settings, AMSJob
+from scm.plams import JobRunner, config, from_smiles, Settings, AMSJob, init
+import numpy as np
+
+# this line is not required in AMS2025+
+init()
 
 
 # ## Set Up Job Runner
@@ -42,31 +47,71 @@ reference_basis = "QZ4P"
 # ## Run Calculations
 
 results = {}
+jobs = []
 for bas in basis:
     for name, molecule in molecules.items():
         settings = common_settings.copy()
         settings.input.adf.Basis.Type = bas
         job = AMSJob(name=name + "_" + bas, molecule=molecule, settings=settings)
+        jobs.append(job)
         results[(name, bas)] = job.run()
 
 
 # ## Results
 # Extract the energy from each calculation. Calculate the average absolute error in bond energy per atom for each basis set.
 
-average_errors = {}
-for bas in basis:
-    if bas != reference_basis:
-        errors = []
-        for name, molecule in molecules.items():
-            reference_energy = results[(name, reference_basis)].get_energy(unit="kcal/mol")
-            energy = results[(name, bas)].get_energy(unit="kcal/mol")
-            errors.append(abs(energy - reference_energy) / len(molecule))
-            print("Energy for {} using {} basis set: {} [kcal/mol]".format(name, bas, energy))
-        average_errors[bas] = sum(errors) / len(errors)
+try:
+    # For AMS2025+ can use JobAnalysis class to perform results analysis
+    from scm.plams import JobAnalysis
+
+    ja = (
+        JobAnalysis(jobs=jobs, standard_fields=None)
+        .add_standard_fields(["Formula", "Smiles"])
+        .add_settings_field(("Input", "ADF", "Basis", "Type"), display_name="Basis")
+        .add_field("NAtoms", lambda j: len(j.molecule))
+        .add_field(
+            "Energy", lambda j: j.results.get_energy(unit="kcal/mol"), display_name="Energy [kcal/mol]", fmt=".2f"
+        )
+        .sort_jobs(["NAtoms", "Energy"])
+    )
+
+    ref_ja = ja.copy().filter_jobs(lambda data: data["InputAdfBasisType"] == "QZ4P")
+
+    ref_energies = {f: e for f, e in zip(ref_ja.Formula, ref_ja.Energy)}
+
+    def get_average_error(job):
+        return abs(job.results.get_energy(unit="kcal/mol") - ref_energies[job.molecule.get_formula()]) / len(
+            job.molecule
+        )
+
+    ja.add_field("AvErr", get_average_error, display_name="Average Error [kcal/mol]", fmt=".2f")
+
+    # Pretty-print if running in a notebook
+    if "ipykernel" in sys.modules:
+        ja.display_table()
+    else:
+        print(ja.to_table())
+
+except ImportError:
+
+    average_errors = {}
+    for bas in basis:
+        if bas != reference_basis:
+            errors = []
+            for name, molecule in molecules.items():
+                reference_energy = results[(name, reference_basis)].get_energy(unit="kcal/mol")
+                energy = results[(name, bas)].get_energy(unit="kcal/mol")
+                errors.append(abs(energy - reference_energy) / len(molecule))
+                print("Energy for {} using {} basis set: {} [kcal/mol]".format(name, bas, energy))
+            average_errors[bas] = sum(errors) / len(errors)
 
 
 print("== Results ==")
 print("Average absolute error in bond energy per atom")
 for bas in basis:
     if bas != reference_basis:
-        print("Error for basis set {:<4}: {:>10.3f} [kcal/mol]".format(bas, average_errors[bas]))
+        if ja:
+            av = np.average(ja.copy().filter_jobs(lambda data: data["InputAdfBasisType"] == bas).AvErr)
+        else:
+            av = average_errors[bas]
+        print("Error for basis set {:<4}: {:>10.3f} [kcal/mol]".format(bas, av))

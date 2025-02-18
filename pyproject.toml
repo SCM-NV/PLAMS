@@ -57,7 +57,8 @@ analysis = [
     "pandas>=1.5.2",
     "networkx>=2.7.1",
     "natsort>=8.1.0",
-    "h5py>=3.6.0"
+    "h5py>=3.6.0",
+    "ipython>=7.22.0"
 ]
 
 docs = [
@@ -74,8 +75,8 @@ examples = [
 dev = [
     "pytest>=7.4.0",
     "coverage>=7.5.3",
-    "black>=24",
-    "black[jupyter]>=24",
+    "black==24.8.0",
+    "black[jupyter]==24.8.0",
     "flake8==5.0.4",
     "mypy==1.12.0"
 ]

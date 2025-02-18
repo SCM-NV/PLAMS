@@ -1,6 +1,6 @@
 #!/usr/bin/env amspython
 import matplotlib.pyplot as plt
-from scm.plams import from_smiles, Settings, AMSJob, Units
+from scm.plams import from_smiles, Settings, AMSJob, Units, init
 
 """
 Example showing the UseLowestEnergy feature of the Hybrid engine and the OptimizeSpinRound feature of the ADF engine.
@@ -19,6 +19,9 @@ $AMSBIN/amspython UseLowestEnergy.py
 
 def main():
     # config.job.runscript.nproc = 1 # uncomment to run all jobs in serial
+
+    # this line is not required in AMS2025+
+    init()
 
     pesscan_job = initial_pesscan()
     rkf = pesscan_job.results.rkfpath()

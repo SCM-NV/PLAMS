@@ -20,6 +20,8 @@ jobs:
   unit-test:
 #   Run on ubuntu, mac and windows for python 3.8 (in AMS python stack) up to 3.12
     runs-on: ${{ matrix.os }}
+    env:
+      PYTHONUTF8: 1
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]

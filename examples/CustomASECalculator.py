@@ -16,6 +16,8 @@ def get_calculator():
 
 
 def main():
+    # this line is not required in AMS2025+
+    init()
 
     mol = from_smiles("O")
     mol.lattice = [

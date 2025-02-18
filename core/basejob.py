@@ -591,7 +591,7 @@ class SingleJob(Job):
 
         job = cls(name=jobname)
         job.path = path
-        job._status = JobStatus.COPIED
+        job.status = JobStatus.COPIED
         job.results.collect()
 
         job._filenames = {}

@@ -5,6 +5,9 @@ from scm.plams import *
 
 
 def main():
+    # this line is not required in AMS2025+
+    init()
+
     d = 2.085
     mol = Molecule()
     mol.add_atom(Atom(symbol="Ni", coords=(0, 0, 0)))

@@ -5,6 +5,9 @@
 
 from scm.plams import *
 
+# this line is not required in AMS2025+
+init()
+
 
 # ## Elements, coordinates, lattice vectors, and charge
 

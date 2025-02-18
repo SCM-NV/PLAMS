@@ -1,5 +1,8 @@
-from scm.plams import Settings, Molecule
+from scm.plams import Settings, Molecule, init
 from scm.plams.recipes.adffragment import ADFFragmentJob
+
+# this line is not required in AMS2025+
+init()
 
 common = Settings()  # common settings for all 3 jobs
 common.input.ams.Task = "SinglePoint"

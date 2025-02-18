@@ -182,6 +182,7 @@ class PackMol:
         tolerance=2.0,
         structures: Optional[List[PackMolStructure]] = None,
         filetype="xyz",
+        seed: int = -1,
         executable=None,
     ):
         """
@@ -199,6 +200,9 @@ class PackMol:
         executable: str
             Path to the packmol executable. If not specified, $AMSBIN/packmol.exe will be used.
 
+        seed: int
+            Random seed. If -1, the current time is used as a random seed in packmol.
+
         Note: users are not recommended to use this class directly, but
         instead use the ``packmol``, ``packmol_on_slab`` and ``packmol_microsolvation``
         functions.
@@ -207,7 +211,10 @@ class PackMol:
         self.tolerance = tolerance
         self.structures = structures or []
         self.filetype = filetype
-        self.seed = -1
+        if seed == -1 and "SCM_PACKMOL_SEED" in os.environ:
+            self.seed = int(os.environ["SCM_PACKMOL_SEED"])
+        else:
+            self.seed = seed
         self.executable = executable or os.path.join(os.path.expandvars("$AMSBIN"), "packmol.exe")
         if not os.path.exists(self.executable):
             raise RuntimeError("PackMol exectuable not found: " + self.executable)
@@ -375,6 +382,7 @@ def packmol(
     region_names: Union[List[str], str, None] = ...,
     return_details: Literal[False] = ...,
     tolerance: float = ...,
+    seed: int = ...,
     executable: Optional[str] = ...,
     _return_only_details: bool = ...,
 ) -> Molecule: ...
@@ -395,6 +403,7 @@ def packmol(
     region_names: Union[List[str], str, None] = ...,
     return_details: Literal[True] = ...,
     tolerance: float = ...,
+    seed: int = ...,
     executable: Optional[str] = ...,
     _return_only_details: bool = ...,
 ) -> Tuple[Molecule, Dict[str, Any]]: ...
@@ -414,6 +423,7 @@ def packmol(
     region_names: Union[List[str], str, None] = None,
     return_details: bool = False,
     tolerance: float = 2.0,
+    seed: int = -1,
     executable: Optional[str] = None,
     _return_only_details: bool = False,  # get values of n_molecules, n_atoms, and mole_fractions in the returned dictionary
 ) -> Union[Molecule, Tuple[Molecule, Dict[str, Any]]]:
@@ -613,7 +623,7 @@ def packmol(
             f"n_molecules={n_molecules}, box_bounds={box_bounds}, density={density}"
         )
 
-    pm = PackMol(executable=executable, tolerance=tolerance)
+    pm = PackMol(executable=executable, tolerance=tolerance, seed=seed)
     if sphere and len(molecules) == 2 and n_molecules and n_molecules[0] == 1:
         # Special case used by packmol_microsolvation
         s1 = PackMolStructure(molecules[0], n_molecules[0], box_bounds=box_bounds, sphere=False, fixed=True)
@@ -878,6 +888,7 @@ def packmol_around(
     region_names: Union[List[str], str, None] = None,
     return_details: bool = False,
     tolerance: float = 2.0,
+    seed: int = -1,
     executable: Optional[str] = None,
 ) -> Union[Molecule, Tuple[Molecule, Dict[str, Any]]]:
     """Pack around the current molecule.
@@ -957,6 +968,7 @@ def packmol_around(
         details["current_atomic_volume"] = current_atomic_volume
         return details
 
+    molecules = tolist(molecules)
     details = get_details_for_remaining_volume(
         original_ucs,
         molecules,
@@ -1009,6 +1021,7 @@ def packmol_around(
         keep_bonds=keep_bonds,
         keep_atom_properties=keep_atom_properties,
         region_names=region_names,
+        seed=seed,
     )
 
     # remove the original substrate

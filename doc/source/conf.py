@@ -267,6 +267,7 @@ rst_epilog = """
 .. |KFReader| replace:: :class:`~scm.plams.tools.kftools.KFReader`
 .. |KFFile| replace:: :class:`~scm.plams.tools.kftools.KFFile`
 .. |KFHistory| replace:: :class:`~scm.plams.tools.kftools.KFHistory`
+.. |JobAnalysis| replace:: :class:`~scm.plams.tools.job_analysis.JobAnalysis`
 
 .. |AMSJob| replace:: :class:`~scm.plams.interfaces.adfsuite.ams.AMSJob`
 .. |AMSResults| replace:: :class:`~scm.plams.interfaces.adfsuite.ams.AMSResults`

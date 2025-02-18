@@ -12,6 +12,9 @@
 
 from scm.plams import *
 
+# this line is not required in AMS2025+
+init()
+
 
 # ## Initial structure
 

@@ -14,6 +14,9 @@ import matplotlib.pyplot as plt
 # Let's delete it after the calculations are done
 config.erase_workdir = True
 
+# this line is not required in AMS2025+
+init()
+
 
 # ## Construct an initial system
 # Here, we use the ``molecule()`` from ``ase.build`` to construct an ASE Atoms object.
@@ -62,8 +65,3 @@ with AMSCalculator(settings=s, amsworker=True) as calc:
 print(f"Optimized energy (eV): {atoms.get_potential_energy()}")
 print("Optimized coordinates:")
 print(atoms.get_positions())
-
-
-# ## Finish PLAMS
-
-finish()

@@ -4,12 +4,16 @@
 # ## Initial imports
 
 import os
+import sys
 
 import matplotlib.pyplot as plt
 import numpy as np
 
 from scm.conformers import ConformersJob
 from scm.plams import *
+
+# this line is not required in AMS2025+
+init()
 
 
 # ## Initial structure
@@ -48,23 +52,30 @@ generate_job.run()
 # ### Some helper functions
 
 
-def print_results(job: ConformersJob, temperature=298, unit="kcal/mol"):
-    energies = job.results.get_relative_energies(unit)
-    populations = job.results.get_boltzmann_distribution(temperature)
+def get_energies(job: ConformersJob, temperature=298, unit="kcal/mol"):
+    return job.results.get_relative_energies(unit)
 
-    print(f"Total # conformers in set: {len(energies)}")
-    dE_header = f"ΔE [{unit}]"
-    pop_header = f"Pop. (T = {temperature} K)"
-    print(f'{"#":>4s} {dE_header:>14s} {pop_header:>18s}')
 
-    for i, (E, pop) in enumerate(zip(energies, populations)):
-        print(f"{i+1:4d} {E:14.2f} {pop:18.3f}")
+def get_populations(job: ConformersJob, temperature=298, unit="kcal/mol"):
+    return job.results.get_boltzmann_distribution(temperature)
+
+
+def get_energy_header(unit="kcal/mol"):
+    return f"ΔE [{unit}]"
+
+
+def get_population_header(temperature=298):
+    return f"Pop. (T = {temperature} K)"
+
+
+def get_conformers(job: ConformersJob):
+    return job.results.get_conformers()
 
 
 def plot_conformers(job: ConformersJob, indices=None, temperature=298, unit="kcal/mol", lowest=True):
-    molecules = job.results.get_conformers()
-    energies = job.results.get_relative_energies(unit)
-    populations = job.results.get_boltzmann_distribution(temperature)
+    molecules = get_conformers(job)
+    energies = get_energies(job, unit)
+    populations = get_populations(job, temperature)
 
     if isinstance(indices, int):
         N_plot = min(indices, len(energies))
@@ -88,6 +99,47 @@ def plot_conformers(job: ConformersJob, indices=None, temperature=298, unit="kca
         ax.set_title(f"#{i+1}\nΔE = {E:.2f} kcal/mol\nPop.: {population:.3f} (T = {temperature} K)")
 
 
+try:
+    # For AMS2025+ can use JobAnalysis class to perform results analysis
+    from scm.plams import JobAnalysis
+
+    def print_results(job: ConformersJob, temperature=298, unit="kcal/mol"):
+        ja = (
+            JobAnalysis(standard_fields=None)
+            .add_job(job)
+            .add_field(
+                "Id",
+                lambda j: list(range(1, len(get_conformers(j)) + 1)),
+                display_name="Conformer Id",
+                expansion_depth=1,
+            )
+            .add_field("Energies", get_energies, display_name=get_energy_header(), expansion_depth=1, fmt=".2f")
+            .add_field(
+                "Populations", get_populations, display_name=get_population_header(), expansion_depth=1, fmt=".3f"
+            )
+        )
+
+        # Pretty-print if running in a notebook
+        if "ipykernel" in sys.modules:
+            ja.display_table()
+        else:
+            print(ja.to_table())
+
+except ImportError:
+
+    def print_results(job: ConformersJob, temperature=298, unit="kcal/mol"):
+        energies = get_energies(job, temperature, unit)
+        populations = get_populations(job, temperature, unit)
+
+        print(f"Total # conformers in set: {len(energies)}")
+        dE_header = get_energy_header(unit)
+        pop_header = get_population_header(temperature)
+        print(f'{"#":>4s} {dE_header:>14s} {pop_header:>18s}')
+
+        for i, (E, pop) in enumerate(zip(energies, populations)):
+            print(f"{i+1:4d} {E:14.2f} {pop:18.3f}")
+
+
 # ### Actual results
 #
 # Below we see that the **conformer generation gave 14 distinct conformers**, where the highest-energy conformer is 18 kcal/mol higher in energy than the lowest energy conformer.
@@ -98,10 +150,10 @@ unit = "kcal/mol"
 temperature = 298
 
 
-print_results(generate_job, temperature=temperature, unit=unit)
-plot_conformers(generate_job, 4, temperature=temperature, unit=unit, lowest=True)  # plot 4 lowest conformers
-# plot_conformers(generate_job, 4, temperature=temperature, unit=unit, lowest=False)  # plot 4 conformers from lowest to highest
-# plot_conformers(generate_job, [0, 2], temperature=temperature, unit=unit) # plot first and third conformers
+print_results(generate_job, temperature, unit)
+
+
+plot_conformers(generate_job, 4, temperature=temperature, unit=unit, lowest=True)
 
 
 # ## Re-optimize conformers with GFNFF
@@ -110,7 +162,7 @@ plot_conformers(generate_job, 4, temperature=temperature, unit=unit, lowest=True
 #
 # The **Optimize** task performs **GeometryOptimization** jobs on each conformer in a set.
 #
-# Below, the 10 most stable conformers (within 8 kcal/mol of the most stable conformer) at the UFF level of theory are re-optimized with GFNFF, which gives more accurate geometries.
+# Below, the most stable conformers (within 8 kcal/mol of the most stable conformer) at the UFF level of theory are re-optimized with GFNFF, which gives more accurate geometries.
 
 s = Settings()
 s.input.ams.Task = "Optimize"
@@ -126,6 +178,8 @@ reoptimize_job.run()
 
 
 print_results(reoptimize_job, temperature=temperature, unit=unit)
+
+
 plot_conformers(reoptimize_job, 4, temperature=temperature, unit=unit, lowest=True)
 
 
@@ -148,6 +202,8 @@ score_job.run()
 
 
 print_results(score_job, temperature=temperature, unit=unit)
+
+
 plot_conformers(score_job, 4, temperature=temperature, unit=unit, lowest=True)
 
 
@@ -168,7 +224,11 @@ s.input.ams.InputMaxEnergy = 1.0
 
 filter_job = ConformersJob(settings=s, name="filter")
 filter_job.run()
+
+
 print_results(filter_job, temperature=temperature, unit=unit)
+
+
 plot_conformers(filter_job, 4, temperature=temperature, unit=unit, lowest=True)
 
 

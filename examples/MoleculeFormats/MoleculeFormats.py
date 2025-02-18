@@ -7,12 +7,13 @@ import os
 from os.path import expandvars
 from pathlib import Path
 
-# make sure to source amsbashrc.sh before launching this example so that
-# the AMSHOME environment variable is set.
+# Make sure to source amsbashrc.sh before launching this example so that
+# the AMSHOME environment variable is set. Requires AMS2025+ to run this example.
 
 AMSHOME = os.environ["AMSHOME"]
 cif_file = f"{AMSHOME}/atomicdata/Molecules/IZA-Zeolites/ABW.cif"
 xyz_file = f"{AMSHOME}/scripting/scm/params/examples/benchmark/ISOL6/e_13.xyz"
+badxyz_file = f"{AMSHOME}/scripting/scm/plams/unit_tests/xyz/reactant2.xyz"
 
 assert Path(cif_file).exists(), f"{cif_file} does not exist."
 assert Path(xyz_file).exists(), f"{xyz_file} does not exist."
@@ -188,6 +189,27 @@ mol: Molecule = from_rdmol(rdkit_mol)
 print(f"{type(rdkit_mol)=}")
 print(f"{type(mol)=}")
 plot_molecule(mol)
+
+
+# #### Convert problematic PLAMS Molecule to RDKit Mol
+
+mol = Molecule(badxyz_file)
+mol.guess_bonds()
+plot_molecule(mol)
+
+
+# This molecule will fail to convert to an RDKit Mol object, because RDKit does not like the AMS assignment of double bonds.
+
+try:
+    rdkit_mol = to_rdmol(mol)
+except ValueError as exc:
+    print("Failed to convert")
+
+
+# The problem can be fixed by passing the argument `presanitize` to the `to_rdmol` function.
+
+rdkit_mol = to_rdmol(mol, presanitize=True)
+rdkit_mol
 
 
 # ### SCM libbase UnifiedChemicalSystem Python class

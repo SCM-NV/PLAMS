@@ -1,7 +1,7 @@
 .. _PackMolExample:
 
-PackMolExample
-==============================
+Packmol: Create liquids, gases, solid-liquid interfaces
+========================================================
 
 This example illustrates various ways of using the :ref:`packmol interface <PackmolInterface>` for constructing liquid or gas mixtures or solid/liquid interfaces.
 

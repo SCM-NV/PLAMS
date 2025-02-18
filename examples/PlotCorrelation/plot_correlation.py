@@ -7,6 +7,9 @@ import scm.plams as plams
 from scm.plams.tools.plot import plot_correlation, get_correlation_xy
 import matplotlib.pyplot as plt
 
+# this line is not required in AMS2025+
+plams.init()
+
 
 # ## Define two engines to compare
 #

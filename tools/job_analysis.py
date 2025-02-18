@@ -1,920 +1,1705 @@
-# %%
+import datetime
+from typing import Optional, Sequence, Union, Dict, List, Callable, Any, Tuple, Hashable, Set, Literal, TYPE_CHECKING
+import os
 import csv
-import re
-import warnings
-from collections import defaultdict
-from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Callable, Dict, Hashable, List, Optional, Tuple, Type, Union
+import numpy as np
+from numbers import Number
+from dataclasses import dataclass, replace
+from itertools import chain, islice
 
-from matplotlib import pyplot as plt
-from matplotlib.figure import Figure
-from scm.plams import (
-    AMSJob,
-    JobManager,
-    JobManagerSettings,
-    Settings,
-    SingleJob,
-    to_smiles,
-)
-from scm.plams.core.functions import get_logger, requires_optional_package
-from scm.plams.tools.settings_analysis import compare_settings
+from scm.plams.core.basejob import Job, SingleJob
+from scm.plams.core.settings import Settings
+from scm.plams.interfaces.adfsuite.ams import AMSJob
+from scm.plams.core.errors import PlamsError
+from scm.plams.core.functions import requires_optional_package, load, config
 from scm.plams.tools.table_formatter import format_in_table
+from scm.plams.interfaces.molecule.rdkit import to_smiles
+from scm.plams.mol.molecule import Molecule
+from scm.plams.interfaces.adfsuite.inputparser import InputParserFacade
+
+try:
+    from scm.libbase import UnifiedChemicalSystem as ChemicalSystem
+    from scm.utils.conversions import chemsys_to_plams_molecule
+
+    _has_scm_libbase = True
+except ImportError:
+    _has_scm_libbase = False
+
+try:
+    from scm.pisa.block import DriverBlock
+    from scm.pisa.input_def import DRIVER_BLOCK_FILES, ENGINE_BLOCK_FILES
+
+    _has_scm_pisa = True
+except ImportError:
+    _has_scm_pisa = False
+
+if TYPE_CHECKING:
+    from pandas import DataFrame
 
 
-class GroupedColNames:
-    paths = "paths"
-    jobs = "jobs"
-    names = "names"
-    #########################
-    molecule_info = ("n_atoms", "chemical_formula", "gyration_radius", "smiles")
-    #########################
-    jobs_info = ("ok", "check", "error")
-    amsjob_info = (
-        "termination_status",
-        "out_errors",
-        "log_errors",
-        "out_warnings",
-        "log_warnings",
-    )
-    timings = ("CPUTime", "SysTime", "ElapsedTime")
-    #########################
-    labels = "labels"
-    ########################
+__all__ = ["JobAnalysis"]
 
 
-class HeaderStr(str):
-    @property
-    def is_settings(self):
-        return self._is_settings
+class JobAnalysis:
+    """
+    Analysis tool for Jobs, which generates tables of data consisting of fields and their respective value for each job.
 
-    @is_settings.setter
-    def is_settings(self, val: bool):
-        self._is_settings = val
+    The jobs and fields which are included in the analysis are customizable, to allow for flexible comparison.
+    """
 
-    def __new__(cls, value, is_settings: bool = False):
-        # Create a new instance of str
-        obj = super(HeaderStr, cls).__new__(cls, value)
-        # Add the extra property
-        obj.is_settings = is_settings
-        return obj
+    @dataclass
+    class _Field:
+        key: str
+        value_extractor: Callable[[Job], Any]
+        display_name: Optional[str] = None
+        fmt: Optional[str] = None
+        from_settings: bool = False
+        expansion_depth: int = 0
 
+        def __post_init__(self):
+            self.display_name = self.key if self.display_name is None else self.display_name
 
-class SettingsCols:
+    _standard_fields = {
+        "Path": _Field(key="Path", value_extractor=lambda j: j.path),
+        "Name": _Field(key="Name", value_extractor=lambda j: j.name),
+        "OK": _Field(key="OK", value_extractor=lambda j: j.ok()),
+        "Check": _Field(key="Check", value_extractor=lambda j: j.check()),
+        "ErrorMsg": _Field(key="ErrorMsg", value_extractor=lambda j: j.get_errormsg()),
+        "ParentPath": _Field(key="ParentPath", value_extractor=lambda j: j.parent.path if j.parent else None),
+        "ParentName": _Field(key="ParentName", value_extractor=lambda j: j.parent.name if j.parent else None),
+        "Formula": _Field(
+            key="Formula",
+            value_extractor=lambda j: (
+                JobAnalysis._mol_formula_extractor(j.molecule) if isinstance(j, SingleJob) else None
+            ),
+        ),
+        "Smiles": _Field(
+            key="Smiles",
+            value_extractor=lambda j: (
+                JobAnalysis._mol_smiles_extractor(j.molecule) if isinstance(j, SingleJob) else None
+            ),
+        ),
+        "GyrationRadius": _Field(
+            key="GyrationRadius",
+            value_extractor=lambda j: (
+                JobAnalysis._mol_gyration_radius_extractor(j.molecule) if isinstance(j, SingleJob) else None
+            ),
+            fmt=".4f",
+        ),
+        "CPUTime": _Field(
+            key="CPUTime",
+            value_extractor=lambda j: (
+                j.results.readrkf("General", "CPUTime") if isinstance(j, AMSJob) and j.results is not None else None
+            ),
+            fmt=".6f",
+        ),
+        "SysTime": _Field(
+            key="SysTime",
+            value_extractor=lambda j: (
+                j.results.readrkf("General", "SysTime") if isinstance(j, AMSJob) and j.results is not None else None
+            ),
+            fmt=".6f",
+        ),
+        "ElapsedTime": _Field(
+            key="ElapsedTime",
+            value_extractor=lambda j: (
+                j.results.readrkf("General", "ElapsedTime") if isinstance(j, AMSJob) and j.results is not None else None
+            ),
+            fmt=".6f",
+        ),
+    }
 
-    def __init__(self, __dict__: Dict[Union[str, HeaderStr], List[Any]]):
-        self.__dict__ = __dict__
+    StandardField = Literal[
+        "Path",
+        "Name",
+        "OK",
+        "Check",
+        "ErrorMsg",
+        "ParentPath",
+        "ParentName",
+        "Formula",
+        "Smiles",
+        "GyrationRadius",
+        "CPUTime",
+        "SysTime",
+        "ElapsedTime",
+    ]
 
-    @property
-    def values(self):
-        return [k for k in self.__dict__ if isinstance(k, HeaderStr) and k.is_settings]
+    @staticmethod
+    def _mol_formula_extractor(
+        mol: Optional[Union[Molecule, Dict[str, Molecule], "ChemicalSystem", Dict[str, "ChemicalSystem"]]]
+    ) -> Optional[str]:
+        if isinstance(mol, dict):
+            return ", ".join([f"{n}: {JobAnalysis._mol_formula_extractor(m)}" for n, m in mol.items()])
+        elif isinstance(mol, Molecule):
+            return mol.get_formula()
+        elif _has_scm_libbase and isinstance(mol, ChemicalSystem):
+            return mol.formula()
+        return None
 
-    def __repr__(self) -> str:
-        list_repr = str(sorted(self.values)).replace(",", ",\n\t")
-        return f"SettingsCols({list_repr})"
+    @staticmethod
+    def _mol_smiles_extractor(
+        mol: Optional[Union[Molecule, Dict[str, Molecule], "ChemicalSystem", Dict[str, "ChemicalSystem"]]]
+    ):
+        if isinstance(mol, dict):
+            return ", ".join([f"{n}: {JobAnalysis._mol_smiles_extractor(m)}" for n, m in mol.items()])
+        elif isinstance(mol, Molecule):
+            return to_smiles(mol)
+        elif _has_scm_libbase and isinstance(mol, ChemicalSystem):
+            return JobAnalysis._mol_smiles_extractor(chemsys_to_plams_molecule(mol))
+        return None
 
-    def rename(self, mapper: Dict[str, str]):
-        for k_in, k_out in mapper.items():
-            self.__dict__[HeaderStr(k_out, is_settings=True)] = self.__dict__.pop(k_in)
+    @staticmethod
+    def _mol_gyration_radius_extractor(
+        mol: Optional[Union[Molecule, Dict[str, Molecule], "ChemicalSystem", Dict[str, "ChemicalSystem"]]]
+    ):
+        if isinstance(mol, dict):
+            return ", ".join([f"{n}: {JobAnalysis._mol_gyration_radius_extractor(m)}" for n, m in mol.items()])
+        elif isinstance(mol, Molecule):
+            return mol.get_gyration_radius()
+        elif _has_scm_libbase and isinstance(mol, ChemicalSystem):
+            return JobAnalysis._mol_gyration_radius_extractor(chemsys_to_plams_molecule(mol))
+        return None
 
-    def __iter__(self):
-        return iter(self.values)
-
-
-class JobsAnalysis:
-    # _plot_type = ViewJobAnalysis
-    _cols = GroupedColNames
+    _reserved_names = ["_jobs", "_fields", "StandardField", "_standard_fields", "_pisa_programs", "_Field"]
 
     def __init__(
         self,
-        paths: Optional[Union[List[Optional[str]], List[Optional[Path]], List[Path]]] = None,
-        jobs: Optional[List[SingleJob]] = None,
-        data: Optional[Dict[Union[str, HeaderStr], List[Any]]] = None,  # df_jobs.to_dict("list")
-        extra_cols: Optional[Dict[str, List[Any]]] = None,
+        paths: Optional[Sequence[Union[str, os.PathLike]]] = None,
+        jobs: Optional[Sequence[Job]] = None,
+        loaders: Optional[Sequence[Callable[[str], Job]]] = None,
+        standard_fields: Optional[Sequence["JobAnalysis.StandardField"]] = ("Path", "Name", "OK", "Check", "ErrorMsg"),
+        await_results: bool = True,
     ):
+        """
+        Initialize new instance of |JobAnalysis| with a set of jobs.
 
-        ################### initialization data ####################
-        self.data = {}
-        if data is not None:
-            self.data = data
-            if GroupedColNames.paths in self.data.keys():
-                self.data[GroupedColNames.paths] = [Path(x) for x in self.data[GroupedColNames.paths]]
+        .. code:: python
 
-        if paths is not None:
-            self.data[GroupedColNames.paths] = [Path(x) if x is not None else None for x in paths]
+            >>> ja = JobAnalysis(jobs=[job1, job2], standard_fields=["Name", "OK"])
+            >>> ja
 
-        if jobs is not None:
-            self.data[GroupedColNames.jobs] = jobs
-            self._generate_names_paths_from_jobs()
+            | Name  | OK   |
+            |-------|------|
+            | job_1 | True |
+            | job_2 | True |
 
-        if extra_cols is not None:
-            self.data.update(extra_cols)
-        ###################### Cache data ######################
-        # self._params_cols = None
-        # self._sal_cols = None
-        # self._ir_check = None
+        :param paths: one or more paths to folders from which to load jobs to add to the analysis
+        :param jobs: one or more jobs to add to the analysis
+        :param loaders: custom loading functions to generate jobs from a job folder
+        :param standard_fields: keys of standard fields to include in analysis, defaults to ``("Path", "Name", "OK", "Check", "ErrorMsg")``
+        :param await_results: whether to wait for the results of any passed jobs to finish, defaults to ``True``
+        """
+        self._jobs: Dict[str, Job] = {}
+        self._fields: Dict[str, JobAnalysis._Field] = {}
 
-        self.settings_cols = SettingsCols(__dict__=self.data)
+        if _has_scm_pisa:
+            self._pisa_programs = {value: key for key, value in ENGINE_BLOCK_FILES.items()}
+            self._pisa_programs.update({value: key for key, value in DRIVER_BLOCK_FILES.items()})
 
-    def apply(self, fn: Callable, col: Optional[str] = GroupedColNames.jobs, indexes=None):
-        if indexes is None:
-            indexes = range(len(self))
-        if col is not None:
-            if col not in self.data:
-                raise KeyError(f"{col} not in {self.data.keys()=}")
-            return [fn(self.data[col][i]) for i in indexes]
+        if jobs:
+            for j in jobs:
+                self.add_job(j)
+                if await_results:
+                    j.results.wait()
 
-        return [fn(self.data[i]) for i in indexes]
+        if paths:
+            for p in paths:
+                self.load_job(p, loaders)
 
-    def _generate_names_paths_from_jobs(
-        self, col_paths=GroupedColNames.paths, col_names=GroupedColNames.names, col_jobs=GroupedColNames.jobs
-    ):
-        self.names(col_names, col_jobs)
-        self.paths(col_paths, col_jobs)
+        if standard_fields:
+            for sf in standard_fields:
+                self.add_standard_field(sf)
 
-    def paths(self, col_paths=GroupedColNames.paths, col_jobs=GroupedColNames.jobs):
-        if col_paths in self.data:
-            return self.data[col_paths]
-        if col_jobs in self.data:
-            self.data[col_paths] = self.apply(
-                fn=lambda job: Path(job.path) if job.status != "created" else None, col=col_jobs
-            )
-            return self.data[col_paths]
-        return None
+    def copy(self) -> "JobAnalysis":
+        """
+        Produce a copy of this analysis with the same jobs and fields.
 
-    def names(self, col_names=GroupedColNames.names, col_jobs=GroupedColNames.jobs):
-        if col_names in self.data:
-            return self.data[col_names]
-        if col_jobs in self.data:
-            self.data[col_names] = self.apply(fn=lambda job: job.name, col=col_jobs)
-            return self.data[col_names]
-        return None
+        .. code:: python
 
-    @classmethod
-    def load_paths_of_inputs(
-        cls,
-        base_path: Union[str, Path],
-        pattern: str = "*/*.in",
-    ):
-        paths = [i.parent for i in Path(base_path).glob(pattern)]
-        assert len(paths) > 0, "Any path found"
-        return cls(paths=paths)
+            >>> ja.copy()
 
-    @classmethod
-    def load_only_job_failed(
-        cls,
-        logfile_path: Union[str, Path],
-    ):
-        logfile_path = Path(logfile_path)
-        assert logfile_path.exists(), f"{logfile_path} does not exists"
+            | Name  | OK   |
+            |-------|------|
+            | job_1 | True |
+            | job_2 | True |
 
-        with open(logfile_path, "r") as log_file:
-            log_data = log_file.read()
-        regex_pattern = r"JOB (\S+) FAILED"
-        matches = list(re.findall(regex_pattern, log_data))
-        if len(matches) > 0:
-            return cls(paths=matches)
-        else:
-            print("All ok")
-            return None
+        :return: copy of the analysis
+        """
+        cpy = JobAnalysis()
+        cpy._jobs = self.jobs
+        cpy._fields = {k: replace(v) for k, v in self._fields.items()}
+        return cpy
 
-    def load_jobs(
-        self,
-        job_loader,
-        col_path_jobs=GroupedColNames.paths,
-        suffix_out="",
-        use_dill=True,
-    ):
+    @property
+    def jobs(self) -> Dict[str, Job]:
+        """
+        Jobs currently included in analysis.
 
-        def load_job(path_folder):
-            """plams.load .dill file is very fast, always try that first"""
-            if not isinstance(path_folder, (str, Path)):
-                return None
-            path_folder = Path(path_folder)
-            if not Path(path_folder).exists():
-                return None
-            path_files_in_job = path_folder / (path_folder.name)
-            is_dill = path_files_in_job.with_suffix(".dill")
-            jm = JobManager(
-                JobManagerSettings(),
-                folder=Path.cwd(),
-                use_existing_folder=True,
-                job_logger=get_logger("none", fmt="csv"),
-            )
-            job = None
-            if is_dill.exists() and use_dill:
-                job = jm.load_job(is_dill)
-            if job is None:
-                job = job_loader(path_folder)
-            return job
+        .. code:: python
 
-        self.data[GroupedColNames.jobs + suffix_out] = self.apply(fn=load_job, col=col_path_jobs)
-        self._generate_names_paths_from_jobs(
-            col_jobs=GroupedColNames.jobs + suffix_out,
-            col_names=GroupedColNames.names + suffix_out,
-            col_paths=GroupedColNames.paths + suffix_out,
-        )
+            >>> ja.jobs
 
-    def _check_jobs_types(self, job_type=SingleJob, jobs_col=GroupedColNames.jobs, raise_error=False):
-        if len(self.data[jobs_col]) > 0:
-            actual_job_type = self.get_col_type(col=jobs_col)
-            type_check = isinstance(self.data[jobs_col][0], job_type)
-        else:
-            raise ValueError(f"{len(self.data[jobs_col])=} not higher than zero, something went wrong")
+            {
+                '/path/job1': <scm.plams.interfaces.adfsuite.ams.AMSJob object at 0x1085a13d0>,
+                '/path/job2': <scm.plams.interfaces.adfsuite.ams.AMSJob object at 0x15e389970>
+            }
 
-        if raise_error and not type_check:
-            raise TypeError(f"The first job in {jobs_col} must be of type {job_type}, but found {actual_job_type}")
-        else:
-            return type_check
+        :return: Dictionary of the job path and the |Job|
+        """
+        return {k: v for k, v in self._jobs.items()}
 
-    def get_col_type(self, col: str = GroupedColNames.jobs):
-        actual_job_type = type(self.data[col][0])
-        return actual_job_type
+    @property
+    def field_keys(self) -> List[str]:
+        """
+        Keys of current fields, as they appear in the analysis.
 
-    ############################################################################
-    ####################          input analysis          ######################
-    ############################################################################
-    def get_nested_settings(
-        self,
-        settings_path: str,
-        default_val: Any = None,
-        default_type: Optional[Type] = None,
-        job_col=GroupedColNames.jobs,
-        col_suffix="",
-    ):
-        def get_value(job: SingleJob):
-            value = job.settings.get_nested(settings_path, default=default_val)
-            if default_type is not None and value is not None:
-                return default_type(value)
-            return value
+        .. code:: python
 
-        added_col = settings_path + col_suffix
-        self.data[HeaderStr(added_col, is_settings=True)] = self.apply(fn=get_value, col=job_col)
-        return added_col
+            >>> ja.field_keys
 
-    def compare_settings(
-        self,
-        job_col=GroupedColNames.jobs,
-        analyze_blocks: bool = True,
-        analyze_keys: bool = False,
-        default_settings: Optional[Settings] = None,
-        flatten_list: bool = True,
-        remove_unimportant_columns: bool = True,
-        unimportant_variation_threshold: int = 1,
-        none_is_unimportant: bool = False,
-        col_suffix="",
-    ):
-        for k in self.settings_cols.values:
-            self.data.pop(k)
-        settings_list = [job.settings for job in self.data[job_col]]
-        settings_summary = compare_settings(
-            settings_list,
-            analyze_blocks=analyze_blocks,
-            analyze_keys=analyze_keys,
-            default_settings=default_settings,
-            flatten_list=flatten_list,
-            remove_unimportant_columns=remove_unimportant_columns,
-            unimportant_variation_threshold=unimportant_variation_threshold,
-            none_is_unimportant=none_is_unimportant,
-        )
-        added_cols = []
-        for k, v in settings_summary.items():
-            k = ".".join(map(str, k)) + col_suffix
-            self.data[HeaderStr(k, is_settings=True)] = v
-            added_cols.append(k)
-        return added_cols
+            ['Name', 'OK']
 
-    def generate_labels(
-        self, select_cols: Union[List[str], Dict[str, str]], cols_separator="\n", col_label=GroupedColNames.labels
-    ):
-        """you have to give the cols of the data that you want"""
-        # col_names = list(self.data)
-        if isinstance(select_cols, dict):
-            # cols = [col_names.index(v) for v in select_cols.values()]
-            cols = list(select_cols.values())
-            new_names = list(select_cols)
-        else:
-            # cols = [col_names.index(v) for v in select_cols]
-            cols = select_cols
-            new_names = select_cols
+        :return: list of field keys
+        """
+        return [k for k in self._fields]
 
-        def generate_label(row):
-            support_list = []
-            for col_i, name_i in zip(cols, new_names):
-                support_list.append(f"{name_i}: {row[col_i]}")
-            return f"{cols_separator}".join(support_list)
+    def get_analysis(self) -> Dict[str, List]:
+        """
+        Gets analysis data. This is effectively a table in the form of a dictionary,
+        where the keys are the field keys and the values are a list of data for each job.
 
-        self.data[col_label] = [generate_label(row) for row in self]
-        return col_label
+        .. code:: python
 
-    def __getitem__(self, idx: int):
-        row = {}
-        for k in self.data:
-            row[k] = self.data[k][idx]
-        return row
+            >>> ja.field_keys
 
-    def __len__(self):
-        first_key = list(self.data)[0]
-        return len(self.data[first_key])
+            {
+                'Name': ['job1', 'job2'],
+                'OK': [True, True]
+            }
 
-    ############################################################################
-    ##################          molecule analysis          #####################
-    ############################################################################
+        :return: analysis data as a dictionary of field keys/lists of job values
+        """
+        analysis = {col_name: self._get_field_analysis(col_name) for col_name in self._fields}
 
-    def get_molecules_infos(self, gyration_radius=False, smiles=False, col_jobs=GroupedColNames.jobs):
+        # Handle field expansion, converting single job rows to multiple rows
+        if analysis.keys() and self._jobs:
 
-        if not self._check_jobs_types(job_type=SingleJob, raise_error=False, jobs_col=col_jobs):
-            warnings.warn("the jobs are not of type: plams.AMSJob so no get_molecules_infos are present")
-            return
+            def expand(data, expand_fields):
+                expanded_data: Dict[str, list] = {col_name: [] for col_name in data.keys()}
+                for i in range(len(data[list(data.keys())[0]])):
+                    job_data = {col_name: data[i] for col_name, data in data.items()}
+                    valid_expand_fields = {
+                        f
+                        for f in expand_fields
+                        if (
+                            isinstance(job_data[f], Sequence)
+                            or (isinstance(job_data[f], np.ndarray) and job_data[f].shape != ())
+                        )
+                        and not isinstance(job_data[f], str)
+                    }
+                    # Number of rows is the maximum expanded field
+                    num_expanded_rows = max([len(job_data[f]) for f in valid_expand_fields], default=1)
 
-        def get_natoms(job):
-            if job.molecule is None:
-                return None
-            return len(job.molecule)
+                    # Convert multiple values to multiple rows of single values
+                    for col_name in data:
+                        expanded_data[col_name] += (
+                            list(islice(chain(job_data[col_name], [None] * num_expanded_rows), num_expanded_rows))
+                            if col_name in valid_expand_fields
+                            else [job_data[col_name]] * num_expanded_rows
+                        )
+                return expanded_data
 
-        def get_formula(job):
-            if job.molecule is None:
-                return None
-            return job.molecule.get_formula()
+            # Recursively expand until complete
+            depth = 1
+            while expand_fields := {k for k, f in self._fields.items() if f.expansion_depth >= depth}:
+                analysis = expand(analysis, expand_fields)
+                depth += 1
 
-        self.data["n_atoms"] = self.apply(get_natoms, col=col_jobs)
-        self.data["chemical_formula"] = self.apply(get_formula, col=col_jobs)
+        return analysis
 
-        def _to_smiles(job):
-            mol = job.molecule
-            mol.delete_all_bonds()
-            mol.guess_bonds()
-            return to_smiles(mol, canonical=True)
+    def _get_field_analysis(self, key) -> List:
+        """
+        Gets analysis data for field with a given key. This gives a list of data for the given field, with a  value for each job.
 
-        if smiles:
-            self.data["smiles"] = self.apply(fn=_to_smiles, col=col_jobs)
+        :param: key of the field
+        :return: analysis data as list of job values
+        """
+        if key not in self._fields:
+            raise KeyError(f"Field with key '{key}' is not part of the analysis.")
 
-        if gyration_radius:
-            self.data["gyration_radius"] = self.apply(fn=lambda x: x.molecule.get_gyration_radius(), col=col_jobs)
+        value_extractor = self._fields[key].value_extractor
 
-    ############################################################################
-    ####################    error analysis and timings    ######################
-    ############################################################################
-
-    def get_job_info(
-        self,
-        jobs_col=GroupedColNames.jobs,
-    ):
-
-        def check_not_created(job) -> bool:
-            if job.status not in ["created"]:
-                return True
-            return False
-
-        def check_ams_status_not_none(job):
+        def safe_value(job: Job):
             try:
-                status = job.results.readrkf("General", "termination status")
-            except:
-                return False
-            if status is None:
-                return False
+                return value_extractor(job)
+            except Exception as e:
+                return f"ERROR: {str(e)}"
+
+        log_stdout = config.log.stdout
+        log_file = config.log.file
+        try:
+            # Disable logging while fetching results
+            config.log.stdout = 0
+            config.log.file = 0
+            return [safe_value(j) for j in self._jobs.values()]
+        finally:
+            config.log.stdout = log_stdout
+            config.log.file = log_file
+
+    @requires_optional_package("pandas")
+    def to_dataframe(self) -> "DataFrame":
+        """
+        Converts analysis data to a dataframe. The column names are the field keys and the column values are the values for each job.
+        This method requires the `pandas <https://pandas.pydata.org/docs/index.html>`_ package.
+
+        .. code:: python
+
+            >>> print(ja.to_dataframe())
+
+               Name    OK
+            0  job1  True
+            1  job2  True
+
+        :return: analysis data as a dataframe
+        """
+        from pandas import DataFrame
+
+        return DataFrame(self.get_analysis())
+
+    def to_table(
+        self,
+        max_col_width: int = -1,
+        max_rows: int = 30,
+        fmt: Literal["markdown", "html", "rst"] = "markdown",
+    ) -> str:
+        """
+        Converts analysis data to a pretty-printed table.
+
+        .. code:: python
+
+            >>> print(ja.to_table())
+
+            | Name  | OK   |
+            |-------|------|
+            | job_1 | True |
+            | job_2 | True |
+
+        :param max_col_width: can be integer positive value or -1, defaults to -1 (no maximum width)
+        :param max_rows: can be integer positive value or -1, defaults to 30
+        :param fmt: format of the table, either markdown (default), html or rst
+        :return: string representation of the table
+        """
+
+        def safe_format_value(v, vfmt):
+            try:
+                return format(v, vfmt)
+            except (TypeError, ValueError, AttributeError):
+                return str(v)
+
+        def safe_format_values(f, vs):
+            vfmt = self._fields[f].fmt
+            return [safe_format_value(v, vfmt) for v in vs]
+
+        data = {self._fields[f].display_name: safe_format_values(f, v) for f, v in self.get_analysis().items()}
+        return format_in_table(data, max_col_width=max_col_width, max_rows=max_rows, fmt=fmt)
+
+    @requires_optional_package("IPython")
+    def display_table(
+        self,
+        max_col_width: int = -1,
+        max_rows: int = 30,
+        fmt: Literal["markdown", "html", "rst"] = "markdown",
+    ) -> None:
+        """
+        Converts analysis data to a pretty-printed table which is then displayed using IPython.
+
+        .. code:: python
+
+            >>> ja.display_table()
+
+            | Name  | OK   |
+            |-------|------|
+            | job_1 | True |
+            | job_2 | True |
+
+        :param max_col_width: can be integer positive value or -1, defaults to -1 (no maximum width)
+        :param max_rows: can be integer positive value or -1, defaults to 30
+        :param fmt: format of the table, either markdown (default), html or rst
+        """
+        from IPython.display import display, Markdown, HTML
+
+        table = self.to_table(max_col_width=max_col_width, max_rows=max_rows, fmt=fmt)
+
+        if fmt == "markdown":
+            display(Markdown(table))
+        elif fmt == "html":
+            display(HTML(table))
+        elif fmt == "rst":
+            table = "\n".join([f"    {row}" for row in table.split("\n")])
+            display(Markdown(table))
+
+    def to_csv_file(self, path: Union[str, os.PathLike]) -> None:
+        """
+        Write the analysis to a csv file with the specified path.
+
+        .. code:: python
+
+            >>> ja.to_csv_file("./a.csv")
+            >>> with open("./a.csv") as csv:
+            >>>     print(csv.read())
+
+            Name,OK
+            job1,True
+            job2,True
+
+        :param path: path to save the csv file
+        """
+        data = self.get_analysis()
+        keys = list(data.keys())
+        num_rows = len(data[keys[0]]) if len(keys) > 0 else 0
+
+        with open(path, mode="w", encoding="utf-8", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(keys)
+            for i in range(num_rows):
+                row = [data[k][i] for k in keys]
+                writer.writerow(row)
+
+    def get_timeline(self, max_intervals: int = 5, fmt: Literal["markdown", "html", "rst"] = "markdown") -> str:
+        """
+        Get depiction of timeline of jobs as they were run.
+        Each job is represented as a horizontal bar of symbols, where each symbol indicates a different job status.
+
+        These are as follows:
+
+        * ``created``: ``.``
+        * ``started``: ``-``
+        * ``registered``: ``+``
+        * ``running``: ``=``
+        * ``finished``: ``*``
+        * ``crashed``: ``x``
+        * ``failed``: ``X``
+        * ``successful``: ``>``
+        * ``copied``: ``#``
+        * ``preview``: ``~``
+        * ``deleted``: ``!``
+
+        e.g.
+
+        .. code:: python
+
+            >>> print(ja.get_timeline())
+
+            | JobName    | ↓2025-02-03 15:16:52 | ↓2025-02-03 15:17:10 | ↓2025-02-03 15:17:28 | ↓2025-02-03 15:17:46 | ↓2025-02-03 15:18:03 | WaitDuration | RunDuration | TotalDuration |
+            |------------|----------------------|----------------------|----------------------|----------------------|----------------------|--------------|-------------|---------------|
+            | generate   | ==================== | ==================== | ==================== | ==========>          |                      | 0s           | 1m2s        | 1m2s          |
+            | reoptimize |                      |                      |                      |           ====>      |                      | 0s           | 3s          | 3s            |
+            | score      |                      |                      |                      |                ===>  |                      | 0s           | 2s          | 2s            |
+            | filter     |                      |                      |                      |                   =* | >                    | 0s           | 1s          | 1s            |
+
+        If multiple status changes occur within the same resolution period, the latest will be displayed.
+
+        :param max_intervals: maximum number of datetime intervals to display i.e. the width and resolution of the timeline
+        :param fmt: format of the table, either markdown (default) or html
+        :return: string representation of timeline as a markdown (default), html or rst table
+        """
+        # Symbols for various job statuses
+        status_symbols = {
+            "created": ".",
+            "started": "-",
+            "registered": "+",
+            "running": "=",
+            "finished": "*",
+            "crashed": "x",
+            "failed": "X",
+            "successful": ">",
+            "copied": "#",
+            "preview": "~",
+            "deleted": "!",
+        }
+
+        # Order jobs by the start time
+        job_statuses = [(j, j.status_log) for j in self._jobs.values()]
+        ordered_job_statuses = sorted(job_statuses, key=lambda x: x[1][0] if x[1] else (datetime.datetime.max, None))
+
+        # Calculate known start and end time and job durations
+        def duration(start, end):
+            if not start or not end:
+                return "Unknown"
+            dur = end - start
+            d = dur.days
+            h, r = divmod(dur.seconds, 3600)
+            m, s = divmod(r, 60)
+            dur_fmt = ""
+            if d > 0:
+                dur_fmt += f"{d}d"
+            if h > 0 or d > 0:
+                dur_fmt += f"{h}h"
+            if m > 0 or h > 0 or d > 0:
+                dur_fmt += f"{m}m"
+            dur_fmt += f"{s}s"
+            return dur_fmt
+
+        # Calculate different durations
+        start_time = min([s[0][0] for _, s in ordered_job_statuses if s], default=None)
+        end_time = max([s[-1][0] for _, s in ordered_job_statuses if s], default=None)
+        durations: Dict[str, List[str]] = {"WaitDuration": [], "RunDuration": [], "TotalDuration": []}
+        for _, s in ordered_job_statuses:
+            wait_duration = "Unknown"
+            run_duration = "Unknown"
+            total_duration = "Unknown"
+            if s and len(s) > 1:
+                statuses = [x[1] for x in s]
+                if "created" in statuses:
+                    created_idx = statuses.index("created")
+                    if created_idx < len(statuses) - 1:
+                        wait_duration = duration(s[created_idx][0], s[created_idx + 1][0])
+                if "started" in statuses and "running" in statuses:
+                    started_idx = statuses.index("started")
+                    running_idx = statuses.index("running")
+                    if started_idx < running_idx < len(statuses) - 1:
+                        run_duration = duration(s[started_idx][0], s[running_idx + 1][0])
+                total_duration = duration(s[0][0], s[-1][0])
+            durations["WaitDuration"].append(wait_duration)
+            durations["RunDuration"].append(run_duration)
+            durations["TotalDuration"].append(total_duration)
+
+        # Table data
+        data = {}
+        data["JobName"] = [j.name for j, _ in ordered_job_statuses]
+
+        if start_time and end_time:
+            # Calculate the column interval widths
+            for num_intervals in range(max_intervals, 1, -1):
+                interval = (end_time - start_time) / (num_intervals - 1)
+                intervals = [start_time + i * interval for i in range(num_intervals)]
+                str_intervals = [f"↓{intv.strftime('%Y-%m-%d %H:%M:%S')}" for intv in intervals]
+                if len(set(str_intervals)) == len(str_intervals):
+                    break
+
+            num_positions = 20
+            symbol_interval = interval / num_positions
+
+            def get_col_and_position(status_time):
+                col = int((status_time - start_time) // interval)
+                pos = int((status_time - intervals[col]) // symbol_interval)
+                if pos == num_positions:
+                    col = col + 1
+                    pos = 0
+                return col, pos
+
+            job_timelines = []
+            use_html = fmt == "html"
+            for job, statuses in ordered_job_statuses:
+                job_timeline = [
+                    ["&nbsp;" if use_html else " " for _ in range(num_positions)] for _ in range(num_intervals)
+                ]
+                if statuses:
+                    for i, status in enumerate(statuses):
+                        symbol = status_symbols.get(status[1], "?")
+                        if i == (len(statuses) - 1):
+                            col, pos = get_col_and_position(status[0])
+                            job_timeline[col][pos] = symbol
+                        else:
+                            next_status = statuses[i + 1]
+                            col_start, pos_start = get_col_and_position(status[0])
+                            col_end, pos_end = get_col_and_position(next_status[0])
+                            for col in range(col_start, col_end + 1):
+                                for pos in range(
+                                    pos_start if col == col_start else 0, pos_end if col == col_end else num_positions
+                                ):
+                                    job_timeline[col][pos] = symbol
+
+                job_timelines.append(job_timeline)
+
+            for i in range(num_intervals):
+                data[str_intervals[i]] = ["".join(jt[i]) for jt in job_timelines]
+
+        # Add durations
+        data["WaitDuration"] = durations["WaitDuration"]
+        data["RunDuration"] = durations["RunDuration"]
+        data["TotalDuration"] = durations["TotalDuration"]
+
+        return (
+            format_in_table(data, max_rows=-1, fmt=fmt, monospace=True)
+            .replace("<th>", '<th style="border-left: 1px solid black; border-right: 1px solid black;">')
+            .replace("<td>", '<td style="border-left: 1px solid black; border-right: 1px solid black;">')
+        )
+
+    @requires_optional_package("IPython")
+    def display_timeline(self, max_intervals: int = 5, fmt: Literal["markdown", "html", "rst"] = "markdown") -> None:
+        """
+        Get depiction of timeline of jobs as they were run and display using IPython.
+        Each job is represented as a horizontal bar of symbols, where each symbol indicates a different job status.
+
+        These are as follows:
+
+        * ``created``: ``.``
+        * ``started``: ``-``
+        * ``registered``: ``+``
+        * ``running``: ``=``
+        * ``finished``: ``*``
+        * ``crashed``: ``x``
+        * ``failed``: ``X``
+        * ``successful``: ``>``
+        * ``copied``: ``#``
+        * ``preview``: ``~``
+        * ``deleted``: ``!``
+
+        e.g.
+
+        .. code:: python
+
+            >>> ja.display_timeline()
+
+            | JobName    | ↓2025-02-03 15:16:52 | ↓2025-02-03 15:17:10 | ↓2025-02-03 15:17:28 | ↓2025-02-03 15:17:46 | ↓2025-02-03 15:18:03 | WaitDuration | RunDuration | TotalDuration |
+            |------------|----------------------|----------------------|----------------------|----------------------|----------------------|--------------|-------------|---------------|
+            | generate   | ==================== | ==================== | ==================== | ==========>          |                      | 0s           | 1m2s        | 1m2s          |
+            | reoptimize |                      |                      |                      |           ====>      |                      | 0s           | 3s          | 3s            |
+            | score      |                      |                      |                      |                ===>  |                      | 0s           | 2s          | 2s            |
+            | filter     |                      |                      |                      |                   =* | >                    | 0s           | 1s          | 1s            |
+
+        If multiple status changes occur within the same resolution period, the latest will be displayed.
+        :param max_intervals: maximum number of datetime intervals to display i.e. the width and resolution of the timeline
+        :param fmt: format of the table, either markdown (default), html or rst
+        """
+        from IPython.display import display, Markdown, HTML
+
+        table = self.get_timeline(max_intervals=max_intervals, fmt=fmt)
+
+        if fmt == "markdown":
+            display(Markdown(table))
+        elif fmt == "html":
+            display(HTML(table))
+        elif fmt == "rst":
+            table = "\n".join([f"    {row}" for row in table.split("\n")])
+            display(Markdown(table))
+
+    def add_job(self, job: Job) -> "JobAnalysis":
+        """
+        Add a job to the analysis. This adds a row to the analysis data.
+
+        .. code:: python
+
+            >>> ja.add_job(job3)
+
+            | Name  | OK   |
+            |-------|------|
+            | job_1 | True |
+            | job_2 | True |
+            | job_3 | True |
+
+        :param job: |Job| to add to the analysis
+        :return: updated instance of |JobAnalysis|
+        """
+        if job.path in self._jobs:
+            raise KeyError(f"Job with path '{job.path}' has already been added to the analysis.")
+
+        self._jobs[job.path] = job
+        return self
+
+    def remove_job(self, job: Union[str, os.PathLike, Job]) -> "JobAnalysis":
+        """
+        Remove a job from the analysis. This removes a row from the analysis data.
+
+        .. code:: python
+
+            >>> ja.remove_job(job2)
+
+            | Name  | OK   |
+            |-------|------|
+            | job_1 | True |
+
+        :param job: |Job| or path to a job to remove from the analysis
+        :return: updated instance of |JobAnalysis|
+        """
+        path = job.path if isinstance(job, Job) else str(os.path.abspath(job))
+        if path not in self._jobs:
+            raise KeyError(f"Job with path '{path}' is not part of the analysis.")
+
+        self._jobs.pop(path)
+        return self
+
+    def load_job(
+        self, path: Union[str, os.PathLike], loaders: Optional[Sequence[Callable[[str], Job]]] = None
+    ) -> "JobAnalysis":
+        """
+        Add job to the analysis by loading from a given path to the job folder.
+        If no dill file is present in that location, or the dill unpickling fails, the loaders will be used to load the given job from the folder.
+
+        .. code:: python
+
+            >>> ja.load_job("path/job3")
+
+            | Name  | OK   |
+            |-------|------|
+            | job_1 | True |
+            | job_2 | True |
+            | job_3 | True |
+
+        :param path: path to folder from which to load the job
+        :param loaders: functions to try and load jobs, defaults to :meth:`~scm.plams.interfaces.adfsuite.ams.AMSJob.load_external` followed by |load_external|
+        :return: updated instance of |JobAnalysis|
+        """
+        path = Path(path)
+
+        if not path.exists():
+            raise FileNotFoundError(f"Cannot find job file in location '{path}'")
+
+        dill_file = path / f"{path.name}.dill"
+
+        job = None
+        loaders = (
+            loaders
+            if loaders
+            else [
+                AMSJob.load_external,
+                SingleJob.load_external,
+            ]
+        )
+
+        use_loaders = not dill_file.exists()
+        if not use_loaders:
+            try:
+                job = load(dill_file)
+            except Exception:
+                use_loaders = True
+
+        if use_loaders:
+            for loader in loaders:
+                try:
+                    job = loader(str(path))
+                    break
+                except Exception:
+                    pass
+
+        if not job:
+            raise PlamsError(f"Could not load job from path '{path}'")
+
+        return self.add_job(job)
+
+    def filter_jobs(self, predicate: Callable[[Dict[str, Any]], bool]) -> "JobAnalysis":
+        """
+        Retain jobs from the analysis where the given predicate for field values evaluates to ``True``.
+        In other words, this removes rows(s) from the analysis data where the filter function evaluates to ``False`` given a dictionary of the row data.
+
+        .. code:: python
+
+            >>> ja
+
+            | Name  | OK    |
+            |-------|-------|
+            | job_1 | True  |
+            | job_2 | True  |
+            | job_3 | False |
+
+            >>> ja.filter_jobs(lambda data: not data["OK"])
+
+            | Name  | OK    |
+            |-------|-------|
+            | job_3 | False |
+
+        :param predicate: filter function which takes a dictionary of field keys and their values and evaluates to ``True``/``False``
+        :return: updated instance of |JobAnalysis|
+        """
+        analysis = self.get_analysis()
+        for i, j in enumerate(self.jobs):
+            data = {k: v[i] for k, v in analysis.items()}
+            if not predicate(data):
+                self.remove_job(j)
+        return self
+
+    def sort_jobs(
+        self,
+        field_keys: Optional[Sequence[str]] = None,
+        sort_key: Optional[Callable[[Dict[str, Any]], Any]] = None,
+        reverse: bool = False,
+    ) -> "JobAnalysis":
+        """
+        Sort jobs according to a single or multiple fields. This is the order the rows will appear in the analysis data.
+
+        Either one of ``field_keys`` or ``key`` must be provided.
+        If ``field_keys`` is provided, the values from these field(s) will be used to sort, in the order they are specified.
+        If ``sort_key`` is provided, the sorting function will be applied to all fields.
+
+        .. code:: python
+
+            >>> ja.sort_jobs(field_keys=["Name"], reverse=True)
+
+            | Name  | OK    |
+            |-------|-------|
+            | job_2 | True  |
+            | job_1 | True  |
+
+        :param field_keys: field keys to sort by,
+        :param sort_key: sorting function which takes a dictionary of field keys and their values
+        :param reverse: reverse sort order, defaults to ``False``
+        :return: updated instance of |JobAnalysis|
+        """
+        analysis = self.get_analysis()
+        sort_key = sort_key if sort_key else lambda data: tuple([str(v) for v in data.values()])
+        key_set = set(field_keys) if field_keys else set(self.field_keys)
+
+        def key(ik):
+            i, _ = ik
+            return sort_key({k: v[i] for k, v in analysis.items() if k in key_set})
+
+        sorted_keys = sorted(enumerate(self._jobs.keys()), key=key, reverse=reverse)
+        self._jobs = {k: self._jobs[k] for _, k in sorted_keys}
+        return self
+
+    def add_field(
+        self,
+        key: str,
+        value_extractor: Callable[[Job], Any],
+        display_name: Optional[str] = None,
+        fmt: Optional[str] = None,
+        expansion_depth: int = 0,
+    ) -> "JobAnalysis":
+        """
+        Add a new field to the analysis. This adds a column to the analysis data.
+
+        .. code:: python
+
+            >>> ja.add_field("N", lambda j: len(j.molecule), display_name="Num Atoms")
+
+            | Name  | OK    | Num Atoms |
+            |-------|-------|-----------|
+            | job_1 | True  | 4         |
+            | job_2 | True  | 6         |
+
+        :param key: unique identifier for the field
+        :param value_extractor: callable to extract the value for the field from a job
+        :param display_name: name which will appear for the field when displayed in table
+        :param fmt: string format for how field values are displayed in table
+        :param expansion_depth: whether to expand field of multiple values into multiple rows, and recursively to what depth
+        :return: updated instance of |JobAnalysis|
+        """
+        if key in self._fields:
+            raise KeyError(f"Field with key '{key}' has already been added to the analysis.")
+
+        return self.set_field(
+            key=key,
+            value_extractor=value_extractor,
+            display_name=display_name,
+            fmt=fmt,
+            expansion_depth=expansion_depth,
+        )
+
+    def set_field(
+        self,
+        key: str,
+        value_extractor: Callable[[Job], Any],
+        display_name: Optional[str] = None,
+        fmt: Optional[str] = None,
+        expansion_depth: int = 0,
+    ) -> "JobAnalysis":
+        """
+        Set a field in the analysis. This adds or modifies a column to the analysis data.
+
+        .. code:: python
+
+            >>> ja.set_field("N", lambda j: len(j.molecule), display_name="Num Atoms")
+
+            | Name  | OK    | Num Atoms |
+            |-------|-------|-----------|
+            | job_1 | True  | 4         |
+            | job_2 | True  | 6         |
+
+        :param key: unique identifier for the field
+        :param value_extractor: callable to extract the value for the field from a job
+        :param display_name: name which will appear for the field when displayed in table
+        :param fmt: string format for how field values are displayed in table
+        :param expansion_depth: whether to expand field of multiple values into multiple rows, and recursively to what depth
+        :return: updated instance of |JobAnalysis|
+        """
+        self._fields[key] = self._Field(
+            key=key,
+            value_extractor=value_extractor,
+            display_name=display_name,
+            fmt=fmt,
+            expansion_depth=expansion_depth,
+        )
+        return self
+
+    def format_field(self, key: str, fmt: Optional[str] = None) -> "JobAnalysis":
+        """
+        Apply a string formatting to a given field. This will apply when ``to_table`` is called.
+
+        .. code:: python
+
+            >>> ja.format_field("N", "03.0f")
+
+            | Name  | OK    | Num Atoms |
+            |-------|-------|-----------|
+            | job_1 | True  | 004       |
+            | job_2 | True  | 006       |
+
+        :param key: unique identifier of the field
+        :param fmt: string format of the field e.g. ``.2f``
+        """
+        if key not in self._fields:
+            raise KeyError(f"Field with key '{key}' is not part of the analysis.")
+
+        self._fields[key] = replace(self._fields[key], fmt=fmt)
+        return self
+
+    def rename_field(self, key: str, display_name: str) -> "JobAnalysis":
+        """
+        Give a display name to a field in the analysis. This is the header of the column in the analysis data.
+
+        .. code:: python
+
+            >>> ja.rename_field("N", "N Atoms")
+
+            | Name  | OK    | N Atoms |
+            |-------|-------|---------|
+            | job_1 | True  | 004     |
+            | job_2 | True  | 006     |
+
+        :param key: unique identifier for the field
+        :param display_name: name of the field
+        :return: updated instance of |JobAnalysis|
+        """
+
+        if key not in self._fields:
+            raise KeyError(f"Field with key '{key}' is not part of the analysis.")
+
+        self._fields[key] = replace(self._fields[key], display_name=display_name)
+        return self
+
+    def expand_field(self, key: str, depth: int = 1) -> "JobAnalysis":
+        """
+        Expand field of multiple values into multiple rows for each job.
+        For nested values, the depth can be provided to determine the level of recursive expansion.
+
+        .. code:: python
+
+            >>> (ja
+            >>>  .add_field("Step", lambda j: get_steps(j))
+            >>>  .add_field("Energy", lambda j: get_energies(j)))
+
+            | Name  | OK    | Step      | Energy             |
+            |-------|-------|-----------|--------------------|
+            | job_1 | True  | [1, 2, 3] | [42.1, 43.2, 42.5] |
+            | job_2 | True  | [1, 2]    | [84.5, 112.2]      |
+
+            >>> (ja
+            >>>  .expand_field("Step")
+            >>>  .expand_field("Energy"))
+
+            | Name  | OK    | Step | Energy |
+            |-------|-------|------|--------|
+            | job_1 | True  | 1    | 42.1   |
+            | job_1 | True  | 2    | 43.2   |
+            | job_1 | True  | 3    | 42.5   |
+            | job_2 | True  | 1    | 84.5   |
+            | job_2 | True  | 1    | 112.2  |
+
+        :param key: unique identifier of field to expand
+        :param depth: depth of recursive expansion, defaults to 1
+        :return: updated instance of |JobAnalysis|
+        """
+        if key not in self._fields:
+            raise KeyError(f"Field with key '{key}' is not part of the analysis.")
+
+        self._fields[key].expansion_depth = depth
+        return self
+
+    def collapse_field(self, key: str) -> "JobAnalysis":
+        """
+        Collapse field of multiple rows into single row of multiple values for each job.
+
+        .. code:: python
+
+            >>> ja
+
+            | Name  | OK    | Step | Energy |
+            |-------|-------|------|--------|
+            | job_1 | True  | 1    | 42.1   |
+            | job_1 | True  | 2    | 43.2   |
+            | job_1 | True  | 3    | 42.5   |
+            | job_2 | True  | 1    | 84.5   |
+            | job_2 | True  | 1    | 112.2  |
+
+            >>> (ja
+            >>>  .collapse_field("Step")
+            >>>  .collapse_field("Energy"))
+
+            | Name  | OK    | Step      | Energy             |
+            |-------|-------|-----------|--------------------|
+            | job_1 | True  | [1, 2, 3] | [42.1, 43.2, 42.5] |
+            | job_2 | True  | [1, 2]    | [84.5, 112.2]      |
+
+        :param key: unique identifier of field to collapse
+        :return: updated instance of |JobAnalysis|
+        """
+        if key not in self._fields:
+            raise KeyError(f"Field with key '{key}' is not part of the analysis.")
+
+        self._fields[key].expansion_depth = 0
+        return self
+
+    def reorder_fields(self, order: Sequence[str]) -> "JobAnalysis":
+        """
+        Reorder fields based upon the given sequence of field keys. This is the order the columns will appear in the analysis data.
+
+        Any specified fields will be placed first, with remaining fields placed after with their order unchanged.
+
+        .. code:: python
+
+            >>> ja.reorder_fields(["Name", "Step"])
+
+            | Name  | Step | OK    | Energy |
+            |-------|------|-------|--------|
+            | job_1 | 1    | True  | 42.1   |
+            | job_1 | 2    | True  | 43.2   |
+            | job_1 | 3    | True  | 42.5   |
+            | job_2 | 1    | True  | 84.5   |
+            | job_2 | 1    | True  | 112.2  |
+
+        :param order: sequence of fields to be placed at the start of the field ordering
+        :return: updated instance of |JobAnalysis|
+        """
+
+        def key(field_key):
+            try:
+                return order.index(field_key)
+            except ValueError:
+                return len(order)
+
+        return self.sort_fields(sort_key=key)
+
+    def sort_fields(self, sort_key: Callable[[str], Any], reverse: bool = False) -> "JobAnalysis":
+        """
+        Sort fields according to a sort key. This is the order the columns will appear in the analysis data.
+
+        .. code:: python
+
+            >>> ja.sort_fields(lambda k: len(k))
+
+            | OK    | Name  | Step | Energy |
+            |-------|-------|------|--------|
+            | True  | job_1 | 1    | 42.1   |
+            | True  | job_1 | 2    | 43.2   |
+            | True  | job_1 | 3    | 42.5   |
+            | True  | job_2 | 1    | 84.5   |
+            | True  | job_2 | 1    | 112.2  |
+
+        :param sort_key: sorting function which accepts the field key
+        :param reverse: reverse sort order, defaults to ``False``
+        :return: updated instance of |JobAnalysis|
+        """
+        sorted_keys = sorted(self._fields.keys(), key=sort_key, reverse=reverse)
+        self._fields = {k: self._fields[k] for k in sorted_keys}
+        return self
+
+    def remove_field(self, key: str) -> "JobAnalysis":
+        """
+        Remove a field from the analysis. This removes a column from the analysis data.
+
+        .. code:: python
+
+            >>> ja.remove_field("OK")
+
+            | Name  | OK   |
+            |-------|------|
+            | job_1 | True |
+            | job_2 | True |
+
+        :param key: unique identifier of the field
+        :return: updated instance of |JobAnalysis|
+        """
+        if key not in self._fields:
+            raise KeyError(f"Field with key '{key}' is not part of the analysis.")
+
+        self._fields.pop(key)
+        return self
+
+    def remove_fields(self, keys: Sequence[str]) -> "JobAnalysis":
+        """
+        Remove multiple fields from the analysis. This removes columns from the analysis data.
+
+        .. code:: python
+
+            >>> ja.remove_fields(["OK", "N"])
+
+            | Name  |
+            |-------|
+            | job_1 |
+            | job_2 |
+
+        :param keys: unique identifiers of the fields
+        :return: updated instance of |JobAnalysis|
+        """
+        for key in keys:
+            self.remove_field(key)
+        return self
+
+    def filter_fields(self, predicate: Callable[[List[Any]], bool]) -> "JobAnalysis":
+        """
+        Retain fields from the analysis where the given predicate evaluates to ``True`` given the field values.
+        In other words, this removes column(s) from the analysis data where the filter function evaluates to ``False``
+        given all the row values.
+
+        .. code:: python
+
+            >>> ja
+
+            | OK    | Name  | Step | Energy |
+            |-------|-------|------|--------|
+            | True  | job_1 | 1    | 42.1   |
+            | True  | job_1 | 2    | 43.2   |
+            | True  | job_1 | 3    | 42.5   |
+            | True  | job_2 | 1    | 84.5   |
+            | True  | job_2 | 1    | 112.2  |
+
+            >>> ja.filter_fields(lambda vals: all([not isinstance(v, int) or v > 50 for v in vals]))
+
+            | Name  | Energy |
+            |-------|--------|
+            | job_1 | 42.1   |
+            | job_1 | 43.2   |
+            | job_1 | 42.5   |
+            | job_2 | 84.5   |
+            | job_2 | 112.2  |
+
+        :param key: unique identifier of the field
+        :return: updated instance of |JobAnalysis|
+
+        :param predicate: filter function which takes values and evaluates to ``True``/``False``
+        :return: updated instance of |JobAnalysis|
+        """
+        for n, vals in self.get_analysis().items():
+            if not predicate(vals):
+                self.remove_field(n)
+        return self
+
+    def remove_empty_fields(self) -> "JobAnalysis":
+        """
+        Remove field(s) from the analysis which have ``None`` for all values. This removes column(s) from the analysis data,
+        where all rows have empty values.
+
+        .. code:: python
+
+            >>> ja.add_standard_field("ParentName")
+
+            | Name  | OK    | ParentName |
+            |-------|-------|------------|
+            | job_1 | True  | None       |
+            | job_2 | True  | None       |
+
+            >>> ja.remove_empty_fields()
+
+            | Name  | OK    |
+            |-------|-------|
+            | job_1 | True  |
+            | job_2 | True  |
+
+        :return: updated instance of |JobAnalysis|
+        """
+        return self.filter_fields(lambda vals: any([not self._is_empty_value(v) for v in vals]))
+
+    @staticmethod
+    def _is_empty_value(val) -> bool:
+        """
+        Check if a value is considered empty i.e. is ``None`` or has no value.
+        """
+        if val is None:
             return True
 
-        self.data["ok"] = self.apply(fn=lambda job: job.ok() if check_not_created(job) else None, col=jobs_col)
-        self.data["check"] = self.apply(
-            fn=lambda job: job.check() if check_not_created(job) and check_ams_status_not_none(job) else None,
-            col=jobs_col,
-        )
-        self.data["error"] = self.apply(
-            fn=lambda job: job.get_errormsg() if check_not_created(job) and check_ams_status_not_none(job) else None,
-            col=jobs_col,
-        )
-        cols_added = ["ok", "check", "error"]
-        return cols_added
+        if isinstance(val, np.ndarray):
+            return val.shape == () and val.item() is None
+        elif isinstance(val, (Sequence, Dict)):
+            return len(val) == 0
 
-    def get_timings(self, col_jobs=GroupedColNames.jobs, custom_get_timings: Optional[Callable] = None):
-        cols_added = []
-        if self._check_jobs_types(job_type=AMSJob, raise_error=False):
-            cols_needed = GroupedColNames.timings
-            cols_needed_present = all([i in self.data for i in cols_needed])
-            if not cols_needed_present:
-                self.data["CPUTime"] = self.apply(
-                    fn=lambda job: job.results.readrkf("General", "CPUTime"), col=col_jobs
-                )
-                self.data["SysTime"] = self.apply(
-                    fn=lambda job: job.results.readrkf("General", "SysTime"), col=col_jobs
-                )
-                self.data["ElapsedTime"] = self.apply(
-                    fn=lambda job: job.results.readrkf("General", "ElapsedTime"), col=col_jobs
-                )
-                cols_added.extend(["CPUTime", "SysTime", "ElapsedTime"])
-        # elif self._check_jobs_types(job_type=params.ParAMSJob, raise_error=False):
+        return False
 
-        #     def get_time(job: params.ParAMSJob):
-        #         val = job.results.get_timings()
-        #         if val is not None:
-        #             return val.total_seconds() / 3600
-        #         else:
-        #             return None
-
-        #     self.data["timings[h]"] = [get_time(job) for job in self.data[GroupedColNames.jobs]]
-
-        elif custom_get_timings is not None:
-            self.data["timings"] = [custom_get_timings(job) for job in self.data[col_jobs]]
-            cols_added.append("timings")
-        return cols_added
-
-    ############################################################################
-    #####################          JobSummarize          #######################
-    ############################################################################
-    def get_job_summary(self, summarizer: Dict[str, Callable[[SingleJob], Any]], jobs_col=GroupedColNames.jobs):
-        for k, v_call in summarizer.items():
-            self.data[k] = [v_call(job) for job in self.data[jobs_col]]
-
-    ############################################################################
-    ##################            tests analysis           #####################
-    ############################################################################
-    def reasonable_checker(
-        self, col_out: str, reasonable_checker: Callable[[SingleJob], bool], jobs_col=GroupedColNames.jobs
-    ):
-        self.data[col_out] = [reasonable_checker(job) for job in self.data[jobs_col]]
-
-    def groupby(self, groupby: Callable[[Dict], Hashable], idxs=None):
-        groups = defaultdict(list)
-        if idxs is None:
-            idxs = range(len(self))
-        for i in idxs:
-            groups[groupby(self[i])].append(i)
-        return dict(groups)
-
-    def assign_reference(self, is_ref: Callable[[Dict], bool], subset_idxs: Optional[List[int]] = None):
-        if subset_idxs is None:
-            subset_idxs = list(range(len(self)))
-        groups_with_ref: Dict[str, Optional[Union[int, List[int]]]] = {"ref": None, "idxs": []}
-        for idx_i in subset_idxs:
-            if is_ref(self[idx_i]):
-                if groups_with_ref["ref"] is not None:
-                    ref_found = groups_with_ref["ref"]
-                    raise ValueError(f"Collision of two refs found for the same group: {ref_found} and {idx_i}")
-                groups_with_ref["ref"] = idx_i
-            else:
-                groups_with_ref["idxs"].append(idx_i)
-        return groups_with_ref
-
-    def job_plotter(
-        self,
-        success_plot: Callable[[SingleJob, str, plt.Axes], str],
-        jobs_col=GroupedColNames.jobs,
-        grouped_indexes: Union[Dict[str, List[int]], List[int]] = None,
-        **plt_kwargs,
-    ):
-        if grouped_indexes is None or isinstance(grouped_indexes, list):
-            if not isinstance(grouped_indexes, list):
-                grouped_indexes = range(len(self))
-            support = {}
-            n_jobs = len(f"{len(self)}")
-            for i in grouped_indexes:
-                support["Job {:0{}}".format(i, n_jobs)] = [i]
-            grouped_indexes = support
-
-        print(grouped_indexes)
-
-        n_axes = len(grouped_indexes)
-        plt_kwargs.setdefault("layout", "tight")
-        plt_kwargs.setdefault("sharex", True)
-        plt_kwargs.setdefault("sharey", False)
-        plt_kwargs.setdefault("ncols", 4 if "nrows" not in plt_kwargs else -(-n_axes // plt_kwargs["nrows"]))
-        plt_kwargs.setdefault("nrows", -(-n_axes // plt_kwargs["ncols"]))
-        fig, axes = plt.subplots(**plt_kwargs)
-        axes = axes.ravel()
-
-        for i, (title_i, ax) in enumerate(zip(grouped_indexes, axes)):
-            for idx_i in grouped_indexes[title_i]:
-                text_label = self.get_label(idx_i)
-                success_plot(self.data[jobs_col][idx_i], text_label, ax)
-            ax.legend()
-            ax.set_title(f"{title_i}")
-        return fig
-
-    def success_checker_plotter(
-        self,
-        ref_job_idx: int,
-        indexes_to_check: List[int],
-        success_plot: Callable[[SingleJob, str, plt.Axes], plt.Axes],
-        jobs_col=GroupedColNames.jobs,
-        separate_plot=True,
-        axes=None,
-        **plt_kwargs,
-    ) -> Figure:
-        """Note: success_plot should first plot the non-ref job and then the reference job, such that the legend is displaced well"""
-
-        n_axes = len(indexes_to_check)
-        plt_kwargs.setdefault("layout", "tight")
-        if separate_plot and axes is None:
-            plt_kwargs.setdefault("sharex", True)
-            plt_kwargs.setdefault("sharey", True)
-            plt_kwargs.setdefault("ncols", 4 if "nrows" not in plt_kwargs else -(-n_axes // plt_kwargs["nrows"]))
-            plt_kwargs.setdefault("nrows", -(-n_axes // plt_kwargs["ncols"]))
-            fig, axes = plt.subplots(**plt_kwargs)
-            axes = axes.ravel()
-        else:
-            if axes is None:
-                if "ncols" in plt_kwargs:
-                    plt_kwargs.pop("ncols")
-                if "nrows" in plt_kwargs:
-                    plt_kwargs.pop("nrows")
-                fig, axes = plt.subplots(**plt_kwargs)
-                axes = [axes] * n_axes
-            else:
-                axes = axes * n_axes
-                fig = axes[0].get_figure()
-
-        for i, (idx_i, ax) in enumerate(zip(indexes_to_check, axes)):
-            if idx_i is None:
-                continue
-            ref_label = "REF\n" + self.get_label(ref_job_idx)
-            text_label = self.get_label(idx_i)
-
-            success_plot(self.data[jobs_col][idx_i], text_label, ax)
-            if separate_plot:
-                success_plot(self.data[jobs_col][ref_job_idx], ref_label, ax)
-            elif i == 0:
-                # plot only once
-                success_plot(self.data[jobs_col][ref_job_idx], ref_label, ax)
-
-        if separate_plot:
-            for ax in axes:
-                ax.legend()
-        else:
-            axes[0].legend()
-        return fig
-
-    def get_label(self, idx: int):
-        if GroupedColNames.labels in self.data:
-            text_label = self.data[GroupedColNames.labels][idx]
-        else:
-            text_label = ""
-            for col_i in self.settings_cols.values:
-                text_label += f"{col_i}: {self.data[col_i][idx]}\n"
-        return text_label
-
-    def success_checker_plotter_2(
-        self,
-        is_ref: Callable[[Dict], bool],
-        groupby: Callable[[Dict], Hashable],
-        success_plot: Callable[[SingleJob, plt.Axes], plt.Axes],
-        jobs_col=GroupedColNames.jobs,
-        **plt_kwargs,
-    ) -> Figure:
-        """Note: success_plot should first plot the non-ref job and then the reference job, such that the legend is displaced well"""
-        groups = self.groupby(groupby)
-        groups_refs = {}
-        for k, vals in groups.items():
-            groups_refs[k] = self.assign_reference(is_ref, subset_idxs=vals)
-
-        fig = self.plot_groups(groups_refs, success_plot=success_plot, jobs_col=jobs_col, **plt_kwargs)
-        return fig
-
-    def plot_groups(
-        self,
-        groups_refs,
-        success_plot: Callable[[SingleJob, plt.Axes], plt.Axes],
-        jobs_col=GroupedColNames.jobs,
-        **plt_kwargs,
-    ):
-        n_axes = len(groups_refs)
-        plt_kwargs.setdefault("layout", "tight")
-        plt_kwargs.setdefault("sharex", True)
-        plt_kwargs.setdefault("sharey", False)
-        plt_kwargs.setdefault("ncols", 4 if "nrows" not in plt_kwargs else -(-n_axes // plt_kwargs["nrows"]))
-        plt_kwargs.setdefault("nrows", -(-n_axes // plt_kwargs["ncols"]))
-        fig, axes = plt.subplots(**plt_kwargs)
-        axes = axes.ravel()
-        for (k, vals), ax in zip(groups_refs.items(), axes):
-            fig = self.success_checker_plotter(
-                ref_job_idx=vals["ref"],
-                indexes_to_check=vals["idxs"],
-                success_plot=success_plot,
-                separate_plot=False,
-                axes=[ax],
-                jobs_col=jobs_col,
-            )
-            ax.set_title(f"Group {k}")
-        return fig
-
-    def success_checker(
-        self,
-        ref_job_idx: int,
-        indexes_to_check: List[int],
-        success_checker: Callable[[SingleJob, SingleJob], Dict[str, Union[bool, float]]],
-        jobs_col=GroupedColNames.jobs,
-    ):
-        for idx_i in indexes_to_check:
-            res = success_checker(self.data[jobs_col][idx_i], self.data[jobs_col][ref_job_idx])
-            for k, v in res.items():
-                if k not in self.data:
-                    self.data[k] = [None] * len(self.data[jobs_col])
-                self.data[k][idx_i] = v
-
-    @requires_optional_package("pigeon")
-    def notebook_annotate(
-        self,
-        job_plotter: Optional[Callable[[SingleJob, plt.Axes], plt.Axes]] = None,
-        ref_idx: Optional[int] = None,
-        options: Optional[Union[List[str], Tuple[float, float]]] = None,
-        shuffle: bool = False,
-        include_skip: bool = True,
-    ):
-        """Wrap around pigeon
-
-        Parameters
-        ----------
-        options: list(any) or tuple(start, end, [step]) or None
-                if list: list of labels for binary classification task (Dropdown or Buttons)
-                if tuple: range for regression task (IntSlider or FloatSlider)
-                if None: arbitrary text input (TextArea)
-        shuffle: bool, shuffle the examples before annotating
-        include_skip: bool, include option to skip example while annotating
-        job_plotter: func, function for plotting the job
-        :param ref_idx: index for plotting two examples and this one is the ref, defaults to None
-        :type ref_idx: Optional[int], optional
+    def remove_uniform_fields(self, tol: float = 1e-08, ignore_empty: bool = False) -> "JobAnalysis":
         """
-        import io
+        Remove field(s) from the analysis which evaluate the same for all values. This removes column(s) from the analysis data,
+        where all rows have the same value.
 
-        import matplotlib.pyplot as plt
-        from IPython.display import Image, display
-        from pigeon import annotate
+        .. code:: python
 
-        def plt_plot(idx, row, job_plotter, ref=None):
-            fig, ax = plt.subplots()
-            job_plotter(row["jobs"], ax)
-            if ref:
-                job_plotter(ref["jobs"], ax)
-            ax.legend(["aaa", "REF"])
-            return fig
+            >>> ja.add_standard_field("ParentName")
 
-        def plt_to_image(fig):
-            buf = io.BytesIO()
-            fig.savefig(buf, format="png")
-            buf.seek(0)
-            plt.close(fig)  # Close the figure to free resources
-            return Image(data=buf.getvalue())
+            | Name  | OK    | ParentName |
+            |-------|-------|------------|
+            | job_1 | True  | None       |
+            | job_2 | True  | None       |
+            | job_3 | True  | p_job_4    |
 
-        if ref_idx is not None:
-            ref = self[ref_idx]
-        if job_plotter is not None:
-            display_fn = lambda row: display(plt_to_image(plt_plot(*row, job_plotter, ref=ref)))
+            >>> ja.remove_uniform_fields()
 
-        annotations = annotate(
-            enumerate(self),
-            display_fn=display_fn,
-            options=options,
-            shuffle=shuffle,
-            include_skip=include_skip,
-        )
-        self.add_annotations(
-            annotations,
-            annotation_col="annotations",
-        )
-        return annotations
+            | Name  | ParentName |
+            |-------|------------|
+            | job_1 | None       |
+            | job_2 | None       |
+            | job_3 | p_job_4    |
 
-    def add_annotations(
-        self,
-        annotations,
-        annotation_col="annotations",
-    ):
-        pigeon_annotation = {x[0][0]: x[1] for x in annotations}
-        annotations_all = []
-        for i in range(len(self)):
-            annotations_all.append(pigeon_annotation.get(i, None))
-        self.data[annotation_col] = annotations_all
-        return annotation_col
+            >>> ja.remove_uniform_fields(ignore_empty=True)
 
-    ############################################################################
-    ##################               visualize             #####################
-    ############################################################################
-    def view_table(
-        self,
-        indexes=None,
-        ret_str: bool = False,
-        print_on: bool = True,
-        max_col_length: int = -1,
-        max_rows_displayed: int = 30,
-    ):
+            | Name  |
+            |-------|
+            | job_1 |
+            | job_2 |
+            | job_3 |
 
-        if indexes is not None:
-            data = defaultdict(list)
-            for i in indexes:
-                for k, v in self[i].items():
-                    data[k].append(v)
-        else:
-            data = self.data
-        return format_in_table(
-            data,
-            ret_str=ret_str,
-            print_on=print_on,
-            max_col_length=max_col_length,
-            max_rows_displayed=max_rows_displayed,
-        )
+        :param tol: absolute tolerance for numeric value comparison, all values must fall within this range
+        :param ignore_empty: when ``True`` ignore ``None`` values and empty containers in comparison, defaults to ``False``
+        :return: updated instance of |JobAnalysis|
+        """
 
-    def to_csv(self, data_path: Union[str, Path], pop_jobs_cols=GroupedColNames.jobs):
-        headers = [str(key) for key in self.data.keys()]
+        def is_uniform(vals: List[Any]):
+            """
+            Check if a list of values is considered uniform
+            """
+            # Skip over None values if set to be ignored
+            vals = [v for v in vals if not self._is_empty_value(v) or not ignore_empty]
+            # Empty list is uniform
+            if not vals:
+                return True
+            # Check if all numeric values, and if so evaluate range within tolerance
+            if all([isinstance(v, Number) and not isinstance(v, bool) for v in vals]):
+                return np.ptp(vals) <= tol
 
-        jobs_col_idx = None
-        if pop_jobs_cols in headers:
-            jobs_col_idx = headers.index(pop_jobs_cols)
-            headers.pop(jobs_col_idx)
+            # Check if all iterable values, and if so evaluate elements individually
+            if all(
+                [
+                    (
+                        (isinstance(v, Sequence) and not isinstance(v, str))
+                        or (isinstance(v, np.ndarray) and v.shape != ())
+                    )
+                    for v in vals
+                ]
+            ):
+                l = len(vals[0])
+                if any(len(v) != l for v in vals):
+                    return False
+                return all([is_uniform([v[i] for v in vals]) for i in range(l)])
 
-        with open(data_path, mode="w", newline="", encoding="utf-8") as csvfile:
-            writer = csv.writer(csvfile)
-            writer.writerow(headers)
-            for row in self:
-                row_l = list(row.values())
+            # Check if dictionary, and if so evaluate keys and values are uniform
+            if all([isinstance(v, dict) for v in vals]):
+                ks = set(vals[0].keys())
+                if any(set(v.keys()) != ks for v in vals):
+                    return False
+                for k in ks:
+                    if not all([is_uniform([v[k] for v in vals])]):
+                        return False
+                return True
 
-                if jobs_col_idx is not None:
-                    row_l.pop(jobs_col_idx)
-
-                writer.writerow(row_l)
-
-        print(f"Data saved to {data_path}")
-
-    @classmethod
-    def from_csv(cls, data_path: str):
-        reconstructed_data: Dict[Union[str, HeaderStr], List[Any]] = {}
-
-        with open(data_path, mode="r", newline="", encoding="utf-8") as csvfile:
-            reader = csv.reader(csvfile)
-            # Read headers
-            headers = next(reader)
-            # Initialize dictionary with headers as keys
-            reconstructed_data = {header: [] for header in headers}
-            # Read rows and populate the dictionary
-            for row in reader:
-                for header, value in zip(headers, row):
-                    # Convert value back to original type (e.g., int if possible)
-                    reconstructed_data[header].append(value if value != "" else None)
-        return cls(data=reconstructed_data)
-
-
-class AMSJobErrorChecker:
-
-    @staticmethod
-    def find_log_file(job: AMSJob):
-        """get the ams.log path or if not exists returns None"""
-        if job.path is None:
-            return None
-        log_path = Path(job.path) / "ams.log"
-        if not log_path.exists():
-            return None
-        return log_path
-
-    @staticmethod
-    def find_out_file(job: SingleJob):
-        if job.path is None:
-            return None
-        out_path = Path(job.path) / f"{job.name}.out"
-        if not out_path.exists():
-            return None
-        return out_path
-
-    @staticmethod
-    def stop_calculation(job: AMSJob, file_name="interactive.in", reason="Stop") -> Any:
-        if job.path is None:
-            return None
-        with open(Path(job.path) / file_name, "w") as f:
-            f.write(reason)
-
-    @staticmethod
-    def stop_has_occurred(job: AMSJob, value="calculation interrupted by user.") -> bool:
-        out_path = AMSJobErrorChecker.find_out_file(job)
-        if out_path is None:
-            return None
-        with open(out_path, "r") as f:
-            file = f.read()
-        return value in file
-
-    @staticmethod
-    def status_rkf(job: AMSJob):
-        if "ams" not in job.results.rkfs:
-            if job.path is None:
-                return None
-            if (Path(job.path) / f"{job.name}.in").exists():
-                return "Not Started"
-            return None
-        return job.results.rkfs["ams"].read(section="General", variable="termination status")
-
-    @staticmethod
-    def status_log(job: AMSJob):
-        logfile_path = AMSJobErrorChecker.find_log_file(job)
-        if logfile_path is None:
-            return "not run"
-        with open(logfile_path) as f:
-            lines = f.readlines()
-        if "NORMAL TERMINATION" in lines[-1]:
-            return "normal"
-        for line in lines[::-1]:
-            if "*** MDStep" in line:
-                return int(line.split("*** ")[-1].replace(" ***\n", ""))
-        return "Not known"
-
-    @staticmethod
-    def status_log_md_step(job: AMSJob):
-        logfile_path = AMSJobErrorChecker.find_log_file(job)
-        if logfile_path is None:
-            return None
-        with open(logfile_path) as f:
-            lines = f.readlines()
-        for line in lines[::-1]:
-            if "*** MDStep" in line:
-                return int(line.split("*** ")[-1].replace(" ***\n", "").replace("MDStep", ""))
-        return None
-
-    @staticmethod
-    def time_duration_log(job: AMSJob):
-        log_file = AMSJobErrorChecker.find_log_file(job)
-        if log_file is None:
-            return None
-
-        def timestamp_log(part: str):
-            part = part.split(">  ", 1)[0]
             try:
-                timestamp = datetime.strptime(part, "<%b%d-%Y> <%H:%M:%S")
-                return timestamp
+                return all([v == vals[0] for v in vals])
             except ValueError:
-                return None
+                return False
 
-        with open(log_file) as f:
-            lines = f.readlines()
-            initial = timestamp_log(lines[0])
-            final = timestamp_log(lines[-1])
-            if initial is None or final is None:
-                return None
-            duration_seconds = (final - initial).total_seconds()
-        return duration_seconds
+        return self.filter_fields(lambda vals: not is_uniform(vals))
 
-    @staticmethod
-    def time_expected_end_md(job: AMSJob):
-        def last_md_step_log(logfile_path: Path):
-            with open(logfile_path) as f:
-                lines = f.readlines()
-            for line in lines[::-1]:
-                if "*** MDStep" in line:
-                    return int(line.split("*** ")[-1].replace(" ***\n", "").replace("MDStep", ""))
-            return None
+    def add_standard_fields(self, keys: Sequence["JobAnalysis.StandardField"]) -> "JobAnalysis":
+        """
+        Adds multiple standard fields to the analysis.
 
-        log_file = AMSJobErrorChecker.find_log_file(job)
-        if log_file is None:
-            return None
-        step_status = last_md_step_log(log_file)
-        if not isinstance(step_status, int):
-            return None
-        md_end = job.settings.get_nested("input.ams.MolecularDynamics.NSteps".split("."), None)
-        if md_end is None:
-            return md_end
-        md_end = int(md_end)
-        time_spent = AMSJobErrorChecker.time_duration_log(job)
-        if time_spent is None:
-            return None
-        time_left = time_spent / step_status * (md_end - step_status)
-        date_time = datetime.now() + timedelta(seconds=time_left)
-        return date_time
+        These are:
 
-    @staticmethod
-    def errors_out(job: AMSJob) -> Any:
-        out_path = AMSJobErrorChecker.find_out_file(job)
-        if out_path is None:
-            return None
-        with open(out_path, "r") as file:
-            # [line.strip() for line in job.results.grep_file(f'{job.name}.out', 'ERROR: ')] -> TBN MUCH slower!
-            error_lines = [line.strip() for line in file if "ERROR" in line]
-            error_out = "\n".join(error_lines)
-            return error_out
-        return None
+        * ``Path``: for |Job| attribute :attr:`~scm.plams.core.basejob.Job.path`
+        * ``Name``: for |Job| attribute :attr:`~scm.plams.core.basejob.Job.name`
+        * ``OK``: for |Job| method :meth:`~scm.plams.core.basejob.Job.ok`
+        * ``Check``: for |Job| method :meth:`~scm.plams.core.basejob.Job.check`
+        * ``ErrorMsg``: for |Job| method :meth:`~scm.plams.core.basejob.Job.get_errormsg`
+        * ``ParentPath``: for attribute :attr:`~scm.plams.core.basejob.Job.path` of |Job| attribute :attr:`~scm.plams.core.basejob.Job.parent`
+        * ``ParentName``: for attribute :attr:`~scm.plams.core.basejob.Job.name` of |Job| attribute :attr:`~scm.plams.core.basejob.Job.parent`
+        * ``Formula``: for method :meth:`~scm.plams.mol.molecule.Molecule.get_formula` of |Job| attribute :attr:`~scm.plams.core.basejob.SingleJob.molecule`
+        * ``Smiles``: for function :func:`~scm.plams.interfaces.molecule.rdkit.to_smiles` for |Job| attribute :attr:`~scm.plams.core.basejob.SingleJob.molecule`
+        * ``GyrationRadius``: for function :meth:`~scm.plams.mol.molecule.Molecule.gyration_radius` for |Job| attribute :attr:`~scm.plams.core.basejob.SingleJob.molecule`
+        * ``CPUTime``: for method :meth:`~scm.plams.interfaces.adfsuite.ams.AMSResults.readrkf` with ``General/CPUTime`` for |Job| attribute :attr:`~scm.plams.interfaces.adfsuite.ams.AMSJob.results`
+        * ``SysTime``: for method :meth:`~scm.plams.interfaces.adfsuite.ams.AMSResults.readrkf` with ``General/SysTime`` for |Job| attribute :attr:`~scm.plams.interfaces.adfsuite.ams.AMSJob.results`
+        * ``ElapsedTime``: for method :meth:`~scm.plams.interfaces.adfsuite.ams.AMSResults.readrkf` with ``General/ElapsedTime`` for |Job| attribute :attr:`~scm.plams.interfaces.adfsuite.ams.AMSJob.results`
 
-    @staticmethod
-    def errors_log(job: AMSJob) -> Any:
-        log_path = AMSJobErrorChecker.find_log_file(job)
-        if log_path is None:
-            return None
-        with open(log_path, "r") as file:
-            error_lines = ["ERROR" + line.split("ERROR", 1)[-1].strip() for line in file if "ERROR" in line]
-            error_log = "\n".join(error_lines)
-            return error_log
-        return None
+        .. code:: python
 
-    @staticmethod
-    def warnings_out(job: AMSJob) -> Any:
-        out_path = AMSJobErrorChecker.find_out_file(job)
-        if out_path is None:
-            return None
-        with open(out_path, "r") as file:
-            warning_lines = [line.strip() for line in file if "WARNING" in line]
-            warning_out = "\n".join(warning_lines)
-            return warning_out
-        return None
+            >>> ja
 
-    @staticmethod
-    def warnings_log(job: AMSJob) -> Any:
-        log_path = AMSJobErrorChecker.find_log_file(job)
-        if log_path is None:
-            return None
-        with open(log_path, "r") as file:
-            warning_lines = ["WARNING" + line.split("WARNING", 1)[-1].strip() for line in file if "WARNING" in line]
-            warning_log = "\n".join(warning_lines)
-            return warning_log
-        return None
+            | Name  |
+            |-------|
+            | job_1 |
+            | job_2 |
+
+            >>> ja.add_standard_fields(["Path", "Smiles"])
+
+            | Name  | Path        | Smiles |
+            |-------|-------------|--------|
+            | job_1 | /path/job_1 | N      |
+            | job_2 | /path/job_2 | C=C    |
+
+        :param keys: sequence of keys for the analysis fields
+        :return: updated instance of |JobAnalysis|
+        """
+        for key in keys:
+            self.add_standard_field(key)
+        return self
+
+    def add_standard_field(self, key: "JobAnalysis.StandardField") -> "JobAnalysis":
+        """
+        Adds a standard field to the analysis.
+
+        These are:
+
+        * ``Path``: for |Job| attribute :attr:`~scm.plams.core.basejob.Job.path`
+        * ``Name``: for |Job| attribute :attr:`~scm.plams.core.basejob.Job.name`
+        * ``OK``: for |Job| method :meth:`~scm.plams.core.basejob.Job.ok`
+        * ``Check``: for |Job| method :meth:`~scm.plams.core.basejob.Job.check`
+        * ``ErrorMsg``: for |Job| method :meth:`~scm.plams.core.basejob.Job.get_errormsg`
+        * ``ParentPath``: for attribute :attr:`~scm.plams.core.basejob.Job.path` of |Job| attribute :attr:`~scm.plams.core.basejob.Job.parent`
+        * ``ParentName``: for attribute :attr:`~scm.plams.core.basejob.Job.name` of |Job| attribute :attr:`~scm.plams.core.basejob.Job.parent`
+        * ``Formula``: for method :meth:`~scm.plams.mol.molecule.Molecule.get_formula` of |Job| attribute :attr:`~scm.plams.core.basejob.SingleJob.molecule`
+        * ``Smiles``: for function :func:`~scm.plams.interfaces.molecule.rdkit.to_smiles` for |Job| attribute :attr:`~scm.plams.core.basejob.SingleJob.molecule`
+        * ``GyrationRadius``: for function :meth:`~scm.plams.mol.molecule.Molecule.gyration_radius` for |Job| attribute :attr:`~scm.plams.core.basejob.SingleJob.molecule`
+        * ``CPUTime``: for method :meth:`~scm.plams.interfaces.adfsuite.ams.AMSResults.readrkf` with ``General/CPUTime`` for |Job| attribute :attr:`~scm.plams.interfaces.adfsuite.ams.AMSJob.results`
+        * ``SysTime``: for method :meth:`~scm.plams.interfaces.adfsuite.ams.AMSResults.readrkf` with ``General/SysTime`` for |Job| attribute :attr:`~scm.plams.interfaces.adfsuite.ams.AMSJob.results`
+        * ``ElapsedTime``: for method :meth:`~scm.plams.interfaces.adfsuite.ams.AMSResults.readrkf` with ``General/ElapsedTime`` for |Job| attribute :attr:`~scm.plams.interfaces.adfsuite.ams.AMSJob.results`
+
+        .. code:: python
+
+            >>> ja
+
+            | Name  |
+            |-------|
+            | job_1 |
+            | job_2 |
+
+            >>> ja.add_standard_field("Path")
+
+            | Name  | Path        |
+            |-------|-------------|
+            | job_1 | /path/job_1 |
+            | job_2 | /path/job_2 |
+
+        :param key: key for the analysis field
+        :return: updated instance of |JobAnalysis|
+        """
+        if key not in self._standard_fields:
+            raise KeyError(f"'{key}' is not one of the standard fields: {', '.join(self._standard_fields)}.")
+
+        if key in self._fields:
+            raise KeyError(f"Field with key '{key}' has already been added to the analysis.")
+
+        self._fields[key] = replace(self._standard_fields[key])
+        return self
+
+    def add_settings_field(
+        self,
+        key_tuple: Tuple[Hashable, ...],
+        display_name: Optional[str] = None,
+        fmt: Optional[str] = None,
+        expansion_depth: int = 0,
+    ) -> "JobAnalysis":
+        """
+        Add a field for a nested key from the job settings to the analysis.
+        The key of the field will be a Pascal-case string of the settings nested key path e.g. ``("input", "ams", "task")`` will appear as field ``InputAmsTask``.
+
+        .. code:: python
+
+            >>> ja.add_settings_field(("input", "ams", "task"), display_name="Task")
+
+            | Name  | Task        |
+            |-------|-------------|
+            | job_1 | SinglePoint |
+            | job_2 | SinglePoint |
+
+        :param key_tuple: nested tuple of keys in the settings object
+        :param display_name: name which will appear for the field when displayed in table
+        :param fmt: string format for how field values are displayed in table
+        :param expansion_depth: whether to expand field of multiple values into multiple rows, and recursively to what depth
+        :return: updated instance of |JobAnalysis|
+        """
+        key = "".join([str(k).title() for k in key_tuple])
+        self.add_field(
+            key,
+            lambda j, k=key_tuple: self._get_job_settings(j).get_nested(k),  # type: ignore
+            display_name=display_name,
+            fmt=fmt,
+            expansion_depth=expansion_depth,
+        )
+        self._fields[key].from_settings = True
+        return self
+
+    def add_settings_fields(
+        self,
+        predicate: Optional[Callable[[Tuple[Hashable, ...]], bool]] = None,
+        flatten_list: bool = True,
+    ) -> "JobAnalysis":
+        """
+        Add a field for all nested keys which satisfy the predicate from the job settings to the analysis.
+        The key of the fields will be a Pascal-case string of the settings nested key path e.g. ("input", "ams", "task") will appear as field ``InputAmsTask``.
+
+        .. code:: python
+
+            >>> ja.add_settings_fields(lambda k: len(k) >= 3 and k[2].lower() == "xc")
+
+            | Name  | InputAdfXcDispersion | InputAdfXcGga |
+            |-------|----------------------|---------------|
+            | job_1 | Grimme3              | PBE           |
+            | job_2 | Grimme3              | PBE           |
+
+        :param predicate: optional predicate which evaluates to ``True`` or ``False`` given a nested key, by default will be ``True`` for every key
+        :param flatten_list: whether to flatten lists in settings objects
+        :return: updated instance of |JobAnalysis|
+        """
+
+        all_blocks: Set[Tuple[Hashable, ...]] = set()
+        all_keys: Dict[Tuple[Hashable, ...], None] = {}  # Use dict as a sorted set for keys
+        for job in self._jobs.values():
+            settings = self._get_job_settings(job)
+            blocks = set(settings.block_keys(flatten_list=flatten_list))
+            keys = {k: None for k in settings.nested_keys(flatten_list=flatten_list)}
+            all_blocks = all_blocks.union(blocks)
+            all_keys.update(keys)
+
+        predicate = predicate if predicate else lambda _: True
+        for key in all_keys:
+            # Take only final nested keys i.e. those which are not block keys and satisfy the predicate
+            if key not in all_blocks and predicate(key):
+                field_key = "".join([str(k).title() for k in key])
+                field = self._Field(
+                    key=field_key, value_extractor=lambda j, k=key: self._get_job_settings(j).get_nested(k), from_settings=True  # type: ignore
+                )
+                if field_key not in self._fields:
+                    self._fields[field_key] = field
+        return self
+
+    def _get_job_settings(self, job: Job) -> Settings:
+        """
+        Get job settings converting any PISA input block to a standard settings object.
+        """
+        # Convert any PISA settings blocks to standard
+        settings = Settings()
+        if job.settings is not None:
+            if isinstance(job.settings, Settings):
+                settings = job.settings.copy()
+            if _has_scm_pisa:
+                if hasattr(job.settings, "input") and isinstance(job.settings.input, DriverBlock):
+                    # Note use own input parser facade here to use caching
+                    program = self._pisa_programs[job.settings.input.name].name.split(".")[0]
+                    settings.input = InputParserFacade().to_settings(
+                        program=program, text_input=job.settings.input.get_input_string()
+                    )
+        return settings
+
+    def add_settings_input_fields(self, include_system_block: bool = False, flatten_list: bool = True) -> "JobAnalysis":
+        """
+        Add a field for each input key in the :attr:`~scm.plams.core.basejob.Job.settings` object across all currently added jobs.
+
+        .. code:: python
+
+            >>> ja.add_settings_input_fields()
+
+            | Name  | InputAdfBasisType | InputAdfXcDispersion | InputAdfXcGga | InputAmsTask |
+            |-------|-------------------|----------------------|---------------|--------------|
+            | job_1 | TZP               | Grimme3              | PBE           | SinglePoint  |
+            | job_2 | TZP               | Grimme3              | PBE           | SinglePoint  |
+
+        :param include_system_block: whether to include keys for the system block, defaults to ``False``
+        :param flatten_list: whether to flatten lists in settings objects
+        :return: updated instance of |JobAnalysis|
+        """
+
+        def predicate(key_tuple: Tuple[Hashable, ...]):
+            if len(key_tuple) == 0 or str(key_tuple[0]).lower() != "input":
+                return False
+
+            return (
+                len(key_tuple) < 3
+                or str(key_tuple[1]).lower() != "ams"
+                or str(key_tuple[2]).lower() != "system"
+                or include_system_block
+            )
+
+        return self.add_settings_fields(predicate, flatten_list)
+
+    def remove_settings_fields(self) -> "JobAnalysis":
+        """
+        Remove all fields which were added as settings fields.
+
+        .. code:: python
+
+            >>> ja.add_settings_input_fields().remove_settings_fields()
+
+            | Name  |
+            |-------|
+            | job_1 |
+            | job_2 |
+
+        :return: updated instance of |JobAnalysis|
+        """
+        keys = [k for k, f in self._fields.items() if f.from_settings]
+        for k in keys:
+            self.remove_field(k)
+        return self
+
+    def __str__(self) -> str:
+        """
+        Get string representation of analysis as Markdown table with a maximum of 5 rows and column width of 12.
+
+        .. code:: python
+
+            >>> str(ja)
+
+            | Name  | OK   |
+            |-------|------|
+            | job_1 | True |
+            | job_2 | True |
+
+        :return: markdown table of analysis
+        """
+        return self.to_table(max_col_width=12, max_rows=5)
+
+    def __repr__(self) -> str:
+        """
+        Get string representation of analysis as Markdown table with a maximum of 5 rows and column width of 12.
+
+        .. code:: python
+
+            >>> ja
+
+            | Name  | OK   |
+            |-------|------|
+            | job_1 | True |
+            | job_2 | True |
+
+        :return: markdown table of analysis
+        """
+        return self.to_table()
+
+    def _repr_html_(self) -> str:
+        return self.to_table(fmt="html")
+
+    def __getitem__(self, key: str) -> List[Any]:
+        """
+        Get analysis data for a given field.
+
+        .. code:: python
+
+            >>> ja["Name"]
+
+            ['job_1', 'job_2']
+
+        :param key: unique identifier for the field
+        :return: list of values for each job
+        """
+        return self._get_field_analysis(key)
+
+    def __setitem__(self, key: str, value: Callable[[Job], Any]) -> None:
+        """
+        Set analysis for given field.
+
+        .. code:: python
+
+            >>> ja["N"] = lambda j: len(j.molecule)
+            >>> ja["N"]
+
+            [4, 6]
+
+        :param key: unique identifier for the field
+        :param value: callable to extract the value for the field from a job
+        """
+        if not callable(value):
+            raise TypeError("To set a field, the value must be a callable which accepts a Job.")
+
+        if key in self._fields:
+            self._fields[key] = replace(self._fields[key], value_extractor=value)
+        else:
+            self.add_field(key=key, value_extractor=value)
+
+    def __delitem__(self, key: str) -> None:
+        """
+        Delete analysis for given field.
+
+        .. code:: python
+
+            >>> del ja["OK"]
+            >>> ja
+
+            | Name  |
+            |-------|
+            | job_1 |
+            | job_2 |
+
+        :param key: unique identifier for the field
+        """
+        self.remove_field(key)
+
+    def __getattr__(self, key: str) -> List[Any]:
+        """
+        Fallback to get analysis for given field when an attribute is not present.
+
+        .. code:: python
+
+            >>> ja.Name
+
+            ['job_1', 'job_2']
+
+        :param key: unique identifier for the field
+        :return: list of values for each job
+        """
+        try:
+            return self[key]
+        except KeyError:
+            raise AttributeError(
+                f"'{self.__class__.__name__}' object has no attribute or analysis field with key '{key}'"
+            )
+
+    def __setattr__(self, key, value) -> None:
+        """
+        Fallback to set analysis for given field.
+
+        .. code:: python
+
+            >>> ja.N = lambda j: len(j.molecule)
+            >>> ja.N
+
+            [4, 6]
+
+        :param key: unique identifier for the field
+        :param value: callable to extract the value for the field from a job
+        """
+        if key in self._reserved_names or hasattr(self.__class__, key):
+            super().__setattr__(key, value)
+        else:
+            self[key] = value
+
+    def __delattr__(self, key) -> None:
+        """
+        Fallback to set analysis for given field.
+
+        .. code:: python
+
+            >>> del ja.OK
+            >>> ja
+
+            | Name  |
+            |-------|
+            | job_1 |
+            | job_2 |
+
+        :param key: unique identifier for the field
+        """
+        if key in self._reserved_names or hasattr(self.__class__, key):
+            super().__delattr__(key)
+        else:
+            try:
+                del self[key]
+            except KeyError:
+                raise AttributeError(
+                    f"'{self.__class__.__name__}' object has no attribute or analysis field with key '{key}'"
+                )
+
+    def __dir__(self):
+        """
+        Return standard attributes, plus dynamically added field keys which can be accessed via dot notation.
+        """
+        return [x for x in super().__dir__()] + [
+            k for k in self._fields.keys() if isinstance(k, str) and k.isidentifier()
+        ]

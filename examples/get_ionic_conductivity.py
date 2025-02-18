@@ -1,11 +1,14 @@
 import sys
-from scm.plams import AMSJob, Settings, Units, AMSAnalysisJob
+from scm.plams import AMSJob, Settings, Units, AMSAnalysisJob, init
 
 
 def main(filename, chargelines):
     """
     The main body of the script
     """
+    # this line is not required in AMS2025+
+    init()
+
     # Get the molecular system
     job = AMSJob.load_external(filename)
     mol = job.molecule

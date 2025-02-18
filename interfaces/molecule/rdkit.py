@@ -1,6 +1,7 @@
-from typing import List, Literal, Optional, overload, TYPE_CHECKING
+from typing import List, Literal, Optional, overload, TYPE_CHECKING, Sequence, Dict, Any
 import random
 import sys
+import copy
 from warnings import warn
 
 from scm.plams.core.functions import add_to_class, log, requires_optional_package
@@ -32,6 +33,8 @@ __all__ = [
     "get_conformations",
     "yield_coords",
     "canonicalize_mol",
+    "to_image",
+    "get_reaction_image",
 ]
 
 
@@ -108,7 +111,11 @@ def from_rdmol(rdkit_mol: "RDKitMol", confid: int = -1, properties: bool = True)
 
 @requires_optional_package("rdkit")
 def to_rdmol(
-    plams_mol: Molecule, sanitize: bool = True, properties: bool = True, assignChirality: bool = False
+    plams_mol: Molecule,
+    sanitize: bool = True,
+    properties: bool = True,
+    assignChirality: bool = False,
+    presanitize: bool = False,
 ) -> "RDKitMol":
     """
     Translate a PLAMS molecule into an RDKit molecule type.
@@ -119,6 +126,8 @@ def to_rdmol(
     :parameter bool sanitize: Kekulize, check valencies, set aromaticity, conjugation and hybridization
     :parameter bool properties: If all |Molecule|, |Atom| and |Bond| properties should be converted from PLAMS to RDKit format.
     :parameter bool assignChirality: Assign R/S and cis/trans information, insofar as this was not yet present in the PLAMS molecule.
+    :parameter bool presanitize: Iteratively adjust bonding and atomic charges, to avoid failure of sanitization.
+                                 Only relevant is sanitize is set to True.
     :type plams_mol: |Molecule|
     :return: an RDKit molecule
     :rtype: rdkit.Chem.Mol
@@ -213,10 +222,11 @@ def to_rdmol(
 
     if sanitize:
         try:
-            Chem.SanitizeMol(rdmol)
+            if presanitize:
+                rdmol = _presanitize(plams_mol, rdmol)
+            else:
+                Chem.SanitizeMol(rdmol)
         except ValueError as exc:
-            # rdkit_flag = Chem.SanitizeMol(rdmol,catchErrors=True)
-            # log ('RDKit Sanitization Error. Failed Operation Flag = %s'%(rdkit_flag))
             log("RDKit Sanitization Error.")
             text = "Most likely this is a problem with the assigned bond orders: "
             text += "Use chemical insight to adjust them."
@@ -1290,3 +1300,737 @@ def canonicalize_mol(mol, inplace=False, **kwargs):
         ret = mol.copy()
         ret.atoms = [at for _, at in sorted(zip(idx_rank, ret.atoms), reverse=True)]
         return ret
+
+
+@requires_optional_package("rdkit")
+@requires_optional_package("PIL")
+def to_image(
+    mol: Molecule,
+    remove_hydrogens: bool = True,
+    filename: Optional[str] = None,
+    fmt: str = "svg",
+    size: Sequence[int] = (200, 100),
+    as_string: bool = True,
+):
+    """
+    Convert single molecule to single image object
+
+    * ``mol`` -- PLAMS Molecule object
+    * ``remove_hydrogens`` -- Wether or not to remove the H-atoms from the image
+    * ``filename`` -- Optional: Name of image file to be created.
+    * ``fmt`` -- One of "svg", "png", "eps", "pdf", "jpeg"
+    * ``size`` -- Tuple/list containing width and height of image in pixels.
+    * ``as_string`` -- Returns the image as a string or bytestring. If set to False, the original format
+                       will be returned, which can be either a PIL image or SVG text
+                       We do this because after converting a PIL image to a bytestring it is not possible
+                       to further edit it (with our version of PIL).
+    * Returns -- Image text file / binary of image text file / PIL Image object.
+    """
+    from io import BytesIO
+    from PIL import Image
+    from rdkit.Chem import Draw
+    from rdkit.Chem.Draw import rdMolDraw2D
+    from rdkit.Chem.Draw import MolsToGridImage
+
+    extensions = ["svg", "png", "eps", "pdf", "jpeg"]
+
+    classes: Dict[str, Any] = {}
+    classes["svg"] = _MolsToGridSVG
+    for ext in extensions[1:]:
+        classes[ext] = None
+    # PNG can only be created in this way with later version of RDKit
+    if hasattr(rdMolDraw2D, "MolDraw2DCairo"):
+        for ext in extensions[1:]:
+            classes[ext] = MolsToGridImage
+
+    # Determine the type of image file
+    if filename is not None:
+        if "." in filename:
+            extension = filename.split(".")[-1]
+            if extension in classes.keys():
+                fmt = extension
+            else:
+                msg = [f"Image type {extension} not available."]
+                msg += [f"Available extensions are: {' '.join(extensions)}"]
+                raise Exception("\n".join(msg))
+        else:
+            filename = ".".join([filename, fmt])
+
+    if fmt not in classes.keys():
+        raise Exception(f"Image type {fmt} not available.")
+
+    rdmol = _rdmol_for_image(mol, remove_hydrogens)
+
+    # Draw the image
+    if classes[fmt.lower()] is None:
+        # With AMS version of RDKit MolsToGridImage fails for eps (because of paste)
+        img = Draw.MolToImage(rdmol, size=size)
+        buf = BytesIO()
+        img.save(buf, format=fmt)
+        img_text = buf.getvalue()
+    else:
+        # This fails for a C=C=O molecule, with AMS rdkit version
+        img = classes[fmt.lower()]([rdmol], molsPerRow=1, subImgSize=size)
+        img_text = img
+        if isinstance(img, Image.Image):
+            buf = BytesIO()
+            img.save(buf, format=fmt)
+            img_text = buf.getvalue()
+    # If I do not make this correction to the SVG text, it is not readable in JupyterLab
+    if fmt.lower() == "svg":
+        img_text = _correct_svg(img_text)
+
+    # Write to file, if required
+    if filename is not None:
+        mode = "w"
+        if isinstance(img_text, bytes):
+            mode = "wb"
+        with open(filename, mode) as outfile:
+            outfile.write(img_text)
+
+    if as_string:
+        img = img_text
+    return img
+
+
+@requires_optional_package("rdkit")
+@requires_optional_package("PIL")
+def get_reaction_image(
+    reactants: Sequence[Molecule],
+    products: Sequence[Molecule],
+    filename: Optional[str] = None,
+    fmt: str = "svg",
+    size: Sequence[int] = (200, 100),
+    as_string: bool = True,
+):
+    """
+    Create a 2D reaction image from reactants and products (PLAMS molecules)
+
+    * ``reactants`` -- Iterable of PLAMS Molecule objects representing the reactants.
+    * ``products`` -- Iterable of PLAMS Molecule objects representing the products.
+    * ``filename`` -- Optional: Name of image file to be created.
+    * ``fmt``  -- The format of the image (svg, png, eps, pdf, jpeg).
+                     The extension in the filename, if provided, takes precedence.
+    * ``size`` -- Tuple/list containing width and height of image in pixels.
+    * ``as_string`` -- Returns the image as a string or bytestring. If set to False, the original format
+                       will be returned, which can be either a PIL image or SVG text
+    *      Returns -- SVG image text file.
+    """
+    extensions = ["svg", "png", "eps", "pdf", "jpeg"]
+
+    # Determine the type of image file
+    if filename is not None:
+        if "." in filename:
+            extension = filename.split(".")[-1]
+            if extension in extensions:
+                fmt = extension
+            else:
+                msg = [f"Image type {extension} not available."]
+                msg += [f"Available extensions are: {' '.join(extensions)}"]
+                raise Exception("\n".join(msg))
+        else:
+            filename = ".".join([filename, fmt])
+
+    if fmt.lower() not in extensions:
+        raise Exception(f"Image type {fmt} not available.")
+
+    # Get the actual image
+    width = size[0]
+    height = size[1]
+    if fmt.lower() == "svg":
+        img_text = _get_reaction_image_svg(reactants, products, width, height)
+    else:
+        img_text = _get_reaction_image_pil(reactants, products, fmt, width, height, as_string=as_string)
+
+    # Write to file, if required
+    if filename is not None:
+        mode = "w"
+        if isinstance(img_text, bytes):
+            mode = "wb"
+        with open(filename, mode) as outfile:
+            outfile.write(img_text)
+    return img_text
+
+
+def _get_reaction_image_svg(
+    reactants: Sequence[Molecule], products: Sequence[Molecule], width: int = 200, height: int = 100
+):
+    """
+    Create a 2D reaction image from reactants and products (PLAMS molecules)
+
+    * ``reactants`` -- Iterable of PLAMS Molecule objects representing the reactants.
+    * ``products`` -- Iterable of PLAMS Molecule objects representing the products.
+    *      Returns -- SVG image text file.
+    """
+    from rdkit import Chem
+
+    def svg_arrow(x1, y1, x2, y2, prefix=""):
+        """
+        The reaction arrow in html format
+        """
+        # The arrow head
+        l = ['<%sdefs> <%smarker id="arrow" viewBox="0 0 10 10" refX="5" refY="5" ' % (prefix, prefix)]
+        l += ['markerWidth="6" markerHeight="6" ']
+        l += ['orient="auto-start-reverse"> ']
+        l += ['<%spath d="M 0 0 L 10 5 L 0 10 z" /></%smarker></%sdefs>' % (prefix, prefix, prefix)]
+        arrow = "".join(l)
+        # The line
+        l = ['<%sline x1="%i" y1="%i" x2="%i" y2="%i" ' % (prefix, x1, y1, x2, y2)]
+        l += ['stroke="black" marker-end="url(#arrow)" />']
+        line = "".join(l)
+        return [arrow, line]
+
+    def add_plus_signs_svg(img_text, width, height, nmols, nreactants, prefix=""):
+        """
+        Add the lines with + signs to the SVG image
+        """
+        y = int(0.55 * height)
+        t = []
+        for i in range(nmols - 1):
+            x = int(((i + 1) * width) - (0.1 * width))
+            if i + 1 in (nreactants, nreactants + 1):
+                continue
+            t += ['<%stext x="%i" y="%i" font-size="16">+</%stext>' % (prefix, x, y, prefix)]
+        lines = img_text.split("\n")
+        lines = lines[:-2] + t + lines[-2:]
+        return "\n".join(lines)
+
+    def add_arrow_svg(img_text, width, height, nreactants, prefix=""):
+        """
+        Add the arrow to the SVG image
+        """
+        y = int(0.5 * height)
+        x1 = int((nreactants * width) + (0.3 * width))
+        x2 = int((nreactants * width) + (0.7 * width))
+        t = svg_arrow(x1, y, x2, y, prefix)
+        lines = img_text.split("\n")
+        lines = lines[:-2] + t + lines[-2:]
+        return "\n".join(lines)
+
+    # Get the rdkit molecules
+    rdmols = [_rdmol_for_image(mol) for mol in reactants]
+    rdmols += [Chem.Mol()]  # This is where the arrow will go
+    rdmols += [_rdmol_for_image(mol) for mol in products]
+    nmols = len(rdmols)
+
+    # Place the molecules in a row of images
+    subimg_size = [width, height]
+    kwargs = {"legendFontSize": 16}  # ,"legendFraction":0.1}
+    img_text = _MolsToGridSVG(rdmols, molsPerRow=nmols, subImgSize=subimg_size, **kwargs)
+    img_text = _correct_svg(img_text)
+
+    # Add + and =>
+    nreactants = len(reactants)
+    img_text = add_plus_signs_svg(img_text, width, height, nmols, nreactants)
+    img_text = add_arrow_svg(img_text, width, height, nreactants)
+
+    return img_text
+
+
+def _get_reaction_image_pil(
+    reactants: Sequence[Molecule],
+    products: Sequence[Molecule],
+    fmt: str,
+    width: int = 200,
+    height: int = 100,
+    as_string: bool = True,
+):
+    """
+    Create a 2D reaction image from reactants and products (PLAMS molecules)
+
+    * ``reactants`` -- Iterable of PLAMS Molecule objects representing the reactants.
+    * ``products`` -- Iterable of PLAMS Molecule objects representing the products.
+    *      Returns -- SVG image text file.
+    """
+    from io import BytesIO
+    from PIL import Image
+    from PIL import ImageDraw
+    from rdkit import Chem
+    from rdkit.Chem.Draw import rdMolDraw2D, MolsToGridImage
+
+    def add_arrow_pil(img, width, height, nreactants):
+        """
+        Add the arrow to the PIL image
+        """
+        y1 = int(0.5 * height)
+        y2 = y1
+        x1 = int((nreactants * width) + (0.3 * width))
+        x2 = int((nreactants * width) + (0.7 * width))
+
+        # Draw a line
+        black = (0, 0, 0)
+        draw = ImageDraw.Draw(img)
+        draw.line(((x1, y1), (x2, y2)), fill=128)
+
+        # Draw the arrow head
+        headscale = 20
+        xshift = width // headscale
+        yshift = img.size[1] // headscale
+        p1 = (x2, y2 + yshift)
+        p2 = (x2, y2 - yshift)
+        p3 = (x2 + xshift, y2)
+        draw.polygon((p1, p2, p3), fill=black)
+
+        return img
+
+    def add_plus_signs_pil(img, width, height, nmols, nreactants):
+        """
+        Add the lines with + signs to the SVG image
+        """
+        black = (0, 0, 0)
+
+        I1 = ImageDraw.Draw(img)
+        y = int(0.5 * height)
+        # myfont = ImageFont.truetype('FreeMono.ttf', 25)
+        for i in range(nmols):
+            x = int(((i + 1) * width) - (0.05 * width))
+            if i + 1 in (nreactants, nreactants + 1):
+                continue
+            # I1.text((x, y), "+", font=myfont, fill=black)
+            I1.text((x, y), "+", fill=black)
+        return img
+
+    def join_pil_images(pil_images):
+        """
+        Create a new image which connects the ones above with text
+        """
+        white = (255, 255, 255)
+
+        widths = [img.width for img in pil_images]
+        width = sum(widths)
+        height = max([img.height for img in pil_images])
+        final_img = Image.new("RGB", (width, height), white)
+
+        # Concatenate the PIL images
+        for i, img in enumerate(pil_images):
+            pos = sum(widths[:i])
+            h = int((height - img.height) / 2)
+            final_img.paste(img, (pos, h))
+
+        return final_img
+
+    nreactants = len(reactants)
+    nmols = nreactants + len(products)
+
+    if not hasattr(rdMolDraw2D, "MolDraw2DCairo"):
+        # We are working with the old AMS version of RDKit
+        white = (255, 255, 255)
+        rimages = [to_image(mol, fmt=fmt, as_string=False) for i, mol in enumerate(reactants)]
+        pimages = [to_image(mol, fmt=fmt, as_string=False) for i, mol in enumerate(products)]
+        blanc = Image.new("RGB", (width, height), white)
+
+        # Get the image (with arrow)
+        nreactants = len(reactants)
+        all_images = rimages + [blanc] + pimages
+        img = join_pil_images(all_images)
+
+    else:
+        # We have a later version of RDKit that can regulate the font sizes
+        rdmols = [_rdmol_for_image(mol) for mol in reactants]
+        rdmols += [Chem.Mol()]  # This is where the arrow will go
+        rdmols += [_rdmol_for_image(mol) for mol in products]
+
+        # Place the molecules in a row of images
+        subimg_size = [width, height]
+        kwargs = {"legendFontSize": 16}  # ,"legendFraction":0.1}
+        img = MolsToGridImage(rdmols, molsPerRow=nmols + 1, subImgSize=subimg_size, **kwargs)
+
+    # Add + and =>
+    img = add_plus_signs_pil(img, width, height, nmols, nreactants)
+    img = add_arrow_pil(img, width, height, nreactants)
+
+    # Get the bytestring
+    img_text = img
+    if as_string:
+        buf = BytesIO()
+        img.save(buf, format=fmt)
+        img_text = buf.getvalue()
+
+    return img_text
+
+
+def _correct_svg(image):
+    """
+    Correct for a bug in the AMS rdkit created SVG file
+    """
+    if not "svg:" in image:
+        return image
+    image = image.replace("svg:", "")
+    lines = image.split("\n")
+    for iline, line in enumerate(lines):
+        if "xmlns:svg=" in line:
+            lines[iline] = line.replace("xmlns:svg", "xmlns")
+            break
+    image = "\n".join(lines)
+    return image
+
+
+def _presanitize(mol, rdmol):
+    """
+    Change bonding and atom charges to avoid failed sanitization
+
+    Note: Used by to_rdmol
+    """
+    from rdkit import Chem
+
+    mol = mol.copy()
+    for i in range(10):
+        try:
+            rdmol_test = copy.deepcopy(rdmol)
+            Chem.SanitizeMol(rdmol_test)
+            stored_exc = None
+            break
+        except ValueError as exc:
+            stored_exc = exc
+            text = repr(exc)
+        # Fix the problem
+        rdmol, bonds, charges = _kekulize(mol, rdmol, text)
+        # print ("REB bonds charges: ",bonds, charges)
+        # print (rdmol.Debug())
+        # rdmol = to_rdmol(mol, sanitize=False)
+        # print (rdmol.Debug())
+
+    if stored_exc is not None:
+        raise stored_exc
+    else:
+        rdmol = rdmol_test
+    return rdmol
+
+
+def _kekulize(mol, rdmol, text, use_dfs=True):
+    """
+    Kekulize the atoms indicated as problematic by RDKit
+
+    * ``mol`` - PLAMS molecule
+    * ``text`` - Sanitation error produced by RDKit
+
+    Note: Returns the changes in bond orders and atomic charges, that will make sanitation succeed.
+    """
+    from rdkit import Chem
+
+    # Find the indices of the problematic atoms
+    indices = _find_aromatic_sequence(rdmol, text)
+    if indices is None:
+        return rdmol, {}, {}
+
+    # Set the bond orders along the chain to 2, 1, 2, 1,...
+    altered_bonds = {}
+    if len(indices) > 1:
+        emol = Chem.RWMol(rdmol)
+        if use_dfs:
+            # It may be better to create the tree first, and then start at a leaf
+            altered_bonds = _alter_aromatic_bonds(emol, indices[0])
+            indices = list(set([ind for tup in altered_bonds.keys() for ind in tup]))
+        else:
+            indices = _order_atom_indices(emol, indices)
+            altered_bonds = _alter_bonds_along_chain(emol, indices)
+        _adjust_atom_aromaticity(emol, altered_bonds)
+        rdmol = emol.GetMol()
+        # Adjust the PLAMS molecule as well
+        for (iat, jat), order in altered_bonds.items():
+            for bond in mol.atoms[iat].bonds:
+                if mol.index(bond.other_end(mol.atoms[iat])) - 1 == jat:
+                    bond.order = order
+                    break
+
+    # If the atom at the chain end has the wrong bond order, give it a charge.
+    altered_charge = {}
+    atom_indices, dangling_bonds = _get_charged_atoms(rdmol, indices)
+    if len(atom_indices) > 0:
+        iat = atom_indices[0]
+        ndangling = dangling_bonds[iat]
+        altered_charge = _guess_atomic_charge(iat, ndangling, rdmol, mol)
+        rdmol.GetAtomWithIdx(iat).SetFormalCharge(altered_charge[iat])
+        for k, v in altered_charge.items():
+            mol.atoms[k].properties.rdkit.charge = v
+
+    return rdmol, altered_bonds, altered_charge
+
+
+def _find_aromatic_sequence(rdmol, text):
+    """
+    Find the sequence of atoms with 1.5 bond orders
+    """
+    indices = None
+    lines = text.split("\n")
+    line = lines[-1]
+    if "Unkekulized atoms:" in line:
+        text = line.split("Unkekulized atoms:")[-1].split("\\n")[0]
+        if '"' in text:
+            text = text.split('"')[0]
+        indices = [int(w) for w in text.split()]
+        if len(indices) > 1:
+            return indices
+        line = "atom %i marked aromatic" % (indices[0])
+    iat: Any
+    if "marked aromatic" in line:
+        iat = int(line.split("atom")[-1].split()[0])
+        indices = [iat]
+        while iat is not None:
+            icurrent = iat
+            iat = None
+            for bond in rdmol.GetAtomWithIdx(icurrent).GetBonds():
+                if str(bond.GetBondType()) == "AROMATIC":
+                    iat = bond.GetOtherAtomIdx(icurrent)
+                    if iat in indices:
+                        iat = None
+                        continue
+                    indices.append(iat)
+                    break
+    elif "Explicit valence for atom" in line:
+        iat = int(line.split("#")[-1].split()[0])
+        indices = [iat]
+    return indices
+
+
+def _alter_aromatic_bonds(emol, iat, depth=0, double_first=False):
+    """
+    Switch all thearomitic bonds to single/double, starting at iat
+
+    * ``emol`` -- RDKit EditableMol type, for which bond orders will be changed
+    * ``iat``  -- Starting point for depth first search
+    """
+    from collections import OrderedDict
+    from rdkit import Chem
+    from scm.plams import PeriodicTable as PT
+
+    # Use OrderedDict, so that the leaves of the tree
+    # will be at the end
+    bonds_changed = OrderedDict()
+
+    at = emol.GetAtomWithIdx(iat)
+    valence = PT.get_connectors(at.GetAtomicNum())
+    bonds = at.GetBonds()
+    are_aromatic = [str(b.GetBondType()) == "AROMATIC" for b in bonds]
+    int_orders = sum([b.GetBondTypeAsDouble() for i, b in enumerate(bonds) if not are_aromatic[i]])
+    numbonds = len([b for i, b in enumerate(bonds) if are_aromatic[i]])
+    valence -= int(int_orders)
+    # Here I place the double bond first.
+    # I could also start with a single bond instead.
+    orders = [1 for i in range(numbonds)]
+    if valence > numbonds:
+        for i in range(min(numbonds, valence - numbonds)):
+            if double_first:
+                orders[i] = 2
+            else:
+                orders[numbonds - i - 1] = 2
+
+    for i, bond in enumerate(bonds):
+        jat = bond.GetOtherAtomIdx(iat)
+        if are_aromatic[i]:
+            pair = tuple(sorted([iat, jat]))
+            order = orders.pop(0)
+            bond.SetBondType(Chem.BondType(order))
+            bond.SetIsAromatic(False)  # This is necessary with the newer RDKit
+            bonds_changed[pair] = order
+            d = _alter_aromatic_bonds(emol, jat, depth + 1)
+            bonds_changed.update(d)
+    return bonds_changed
+
+
+def _alter_bonds_along_chain(emol, indices):
+    """
+    Along the chain of atoms (indices), alternate double and single bonds
+    """
+    from scm.plams import PeriodicTable as PT
+    from rdkit import Chem
+
+    if len(indices) > 1:
+        # The first bond order is set to 2, if aromic
+        # Else it is flipped
+        first_bond = emol.GetBondBetweenAtoms(indices[0], indices[1])
+        if str(first_bond.GetBondType()) == "AROMATIC":
+            new_order = 2
+        else:
+            new_order = first_bond.GetBondTypeAsDouble()
+            new_order = (new_order % 2) + 1
+        # Unless this breaks valence rules.
+        iat = indices[0]
+        at = emol.GetAtomWithIdx(iat)
+        valence = PT.get_connectors(at.GetAtomicNum())
+        orders = [b.GetBondTypeAsDouble() for b in at.GetBonds()]
+        jat = indices[1]
+        at_next = emol.GetAtomWithIdx(jat)
+        valence_next = PT.get_connectors(at_next.GetAtomicNum())
+        orders_next = [b.GetBondTypeAsDouble() for b in at_next.GetBonds()]
+        if sum(orders) > valence or sum(orders_next) > valence_next:
+            new_order = 1
+    # Set the bond orders along the chain to 2, 1, 2, 1,...
+    altered_bonds = {}
+    for i, iat in enumerate(indices[:-1]):
+        bond = emol.GetBondBetweenAtoms(iat, indices[i + 1])
+        bond.SetBondType(Chem.BondType(new_order))
+        bond.SetIsAromatic(False)  # This is necessary with the newer RDKit versions
+        altered_bonds[iat, indices[i + 1]] = new_order
+        new_order = ((new_order) % 2) + 1
+    return altered_bonds
+
+
+def _order_atom_indices(rdmol, indices):
+    """
+    Order the atomic indices so that they are consecutive along a bonded chain
+    """
+    # Order the indices, so that they are consecutive in the molecule
+    start = 0
+    for i, iat in enumerate(indices):
+        at = rdmol.GetAtomWithIdx(iat)
+        neighbors = [b.GetOtherAtomIdx(iat) for b in at.GetBonds()]
+        relevant_neighbors = [jat for jat in neighbors if jat in indices]
+        if len(relevant_neighbors) == 1:
+            start = i
+            break
+    iat = indices[start]
+    atoms = [iat]
+    while 1:
+        at = rdmol.GetAtomWithIdx(iat)
+        neighbors = [b.GetOtherAtomIdx(iat) for b in at.GetBonds()]
+        relevant_neighbors = [jat for jat in neighbors if jat in indices and not jat in atoms]
+        if len(relevant_neighbors) == 0:
+            break
+        iat = relevant_neighbors[0]
+        atoms.append(iat)
+    if len(atoms) < len(indices):
+        raise Exception("The unkekulized atoms are not in a consecutive chain")
+    indices = atoms
+    return indices
+
+
+def _adjust_atom_aromaticity(emol, altered_bonds):
+    """
+    Assign aromaticity to the atoms based on the new bond orders
+    """
+    indices = list(set([ind for tup in altered_bonds.keys() for ind in tup]))
+    for ind in indices:
+        at = emol.GetAtomWithIdx(ind)
+        if not at.GetIsAromatic():
+            continue
+        # Only change this if we are sure the atom is not aromatic anymore
+        aromatic = False
+        for bond in at.GetBonds():
+            if str(bond.GetBondType()) == "AROMATIC":
+                aromatic = True
+                break
+        if not aromatic:
+            at.SetIsAromatic(False)
+
+
+def _get_charged_atoms(rdmol, indices):
+    """
+    Locate the atoms that need a charge
+    """
+    from scm.plams import PeriodicTable as PT
+
+    atom_indices = []
+    dangling_bonds = {}
+    for iat in indices[::-1]:
+        at = rdmol.GetAtomWithIdx(iat)
+        valence = PT.get_connectors(at.GetAtomicNum())
+        bonds = at.GetBonds()
+        orders = [b.GetBondTypeAsDouble() for b in bonds]
+        ndangling = int(valence - sum(orders))
+        if ndangling != 0:
+            dangling_bonds[iat] = ndangling
+            atom_indices.append(iat)
+    return atom_indices, dangling_bonds
+
+
+def _guess_atomic_charge(iat, ndangling, rdmol, mol):
+    """
+    Guess the best atomic charge for atom iat
+    """
+    # Get the total charge from atomic charges already set
+    charges = [at.GetFormalCharge() for at in rdmol.GetAtoms()]
+    totcharge = sum(charges) - charges[iat]
+
+    # Here I hope that the estimated charge will be more reliable than the
+    # actual (user defined) system charge, but am not sure
+    est_charges = mol.guess_atomic_charges(adjust_to_systemcharge=False, depth=0)
+    molcharge = int(sum(est_charges))
+    molcharge = molcharge - totcharge
+
+    # Adjust the sign based on the estimated charge
+    sign = ndangling / (abs(ndangling))
+    if molcharge != 0:
+        sign = molcharge / (abs(molcharge))
+    elif est_charges[iat] != 0:
+        sign = est_charges[iat] / abs(est_charges[iat])
+
+    # Then use the over/under valence with the new sign as the atomic charge
+    charge = int(sign * abs(ndangling))
+    # Perhaps we tried this already
+    if charge == charges[iat]:
+        charge = -charge
+    altered_charge = {iat: charge}
+    return altered_charge
+
+
+def _rdmol_for_image(mol, remove_hydrogens=True):
+    """
+    Convert PLAMS molecule to an RDKit molecule specifically for a 2D image
+    """
+    from rdkit.Chem import AllChem
+    from rdkit.Chem import RemoveHs
+
+    rdmol = to_rdmol(mol, presanitize=True)
+
+    # Flatten the molecule
+    AllChem.Compute2DCoords(rdmol)
+    # Remove the Hs only if there are carbon atoms in this system
+    # Otherwise this will turn an OH radical into a water molecule.
+    carbons = [i for i, at in enumerate(mol.atoms) if at.symbol in ["C", "Si"]]
+    if remove_hydrogens and len(carbons) > 0:
+        rdmol = RemoveHs(rdmol)
+    else:
+        for atom in rdmol.GetAtoms():
+            atom.SetNoImplicit(True)
+
+    ids = [c.GetId() for c in rdmol.GetConformers()]
+    for cid in ids:
+        rdmol.RemoveConformer(cid)
+    return rdmol
+
+
+def _MolsToGridSVG(
+    mols,
+    molsPerRow=3,
+    subImgSize=(200, 200),
+    legends=None,
+    highlightAtomLists=None,
+    highlightBondLists=None,
+    drawOptions=None,
+    **kwargs,
+):
+    """
+    Replaces the old version of this function in our RDKit for a more recent one, with more options
+    """
+    from rdkit.Chem.Draw import rdMolDraw2D
+
+    if legends is None:
+        legends = [""] * len(mols)
+
+    nRows = len(mols) // molsPerRow
+    if len(mols) % molsPerRow:
+        nRows += 1
+
+    fullSize = (molsPerRow * subImgSize[0], nRows * subImgSize[1])
+
+    d2d = rdMolDraw2D.MolDraw2DSVG(fullSize[0], fullSize[1], subImgSize[0], subImgSize[1])
+    if drawOptions is not None:
+        d2d.SetDrawOptions(drawOptions)
+    else:
+        dops = d2d.drawOptions()
+        for k, v in list(kwargs.items()):
+            if hasattr(dops, k):
+                setattr(dops, k, v)
+                del kwargs[k]
+
+    d2d.DrawMolecules(
+        list(mols),
+        legends=legends or None,
+        highlightAtoms=highlightAtomLists or [],
+        highlightBonds=highlightBondLists or [],
+        **kwargs,
+    )
+    d2d.FinishDrawing()
+    res = d2d.GetDrawingText()
+    return res

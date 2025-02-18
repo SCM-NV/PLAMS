@@ -8,11 +8,15 @@
 # ## Initial imports
 
 import scm.plams as plams
+import sys
 from scm.conformers import ConformersJob
 from scm.conformers.plams.plot import plot_conformers
 import numpy as np
 import matplotlib.pyplot as plt
 import os
+
+# this line is not required in AMS2025+
+plams.init()
 
 
 # ## Single alanine molecule
@@ -84,3 +88,43 @@ plot_conformers(job)
 
 
 # You can also open the conformers in AMSmovie to browse all conformers 1000+ conformers:
+
+
+# Finally in AMS2025, you can also inspect the conformer data using the JobAnalysis tool.
+
+try:
+    from scm.plams import JobAnalysis
+
+    ja = (
+        JobAnalysis(standard_fields=None)
+        .add_job(job)
+        .add_field(
+            "Id",
+            lambda j: list(range(1, len(j.results.get_conformers()) + 1)),
+            display_name="Conformer Id",
+            expansion_depth=1,
+        )
+        .add_field(
+            "Energies",
+            lambda j: j.results.get_relative_energies("kcal/mol"),
+            display_name="E",
+            expansion_depth=1,
+            fmt=".2f",
+        )
+        .add_field(
+            "Populations",
+            lambda j: j.results.get_boltzmann_distribution(298),
+            display_name="P",
+            expansion_depth=1,
+            fmt=".3f",
+        )
+    )
+
+    # Pretty-print if running in a notebook
+    if "ipykernel" in sys.modules:
+        ja.display_table(max_rows=20)
+    else:
+        print(ja.to_table())
+
+except ImportError:
+    pass

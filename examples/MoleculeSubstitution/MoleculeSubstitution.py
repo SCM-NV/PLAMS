@@ -14,6 +14,9 @@ from typing import List
 IPythonConsole.ipython_useSVG = True
 IPythonConsole.molSize = 250, 250
 
+# this line is not required in AMS2025+
+init()
+
 
 # ## Helper class and function
 #

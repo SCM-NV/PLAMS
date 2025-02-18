@@ -91,6 +91,8 @@ from scm.plams.interfaces.molecule.rdkit import (
     to_smiles,
     writepdb,
     yield_coords,
+    to_image,
+    get_reaction_image,
 )
 from scm.plams.interfaces.thirdparty.cp2k import Cp2kJob, Cp2kResults, Cp2kSettings2Mol
 from scm.plams.interfaces.thirdparty.crystal import CrystalJob, mol2CrystalConf
@@ -141,6 +143,7 @@ from scm.plams.tools.geometry import (
 from scm.plams.tools.kftools import KFFile, KFHistory, KFReader
 from scm.plams.tools.periodic_table import PT, PeriodicTable
 from scm.plams.tools.table_formatter import format_in_table
+from scm.plams.tools.job_analysis import JobAnalysis
 from scm.plams.tools.plot import (
     get_correlation_xy,
     plot_band_structure,
@@ -309,6 +312,7 @@ __all__ = [
     "PeriodicTable",
     "PT",
     "format_in_table",
+    "JobAnalysis",
     "plot_band_structure",
     "plot_molecule",
     "plot_grid_molecules",

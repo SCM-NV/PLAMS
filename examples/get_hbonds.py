@@ -1,7 +1,7 @@
 import sys
 from io import StringIO
 import numpy
-from scm.plams import RKFTrajectoryFile
+from scm.plams import RKFTrajectoryFile, init
 from scm.flexmd import PDBMolecule
 
 
@@ -9,6 +9,9 @@ def main():
     """
     Main sctipt
     """
+    # this line is not required in AMS2025+
+    init()
+
     if sys.argv[1] == "-h":
         raise SystemExit("amspython get_hbonds.py path/to/ams.rkf path/to/indices.txt")
 

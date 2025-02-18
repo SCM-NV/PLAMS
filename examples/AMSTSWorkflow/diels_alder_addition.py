@@ -9,6 +9,9 @@ import os
 import matplotlib.pyplot as plt
 from typing import List
 
+# this line is not required in AMS2025+
+init()
+
 
 # ## Function definitions
 #
