@@ -1217,7 +1217,238 @@ class JobAnalysis:
 
         return False
 
-    def remove_uniform_fields(self, tol: float = 1e-08, ignore_empty: bool = False) -> "JobAnalysis":
+        #     def get_time(job: params.ParAMSJob):
+        #         val = job.results.get_timings()
+        #         if val is not None:
+        #             return val.total_seconds() / 3600
+        #         else:
+        #             return None
+
+        #     self.data["timings[h]"] = [get_time(job) for job in self.data[GroupedColNames.jobs]]
+
+        elif custom_get_timings is not None:
+            self.data["timings"] = [custom_get_timings(job) for job in self.data[col_jobs]]
+            cols_added.append("timings")
+        return cols_added
+
+    ############################################################################
+    #####################          JobSummarize          #######################
+    ############################################################################
+    def get_job_summary(self, summarizer: Dict[str, Callable[[SingleJob], Any]], jobs_col=GroupedColNames.jobs):
+        for k, v_call in summarizer.items():
+            self.data[k] = [v_call(job) for job in self.data[jobs_col]]
+
+    ############################################################################
+    ##################            tests analysis           #####################
+    ############################################################################
+    def reasonable_checker(
+        self, col_out: str, reasonable_checker: Callable[[SingleJob], bool], jobs_col=GroupedColNames.jobs
+    ):
+        self.data[col_out] = [reasonable_checker(job) for job in self.data[jobs_col]]
+
+    def groupby(self, groupby: Callable[[Dict], Hashable], idxs=None):
+        groups = defaultdict(list)
+        if idxs is None:
+            idxs = range(len(self))
+        for i in idxs:
+            groups[groupby(self[i])].append(i)
+        return dict(groups)
+
+    def assign_reference(self, is_ref: Callable[[Dict], bool], subset_idxs: Optional[List[int]] = None):
+        if subset_idxs is None:
+            subset_idxs = list(range(len(self)))
+        groups_with_ref: Dict[str, Optional[Union[int, List[int]]]] = {"ref": None, "idxs": []}
+        for idx_i in subset_idxs:
+            if is_ref(self[idx_i]):
+                if groups_with_ref["ref"] is not None:
+                    ref_found = groups_with_ref["ref"]
+                    raise ValueError(f"Collision of two refs found for the same group: {ref_found} and {idx_i}")
+                groups_with_ref["ref"] = idx_i
+            else:
+                groups_with_ref["idxs"].append(idx_i)
+        return groups_with_ref
+
+    def job_plotter(
+        self,
+        success_plot: Callable[[SingleJob, str, plt.Axes], str],
+        jobs_col=GroupedColNames.jobs,
+        grouped_indexes: Union[Dict[str, List[int]], List[int]] = None,
+        **plt_kwargs,
+    ):
+        if grouped_indexes is None or isinstance(grouped_indexes, list):
+            if not isinstance(grouped_indexes, list):
+                grouped_indexes = range(len(self))
+            support = {}
+            n_jobs = len(f"{len(self)}")
+            for i in grouped_indexes:
+                support["Job {:0{}}".format(i, n_jobs)] = [i]
+            grouped_indexes = support
+
+        print(grouped_indexes)
+
+        n_axes = len(grouped_indexes)
+        plt_kwargs.setdefault("layout", "tight")
+        plt_kwargs.setdefault("sharex", True)
+        plt_kwargs.setdefault("sharey", False)
+        plt_kwargs.setdefault("ncols", 4 if "nrows" not in plt_kwargs else -(-n_axes // plt_kwargs["nrows"]))
+        plt_kwargs.setdefault("nrows", -(-n_axes // plt_kwargs["ncols"]))
+        fig, axes = plt.subplots(**plt_kwargs)
+        axes = axes.ravel()
+
+        for i, (title_i, ax) in enumerate(zip(grouped_indexes, axes)):
+            for idx_i in grouped_indexes[title_i]:
+                text_label = self.get_label(idx_i)
+                success_plot(self.data[jobs_col][idx_i], text_label, ax)
+            ax.legend()
+            ax.set_title(f"{title_i}")
+        return fig
+
+    def success_checker_plotter(
+        self,
+        ref_job_idx: int,
+        indexes_to_check: List[int],
+        success_plot: Callable[[SingleJob, str, plt.Axes], plt.Axes],
+        jobs_col=GroupedColNames.jobs,
+        separate_plot=True,
+        axes=None,
+        **plt_kwargs,
+    ) -> Figure:
+        """Note: success_plot should first plot the non-ref job and then the reference job, such that the legend is displaced well"""
+
+        n_axes = len(indexes_to_check)
+        plt_kwargs.setdefault("layout", "tight")
+        if separate_plot and axes is None:
+            plt_kwargs.setdefault("sharex", True)
+            plt_kwargs.setdefault("sharey", True)
+            plt_kwargs.setdefault("ncols", 4 if "nrows" not in plt_kwargs else -(-n_axes // plt_kwargs["nrows"]))
+            plt_kwargs.setdefault("nrows", -(-n_axes // plt_kwargs["ncols"]))
+            fig, axes = plt.subplots(**plt_kwargs)
+            axes = axes.ravel()
+        else:
+            if axes is None:
+                if "ncols" in plt_kwargs:
+                    plt_kwargs.pop("ncols")
+                if "nrows" in plt_kwargs:
+                    plt_kwargs.pop("nrows")
+                fig, axes = plt.subplots(**plt_kwargs)
+                axes = [axes] * n_axes
+            else:
+                axes = axes * n_axes
+                fig = axes[0].get_figure()
+
+        for i, (idx_i, ax) in enumerate(zip(indexes_to_check, axes)):
+            if idx_i is None:
+                continue
+            ref_label = "REF\n" + self.get_label(ref_job_idx)
+            text_label = self.get_label(idx_i)
+
+            success_plot(self.data[jobs_col][idx_i], text_label, ax)
+            if separate_plot:
+                success_plot(self.data[jobs_col][ref_job_idx], ref_label, ax)
+            elif i == 0:
+                # plot only once
+                success_plot(self.data[jobs_col][ref_job_idx], ref_label, ax)
+
+        if separate_plot:
+            for ax in axes:
+                ax.legend()
+        else:
+            axes[0].legend()
+        return fig
+
+    def get_label(self, idx: int):
+        if GroupedColNames.labels in self.data:
+            text_label = self.data[GroupedColNames.labels][idx]
+        else:
+            text_label = ""
+            for col_i in self.settings_cols.values:
+                text_label += f"{col_i}: {self.data[col_i][idx]}\n"
+        return text_label
+
+    def success_checker_plotter_2(
+        self,
+        is_ref: Callable[[Dict], bool],
+        groupby: Callable[[Dict], Hashable],
+        success_plot: Callable[[SingleJob, plt.Axes], plt.Axes],
+        jobs_col=GroupedColNames.jobs,
+        **plt_kwargs,
+    ) -> Figure:
+        """Note: success_plot should first plot the non-ref job and then the reference job, such that the legend is displaced well"""
+        groups = self.groupby(groupby)
+        groups_refs = {}
+        for k, vals in groups.items():
+            groups_refs[k] = self.assign_reference(is_ref, subset_idxs=vals)
+
+        fig = self.plot_groups(groups_refs, success_plot=success_plot, jobs_col=jobs_col, **plt_kwargs)
+        return fig
+
+    def plot_groups(
+        self,
+        groups_refs,
+        success_plot: Callable[[SingleJob, plt.Axes], plt.Axes],
+        jobs_col=GroupedColNames.jobs,
+        **plt_kwargs,
+    ):
+        n_axes = len(groups_refs)
+        plt_kwargs.setdefault("layout", "tight")
+        plt_kwargs.setdefault("sharex", True)
+        plt_kwargs.setdefault("sharey", False)
+        plt_kwargs.setdefault("ncols", 4 if "nrows" not in plt_kwargs else -(-n_axes // plt_kwargs["nrows"]))
+        plt_kwargs.setdefault("nrows", -(-n_axes // plt_kwargs["ncols"]))
+        fig, axes = plt.subplots(**plt_kwargs)
+        axes = axes.ravel()
+        for (k, vals), ax in zip(groups_refs.items(), axes):
+            fig = self.success_checker_plotter(
+                ref_job_idx=vals["ref"],
+                indexes_to_check=vals["idxs"],
+                success_plot=success_plot,
+                separate_plot=False,
+                axes=[ax],
+                jobs_col=jobs_col,
+            )
+            ax.set_title(f"Group {k}")
+        return fig
+
+    def success_checker(
+        self,
+        ref_job_idx: int,
+        indexes_to_check: List[int],
+        success_checker: Callable[[SingleJob, SingleJob], Dict[str, Union[bool, float]]],
+        jobs_col=GroupedColNames.jobs,
+    ):
+        for idx_i in indexes_to_check:
+            if idx_i is None:
+                continue
+            if ref_job_idx is None:
+                continue
+            res = success_checker(self.data[jobs_col][idx_i], self.data[jobs_col][ref_job_idx])
+            for k, v in res.items():
+                if k not in self.data:
+                    self.data[k] = [None] * len(self.data[jobs_col])
+                self.data[k][idx_i] = v
+
+    @requires_optional_package("pigeon")
+    def notebook_annotate(
+        self,
+        job_plotter: Optional[Callable[[SingleJob, plt.Axes], plt.Axes]] = None,
+        ref_idx: Optional[int] = None,
+        options: Optional[Union[List[str], Tuple[float, float]]] = None,
+        shuffle: bool = False,
+        include_skip: bool = True,
+    ):
+        """Wrap around pigeon
+
+        Parameters
+        ----------
+        options: list(any) or tuple(start, end, [step]) or None
+                if list: list of labels for binary classification task (Dropdown or Buttons)
+                if tuple: range for regression task (IntSlider or FloatSlider)
+                if None: arbitrary text input (TextArea)
+        shuffle: bool, shuffle the examples before annotating
+        include_skip: bool, include option to skip example while annotating
+        job_plotter: func, function for plotting the job
+        :param ref_idx: index for plotting two examples and this one is the ref, defaults to None
+        :type ref_idx: Optional[int], optional
         """
         Remove field(s) from the analysis which evaluate the same for all values. This removes column(s) from the analysis data,
         where all rows have the same value.
