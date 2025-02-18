@@ -1,5 +1,7 @@
 import os
+from datetime import datetime, timedelta
 from os.path import join as opj
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Set, Tuple, Union
 
 import numpy as np
@@ -3420,6 +3422,174 @@ class AMSJob(SingleJob):
         if name is None:
             return
         atom.properties.region.add(name)
+
+    class AMSJobErrorChecker:
+
+        @staticmethod
+        def find_log_file(job: "AMSJob"):
+            """get the ams.log path or if not exists returns None"""
+            if job.path is None:
+                return None
+            log_path = Path(job.path) / "ams.log"
+            if not log_path.exists():
+                return None
+            return log_path
+
+        @staticmethod
+        def find_out_file(job: SingleJob):
+            if job.path is None:
+                return None
+            out_path = Path(job.path) / f"{job.name}.out"
+            if not out_path.exists():
+                return None
+            return out_path
+
+        @staticmethod
+        def stop_calculation(job: "AMSJob", file_name="interactive.in", reason="Stop") -> Any:
+            if job.path is None:
+                return None
+            with open(Path(job.path) / file_name, "w") as f:
+                f.write(reason)
+
+        @staticmethod
+        def stop_has_occurred(job: "AMSJob", value="calculation interrupted by user.") -> bool:
+            out_path = AMSJobErrorChecker.find_out_file(job)
+            if out_path is None:
+                return None
+            with open(out_path, "r") as f:
+                file = f.read()
+            return value in file
+
+        @staticmethod
+        def status_rkf(job: "AMSJob"):
+            if "ams" not in job.results.rkfs:
+                if job.path is None:
+                    return None
+                if (Path(job.path) / f"{job.name}.in").exists():
+                    return "Not Started"
+                return None
+            return job.results.rkfs["ams"].read(section="General", variable="termination status")
+
+        @staticmethod
+        def status_log(job: "AMSJob"):
+            logfile_path = AMSJobErrorChecker.find_log_file(job)
+            if logfile_path is None:
+                return "not run"
+            with open(logfile_path) as f:
+                lines = f.readlines()
+            if "NORMAL TERMINATION" in lines[-1]:
+                return "normal"
+            for line in lines[::-1]:
+                if "*** MDStep" in line:
+                    return int(line.split("*** ")[-1].replace(" ***\n", ""))
+            return "Not known"
+
+        @staticmethod
+        def status_log_md_step(job: "AMSJob"):
+            logfile_path = AMSJobErrorChecker.find_log_file(job)
+            if logfile_path is None:
+                return None
+            with open(logfile_path) as f:
+                lines = f.readlines()
+            for line in lines[::-1]:
+                if "*** MDStep" in line:
+                    return int(line.split("*** ")[-1].replace(" ***\n", "").replace("MDStep", ""))
+            return None
+
+        @staticmethod
+        def time_duration_log(job: "AMSJob"):
+            log_file = AMSJobErrorChecker.find_log_file(job)
+            if log_file is None:
+                return None
+
+            def timestamp_log(part: str):
+                part = part.split(">  ", 1)[0]
+                try:
+                    timestamp = datetime.strptime(part, "<%b%d-%Y> <%H:%M:%S")
+                    return timestamp
+                except ValueError:
+                    return None
+
+            with open(log_file) as f:
+                lines = f.readlines()
+                initial = timestamp_log(lines[0])
+                final = timestamp_log(lines[-1])
+                if initial is None or final is None:
+                    return None
+                duration_seconds = (final - initial).total_seconds()
+            return duration_seconds
+
+        @staticmethod
+        def time_expected_end_md(job: "AMSJob"):
+            def last_md_step_log(logfile_path: Path):
+                with open(logfile_path) as f:
+                    lines = f.readlines()
+                for line in lines[::-1]:
+                    if "*** MDStep" in line:
+                        return int(line.split("*** ")[-1].replace(" ***\n", "").replace("MDStep", ""))
+                return None
+
+            log_file = AMSJobErrorChecker.find_log_file(job)
+            if log_file is None:
+                return None
+            step_status = last_md_step_log(log_file)
+            if not isinstance(step_status, int):
+                return None
+            md_end = job.settings.get_nested("input.ams.MolecularDynamics.NSteps".split("."), None)
+            if md_end is None:
+                return md_end
+            md_end = int(md_end)
+            time_spent = AMSJobErrorChecker.time_duration_log(job)
+            if time_spent is None:
+                return None
+            time_left = time_spent / step_status * (md_end - step_status)
+            date_time = datetime.now() + timedelta(seconds=time_left)
+            return date_time
+
+        @staticmethod
+        def errors_out(job: "AMSJob") -> Any:
+            out_path = AMSJobErrorChecker.find_out_file(job)
+            if out_path is None:
+                return None
+            with open(out_path, "r") as file:
+                # [line.strip() for line in job.results.grep_file(f'{job.name}.out', 'ERROR: ')] -> TBN MUCH slower!
+                error_lines = [line.strip() for line in file if "ERROR" in line]
+                error_out = "\n".join(error_lines)
+                return error_out
+            return None
+
+        @staticmethod
+        def errors_log(job: "AMSJob") -> Any:
+            log_path = AMSJobErrorChecker.find_log_file(job)
+            if log_path is None:
+                return None
+            with open(log_path, "r") as file:
+                error_lines = ["ERROR" + line.split("ERROR", 1)[-1].strip() for line in file if "ERROR" in line]
+                error_log = "\n".join(error_lines)
+                return error_log
+            return None
+
+        @staticmethod
+        def warnings_out(job: "AMSJob") -> Any:
+            out_path = AMSJobErrorChecker.find_out_file(job)
+            if out_path is None:
+                return None
+            with open(out_path, "r") as file:
+                warning_lines = [line.strip() for line in file if "WARNING" in line]
+                warning_out = "\n".join(warning_lines)
+                return warning_out
+            return None
+
+        @staticmethod
+        def warnings_log(job: "AMSJob") -> Any:
+            log_path = AMSJobErrorChecker.find_log_file(job)
+            if log_path is None:
+                return None
+            with open(log_path, "r") as file:
+                warning_lines = ["WARNING" + line.split("WARNING", 1)[-1].strip() for line in file if "WARNING" in line]
+                warning_log = "\n".join(warning_lines)
+                return warning_log
+            return None
 
 
 def extract_engine_settings(settings: Settings) -> Settings:
