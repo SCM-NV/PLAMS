@@ -94,6 +94,8 @@ class JobManager:
         self.input = opj(self._workdir, "input")
         self._create_workdir = not (use_existing_folder and os.path.exists(self._workdir))
         self._job_logger = job_logger
+        if use_existing_folder and load_all:
+            self.load_all(self.workdir, register=True, default_job_loader=default_job_loader)
 
     @property
     def workdir(self) -> str:
@@ -124,9 +126,6 @@ class JobManager:
                 include_time=True,
             )
         return self._job_logger
-
-        if use_existing_folder and load_all:
-            self.load_all(self.workdir, register=True, default_job_loader=default_job_loader)
 
     def load_all(self, path, register=False, default_job_loader: Optional[Callable[[str], "Job"]] = None):
         """Load all jobs from *path*.
