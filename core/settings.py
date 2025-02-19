@@ -1,10 +1,25 @@
 import contextlib
 import json
+import numbers
 import textwrap
 import threading
-import numbers
-from typing import TYPE_CHECKING, TypeVar, Union, Tuple, Type, Hashable, Any, Optional, Dict, Generator
 from collections.abc import Iterable as ColIterable
+from functools import wraps
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    Generator,
+    Hashable,
+    List,
+    Optional,
+    Sequence,
+    Set,
+    Tuple,
+    Type,
+    TypeVar,
+    Union,
+)
 
 __all__ = [
     "Settings",
