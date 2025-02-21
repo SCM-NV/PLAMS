@@ -1,13 +1,22 @@
 import copy
+import datetime
 import os
 import stat
 import threading
-import datetime
 import time
-from os.path import join as opj
-from typing import TYPE_CHECKING, Dict, Generator, Iterable, List, Optional, Union, Tuple
-from abc import ABC, abstractmethod
 import traceback
+from abc import ABC, abstractmethod
+from os.path import join as opj
+from typing import (
+    TYPE_CHECKING,
+    Dict,
+    Generator,
+    Iterable,
+    List,
+    Optional,
+    Tuple,
+    Union,
+)
 
 from scm.plams.core.enums import JobStatus, JobStatusType
 from scm.plams.core.errors import FileError, JobError, PlamsError, ResultsError

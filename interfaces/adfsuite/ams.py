@@ -2980,7 +2980,7 @@ class AMSJob(SingleJob):
         if isinstance(self.settings, Settings):
             s = Settings()
             ret = self.settings.copy()
-            ret.pop_nested("input.ams")
+            ret.pop_nested(tuple("input.ams".split(".")))
             s.input = ret.get("input")
             return s
         return Settings()
@@ -3453,7 +3453,7 @@ class AMSJob(SingleJob):
 
         @staticmethod
         def stop_has_occurred(job: "AMSJob", value="calculation interrupted by user.") -> bool:
-            out_path = AMSJobErrorChecker.find_out_file(job)
+            out_path = AMSJob.AMSJobErrorChecker.find_out_file(job)
             if out_path is None:
                 return None
             with open(out_path, "r") as f:
@@ -3472,7 +3472,7 @@ class AMSJob(SingleJob):
 
         @staticmethod
         def status_log(job: "AMSJob"):
-            logfile_path = AMSJobErrorChecker.find_log_file(job)
+            logfile_path = AMSJob.AMSJobErrorChecker.find_log_file(job)
             if logfile_path is None:
                 return "not run"
             with open(logfile_path) as f:
@@ -3486,7 +3486,7 @@ class AMSJob(SingleJob):
 
         @staticmethod
         def status_log_md_step(job: "AMSJob"):
-            logfile_path = AMSJobErrorChecker.find_log_file(job)
+            logfile_path = AMSJob.AMSJobErrorChecker.find_log_file(job)
             if logfile_path is None:
                 return None
             with open(logfile_path) as f:
@@ -3498,7 +3498,7 @@ class AMSJob(SingleJob):
 
         @staticmethod
         def time_duration_log(job: "AMSJob"):
-            log_file = AMSJobErrorChecker.find_log_file(job)
+            log_file = AMSJob.AMSJobErrorChecker.find_log_file(job)
             if log_file is None:
                 return None
 
@@ -3529,17 +3529,17 @@ class AMSJob(SingleJob):
                         return int(line.split("*** ")[-1].replace(" ***\n", "").replace("MDStep", ""))
                 return None
 
-            log_file = AMSJobErrorChecker.find_log_file(job)
+            log_file = AMSJob.AMSJobErrorChecker.find_log_file(job)
             if log_file is None:
                 return None
             step_status = last_md_step_log(log_file)
             if not isinstance(step_status, int):
                 return None
-            md_end = job.settings.get_nested("input.ams.MolecularDynamics.NSteps".split("."), None)
+            md_end = job.settings.get_nested(tuple("input.ams.MolecularDynamics.NSteps".split(".")), default=None)
             if md_end is None:
                 return md_end
             md_end = int(md_end)
-            time_spent = AMSJobErrorChecker.time_duration_log(job)
+            time_spent = AMSJob.AMSJobErrorChecker.time_duration_log(job)
             if time_spent is None:
                 return None
             time_left = time_spent / step_status * (md_end - step_status)
@@ -3548,7 +3548,7 @@ class AMSJob(SingleJob):
 
         @staticmethod
         def errors_out(job: "AMSJob") -> Any:
-            out_path = AMSJobErrorChecker.find_out_file(job)
+            out_path = AMSJob.AMSJobErrorChecker.find_out_file(job)
             if out_path is None:
                 return None
             with open(out_path, "r") as file:
@@ -3560,7 +3560,7 @@ class AMSJob(SingleJob):
 
         @staticmethod
         def errors_log(job: "AMSJob") -> Any:
-            log_path = AMSJobErrorChecker.find_log_file(job)
+            log_path = AMSJob.AMSJobErrorChecker.find_log_file(job)
             if log_path is None:
                 return None
             with open(log_path, "r") as file:
@@ -3571,7 +3571,7 @@ class AMSJob(SingleJob):
 
         @staticmethod
         def warnings_out(job: "AMSJob") -> Any:
-            out_path = AMSJobErrorChecker.find_out_file(job)
+            out_path = AMSJob.AMSJobErrorChecker.find_out_file(job)
             if out_path is None:
                 return None
             with open(out_path, "r") as file:
@@ -3582,7 +3582,7 @@ class AMSJob(SingleJob):
 
         @staticmethod
         def warnings_log(job: "AMSJob") -> Any:
-            log_path = AMSJobErrorChecker.find_log_file(job)
+            log_path = AMSJob.AMSJobErrorChecker.find_log_file(job)
             if log_path is None:
                 return None
             with open(log_path, "r") as file:
@@ -3668,12 +3668,12 @@ def parse_one_engine(engine_i: Settings):
     engine_in += "\nEndEngine"
     ams = AMSJob.from_input(engine_in)
     s_engine = ams.settings
-    s_engine.pop_nested("input.ams".split("."))
+    s_engine.pop_nested(tuple("input.ams".split(".")))
     return s_engine
 
 
 def engine_settings_from_hybrid_committee(hybrid_settings: Settings) -> List[Settings]:
-    engines_list = hybrid_settings.get_nested("input.Hybrid.Engine".split("."), None)
+    engines_list = hybrid_settings.get_nested(tuple("input.Hybrid.Engine".split(".")), default=None)
     if engines_list is None:
         raise ValueError(f"not found input.Hybrid.Engine in {hybrid_settings}")
     s_coll = []
