@@ -127,7 +127,14 @@ class JobManager:
             )
         return self._job_logger
 
-    def load_all(self, path, register=False, default_job_loader: Optional[Callable[[str], "Job"]] = None):
+    def load_all(
+        self,
+        path,
+        register=False,
+        default_job_loader: Optional[Callable[[str], "Job"]] = None,
+        max_depth=-1,
+        _current_depth=0,
+    ):
         """Load all jobs from *path*.
 
         This function works as multiple executions of |load_job|. It searches for ``.dill`` files inside the directory given by *path*, yet not directly in it, but one level deeper. In other words, all files matching ``path/*/*.dill`` are used. That way a path to the main working folder of a previously run script can be used to import all the jobs run by that script.
@@ -139,6 +146,11 @@ class JobManager:
         Jobs are loaded using default job manager stored in ``config.default_jobmanager``. If you wish to use a different one you can pass it as *jobmanager* argument of this function.
 
         Returned value is a dictionary containing all loaded jobs as values and absolute paths to ``.dill`` files as keys.
+
+        Giulio Added:
+        max_depth controls the maximin recursion level to search for nested jobmanager if we want to load all the jobs in a folder
+        register allows you to register the jobs such that you can continue in the same folder, but you should use make_names_counts_consistent_with_folder as well to be extra safe
+        default_job_loader loads jobs that are failed, it is good to keep also theses in mind to know the current status of the folder we are running
         """
         loaded_jobs = {}
         for foldername in filter(lambda x: isdir(opj(path, x)), os.listdir(path)):
@@ -153,10 +165,16 @@ class JobManager:
                 job = self.load_job(opj(path, foldername), default_job_loader=default_job_loader, register=register)
                 if job is not None:
                     loaded_jobs[os.path.abspath(opj(path, foldername))] = job
-            if job is None:
-                loaded_jobs.update(
-                    self.load_all(path=opj(path, foldername), register=register, default_job_loader=default_job_loader)
-                )
+            if job is None:  # try to load another jobmanager for nested jobmanager
+                if max_depth == -1 or max_depth > _current_depth:
+                    loaded_jobs.update(
+                        self.load_all(
+                            path=opj(path, foldername),
+                            register=register,
+                            default_job_loader=default_job_loader,
+                            _current_depth=_current_depth + 1,
+                        )
+                    )
         if register:
             # self._register_jobs_in_hashes()
             self.jobs = list(self.jobs_hashed)
@@ -270,6 +288,31 @@ class JobManager:
         # update the names and jobs accordingly with the jobs saved in self.jobs_hashed
         self.names = self.names_count.copy()
         self.jobs = list(self.jobs_hashed)
+
+    def make_names_counts_consistent_with_folder(self):
+        """This function make names count equal to the max"""
+        from pathlib import Path
+
+        def get_max_id(all_names: List[Path]):
+            max_val = 0
+            for n in all_names:
+                last_number = str(n.name).split(".")[-1]
+                try:
+                    max_val = max(max_val, int(last_number))
+                except:
+                    continue
+            return max_val
+
+        names = {}
+        for name, val in self.names.items():
+            all_names = list(Path(self.workdir).glob(f"{name}*"))
+            max_id_found = get_max_id(all_names)
+            # n_found = len(all_names)
+            if max_id_found != val:
+                if max_id_found != 0:
+                    # print(name, n_found, val, max_id_found)
+                    names[name] = max_id_found
+        self.names = names
 
     def remove_job(self, job):
         """Remove *job* from the job manager. Forget its hash."""

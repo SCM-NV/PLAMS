@@ -817,11 +817,18 @@ class JobAnalysis:
         :param predicate: filter function which takes a dictionary of field keys and their values and evaluates to ``True``/``False``
         :return: updated instance of |JobAnalysis|
         """
+        to_remove_path = False
+        if "Path" not in self.field_keys:
+            self.add_standard_field("Path")
+            to_remove_path = True
         analysis = self.get_analysis()
-        for i, j in enumerate(self.jobs):
+        for i, j in enumerate(analysis["Path"]):
             data = {k: v[i] for k, v in analysis.items()}
             if not predicate(data):
-                self.remove_job(j)
+                if j in self.jobs:
+                    self.remove_job(j)
+        if to_remove_path:
+            self.remove_field("Path")
         return self
 
     def sort_jobs(
@@ -1404,7 +1411,7 @@ class JobAnalysis:
 
     def add_settings_field(
         self,
-        key_tuple: Tuple[Hashable, ...],
+        key_tuple: Sequence[Hashable],
         display_name: Optional[str] = None,
         fmt: Optional[str] = None,
         expansion_depth: int = 0,
