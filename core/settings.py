@@ -678,21 +678,6 @@ class Settings(dict):
                     blocks_path = blocks_path.union({key})
         return blocks_path
 
-    def compare(self, other: "Settings") -> Tuple[List[Tuple[Hashable]], Dict[Tuple[Hashable], Any]]:
-        """compare this settings to the other settings. It is an asymmetric function.
-
-        :param other: settings object to compare with
-        :type other: Settings
-        :return: missing paths and different values with the values of the current settings
-        :rtype: Tuple[List[Tuple[Hashable]], Dict[Tuple[Hashable]], Any]
-        """
-        assert isinstance(other, Settings)
-        reference = self.flatten().as_dict()
-        cs = other.flatten().as_dict()
-        missing_paths = [k for k in cs.keys() if reference.get(k, "__MissingBlock__") == "__MissingBlock__"]
-        value_different = {k: reference[k] for k, v in cs.items() if k not in missing_paths and reference[k] != v}
-        return missing_paths, value_different
-
     def convert_free_block(
         self, key_tuple: Sequence[Hashable], simple_nesting=True, inplace=False
     ) -> Optional["Settings"]:
