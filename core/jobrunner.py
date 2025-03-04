@@ -104,6 +104,14 @@ class JobRunner(metaclass=_MetaRunner):
         self.maxthreads = maxthreads
 
     @property
+    def settings(self):
+        s = Settings()
+        s.parallel = self.parallel
+        s.maxjobs = self.maxjobs
+        s.maxthreads = self.maxthreads
+        return s
+
+    @property
     def parallel(self) -> bool:
         """
         Whether jobs can be run simultaneously or not. Defaults to ``False``.
