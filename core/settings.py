@@ -1349,3 +1349,24 @@ class ConfigSettings(Settings):
     @default_jobmanager.setter
     def default_jobmanager(self, value: "JobManager") -> None:
         self["default_jobmanager"] = value
+
+class SettingsValidation(Warning):
+    pass
+
+
+def validate_settings(s: Settings, s_default: Settings):
+    comparison = s.compare(s_default)
+    # {"added": added, "removed": removed, "modified": modified}
+    added_s = comparison["added"]
+    for k in added_s:
+        if any(["kwargs" in x for x in k]):
+            continue
+        raise ValueError(f"I found this settings {k} added, a default setting looks like: \n{s_default}")
+
+    modified_s = comparison["modified"]
+    for k, tuple_vals in modified_s.items():
+        if type(tuple_vals[0]) != type(tuple_vals[1]):
+            warnings.warn(
+                f"In this path: {k} I found different types: {tuple_vals[0]}, BUT default is {tuple_vals[1]}",
+                SettingsValidation,
+            )
