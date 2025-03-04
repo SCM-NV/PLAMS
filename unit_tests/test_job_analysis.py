@@ -826,6 +826,54 @@ class TestJobAnalysis:
 | dummyjob.008 | True | True  | None     | C6H14   | CCCCCC | 0.07 | Dummy  |"""
         )
 
+        ja = (
+            JobAnalysis(jobs=dummy_single_jobs)
+            .add_standard_field("Formula")
+            .add_standard_field("Smiles")
+            .add_field("Wait", lambda j: j.wait)
+            .add_field("Output", lambda j: j.results.read_file("$JN.out")[:5])
+            .add_field("Atoms", lambda j: [at.symbol for at in j.molecule], expansion_depth=1)
+            .remove_field("Path")
+            .filter_jobs(lambda d: d["Formula"] is not None and "O" not in d["Smiles"])
+            .collapse_field("Atoms")
+        )
+
+        assert (
+            ja.to_table()
+            == """\
+| Name         | OK   | Check | ErrorMsg | Formula | Smiles | Wait | Output | Atoms                                                                                                |
+|--------------|------|-------|----------|---------|--------|------|--------|------------------------------------------------------------------------------------------------------|
+| dummyjob     | True | True  | None     | C2H6    | CC     | 0.0  | Dummy  | ['C', 'C', 'H', 'H', 'H', 'H', 'H', 'H']                                                             |
+| dummyjob.002 | True | True  | None     | CH4     | C      | 0.01 | Dummy  | ['C', 'H', 'H', 'H', 'H']                                                                            |
+| dummyjob.005 | True | True  | None     | C3H8    | CCC    | 0.04 | Dummy  | ['C', 'C', 'C', 'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H']                                              |
+| dummyjob.006 | True | True  | None     | C4H10   | CCCC   | 0.05 | Dummy  | ['C', 'C', 'C', 'C', 'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H']                               |
+| dummyjob.008 | True | True  | None     | C6H14   | CCCCCC | 0.07 | Dummy  | ['C', 'C', 'C', 'C', 'C', 'C', 'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H'] |"""
+        )
+
+        ja = (
+            JobAnalysis(jobs=dummy_single_jobs)
+            .add_standard_field("Formula")
+            .add_standard_field("Smiles")
+            .add_field("Wait", lambda j: j.wait)
+            .add_field("Output", lambda j: j.results.read_file("$JN.out")[:5])
+            .add_field("Atoms", lambda j: [at.symbol for at in j.molecule], expansion_depth=1)
+            .remove_field("Path")
+            .filter_jobs(lambda d: d["Formula"] is not None and d["Atoms"] != "O")
+            .collapse_field("Atoms")
+        )
+
+        assert (
+            ja.to_table()
+            == """\
+| Name         | OK   | Check | ErrorMsg | Formula | Smiles | Wait | Output | Atoms                                                                                                |
+|--------------|------|-------|----------|---------|--------|------|--------|------------------------------------------------------------------------------------------------------|
+| dummyjob     | True | True  | None     | C2H6    | CC     | 0.0  | Dummy  | ['C', 'C', 'H', 'H', 'H', 'H', 'H', 'H']                                                             |
+| dummyjob.002 | True | True  | None     | CH4     | C      | 0.01 | Dummy  | ['C', 'H', 'H', 'H', 'H']                                                                            |
+| dummyjob.005 | True | True  | None     | C3H8    | CCC    | 0.04 | Dummy  | ['C', 'C', 'C', 'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H']                                              |
+| dummyjob.006 | True | True  | None     | C4H10   | CCCC   | 0.05 | Dummy  | ['C', 'C', 'C', 'C', 'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H']                               |
+| dummyjob.008 | True | True  | None     | C6H14   | CCCCCC | 0.07 | Dummy  | ['C', 'C', 'C', 'C', 'C', 'C', 'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H'] |"""
+        )
+
     def test_reorder_fields(self, dummy_single_jobs):
         ja = (
             JobAnalysis(jobs=dummy_single_jobs)
@@ -898,6 +946,12 @@ class TestJobAnalysis:
             "Wait",
             "OK",
         ]
+
+    def test_contains_field(self, dummy_single_jobs):
+        ja = JobAnalysis(jobs=dummy_single_jobs)
+
+        assert "Path" in ja
+        assert "foo" not in ja
 
     def test_sort_jobs(self, dummy_single_jobs):
         ja = (
@@ -1022,6 +1076,61 @@ class TestJobAnalysis:
             ja["Foo"]
         with pytest.raises(KeyError):
             del ja["Bar"]
+
+        ja.filter_jobs(lambda data: data["Smiles"] in ("C", "CC", "CO")).add_field(
+            "Atoms", lambda j: [at.symbol for at in j.molecule]
+        )
+
+        assert ja["Smiles"] == ["CC", "C", "CO"]
+        assert ja["Atoms"] == [
+            ["C", "C", "H", "H", "H", "H", "H", "H"],
+            ["C", "H", "H", "H", "H"],
+            ["C", "O", "H", "H", "H", "H"],
+        ]
+
+        ja.expand_field("Atoms")
+        assert ja["Smiles"] == [
+            "CC",
+            "CC",
+            "CC",
+            "CC",
+            "CC",
+            "CC",
+            "CC",
+            "CC",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "CO",
+            "CO",
+            "CO",
+            "CO",
+            "CO",
+            "CO",
+        ]
+        assert ja["Atoms"] == [
+            "C",
+            "C",
+            "H",
+            "H",
+            "H",
+            "H",
+            "H",
+            "H",
+            "C",
+            "H",
+            "H",
+            "H",
+            "H",
+            "C",
+            "O",
+            "H",
+            "H",
+            "H",
+            "H",
+        ]
 
     def test_get_set_del_attributes(self, dummy_single_jobs):
         ja = JobAnalysis(jobs=dummy_single_jobs).add_standard_field("Formula").add_standard_field("Smiles")

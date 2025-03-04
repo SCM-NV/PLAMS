@@ -9,6 +9,7 @@ import pytest
 import time
 import random
 
+from scm.plams.core.functions import delete_job
 from scm.plams.core.errors import FileError, PlamsError
 from scm.plams.core.logging import get_logger, TextLogger, CSVLogger
 from scm.plams.core.formatters import JobCSVFormatter
@@ -640,6 +641,9 @@ class TestJobCSVFormatter:
             logger.log(job1, 3)
             logger.log(job2, 3)
 
+            delete_job(job1)
+            logger.log(job1, 3)
+
             dir = os.getcwd()
             path1 = os.path.join(dir, "plams_workdir", "test_job_csv_formatter")
             path2 = os.path.join(dir, "plams_workdir", "test_job_csv_formatter.002")
@@ -668,6 +672,10 @@ class TestJobCSVFormatter:
                 assert (
                     read_row()
                     == f"test_job_csv_formatter,test_job_csv_formatter.002,crashed,{path2},False,False,some error,<timestamp> created -> <timestamp> started -> <timestamp> registered -> <timestamp> running -> <timestamp> crashed,,"
+                )
+                assert (
+                    read_row()
+                    == f"test_job_csv_formatter,test_job_csv_formatter,deleted,{path1},,,,<timestamp> created -> <timestamp> started -> <timestamp> registered -> <timestamp> running -> <timestamp> finished -> <timestamp> successful -> <timestamp> deleted,,"
                 )
 
             logger.close()

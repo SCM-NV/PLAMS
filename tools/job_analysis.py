@@ -295,8 +295,18 @@ class JobAnalysis:
         :return: analysis data as a dictionary of field keys/lists of job values
         """
         analysis = {col_name: self._get_field_analysis(col_name) for col_name in self._fields}
+        analysis = self._expand_analysis(analysis)
 
-        # Handle field expansion, converting single job rows to multiple rows
+        return analysis
+
+    def _expand_analysis(self, analysis: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Expand analysis fields, converting individual job rows into multiple rows
+
+        :param analysis: analysis data as a dictionary of field keys/lists of job values
+        :return: analysis data as a dictionary of field keys/lists of (multiple) job values
+        """
+
         if analysis.keys() and self._jobs:
 
             def expand(data, expand_fields):
@@ -326,7 +336,9 @@ class JobAnalysis:
 
             # Recursively expand until complete
             depth = 1
-            while expand_fields := {k for k, f in self._fields.items() if f.expansion_depth >= depth}:
+            while expand_fields := {
+                k for k, f in self._fields.items() if k in analysis.keys() and f.expansion_depth >= depth
+            }:
                 analysis = expand(analysis, expand_fields)
                 depth += 1
 
@@ -334,7 +346,7 @@ class JobAnalysis:
 
     def _get_field_analysis(self, key) -> List:
         """
-        Gets analysis data for field with a given key. This gives a list of data for the given field, with a  value for each job.
+        Gets analysis data for field with a given key. This gives a list of data for the given field, with a value for each job.
 
         :param: key of the field
         :return: analysis data as list of job values
@@ -817,18 +829,25 @@ class JobAnalysis:
         :param predicate: filter function which takes a dictionary of field keys and their values and evaluates to ``True``/``False``
         :return: updated instance of |JobAnalysis|
         """
-        to_remove_path = False
-        if "Path" not in self.field_keys:
-            self.add_standard_field("Path")
-            to_remove_path = True
-        analysis = self.get_analysis()
-        for i, j in enumerate(analysis["Path"]):
-            data = {k: v[i] for k, v in analysis.items()}
-            if not predicate(data):
-                if j in self.jobs:
-                    self.remove_job(j)
-        if to_remove_path:
-            self.remove_field("Path")
+        # Need to make sure a path is associated with job row(s) as this is the job key
+        requires_path = "Path" not in self
+        try:
+            if requires_path:
+                self.add_standard_field("Path")
+
+            analysis = self.get_analysis()
+            jobs_to_remove = set()
+            for i, p in enumerate(analysis["Path"]):
+                data = {k: v[i] for k, v in analysis.items()}
+                if not predicate(data):
+                    jobs_to_remove.add(p)
+
+            for j in jobs_to_remove:
+                self.remove_job(j)
+        finally:
+            if requires_path:
+                self.remove_field("Path")
+
         return self
 
     def sort_jobs(
@@ -1609,7 +1628,14 @@ class JobAnalysis:
         :param key: unique identifier for the field
         :return: list of values for each job
         """
-        return self._get_field_analysis(key)
+        # Get single analysis field unless fields are expanded, then the whole analysis must be calculated
+        if any([f.expansion_depth > 0 for f in self._fields.values()]):
+            if key not in self._fields:
+                raise KeyError(f"Field with key '{key}' is not part of the analysis.")
+
+            return self.get_analysis()[key]
+        else:
+            return self._get_field_analysis(key)
 
     def __setitem__(self, key: str, value: Callable[[Job], Any]) -> None:
         """
@@ -1715,6 +1741,21 @@ class JobAnalysis:
                 raise AttributeError(
                     f"'{self.__class__.__name__}' object has no attribute or analysis field with key '{key}'"
                 )
+
+    def __contains__(self, key) -> bool:
+        """
+        Check whether a field is part of the analysis
+
+        .. code:: python
+
+            >>> "Name" in ja
+
+            True
+
+        :param key: unique identifier for the field
+        :return: boolean flag for presence of field in the analysis
+        """
+        return key in self.field_keys
 
     def __dir__(self):
         """

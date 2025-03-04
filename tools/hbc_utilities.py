@@ -37,7 +37,7 @@ def view_HBC(rkf_path: str, xyz_file: Optional[str] = None):
 
         atom_id = 0
         for s, (x, y, z) in zip(atom_symbols, atom_coords):
-            XYZ += f"{s} {x} {y} {z}\n"
+            XYZ += f"{s} {x:.8f} {y:.8f} {z:.8f}\n"
             atom_id += 1
 
         if n_HBC != 0:
@@ -46,7 +46,7 @@ def view_HBC(rkf_path: str, xyz_file: Optional[str] = None):
             coords = np.transpose(coords)
 
             for x, y, z in coords:
-                XYZ += f"Xx {x} {y} {z}\n"
+                XYZ += f"Xx {x:.8f} {y:.8f} {z:.8f}\n"
                 atom_id += 1
 
     with open(xyz_filename, "w") as file:

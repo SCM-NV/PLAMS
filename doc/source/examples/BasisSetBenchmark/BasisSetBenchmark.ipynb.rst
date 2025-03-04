@@ -16,7 +16,7 @@ Initial Imports
 
 ::
 
-   PLAMS working folder: /path/plams/examples/BasisSetBenchmark/plams_workdir.003
+   PLAMS working folder: /path/plams/examples/BasisSetBenchmark/plams_workdir
 
 Set Up Job Runner
 ~~~~~~~~~~~~~~~~~
@@ -133,16 +133,16 @@ Run Calculations
 
 ::
 
-   [11.02|17:38:25] JOB Methane_QZ4P STARTED
-   [11.02|17:38:25] JOB Ethane_QZ4P STARTED
-   [11.02|17:38:25] JOB Ethylene_QZ4P STARTED
-   [11.02|17:38:25] JOB Methane_QZ4P RUNNING
-   [11.02|17:38:25] JOB Ethane_QZ4P RUNNING
-   [11.02|17:38:25] JOB Acetylene_QZ4P STARTED
-   [11.02|17:38:25] JOB Ethylene_QZ4P RUNNING
-   [11.02|17:38:25] JOB Methane_TZ2P STARTED
-   [11.02|17:38:25] JOB Acetylene_QZ4P RUNNING
-   [11.02|17:38:25] JOB Ethane_TZ2P STARTED
+   [25.02|15:23:48] JOB Methane_QZ4P STARTED
+   [25.02|15:23:48] JOB Ethane_QZ4P STARTED
+   [25.02|15:23:48] JOB Ethylene_QZ4P STARTED
+   [25.02|15:23:48] JOB Acetylene_QZ4P STARTED
+   [25.02|15:23:48] JOB Methane_TZ2P STARTED
+   [25.02|15:23:48] JOB Ethane_TZ2P STARTED
+   [25.02|15:23:48] JOB Ethylene_TZ2P STARTED
+   [25.02|15:23:48] JOB Acetylene_TZ2P STARTED
+   [25.02|15:23:48] JOB Methane_TZP STARTED
+   [25.02|15:23:48] JOB Ethane_TZP STARTED
    ... (PLAMS log lines truncated) ...
 
 Results
@@ -157,8 +157,7 @@ Extract the energy from each calculation. Calculate the average absolute error i
        from scm.plams import JobAnalysis
 
        ja = (
-           JobAnalysis(jobs=jobs, standard_fields=None)
-           .add_standard_fields(["Formula", "Smiles"])
+           JobAnalysis(jobs=jobs, standard_fields=["Formula", "Smiles"])
            .add_settings_field(("Input", "ADF", "Basis", "Type"), display_name="Basis")
            .add_field("NAtoms", lambda j: len(j.molecule))
            .add_field(
@@ -199,21 +198,21 @@ Extract the energy from each calculation. Calculate the average absolute error i
 
 ::
 
-   [11.02|17:38:26] Waiting for job Methane_QZ4P to finish
-   [11.02|17:38:26] JOB Ethylene_SZ RUNNING
-   [11.02|17:38:26] JOB Acetylene_DZ RUNNING
-   [11.02|17:38:26] JOB Acetylene_SZ RUNNING
-   [11.02|17:38:26] JOB Ethane_SZ RUNNING
-   [11.02|17:38:26] JOB Methane_SZ RUNNING
-   [11.02|17:38:30] JOB Methane_TZ2P FINISHED
-   [11.02|17:38:30] JOB Methane_TZ2P SUCCESSFUL
-   [11.02|17:38:30] JOB Methane_TZP FINISHED
-   [11.02|17:38:30] JOB Methane_TZP SUCCESSFUL
-   [11.02|17:38:30] JOB Methane_QZ4P FINISHED
+   [25.02|15:23:48] Waiting for job Methane_QZ4P to finish
+   [25.02|15:23:48] JOB Ethylene_TZ2P RUNNING
+   [25.02|15:23:48] JOB Acetylene_TZ2P RUNNING
+   [25.02|15:23:48] JOB Ethane_TZ2P RUNNING
+   [25.02|15:23:48] JOB Acetylene_TZP RUNNING
+   [25.02|15:23:48] JOB Acetylene_DZ RUNNING
+   [25.02|15:23:48] JOB Ethane_DZP RUNNING
+   [25.02|15:23:48] JOB Ethylene_DZP RUNNING
+   [25.02|15:23:48] JOB Methane_DZP RUNNING
+   [25.02|15:23:48] JOB Methane_SZ RUNNING
+   [25.02|15:23:48] JOB Ethane_TZP RUNNING
    ... (PLAMS log lines truncated) ...
-   [11.02|17:38:30] Waiting for job Ethane_QZ4P to finish
-   [11.02|17:38:34] Waiting for job Ethane_DZP to finish
-   [11.02|17:38:34] Waiting for job Methane_DZ to finish
+   [25.02|15:23:50] Waiting for job Ethane_QZ4P to finish
+   [25.02|15:23:52] Waiting for job Methane_TZP to finish
+   [25.02|15:23:54] Waiting for job Ethane_DZP to finish
 
 ======= ====== ===== ====== ================= ========================
 Formula Smiles Basis NAtoms Energy [kcal/mol] Average Error [kcal/mol]

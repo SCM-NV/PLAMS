@@ -37,7 +37,7 @@ class JobCSVFormatter(CSVFormatter):
         if job.status not in [JobStatus.CREATED, JobStatus.STARTED]:
             message.update({"job_path": job.path})
 
-            if job.status not in [JobStatus.REGISTERED, JobStatus.RUNNING]:
+            if job.status not in [JobStatus.REGISTERED, JobStatus.RUNNING, JobStatus.DELETED]:
                 message.update({"job_ok": job.ok()})
                 message.update({"job_check": job.check()})
                 message.update({"job_get_errormsg": job.get_errormsg()})

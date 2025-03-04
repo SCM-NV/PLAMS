@@ -594,7 +594,7 @@ class AMSResults(Results):
         self, bands=None, unit: str = "hartree", only_high_symmetry_points: bool = False
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, List[str], float]:
         """
-        Extracts the electronic band structure from DFTB or BAND calculations. The returned data can be plotted with ``plot_band_structure``.
+        Extracts the electronic band structure from DFTB, BAND or QuantumEspresso calculations. The returned data can be plotted with ``plot_band_structure``.
 
         Note: for unrestricted calculations bands 0, 2, 4, ... are spin-up and bands 1, 3, 5, ... are spin-down.
 
@@ -688,6 +688,80 @@ class AMSResults(Results):
         fermi_energy = Units.convert(fermi_energy, "hartree", unit)
 
         return x, complete_spinup_data, complete_spindown_data, labels, fermi_energy  # type: ignore
+
+    def get_phonons_band_structure(
+        self, bands=None, unit: str = "hartree", only_high_symmetry_points: bool = False
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, List[str], float]:
+        """
+        Extracts the electronic band structure from DFTB, BAND or QuantumEspresso calculations. The returned data can be plotted with ``plot_phonons_band_structure``.
+
+        Returns: ``x``, ``y``, ``labels``
+
+        ``x``: 1D array of float
+
+        ``y``: 2D array of shape (len(x), len(bands)). Every column is a separate band. In units of ``unit``
+
+        ``labels``: 1D list of str of length len(x). If a point is not a high-symmetry point then the label is an empty string.
+
+        Arguments below.
+
+        bands: list of int or None
+            If None, all bands are returned. Note: the band indices start with 0.
+
+        unit: str
+            Unit of the returned band energies
+
+        only_high_symmetry_points: bool
+            Return only the first point of each edge.
+
+        """
+
+        read_labels = True
+
+        nBands = self.readrkf("phonon_curves", "nBands", file="engine")
+        nEdges = self.readrkf("phonon_curves", "nEdges", file="engine")
+
+        if bands is None:
+            bands = np.arange(nBands)
+
+        x = []
+        y = []
+        labels = []
+
+        prevmaxx = 0
+        for i in range(nEdges):
+            my_x = self.readrkf("phonon_curves", f"Edge_{i+1}_xFor1DPlotting", file="engine")
+            my_x = np.array(my_x) + prevmaxx
+            prevmaxx = np.max(my_x)
+
+            if read_labels:
+                my_labels = self.readrkf("phonon_curves", f"Edge_{i+1}_labels", file="engine").split()
+                if len(my_labels) == 2:
+                    if only_high_symmetry_points:
+                        labels += [my_labels[0]]  # only the first point of the curve
+                    else:
+                        labels += [my_labels[0]] + [""] * (len(my_x) - 2) + [my_labels[1]]
+
+            if only_high_symmetry_points:
+                x.append(my_x[0:1])
+            else:
+                x.append(my_x)
+
+            A = self.readrkf("phonon_curves", f"Edge_{i+1}_bands", file="engine")
+            A = np.array(A).reshape(-1, nBands)
+            spinup_data = A[:, bands]
+
+            if only_high_symmetry_points:
+                spinup_data = np.reshape(spinup_data[0, :], (-1, len(bands)))
+
+            y.append(spinup_data)
+
+        y = np.concatenate(y)
+        y = Units.convert(y, "hartree", unit)
+
+        x = np.concatenate(x).ravel()
+
+        return x, y, labels  # type: ignore
 
     def get_engine_results(self, engine: Optional[str] = None) -> Dict:
         """Return a dictionary with contents of ``AMSResults`` section from an engine results ``.rkf`` file.
@@ -997,7 +1071,18 @@ class AMSResults(Results):
             -1,
         )
 
-    def get_ir_spectrum(
+    def get_raman_intensities(self, engine: Optional[str] = None) -> np.ndarray:
+        """Return the Raman intensities in Angstrom^4/amu unit.
+
+        The *engine* argument should be the identifier of the file you wish to read. To access a file called ``something.rkf`` you need to call this function with ``engine='something'``. The *engine* argument can be omitted if there's only one engine results file in the job folder.
+        """
+        return np.asarray(
+            self._process_engine_results(lambda x: x.read("Vibrations", "RamanIntens[A^4/amu]"), engine)
+        ).reshape(
+            -1,
+        )
+
+    def _get_ir_raman_spectrum(
         self,
         engine: Optional[str] = None,
         broadening_type: Literal[
@@ -1009,7 +1094,7 @@ class AMSResults(Results):
         x_spacing=0.5,
         post_process: Optional[Literal["all_intensities_to_1", "max_to_1"]] = None,
     ) -> Tuple[np.ndarray, np.ndarray]:
-        """Return the IR spectrum. Units: frequencies are in cm-1, the intensities by the default are in km/mol units (kilometers/mol) but if post_process is all_intensities_to_1 the units are in modes counts otherwise if equal to max_to_1 are in arbitrary units.
+        """Return the IR/Raman spectrum. Units: frequencies are in cm-1, the intensities by the default are in km/mol units (kilometers/mol) for IR and Angstrom^4/amu for Raman but if post_process is all_intensities_to_1 the units are in modes counts otherwise if equal to max_to_1 are in arbitrary units.
 
         The *engine* argument should be the identifier of the file you wish to read. To access a file called ``something.rkf`` you need to call this function with ``engine='something'``. The *engine* argument can be omitted if there's only one engine results file in the job folder.
         """
@@ -1019,7 +1104,10 @@ class AMSResults(Results):
         if post_process == "all_intensities_to_1":
             intensities = frequencies * 0 + 1
         else:
-            intensities = self.get_ir_intensities(engine=engine)
+            if spectrum_type == "ir":
+                intensities = self.get_ir_intensities(engine=engine)
+            elif spectrum_type == "raman":
+                intensities = self.get_raman_intensities(engine=engine)
 
         x_data, y_data = broaden_results(
             centers=frequencies,
@@ -1034,6 +1122,60 @@ class AMSResults(Results):
             y_data /= np.max(y_data)
 
         return x_data, y_data
+
+    def get_ir_spectrum(
+        self,
+        engine: Optional[str] = None,
+        broadening_type: Literal["gaussian", "lorentzian"] = "gaussian",
+        broadening_width=40,
+        min_x=0,
+        max_x=4000,
+        x_spacing=0.5,
+        post_process: Optional[Literal["all_intensities_to_1", "max_to_1"]] = None,
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """Return the IR spectrum. Units: frequencies are in cm-1, the intensities by the default are in km/mol units (kilometers/mol) but if post_process is all_intensities_to_1 the units are in modes counts otherwise if equal to max_to_1 are in arbitrary units.
+
+        The *engine* argument should be the identifier of the file you wish to read. To access a file called ``something.rkf`` you need to call this function with ``engine='something'``. The *engine* argument can be omitted if there's only one engine results file in the job folder.
+        """
+        data = self._get_ir_raman_spectrum(
+            engine=engine,
+            spectrum_type="ir",
+            broadening_type=broadening_type,
+            broadening_width=broadening_width,
+            min_x=min_x,
+            max_x=max_x,
+            x_spacing=x_spacing,
+            post_process=post_process,
+        )
+
+        return data
+
+    def get_raman_spectrum(
+        self,
+        engine: Optional[str] = None,
+        broadening_type: Literal["gaussian", "lorentzian"] = "gaussian",
+        broadening_width=40,
+        min_x=0,
+        max_x=4000,
+        x_spacing=0.5,
+        post_process: Optional[Literal["all_intensities_to_1", "max_to_1"]] = None,
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """Return the Raman spectrum. Units: frequencies are in cm-1, the intensities by the default are in Angstrom^4/amu units but if post_process is all_intensities_to_1 the units are in modes counts otherwise if equal to max_to_1 are in arbitrary units.
+
+        The *engine* argument should be the identifier of the file you wish to read. To access a file called ``something.rkf`` you need to call this function with ``engine='something'``. The *engine* argument can be omitted if there's only one engine results file in the job folder.
+        """
+        data = self._get_ir_raman_spectrum(
+            engine=engine,
+            spectrum_type="raman",
+            broadening_type=broadening_type,
+            broadening_width=broadening_width,
+            min_x=min_x,
+            max_x=max_x,
+            x_spacing=x_spacing,
+            post_process=post_process,
+        )
+
+        return data
 
     def get_n_spin(self, engine: Optional[str] = None) -> int:
         """n_spin is 1 in case of spin-restricted or spin-orbit coupling calculations, and 2 in case of spin-unrestricted calculations

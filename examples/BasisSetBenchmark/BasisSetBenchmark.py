@@ -65,8 +65,7 @@ try:
     from scm.plams import JobAnalysis
 
     ja = (
-        JobAnalysis(jobs=jobs, standard_fields=None)
-        .add_standard_fields(["Formula", "Smiles"])
+        JobAnalysis(jobs=jobs, standard_fields=["Formula", "Smiles"])
         .add_settings_field(("Input", "ADF", "Basis", "Type"), display_name="Basis")
         .add_field("NAtoms", lambda j: len(j.molecule))
         .add_field(

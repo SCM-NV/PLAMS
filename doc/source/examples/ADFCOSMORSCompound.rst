@@ -3,7 +3,7 @@
 ADF: Task COSMO-RS Compound
 ===========================
 
-The ``ADFCOSMORSCompound`` class generates results identical to the "Task COSMO-RS Compound" in the AMS ADF graphical user interface.  This python interface allows users to easily generate the .coskf files for one or many structures.  A possible usage is given in :ref:`ams_crs_workflow`.
+The |ADFCOSMORSCompoundJob| class generates results identical to the "Task COSMO-RS Compound" in the AMS ADF graphical user interface.  This python interface allows users to easily generate the .coskf files for one or many structures.  A possible usage is given in :ref:`ams_crs_workflow`.
 
 Example: generating .coskf files for a set of compounds from xyz
 ------------------------------------------------------------------
@@ -28,7 +28,7 @@ The example will load all the molecules in the folder ``compounds_xyz`` and then
 Example: generating .coskf files for a set of compounds from smiles with parallel calculation
 ----------------------------------------------------------------------------------------------
 
-First, we'll import the necessary classes and enable the parallel calculation through ``JobRunner``. Here, we'll assign one core to each job, and we can have up to eight jobs running all at once.
+First, we'll import the necessary classes and enable the parallel calculation through |JobRunner|. Here, we'll assign one core to each job, and we can have up to eight jobs running all at once.
 
 .. code-block:: python
 
@@ -40,7 +40,7 @@ First, we'll import the necessary classes and enable the parallel calculation th
     config.job.runscript.nproc = 1                                        # Number of cores for each job
     config.log.stdout = 1                                                 # Suppress plams output
 
-Now, we will specify the smiles and name of a set of compounds and generate the initial geometry of each compound using ``from_smiles`` function. With the setting, ``nconfs=100`` and ``forcefield='uff'``, we will generate 100 conformers and find the one with the loweset energy using 'uff' forcefield. It's worth to notice that we can also generate a set of mutiple conformers through the `ADFCOSMORSConformers <./ADFCOSMORSConformers.html>`__ class.
+Now, we will specify the smiles and name of a set of compounds and generate the initial geometry of each compound using |from_smiles| function. With the setting, ``nconfs=100`` and ``forcefield='uff'``, we will generate 100 conformers and find the one with the loweset energy using 'uff' forcefield. It's worth to notice that we can also generate a set of mutiple conformers through the |ADFCOSMORSConfJob| class as illustrate in the next `example <./ADFCOSMORSConformers.html>`__.
 
 .. code-block:: python
 
@@ -50,7 +50,7 @@ Now, we will specify the smiles and name of a set of compounds and generate the 
     for name, smiles in zip(rd_names, rd_smiles):
         molecules[name] = from_smiles(smiles, nconfs=100, forcefield='uff')[0] #lowest energy one in 100 conformers
 
-Lastly, we give this information to the ``ADFCOSMORSCompound`` class, including the name of the coskf files as well as the directory in which we'll find them after the calculations complete.  Using the setting, ``preoptimization='GFN1-xTB'`` and ``singlepoint=False``, it will utilize the DFTB for a quick pre-optimization. Subsequently, it will execute a gas phase optimization using ADF, followed by the solvation calculation.
+Lastly, we give this information to the |ADFCOSMORSCompoundJob| class, including the name of the coskf files as well as the directory in which we'll find them after the calculations complete.  Using the setting, ``preoptimization='GFN1-xTB'`` and ``singlepoint=False``, it will utilize the DFTB for a quick pre-optimization. Subsequently, it will execute a gas phase optimization using ADF, followed by the solvation calculation.
 
 .. code-block:: python
 

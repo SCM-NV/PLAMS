@@ -19,6 +19,7 @@ from scm.plams.recipes.md.trajectoryanalysis import AMSMSDJob, AMSMSDResults
 from scm.plams.tools.plot import (
     get_correlation_xy,
     plot_band_structure,
+    plot_phonons_band_structure,
     plot_correlation,
     plot_grid_molecules,
     plot_molecule,
@@ -175,6 +176,43 @@ def test_plot_band_structure(run_calculations, rkf_tools_plot):
     ax.set_ylabel("$E - E_{VBM}$ (eV)")
     ax.set_xlabel("Path")
     ax.set_title("NiO with DFT+U")
+
+
+# ----------------------------------------------------------
+# Testing plot_phonons_band_structure
+# ----------------------------------------------------------
+@image_comparison(
+    baseline_images=["plot_phonons_band_structure"], remove_text=True, extensions=["png"], style="mpl20", tol=3
+)
+def test_plot_phonons_band_structure(run_calculations, rkf_tools_plot):
+    plt.close("all")
+
+    d = 0.44625000
+    mol = Molecule()
+    mol.add_atom(Atom(symbol="C", coords=(d, d, d)))
+    mol.add_atom(Atom(symbol="C", coords=(-d, -d, -d)))
+    mol.lattice = [[0.0, 4 * d, 4 * d], [4 * d, 0.0, 4 * d], [4 * d, 4 * d, 0.0]]
+
+    s = Settings()
+    s.input.ams.task = "SinglePoint"
+    s.input.ams.Properties.Phonons = "Yes"
+    s.input.ams.Phonons.Method = "Numerical"
+    s.input.ams.NumericalPhonons.SuperCell._1 = "2 0 0"
+    s.input.ams.NumericalPhonons.SuperCell._2 = "0 2 0"
+    s.input.ams.NumericalPhonons.SuperCell._3 = "0 0 2"
+    s.input.ams.NumericalPhonons.AutomaticBZPath = "Yes"
+    s.input.DFTB = Settings()
+
+    if run_calculations:
+        job = AMSJob(settings=s, molecule=mol, name="Diamond")
+        job.run()
+    else:
+        job = AMSJob.load_external(rkf_tools_plot / "Diamond")
+
+    ax = plot_phonons_band_structure(*job.results.get_phonons_band_structure(unit="cm^-1"))
+    ax.set_ylabel("$E$ (cm$^{-1}$)")
+    ax.set_xlabel("Path")
+    ax.set_title("Diamond Phonons with DFTB")
 
 
 # ----------------------------------------------------------

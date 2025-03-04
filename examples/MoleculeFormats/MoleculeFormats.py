@@ -140,6 +140,7 @@ plot_molecule(mol)
 from scm.plams import toASE
 from ase import Atoms
 from ase.visualize.plot import plot_atoms
+import matplotlib.pyplot as plt
 
 print(f"{type(mol)=}")
 print(f"{mol.get_formula()=}")
@@ -148,7 +149,8 @@ ase_atoms: Atoms = toASE(mol)
 print(f"{type(ase_atoms)=}")
 print(f"{ase_atoms.get_chemical_formula()=}")
 
-plot_atoms(ase_atoms, rotation="-85x,5y,0z")
+_, ax = plt.subplots(figsize=(2, 2))
+plot_atoms(ase_atoms, rotation="-85x,5y,0z", ax=ax)
 
 
 # #### Convert ASE Atoms to PLAMS Molecule
@@ -239,6 +241,9 @@ plot_molecule(mol)
 
 
 # ### pymatgen Structure and Molecule Python classes
+
+# Note that for this part of the example, the `pymatgen` package needs to be installed. This can be done via `amspackages`.
+
 
 # #### Convert PLAMS Molecule to pymatgen Structure (periodic)
 #

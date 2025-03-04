@@ -6,7 +6,7 @@
 Generating multiple conformers for use with COSMO-RS 
 ----------------------------------------------------
 
-The ``ADFCOSMORSConfJob`` is a customizable class that allows the user to design a conformer generation workflow for COSMO-RS.  The default instance of this class generates a set of conformers and then performs ADF and subsequent COSMO calculations (equivalent to the AMS Task:COSMO-RS Compound) to generate ``.coskf`` files for *all* unique conformers.  This class can be customized by adding both filters (to limit the number of conformers) and additional calculation steps (to improve the final geometry given to ADF and/or to increase the accuracy of energy calculations for filters). The generated ``.coskf`` can subsequently be utilized by the multi-species COSMO-RS, which accounts for compounds existing in multiple conformations. The application of multi-species COSMO-RS can be explored through  tutorials available in both the `GUI <../../Tutorials/COSMO-RS/COSMO-RS_multispecies.html#cosmo-rs-with-multi-species-components>`__ and `python scripting with pyCRS <../../COSMO-RS/Examples/conformer_CRSManager.html#adding-conformers-to-the-database>`__.
+The |ADFCOSMORSConfJob| is a customizable class that allows the user to design a conformer generation workflow for COSMO-RS.  The default instance of this class generates a set of conformers and then performs ADF and subsequent COSMO calculations (equivalent to the AMS Task:COSMO-RS Compound) to generate ``.coskf`` files for *all* unique conformers.  This class can be customized by adding both filters (to limit the number of conformers) and additional calculation steps (to improve the final geometry given to ADF and/or to increase the accuracy of energy calculations for filters). The generated ``.coskf`` can subsequently be utilized by the multi-species COSMO-RS, which accounts for compounds existing in multiple conformations. The application of multi-species COSMO-RS can be explored through  tutorials available in both the `GUI <../../Tutorials/COSMO-RS/COSMO-RS_multispecies.html#cosmo-rs-with-multi-species-components>`__ and `python scripting with pyCRS <../../COSMO-RS/Examples/conformer_CRSManager.html#adding-conformers-to-the-database>`__.
 
 
 Example usage
@@ -53,7 +53,7 @@ The final thing we need to specify are filters.  Let's make three filters, the f
     fil2 = ADFCOSMORSConfFilter(10,12) # applied to DFTB
     fil3 = ADFCOSMORSConfFilter(5,7)   # applied to ADF gas phase
 
-Finally, we give this information to the ``ADFCOSMORSConfJob`` class.  We also specify the name of the coskf files as well as the directory in which we'll find them after the calculations complete.
+Finally, we give this information to the |ADFCOSMORSConfJob| class.  We also specify the name of the coskf files as well as the directory in which we'll find them after the calculations complete.
 
 .. code-block:: python
 
@@ -100,14 +100,14 @@ Specifying Filters
 
 Filters are given as instances of the ``ADFCOSMORSConfFilter`` class.  This class takes two arguments concerning the number of conformers and maximum energy range.  These are documented in more detail below.  There are 3 places to specify filters:
 
-+ in the ``first_filter`` keyword in ``ADFCOSMORSConfJob``.  This filter will be applied to the initial set of sampled conformers.
-+ in the ``final_filter`` keyword in ``ADFCOSMORSConfJob``.  This filter will be applied to the results of the ADF gas phase calculation.
++ in the ``first_filter`` keyword in |ADFCOSMORSConfJob|.  This filter will be applied to the initial set of sampled conformers.
++ in the ``final_filter`` keyword in |ADFCOSMORSConfJob|.  This filter will be applied to the results of the ADF gas phase calculation.
 + in the ``additional`` keyword as the second element of a (|Settings|, ``ADFCOSMORSConfFilter`` ) tuple.  The filter will be applied on the results of the calculation done with the |Settings| from the *same* tuple.  To be perfectly clear, this means a (|Settings|, ``ADFCOSMORSConfFilter`` ) tuple adds a step to the workflow where a calculation is done with the |Settings| object and then those results are immediately filtered with the corresponding ``ADFCOSMORSConfFilter``.  A list of these tuples can be given to perform a series of calculations/filtering steps.
 
 Specifying Settings for additional jobs
 #######################################
 
-|Settings| objects provided to the ``additional`` keyword should be valid.  ``ADFCOSMORSConfJob`` will likely fail if there are errors in the |Settings| objects.  In the case of unexpected failures, take a look in the calculation subdirectories called ``additional_i`` where ``i`` is an index representing the index of the additional calculation.
+|Settings| objects provided to the ``additional`` keyword should be valid.  |ADFCOSMORSConfJob| will likely fail if there are errors in the |Settings| objects.  In the case of unexpected failures, take a look in the calculation subdirectories called ``additional_i`` where ``i`` is an index representing the index of the additional calculation.
 
 .. note::
     The tasks for **Settings objects should correspond to Tasks for AMSConformers**.  The most important two types are **Optimize** to perform a geometry optimization and **Score** to perform a single point calculation.  `The tasks section <../../AMS/Utilities/Conformers.html#tasks>`__ in the Conformers doc contains all additional information.
