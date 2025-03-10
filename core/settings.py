@@ -1350,11 +1350,14 @@ class ConfigSettings(Settings):
     def default_jobmanager(self, value: "JobManager") -> None:
         self["default_jobmanager"] = value
 
+
 class SettingsValidation(Warning):
     pass
 
 
 def validate_settings(s: Settings, s_default: Settings):
+    import warnings
+
     comparison = s.compare(s_default)
     # {"added": added, "removed": removed, "modified": modified}
     added_s = comparison["added"]

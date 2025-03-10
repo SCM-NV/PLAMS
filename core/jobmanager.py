@@ -294,7 +294,7 @@ class JobManager:
         from pathlib import Path
 
         def get_max_id(all_names: List[Path]):
-            max_val = 0
+            max_val = 1
             for n in all_names:
                 last_number = str(n.name).split(".")[-1]
                 try:
@@ -304,14 +304,12 @@ class JobManager:
             return max_val
 
         names = {}
-        for name, val in self.names.items():
-            all_names = list(Path(self.workdir).glob(f"{name}*"))
-            max_id_found = get_max_id(all_names)
-            # n_found = len(all_names)
-            if max_id_found != val:
-                if max_id_found != 0:
-                    # print(name, n_found, val, max_id_found)
-                    names[name] = max_id_found
+        for job in self.jobs:
+            name = job.name
+            base_name = str(name).split(".")[0]
+            all_names = list(Path(self.workdir).glob(f"{base_name}*"))
+            names[base_name] = get_max_id(all_names)
+
         self.names = names
 
     def remove_job(self, job):

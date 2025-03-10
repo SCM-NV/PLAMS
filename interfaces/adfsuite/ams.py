@@ -1085,6 +1085,7 @@ class AMSResults(Results):
     def _get_ir_raman_spectrum(
         self,
         engine: Optional[str] = None,
+        spectrum_type="ir",
         broadening_type: Literal[
             "gaussian_height", "gaussian_area", "lorentzian_area", "lorentzian_height"
         ] = "gaussian_height",
