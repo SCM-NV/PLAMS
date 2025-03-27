@@ -3593,6 +3593,7 @@ class AMSJob(SingleJob):
                 return None
             with open(Path(job.path) / file_name, "w") as f:
                 f.write(reason)
+            return "Stop-done"
 
         @staticmethod
         def stop_has_occurred(job: "AMSJob", value="calculation interrupted by user.") -> bool:
@@ -3601,7 +3602,7 @@ class AMSJob(SingleJob):
                 return None
             with open(out_path, "r") as f:
                 file = f.read()
-            return value in file
+            return True if value in file else f"Not found in $JN.out the pattern {value}"
 
         @staticmethod
         def status_rkf(job: "AMSJob"):
@@ -3621,7 +3622,7 @@ class AMSJob(SingleJob):
             with open(logfile_path) as f:
                 lines = f.readlines()
             if "NORMAL TERMINATION" in lines[-1]:
-                return "normal"
+                return "NORMAL TERMINATION"
             for line in lines[::-1]:
                 if "*** MDStep" in line:
                     return int(line.split("*** ")[-1].replace(" ***\n", ""))
