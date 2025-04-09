@@ -11,6 +11,8 @@ This changelog is effective from the 2025 releases.
 
 ## [Unreleased]
 
+## 2025.101
+
 ### Added
 * Methods `get_system`, `get_input_system` and `get_main_system` to `AMSResults`, which return an AMS `ChemicalSystem` instead of a PLAMS `Molecule` 
 * `AMSJob` can accept an AMS `ChemicalSystem` instead of a PLAMS `Molecule` as an input system
