@@ -132,6 +132,7 @@ Added
 * Additional methods:
     * :meth:`~scm.plams.interfaces.molecule.packmol.packmol_around` to pack around an existing molecule or pack molecules into a non-orthorhombic box
     * :meth:`~scm.plams.tools.plot.plot_grid_molecules` for plotting multiple molecules with rdkit
+    * :meth:`~scm.plams.tools.plot.plot_phonons_band_structure`, :meth:`~scm.plams.tools.plot.plot_phonons_dos` and :meth:`~scm.plams.tools.plot.plot_phonons_thermodynamic_properties` for creating phonon plots
     * :meth:`~scm.plams.mol.molecule.Molecule.delete_atoms` for deleting multiple atoms with partial success
 
 Changed

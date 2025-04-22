@@ -14,6 +14,7 @@ if TYPE_CHECKING:
 __all__ = [
     "plot_band_structure",
     "plot_phonons_band_structure",
+    "plot_phonons_dos",
     "plot_phonons_thermodynamic_properties",
     "plot_molecule",
     "plot_correlation",
