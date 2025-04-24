@@ -11,6 +11,7 @@ from typing import (
     Dict,
     Generator,
     Hashable,
+    Iterable,
     List,
     Optional,
     Sequence,
@@ -761,7 +762,7 @@ class Settings(dict):
             data = json.load(f, **kwargs)
         return cls(data)
 
-    def print_settings(self):
+    def print_settings(self, flatten_list=False):
         """print the settings object as if you are writing it in a python script (useful for copy and paste and compact inspection)"""
 
         def format_kv(k, v) -> str:
@@ -777,7 +778,7 @@ class Settings(dict):
                 return f'{".".join(k_map)} = "{v}"'
             return f'{".".join(k_map)} = {v}'
 
-        str_to_print = "\n".join([format_kv(k, v) for k, v in self.flatten(flatten_list=False).as_dict().items()])
+        str_to_print = "\n".join([format_kv(k, v) for k, v in self.flatten(flatten_list=flatten_list).as_dict().items()])
         str_to_print = str_to_print.replace(".[(", "[(")
         print(str_to_print)
 
@@ -1362,7 +1363,7 @@ def validate_settings(s: Settings, s_default: Settings):
     # {"added": added, "removed": removed, "modified": modified}
     added_s = comparison["added"]
     for k in added_s:
-        if any(["kwargs" in x for x in k]):
+        if any(["kwargs" in x for x in k if isinstance(x, Iterable)]):
             continue
         raise ValueError(f"I found this settings {k} added, a default setting looks like: \n{s_default}")
 
