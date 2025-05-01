@@ -542,6 +542,12 @@ class SingleJob(Job):
         else:
             with open(path, "rb") as f:
                 job = pickle.load(f)
+                # For backwards compatibility (before attributes added/converted to properties)
+                if not hasattr(job, "_status"):
+                    job._status = job.__dict__["status"]
+                    job._status_log = []
+                if not hasattr(job, "_error_msg"):
+                    job._error_msg = None
             job.path = os.path.dirname(os.path.abspath(path))
             job.results.collect()
 
