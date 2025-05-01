@@ -5,6 +5,7 @@ from dataclasses import dataclass, replace
 from itertools import chain, islice
 from numbers import Number
 from pathlib import Path
+from re import L
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -29,6 +30,7 @@ from scm.plams.interfaces.adfsuite.ams import AMSJob
 from scm.plams.interfaces.adfsuite.inputparser import InputParserFacade
 from scm.plams.interfaces.molecule.rdkit import to_smiles
 from scm.plams.mol.molecule import Molecule
+from scm.plams.tools.settings_analysis import CategorizeSettings
 from scm.plams.tools.table_formatter import format_in_table
 
 try:
@@ -141,7 +143,7 @@ class JobAnalysis:
 
     @staticmethod
     def _mol_formula_extractor(
-        mol: Optional[Union[Molecule, Dict[str, Molecule], "ChemicalSystem", Dict[str, "ChemicalSystem"]]]
+        mol: Optional[Union[Molecule, Dict[str, Molecule], "ChemicalSystem", Dict[str, "ChemicalSystem"]]],
     ) -> Optional[str]:
         if isinstance(mol, dict):
             return ", ".join([f"{n}: {JobAnalysis._mol_formula_extractor(m)}" for n, m in mol.items()])
@@ -153,7 +155,7 @@ class JobAnalysis:
 
     @staticmethod
     def _mol_smiles_extractor(
-        mol: Optional[Union[Molecule, Dict[str, Molecule], "ChemicalSystem", Dict[str, "ChemicalSystem"]]]
+        mol: Optional[Union[Molecule, Dict[str, Molecule], "ChemicalSystem", Dict[str, "ChemicalSystem"]]],
     ):
         if isinstance(mol, dict):
             return ", ".join([f"{n}: {JobAnalysis._mol_smiles_extractor(m)}" for n, m in mol.items()])
@@ -165,7 +167,7 @@ class JobAnalysis:
 
     @staticmethod
     def _mol_gyration_radius_extractor(
-        mol: Optional[Union[Molecule, Dict[str, Molecule], "ChemicalSystem", Dict[str, "ChemicalSystem"]]]
+        mol: Optional[Union[Molecule, Dict[str, Molecule], "ChemicalSystem", Dict[str, "ChemicalSystem"]]],
     ):
         if isinstance(mol, dict):
             return ", ".join([f"{n}: {JobAnalysis._mol_gyration_radius_extractor(m)}" for n, m in mol.items()])
@@ -1576,6 +1578,37 @@ class JobAnalysis:
         keys = [k for k, f in self._fields.items() if f.from_settings]
         for k in keys:
             self.remove_field(k)
+        return self
+
+    def add_settings_categorizer(
+        self,
+        key: str,
+        collection_categories: Dict[str, Settings],
+        default: str = "None",
+        comparison_method: Callable[[Any, Any], bool] = lambda x, y: x == y,
+        collision: Literal["raise", "overwrite", "concatenate"] = "concatenate",
+        flatten_list=True,
+        display_name: Optional[str] = None,
+        fmt: Optional[str] = None,
+    ) -> "JobAnalysis":
+        """
+        Categorize the jobs based on a subsection of the settings object.
+        """
+        categorizer = CategorizeSettings(
+            collection_categories=collection_categories,
+            default=default,
+            comparison_method=comparison_method,
+            collision=collision,
+            flatten_list=flatten_list,
+        )
+        self.add_field(
+            key,
+            lambda j: categorizer.run_one(j.settings.copy()),  # type: ignore
+            display_name=display_name,
+            fmt=fmt,
+            expansion_depth=0,
+        )
+        self._fields[key].from_settings = True
         return self
 
     def __str__(self) -> str:
