@@ -158,6 +158,13 @@ class JobManager:
         with open(filename, "rb") as f:
             try:
                 job = pickle.load(f)
+                # For backwards compatibility (before attributes added/converted to properties)
+                if not hasattr(job, "_status"):
+                    job._status = job.__dict__["status"]
+                    job._status_log = []
+                if not hasattr(job, "_error_msg"):
+                    job._error_msg = None
+
             except Exception as e:
                 log("Unpickling of {} failed. Caught the following Exception:\n{}".format(filename, e), 1)
                 return None

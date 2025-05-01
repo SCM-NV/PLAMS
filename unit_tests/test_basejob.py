@@ -398,6 +398,30 @@ sleep 0.0 && sed 's/input/output/g' plamsjob.in
         assert job1.settings == job2.settings
         assert job1._filenames == job2._filenames
 
+    def test_load_legacy_job_succeeds(self):
+        # Given job run before additional properties were added
+        job1 = DummySingleJob()
+        job1.run()
+        job1.results.wait()
+        status = job1.status
+        delattr(job1, "_status")
+        delattr(job1, "_status_log")
+        job1.__dict__["status"] = status
+        job1.pickle()
+
+        # When call load
+        job2 = DummySingleJob.load(job1.path)
+
+        # Then job loaded successfully
+        assert job1.name == job2.name
+        assert job1.id == job2.id
+        assert job1.path == job2.path
+        assert job1.settings == job2.settings
+        assert job1._filenames == job2._filenames
+        assert job2.status == "successful"
+        assert job2.status_log == []
+        assert job2.get_errormsg() is None
+
     def test_job_summaries_logged(self, config):
         job1 = DummySingleJob()
         job2 = DummySingleJob(inp=job1.input)
