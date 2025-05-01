@@ -2725,7 +2725,7 @@ class Molecule:
         This method is a counterpart of :meth:`as_dict`.
         """
         mol = cls()
-        mol.__dict__ = copy.copy(dictionary)
+        mol.__dict__.update(copy.copy(dictionary))
         atom_dicts = mol.atoms
         bond_dicts = mol.bonds
         mol.atoms = []
