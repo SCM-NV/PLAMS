@@ -2,7 +2,7 @@
 """
 - Solubility Calculation using pyCRS workflow with AMS2024+ and AMS2025+ Features
 - Utilizes COSKFDatabase and CRSSystem from pyCRS (AMS2024+ Required)
-- Use of densf2hbc in ADFCOSMORSCompoundJob for COSMO-SAC DHB-MESP method (AMS2025+ Required)
+- Use of hbc_from_MESP in ADFCOSMORSCompoundJob for COSMO-SAC DHB-MESP method (AMS2025+ Required)
 """
 
 import os
@@ -30,8 +30,8 @@ def solubility_pyCRS():
         mol_info["CAS"] = "71-43-2"
         mol_info["SMILES"] = solute_smiles
 
-        # Generate COSKF file with densf2hbc for DHB-MESP in COSMO-SAC
-        coskf_file = generate_coskf(solute_smiles, jobname="adf_benzene_densf", mol_info=mol_info, densf2hbc=True)
+        # Generate COSKF file with hbc_from_MESP for DHB-MESP in COSMO-SAC
+        coskf_file = generate_coskf(solute_smiles, jobname="adf_benzene_densf", mol_info=mol_info, hbc_from_MESP=True)
 
         db.add_compound(coskf_file)
         db.add_physical_property("benzene", "meltingpoint", 278.7)
@@ -62,9 +62,9 @@ def solubility_pyCRS():
     plot_results(crs.outputs[0])
 
 
-def generate_coskf(smiles, jobname=None, mol_info=None, densf2hbc=False):
+def generate_coskf(smiles, jobname=None, mol_info=None, hbc_from_MESP=False):
     molecule = from_smiles(smiles, nconfs=100, forcefield="uff")[0]
-    job = ADFCOSMORSCompoundJob(name=jobname, molecule=molecule, mol_info=mol_info, densf2hbc=densf2hbc)
+    job = ADFCOSMORSCompoundJob(name=jobname, molecule=molecule, mol_info=mol_info, hbc_from_MESP=hbc_from_MESP)
     job.run()
     return job.results.coskfpath()
 

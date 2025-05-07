@@ -50,6 +50,8 @@ This script utilizes pyCRS, a convenient python wrapper built on PLAMS and SQL d
 
 **Results**
 
+Both scripts above will generate the following results.
+
 .. image:: /_static/ams_crs_benzene_sigmaprofile.png
 
 .. parsed-literal::
