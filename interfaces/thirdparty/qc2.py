@@ -170,10 +170,10 @@ class QC2Job(SingleJob):
 
         return inp
 
-    def get_runscript(self):
-        """Returned runscript: ``serenity myinput.in |tee ser_myinput.out`` or ``serenity myinput.in``"""
-        input_file = self._filename("inp")
-        output_file = self._filename("out")
+    #def get_runscript(self):
+    #    """Returned runscript"""
+    #    input_file = self._filename("inp")
+    #    output_file = self._filename("out")
 
-        # return 'serenity {} |tee ser_{}'.format(input_file, output_file)
-        return "serenity {}".format(input_file)
+    #    # return 'serenity {} |tee ser_{}'.format(input_file, output_file)
+    #    return "serenity {}".format(input_file)
