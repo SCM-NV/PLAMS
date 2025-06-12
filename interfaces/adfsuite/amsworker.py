@@ -380,7 +380,16 @@ _arg2setting: Dict[str, Tuple[str, ...]] = {}
 for x in ("prev_results", "quiet"):
     _arg2setting[x] = ("amsworker", x)
 
-for x in ("gradients", "stresstensor", "hessian", "elastictensor", "charges", "dipolemoment", "dipolegradients"):
+for x in (
+    "gradients",
+    "stresstensor",
+    "hessian",
+    "elastictensor",
+    "charges",
+    "dipolemoment",
+    "dipolegradients",
+    "bondorders",
+):
     _arg2setting[x] = ("input", "ams", "properties", x)
 
 for x in ("coordinatetype", "optimizelattice", "maxiterations", "pretendconverged", "calcpropertiesonlyifconverged"):
@@ -839,6 +848,7 @@ class AMSWorker:
         charges=False,
         dipolemoment=False,
         dipolegradients=False,
+        bondorders=False,
         method=None,
         coordinatetype=None,
         usesymmetry=None,
@@ -882,6 +892,8 @@ class AMSWorker:
                 args["request"]["dipoleMoment"] = True
             if dipolegradients:
                 args["request"]["dipoleGradients"] = True
+            if bondorders:
+                args["request"]["bondOrders"] = True
             if self.use_restart_cache and prev_results is not None and prev_results.name in self.restart_cache:
                 args["prevTitle"] = prev_results.name
 
@@ -980,6 +992,7 @@ class AMSWorker:
         charges=False,
         dipolemoment=False,
         dipolegradients=False,
+        bondorders=False,
     ):
         """Performs a single point calculation on the geometry given by the |Molecule| instance *molecule* and returns an instance of |AMSWorkerResults| containing the results.
 
@@ -1032,6 +1045,7 @@ class AMSWorker:
         charges=False,
         dipolemoment=False,
         dipolegradients=False,
+        bondorders=False,
         method=None,
         coordinatetype=None,
         usesymmetry=None,
