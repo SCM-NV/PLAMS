@@ -1428,15 +1428,50 @@ class Molecule:
             mol_copy.from_array(xyz_round)
             return mol_copy
 
-    def get_connection_table(self):
+    def get_connection_table(self, orders=False):
         """
         Get a connection table with atom indices (starting at 0)
         """
         table = []
         for iat, at in enumerate(self.atoms):
-            indices = sorted([self.index(n) - 1 for n in self.neighbors(at)])
-            table.append(indices)
+            if orders:
+                data = sorted([(self.index(b.other_end(at)) - 1, b.order) for b in at.bonds])
+            else:
+                data = sorted([self.index(n) - 1 for n in self.neighbors(at)])
+            table.append(data)
         return table
+
+    def add_bonds_from_connections(self, table, clear_bonds=True):
+        """
+        Incorporate bonds from connection table
+
+        * ``table`` : List representing a connections table.
+                      Contains for each atom a list of neighoring atom indices (starting at 0)
+                      [[1, 2], [3], [5], [], []] -> Atom 0 is connected to 1 and 2, atom 1 is connected to 3, etc.
+                      If the connections table contains bond order, then for each atom there is
+                      list of tuples, containing the neighborig atom index and the bond order.
+                      [[(1, 1.0), (2, 1.0)], [(3, 1.0)], [(5, 1.0)], [], []]
+        """
+        current_table = [[] for _ in range(len(self))]
+        if clear_bonds:
+            self.delete_all_bonds()
+        else:
+            current_table = self.get_connection_table()
+
+        for iat, bonds in enumerate(table):
+            for bond_data in bonds:
+                jat = bond_data
+                order = 1.0
+                # In case bond orders are in the table
+                if isinstance(bond_data, Iterable):
+                    jat = bond_data[0]
+                    if len(bond_data) > 1:
+                        order = bond_data[1]
+                ii, jj = sorted([iat, jat])
+                if (not jj in current_table[ii]) and (not ii in current_table[jj]):
+                    current_table[ii].append(jj)
+                    bond = Bond(self.atoms[ii], self.atoms[jj], order)
+                    self.add_bond(bond)
 
     def get_molecule_indices(self):
         """

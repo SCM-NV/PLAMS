@@ -221,6 +221,21 @@ class AMSWorkerResults:
         """Return the nuclear gradients of the electric dipole moment, expressed in atomic units. This is a (3*numAtoms x 3) matrix."""
         return self._results["dipoleGradients"]
 
+    @_restrict
+    def get_bonds_as_table(self):
+        """
+        Return the bond information as a connection table
+        """
+        index = self._results["Bonds"]["Index"]
+        atoms = self._results["Bonds"]["Atoms"]
+        orders = self._results["Bonds"]["Orders"]
+        connections = []
+        for iat in range(len(atoms)):
+            ii = index[iat]
+            jj = index[iat + 1]
+            connections.append([(atoms[j] - 1, orders[j]) for j in range(ii - 1, jj - 1)])
+        return connections
+
     def get_input_molecule(self):
         """Return a |Molecule| instance with the coordinates passed into the |AMSWorker|.
 

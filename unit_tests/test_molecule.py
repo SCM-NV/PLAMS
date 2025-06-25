@@ -631,6 +631,27 @@ class TestBenzene(MoleculeTestBase):
         assert len(mol2.bonds) == len(mol.bonds) == 12
         assert mol.label(4) == mol2.label(4)
 
+    def test_connection_table(self, mol):
+
+        # Get the simple connection table (without bond orders) and apply
+        table = mol.get_connection_table()
+        testmol = mol.copy()
+        testmol.add_bonds_from_connections(table)
+        orders = [b.order for b in testmol.bonds]
+        assert orders == [1.0 for i in range(12)]
+
+        # Add the bond orders to the connection table
+        table = mol.get_connection_table(orders=True)
+        testmol.add_bonds_from_connections(table)
+        orders = [b.order for b in testmol.bonds if b.atom1.symbol == "C" and b.atom2.symbol == "C"]
+        assert orders == [1.5 for _ in range(6)]
+
+        # Only add new bonds
+        table[0].append((3, 2.0))
+        testmol.add_bonds_from_connections(table, clear_bonds=False)
+        orders = [b.order for b in testmol.bonds]
+        assert orders[-1] == 2.0
+
 
 def assert_rings_equal(actual, expected):
     assert len(actual) == len(expected)
