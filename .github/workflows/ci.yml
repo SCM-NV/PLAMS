@@ -54,7 +54,7 @@ jobs:
 #     ToDo: Bump the fail-under threshold over time until acceptable level is reached
       - name: Evaluate Coverage
         run: |
-          coverage report --omit="*/unit_tests/*" -i --fail-under=35
+          coverage report --omit="*/unit_tests/*" -i --fail-under=40
 
   lint:
     runs-on: ubuntu-latest
