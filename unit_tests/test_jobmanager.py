@@ -2,6 +2,7 @@ import pytest
 import os
 import uuid
 
+from scm.plams.core.basejob import MultiJob
 from scm.plams.core.jobmanager import JobManager
 from scm.plams.core.settings import JobManagerSettings
 from scm.plams.core.errors import PlamsError
@@ -50,6 +51,70 @@ class TestJobManager:
 
         # Then workdir not created
         assert not os.path.exists(job_manager._workdir)
+
+    def test_load_legacy_job_succeeds(self):
+        # Given job run before additional properties were added
+        job1 = DummySingleJob()
+        job1.run()
+        job1.results.wait()
+        status = job1.status
+        delattr(job1, "_status")
+        delattr(job1, "_status_log")
+        job1.__dict__["status"] = status
+        job1.pickle()
+
+        # When call load
+        folder = str(uuid.uuid4())
+        job_manager = JobManager(settings=JobManagerSettings(), folder=folder)
+        job2 = job_manager.load_job(f"{job1.path}/{job1.name}.dill")
+
+        # Then job loaded successfully
+        assert job1.name == job2.name
+        assert job1.id == job2.id
+        assert job1.path == job2.path
+        assert job1.settings == job2.settings
+        assert job1._filenames == job2._filenames
+        assert job2.status == "successful"
+        assert job2.status_log == []
+        assert job2.get_errormsg() is None
+
+    def test_load_legacy_multijob_succeeds(self):
+        # Given multi job run before additional properties were added
+        job1 = DummySingleJob()
+        mjob1 = MultiJob(children=[MultiJob(children=[job1])])
+        mjob1.run()
+        mjob1.results.wait()
+        mstatus = mjob1.status
+        status = job1.status
+        delattr(mjob1, "_status")
+        delattr(mjob1, "_status_log")
+        delattr(job1, "_status")
+        delattr(job1, "_status_log")
+        mjob1.__dict__["status"] = mstatus
+        job1.__dict__["status"] = status
+        mjob1.pickle()
+
+        # When call load
+        folder = str(uuid.uuid4())
+        job_manager = JobManager(settings=JobManagerSettings(), folder=folder)
+        mjob2 = job_manager.load_job(f"{mjob1.path}/{mjob1.name}.dill")
+        job2 = mjob2.children[0].children[0]
+
+        # Then job loaded successfully
+        assert mjob1.name == mjob2.name
+        assert mjob1.path == mjob2.path
+        assert mjob1.settings == mjob2.settings
+        assert mjob2.status == "successful"
+        assert mjob2.status_log == []
+        assert mjob2.get_errormsg() is None
+        assert job1.name == job2.name
+        assert job1.id == job2.id
+        assert job1.path == job2.path
+        assert job1.settings == job2.settings
+        assert job1._filenames == job2._filenames
+        assert job2.status == "successful"
+        assert job2.status_log == []
+        assert job2.get_errormsg() is None
 
     @pytest.mark.parametrize(
         "path_exists,folder_exists,use_existing_folder,expected_workdir",

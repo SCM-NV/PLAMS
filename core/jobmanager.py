@@ -156,17 +156,25 @@ class JobManager:
             raise FileError("File {} not present".format(filename))
         path = os.path.dirname(filename)
         with open(filename, "rb") as f:
+
+            def resolve_missing_attributes(j):
+                # For backwards compatibility (before attributes added/converted to properties)
+                if not hasattr(j, "_status"):
+                    j._status = j.__dict__["status"]
+                    j._status_log = []
+                if not hasattr(j, "_error_msg"):
+                    j._error_msg = None
+                if isinstance(j, MultiJob):
+                    for child in j:
+                        resolve_missing_attributes(child)
+                    for otherjob in j.other_jobs():
+                        resolve_missing_attributes(otherjob)
+
             try:
                 job = pickle.load(f)
-                # For backwards compatibility (before attributes added/converted to properties)
-                if not hasattr(job, "_status"):
-                    job._status = job.__dict__["status"]
-                    job._status_log = []
-                if not hasattr(job, "_error_msg"):
-                    job._error_msg = None
-
+                resolve_missing_attributes(job)
             except Exception as e:
-                log("Unpickling of {} failed. Caught the following Exception:\n{}".format(filename, e), 1)
+                log(f"Unpickling of {filename} failed. Caught the following Exception:\n{e}", 1)
                 return None
 
         setstate(job, path)
