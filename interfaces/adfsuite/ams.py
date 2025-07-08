@@ -1080,7 +1080,7 @@ class AMSResults(Results):
         The *engine* argument should be the identifier of the file you wish to read. To access a file called ``something.rkf`` you need to call this function with ``engine='something'``. The *engine* argument can be omitted if there's only one engine results file in the job folder.
         """
         reduced_masses = np.array(
-            self._process_engine_results(lambda x: x.read("Vibrations", f"ReducedMasses"), engine)
+            self._process_engine_results(lambda x: x.read("Vibrations", "ReducedMasses"), engine)
         )
         return reduced_masses
 
