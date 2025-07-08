@@ -4,31 +4,15 @@ from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Set, Tuple
 
 import numpy as np
 from scm.plams.core.basejob import SingleJob
-from scm.plams.core.errors import (
-    FileError,
-    JobError,
-    MissingOptionalPackageError,
-    PlamsError,
-    PTError,
-    ResultsError,
-)
-from scm.plams.core.functions import (
-    get_config,
-    log,
-    parse_heredoc,
-    requires_optional_package,
-)
+from scm.plams.core.errors import FileError, JobError, MissingOptionalPackageError, PlamsError, PTError, ResultsError
+from scm.plams.core.functions import get_config, log, parse_heredoc, requires_optional_package
 from scm.plams.core.private import sha256
 from scm.plams.core.results import Results
 from scm.plams.core.settings import Settings
 from scm.plams.mol.atom import Atom
 from scm.plams.mol.bond import Bond
 from scm.plams.mol.molecule import Molecule
-from scm.plams.tools.converters import (
-    gaussian_output_to_ams,
-    qe_output_to_ams,
-    vasp_output_to_ams,
-)
+from scm.plams.tools.converters import gaussian_output_to_ams, qe_output_to_ams, vasp_output_to_ams
 from scm.plams.tools.kftools import KFFile, KFReader
 from scm.plams.tools.units import Units
 
@@ -1078,8 +1062,33 @@ class AMSResults(Results):
         forceConstants = np.array(forceConstants) if isinstance(forceConstants, list) else np.array([forceConstants])
         return forceConstants
 
-    def get_normal_modes(self, engine: Optional[str] = None) -> np.ndarray:
+    def get_pvdos(self, engine: Optional[str] = None):
+        """Return a numpy array of Partial Vibrational Spectra (PVDOS) with shape: (nNormalModes, nAtoms), with values [0,1].
+
+        The *engine* argument should be the identifier of the file you wish to read. To access a file called ``something.rkf`` you need to call this function with ``engine='something'``. The *engine* argument can be omitted if there's only one engine results file in the job folder.
+        """
+        pvdos = self._process_engine_results(lambda x: x.read("Vibrations", "PVDOS"), engine)
+        nNormalModes = self._process_engine_results(lambda x: x.read("Vibrations", "nNormalModes"), engine)
+        nAtoms = len(self.job.molecule)
+        pvdos = np.array(pvdos).reshape(nNormalModes, nAtoms)
+        return pvdos
+
+    def get_reduced_masses(self, engine: Optional[str] = None):
+        """Return a numpy array of reduced masses, expressed in amu units.
+        If mass_weighted_hessian_eigenvectors=True it returns the mass_weighted_hessian_eigenvectors.
+
+        The *engine* argument should be the identifier of the file you wish to read. To access a file called ``something.rkf`` you need to call this function with ``engine='something'``. The *engine* argument can be omitted if there's only one engine results file in the job folder.
+        """
+        reduced_masses = np.array(
+            self._process_engine_results(lambda x: x.read("Vibrations", f"ReducedMasses"), engine)
+        )
+        return reduced_masses
+
+    def get_normal_modes(
+        self, mass_weighted_hessian_eigenvectors: Optional[bool] = False, engine: Optional[str] = None
+    ):
         """Return a numpy array of normal modes with shape: (num_normal_modes, num_atoms, 3), expressed in dimensionless units.
+        If mass_weighted_hessian_eigenvectors=True it returns the mass_weighted_hessian_eigenvectors.
 
         The *engine* argument should be the identifier of the file you wish to read. To access a file called ``something.rkf`` you need to call this function with ``engine='something'``. The *engine* argument can be omitted if there's only one engine results file in the job folder.
         """
@@ -1090,7 +1099,15 @@ class AMSResults(Results):
                 self._process_engine_results(lambda x: x.read("Vibrations", f"NoWeightNormalMode({i+1})"), engine)
             ).reshape(-1, 3)
             normal_modes_list.append(n_mode)
-        return np.array(normal_modes_list).reshape(num_normal_modes, -1, 3)
+        normal_modes = np.array(normal_modes_list).reshape(num_normal_modes, -1, 3)
+        if mass_weighted_hessian_eigenvectors:
+            mol = self.get_main_molecule()
+            masses = np.array(mol.get_masses()).reshape(1, -1, 1)
+            reduced_masses = self.get_reduced_masses(engine=engine)
+            reduced_masses = reduced_masses.reshape(-1, 1, 1)
+            normal_modes_normalized = normal_modes * np.sqrt(masses) / np.sqrt(reduced_masses)
+            return normal_modes_normalized
+        return normal_modes
 
     def get_charges(self, engine: Optional[str] = None) -> np.ndarray:
         """Return the atomic charges, expressed in atomic units.
@@ -1372,9 +1389,7 @@ class AMSResults(Results):
 
         * ``filename`` -- Name of the RKF file that contains ForceField data
         """
-        from scm.plams.interfaces.adfsuite.forcefieldparams import (
-            forcefield_params_from_kf,
-        )
+        from scm.plams.interfaces.adfsuite.forcefieldparams import forcefield_params_from_kf
 
         return self._process_engine_results(forcefield_params_from_kf, engine)
 
