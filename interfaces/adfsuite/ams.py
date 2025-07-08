@@ -1,18 +1,34 @@
 import os
 from os.path import join as opj
-from typing import Dict, List, Literal, Set, Tuple, Union, Optional, TYPE_CHECKING, Any
-import numpy as np
+from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Set, Tuple, Union
 
+import numpy as np
 from scm.plams.core.basejob import SingleJob
-from scm.plams.core.errors import FileError, JobError, PlamsError, PTError, ResultsError, MissingOptionalPackageError
-from scm.plams.core.functions import get_config, log, parse_heredoc, requires_optional_package
+from scm.plams.core.errors import (
+    FileError,
+    JobError,
+    MissingOptionalPackageError,
+    PlamsError,
+    PTError,
+    ResultsError,
+)
+from scm.plams.core.functions import (
+    get_config,
+    log,
+    parse_heredoc,
+    requires_optional_package,
+)
 from scm.plams.core.private import sha256
 from scm.plams.core.results import Results
 from scm.plams.core.settings import Settings
 from scm.plams.mol.atom import Atom
 from scm.plams.mol.bond import Bond
 from scm.plams.mol.molecule import Molecule
-from scm.plams.tools.converters import gaussian_output_to_ams, qe_output_to_ams, vasp_output_to_ams
+from scm.plams.tools.converters import (
+    gaussian_output_to_ams,
+    qe_output_to_ams,
+    vasp_output_to_ams,
+)
 from scm.plams.tools.kftools import KFFile, KFReader
 from scm.plams.tools.units import Units
 
@@ -31,10 +47,10 @@ except ImportError:
     _has_scm_chemsys = False
 
 if TYPE_CHECKING:
-    from scm.plams.core.jobrunner import JobRunner
-    from scm.plams.core.jobmanager import JobManager
-    from scm.plams.tools.kftools import TRead
     from ase import Atoms as AseAtoms
+    from scm.plams.core.jobmanager import JobManager
+    from scm.plams.core.jobrunner import JobRunner
+    from scm.plams.tools.kftools import TRead
 
 try:
     from watchdog.events import FileModifiedEvent, PatternMatchingEventHandler
@@ -147,6 +163,27 @@ class AMSResults(Results):
         ret = list(self.rkfs.keys())
         ret.remove("ams")
         return ret
+
+    def get_main_engine_name(self) -> str:
+        """
+        Returns the main engine name.
+
+        For geometry optimizations, this means that it will return the engine.rkf file and not any of the GOStep*.rkf files.
+
+        Raises ValueError if it cannot determine a unique main engine file or if no engine file is present.
+        """
+        engine_names = self.engine_names()
+        original_task = str(self.job.get_task()).lower()
+        # if GO allows to save extra .rkf files
+        if original_task == "geometryoptimization":
+            engine_names = [x for x in engine_names if "GOStep" not in x]
+        # remove hybrid engine sub engines
+        engine_names = [x for x in engine_names if "hybrid-" not in x]
+        if len(engine_names) != 1:
+            raise ValueError(
+                f"Cannot get main engine name from {engine_names} for job in: {self.job.path} with {list(self.rkfs.keys())}"
+            )
+        return engine_names[0]
 
     def read_hybrid_term_rkf(self, section: str, variable: str, term: int, file: str = "engine") -> "TRead":
         """Reads a Hybrid-termX-subengine.rkf file.
@@ -1335,7 +1372,9 @@ class AMSResults(Results):
 
         * ``filename`` -- Name of the RKF file that contains ForceField data
         """
-        from scm.plams.interfaces.adfsuite.forcefieldparams import forcefield_params_from_kf
+        from scm.plams.interfaces.adfsuite.forcefieldparams import (
+            forcefield_params_from_kf,
+        )
 
         return self._process_engine_results(forcefield_params_from_kf, engine)
 
