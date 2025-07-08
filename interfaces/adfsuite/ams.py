@@ -6,31 +6,15 @@ from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Set, Tuple
 
 import numpy as np
 from scm.plams.core.basejob import SingleJob
-from scm.plams.core.errors import (
-    FileError,
-    JobError,
-    MissingOptionalPackageError,
-    PlamsError,
-    PTError,
-    ResultsError,
-)
-from scm.plams.core.functions import (
-    config,
-    log,
-    parse_heredoc,
-    requires_optional_package,
-)
+from scm.plams.core.errors import FileError, JobError, MissingOptionalPackageError, PlamsError, PTError, ResultsError
+from scm.plams.core.functions import config, log, parse_heredoc, requires_optional_package
 from scm.plams.core.private import sha256
 from scm.plams.core.results import Results
 from scm.plams.core.settings import Settings
 from scm.plams.mol.atom import Atom
 from scm.plams.mol.bond import Bond
 from scm.plams.mol.molecule import Molecule
-from scm.plams.tools.converters import (
-    gaussian_output_to_ams,
-    qe_output_to_ams,
-    vasp_output_to_ams,
-)
+from scm.plams.tools.converters import gaussian_output_to_ams, qe_output_to_ams, vasp_output_to_ams
 from scm.plams.tools.kftools import KFFile, KFReader
 from scm.plams.tools.units import Units
 
@@ -181,6 +165,10 @@ class AMSResults(Results):
         Raises ValueError if it cannot determine a unique main engine file or if no engine file is present.
         """
         engine_names = self.engine_names()
+        if engine_names is None:
+            raise ValueError(
+                f"engine_names is None, not able to guess the main engine name. Maybe the job failed? {self.job.path}"
+            )
         original_task = str(self.job.get_task()).lower()
         if original_task == "geometryoptimization":
             engine_names = [x for x in engine_names if "GOStep" not in x]
@@ -1274,9 +1262,7 @@ class AMSResults(Results):
 
         * ``filename`` -- Name of the RKF file that contains ForceField data
         """
-        from scm.plams.interfaces.adfsuite.forcefieldparams import (
-            forcefield_params_from_kf,
-        )
+        from scm.plams.interfaces.adfsuite.forcefieldparams import forcefield_params_from_kf
 
         return self._process_engine_results(forcefield_params_from_kf, engine)
 
@@ -2209,8 +2195,8 @@ class AMSResults(Results):
             from scm.plams.interfaces.adfsuite.inputparser import InputParserFacade
 
             inp = InputParserFacade().to_settings("ams", user_input)
-        except:
-            log("Failed to recreate input settings from {}".format(self.rkfs["ams"].path))
+        except Exception as e:
+            log("Failed to recreate input settings from {} because {}".format(self.rkfs["ams"].path, e))
             return None
         s = Settings()
         s.input = inp
