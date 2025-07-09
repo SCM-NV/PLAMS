@@ -7,12 +7,7 @@ import os
 from collections import OrderedDict
 
 import numpy as np
-from scm.plams.core.errors import (
-    FileError,
-    MissingOptionalPackageError,
-    MoleculeError,
-    PTError,
-)
+from scm.plams.core.errors import FileError, MissingOptionalPackageError, MoleculeError, PTError
 from scm.plams.core.functions import log, requires_optional_package
 from scm.plams.core.private import parse_action, smart_copy
 from scm.plams.core.settings import Settings
@@ -20,13 +15,7 @@ from scm.plams.mol.atom import Atom
 from scm.plams.mol.bond import Bond
 from scm.plams.mol.context import AsArrayContext
 from scm.plams.mol.pdbtools import PDBAtom, PDBHandler
-from scm.plams.tools.geometry import (
-    axis_rotation_matrix,
-    cell_angles,
-    cell_lengths,
-    distance_array,
-    rotation_matrix,
-)
+from scm.plams.tools.geometry import axis_rotation_matrix, cell_angles, cell_lengths, distance_array, rotation_matrix
 from scm.plams.tools.kftools import KFFile
 from scm.plams.tools.periodic_table import PT
 from scm.plams.tools.units import Units
@@ -2716,6 +2705,7 @@ class Molecule:
             del b_dict["mol"]
         mol_dict["atoms"] = atom_dicts
         mol_dict["bonds"] = bond_dicts
+        mol_dict.pop("_as_array", "")
         return mol_dict
 
     @classmethod
@@ -3245,9 +3235,7 @@ class Molecule:
         * ``filename`` -- Name of the RKF file that contains ForceField data
         """
         from scm.plams.interfaces.adfsuite.ams import AMSJob
-        from scm.plams.interfaces.adfsuite.forcefieldparams import (
-            forcefield_params_from_kf,
-        )
+        from scm.plams.interfaces.adfsuite.forcefieldparams import forcefield_params_from_kf
 
         # Read atom types and charges
         kf = KFFile(filename)
