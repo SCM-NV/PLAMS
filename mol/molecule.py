@@ -2734,7 +2734,8 @@ class Molecule:
         mol.bonds = []
         for a_dict in atom_dicts:
             # this parse properties to settings object!
-            a = Atom(**a_dict)
+            p = a_dict.pop("properties", {})
+            a = Atom(**a_dict, **p)
             a.mol = None
             a.bonds = []
             mol.add_atom(a)
