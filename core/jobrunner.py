@@ -10,6 +10,7 @@ from scm.plams.core.functions import config, log
 from scm.plams.core.private import saferun
 from scm.plams.core.settings import Settings
 from scm.plams.core.threading_utils import LimitedSemaphore
+from scm.plams.tools.json_tools import JSONAble
 
 __all__ = ["JobRunner", "GridRunner"]
 
@@ -78,7 +79,7 @@ class _MetaRunner(type):
 # ===========================================================================
 
 
-class JobRunner(metaclass=_MetaRunner):
+class JobRunner(JSONAble, metaclass=_MetaRunner):
     """Class defining the basic job runner interface. Instances of this class represent local job runners -- job runners that execute computational jobs on the current machine.
 
     The goal of the job runner is to take care of two important things -- parallelization and runscript execution:
@@ -104,12 +105,17 @@ class JobRunner(metaclass=_MetaRunner):
         self.maxthreads = maxthreads
 
     @property
-    def settings(self):
+    def settings_init(self):
         s = Settings()
         s.parallel = self.parallel
         s.maxjobs = self.maxjobs
         s.maxthreads = self.maxthreads
         return s
+
+    def to_dict(self):
+        ret = super().to_dict()
+        ret.update(self.settings_init.as_dict())
+        return ret
 
     @property
     def parallel(self) -> bool:
@@ -359,6 +365,15 @@ class GridRunner(JobRunner):
             raise PlamsError(
                 "GridRunner: invalid 'grid' argument. 'grid' should be either a Settings instance (see documentations for details) or a string occurring in GridRunner.config or 'auto' for autodetection"
             )
+
+    @property
+    def settings_init(self):
+        s = Settings()
+        s.parallel = self.parallel
+        s.maxjobs = self.maxjobs
+        s.grid = self.settings
+        s.sleepstep = self.sleepstep
+        return s
 
     def call(self, runscript, workdir, out, err, runflags):
         """call(runscript, workdir, out, err, runflags)

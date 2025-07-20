@@ -15,6 +15,7 @@ from scm.plams.core.errors import FileError, PlamsError
 from scm.plams.core.formatters import JobCSVFormatter
 from scm.plams.core.functions import config, get_logger, log
 from scm.plams.core.logging import Logger
+from scm.plams.tools.json_tools import JSONAble
 
 if TYPE_CHECKING:
     from scm.plams.core.basejob import Job
@@ -23,7 +24,7 @@ if TYPE_CHECKING:
 __all__ = ["JobManager"]
 
 
-class JobManager:
+class JobManager(JSONAble):
     """Class responsible for jobs and files management.
 
     Every instance has the following attributes:
@@ -96,6 +97,22 @@ class JobManager:
         self._job_logger = job_logger
         if use_existing_folder and load_all:
             self.load_all(self.workdir, register=True, default_job_loader=default_job_loader)
+
+    @property
+    def settings_init(self):
+        from scm.plams.core.settings import Settings
+
+        s = Settings()
+        s.settings = self.settings.copy()
+        s.path = self.path
+        s.folder = self.folder
+        s.use_existing_folder = self.use_existing_folder
+        return s
+
+    def to_dict(self):
+        ret = super().to_dict()
+        ret.update(self.settings_init.as_dict())
+        return ret
 
     @property
     def workdir(self) -> str:

@@ -7,7 +7,12 @@ import os
 from collections import OrderedDict
 
 import numpy as np
-from scm.plams.core.errors import FileError, MissingOptionalPackageError, MoleculeError, PTError
+from scm.plams.core.errors import (
+    FileError,
+    MissingOptionalPackageError,
+    MoleculeError,
+    PTError,
+)
 from scm.plams.core.functions import log, requires_optional_package
 from scm.plams.core.private import parse_action, smart_copy
 from scm.plams.core.settings import Settings
@@ -15,7 +20,13 @@ from scm.plams.mol.atom import Atom
 from scm.plams.mol.bond import Bond
 from scm.plams.mol.context import AsArrayContext
 from scm.plams.mol.pdbtools import PDBAtom, PDBHandler
-from scm.plams.tools.geometry import axis_rotation_matrix, cell_angles, cell_lengths, distance_array, rotation_matrix
+from scm.plams.tools.geometry import (
+    axis_rotation_matrix,
+    cell_angles,
+    cell_lengths,
+    distance_array,
+    rotation_matrix,
+)
 from scm.plams.tools.kftools import KFFile
 from scm.plams.tools.periodic_table import PT
 from scm.plams.tools.units import Units
@@ -2692,6 +2703,7 @@ class Molecule:
         This method is a counterpart of :meth:`from_dict`.
         """
         mol_dict = copy.copy(self.__dict__)
+        mol_dict.pop("_as_array")
         atom_indices = {id(a): i for i, a in enumerate(mol_dict["atoms"])}
         bond_indices = {id(b): i for i, b in enumerate(mol_dict["bonds"])}
         atom_dicts = [copy.copy(a.__dict__) for a in mol_dict["atoms"]]
@@ -2721,8 +2733,8 @@ class Molecule:
         mol.atoms = []
         mol.bonds = []
         for a_dict in atom_dicts:
-            a = Atom()
-            a.__dict__ = a_dict
+            # this parse properties to settings object!
+            a = Atom(**a_dict)
             a.mol = None
             a.bonds = []
             mol.add_atom(a)
@@ -3235,7 +3247,9 @@ class Molecule:
         * ``filename`` -- Name of the RKF file that contains ForceField data
         """
         from scm.plams.interfaces.adfsuite.ams import AMSJob
-        from scm.plams.interfaces.adfsuite.forcefieldparams import forcefield_params_from_kf
+        from scm.plams.interfaces.adfsuite.forcefieldparams import (
+            forcefield_params_from_kf,
+        )
 
         # Read atom types and charges
         kf = KFFile(filename)
