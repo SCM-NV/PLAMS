@@ -93,10 +93,10 @@ This section contains some details about the implementation.
 
 The oxidation and reduction potentials are calculated as follows:
 
-.. literalinclude:: ../../../recipes/redox.py
+.. literalinclude:: ../../../src/scm/recipes/redox.py
     :pyobject: AMSRedoxDirectResults 
 
-.. literalinclude:: ../../../recipes/redox.py
+.. literalinclude:: ../../../src/scm/recipes/redox.py
     :pyobject: AMSRedoxThermodynamicCycleResults  
 
 where 
@@ -105,12 +105,12 @@ where
 * ``go_0_vacuum_sp_solvated`` is a **s**\ ingle **p**\ oint in implicit solvent on the previous structure,
 * etc.
 
-.. literalinclude:: ../../../recipes/redox.py
+.. literalinclude:: ../../../src/scm/recipes/redox.py
     :pyobject: AMSRedoxScreeningResults
 
 The complete class definitions:
 
-.. literalinclude:: ../../../recipes/redox.py
+.. literalinclude:: ../../../src/scm/recipes/redox.py
   :language: python
 
 Details about individual calculations

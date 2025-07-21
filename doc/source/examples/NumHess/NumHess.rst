@@ -17,7 +17,7 @@ The returned Hessian can optionally be mass weighted.
 
 The source code of the whole module with both aforementioned classes:
 
-.. literalinclude:: ../../../../recipes/numhess.py
+.. literalinclude:: ../../../../src/scm/recipes/numhess.py
 
 .. include:: NumHess.common_header.rst
 .. include:: NumHess.ipynb.rst
