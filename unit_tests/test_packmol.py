@@ -13,7 +13,7 @@ from scm.plams.interfaces.molecule.packmol import (
     guess_density,
     packmol_around,
 )
-from scm.plams.unit_tests.test_helpers import skip_if_no_ams_installation
+from .test_helpers import skip_if_no_ams_installation
 
 
 class TestPackmolStructure:

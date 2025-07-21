@@ -1,8 +1,8 @@
 import pytest
 from pathlib import Path
 
-from scm.plams.unit_tests.test_basejob import DummySingleJob
 from scm.plams.core.errors import ResultsError
+from .test_basejob import DummySingleJob
 
 
 class TestResults:

@@ -11,7 +11,7 @@ import threading
 from scm.plams.interfaces.adfsuite.ams import AMSJob, AMSResults
 from scm.plams.core.settings import Settings
 from scm.plams.mol.molecule import Atom, Molecule
-from scm.plams.unit_tests.test_helpers import skip_if_no_scm_pisa, skip_if_no_scm_libbase
+from .test_helpers import skip_if_no_scm_pisa, skip_if_no_scm_libbase
 
 
 class TestAMSJob:
