@@ -20,7 +20,7 @@ It simply redirects the usual |AMSResults| methods to the results of the full sy
 
 
 
-.. literalinclude:: ../../../../src/scm/recipes/adffragment.py
+.. literalinclude:: ../../../../src/scm/plams/recipes/adffragment.py
 
 .. include:: ADFFrag.common_header.rst
 .. include:: adffrag.ipynb.rst
