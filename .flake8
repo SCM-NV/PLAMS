@@ -1,4 +1,4 @@
 [flake8]
 exclude=doc, examples
-per-file-ignores = __init__.py:F401, setup.py:F821
+per-file-ignores = __init__.py:F401
 select=F
