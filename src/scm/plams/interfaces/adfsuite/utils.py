@@ -24,21 +24,21 @@ def requires_ams(minimum_version: Optional[str] = None):
 
             ams = os.path.join(amsbin, "ams")
             try:
-                result = subprocess.run([ams, "--version"], capture_output=True, text=True, check=True)
+                # N.B. return code is 1 for version check
+                result = subprocess.run([ams, "--version"], capture_output=True, text=True)
 
-                if result.returncode != 0:
+                if result.stderr:
                     raise AMSExecutionError(command="$AMSBIN/ams --version", error=result.stderr)
 
                 match = re.search(r"release=(\S+)", result.stdout)
                 version = match.group(1) if match else None
-                if version and (not minimum_version or version >= minimum_version):
-                    return func(*args, **kwargs)
-                else:
-                    raise AMSVersionError(version=version, minimum_version=minimum_version)
-            except AMSError as e:
-                raise e
             except Exception as e:
                 raise AMSExecutionError(command="$AMSBIN/ams --version", error=e)
+
+            if version and (not minimum_version or version >= minimum_version):
+                return func(*args, **kwargs)
+            else:
+                raise AMSVersionError(version=version, minimum_version=minimum_version)
 
         return wrapper
 

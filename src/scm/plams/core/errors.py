@@ -58,7 +58,7 @@ class MissingOptionalPackageError(PlamsError):
         "networkx": "analysis",
         "natsort": "analysis",
         "h5py": "analysis",
-        "ipython": "analysis",
+        "IPython": "analysis",
     }
 
     ams_install = {"scm.amspipe": "$AMSHOME/scripting/scm/amspipe"}

@@ -22,8 +22,8 @@ class TestRequiresAms:
 
     def test_requires_ams_when_no_exe_errors(self):
         mock_result = Mock()
+        mock_result.stdout = ""
         mock_result.stderr = "Something went wrong"
-        mock_result.returncode = 1
 
         with patch("subprocess.run", return_value=mock_result):
             with pytest.raises(AMSExecutionError):
@@ -32,7 +32,7 @@ class TestRequiresAms:
     def test_requires_ams_when_incompatible_version_errors(self):
         mock_result = Mock()
         mock_result.stdout = "release=2024.102"
-        mock_result.returncode = 0
+        mock_result.stderr = ""
 
         with patch("subprocess.run", return_value=mock_result):
             with pytest.raises(AMSVersionError):
@@ -41,7 +41,7 @@ class TestRequiresAms:
     def test_requires_ams_when_compatible_version_returns(self):
         mock_result = Mock()
         mock_result.stdout = "release=2024.201"
-        mock_result.returncode = 0
+        mock_result.stderr = ""
 
         with patch("subprocess.run", return_value=mock_result):
             assert self.this_function_requires_any_ams()
