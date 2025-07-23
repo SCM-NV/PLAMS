@@ -157,6 +157,8 @@ from scm.plams.tools.plot import (
     plot_correlation,
     plot_grid_molecules,
     plot_molecule,
+    open_in_ams_view,
+    view,
     plot_msd,
     plot_work_function,
 )
@@ -326,6 +328,8 @@ __all__ = [
     "JobAnalysis",
     "plot_band_structure",
     "plot_molecule",
+    "open_in_ams_view",
+    "view",
     "plot_grid_molecules",
     "get_correlation_xy",
     "plot_correlation",
