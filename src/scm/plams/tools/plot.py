@@ -1,9 +1,13 @@
+import os
 from typing import List, Optional, Tuple, Union, TYPE_CHECKING
-
+from tempfile import NamedTemporaryFile
+import IPython.display
 import numpy as np
+
 from scm.plams.core.errors import MissingOptionalPackageError
 from scm.plams.core.functions import requires_optional_package
 from scm.plams.interfaces.adfsuite.ams import AMSJob
+from scm.plams.interfaces.adfsuite.utils import requires_ams
 from scm.plams.mol.molecule import Molecule
 
 if TYPE_CHECKING:
@@ -300,6 +304,67 @@ def plot_molecule(molecule, figsize=None, ax=None, keep_axis: bool = False, **kw
         ax.axis("off")
 
     return ax
+
+
+@requires_ams(minimum_version="2025.2")
+def open_in_ams_view(molecule: Molecule):
+    """
+    Open molecule in AMSView.
+
+    :param molecule: molecule to display in AMSView
+    """
+    with NamedTemporaryFile(mode="w", suffix=".in", delete=False) as input_file:
+        input_path = input_file.name
+        molecule.writein(input_file)
+
+    try:
+        os.system(f'"$AMSBIN/amsview" "{input_path}"')
+    finally:
+        os.remove(input_path)
+
+
+@requires_optional_package("ipython")
+@requires_ams(minimum_version="2025.2")
+def view_molecule(
+    molecule: Molecule, width=800, height=400, dpi=300, save_as: Optional[Union[str, os.PathLike]] = None
+) -> "IPython.display.Image":
+    """
+    Display molecule in a Jupyter notebook by generating an image using AMSView.
+
+    :param molecule: molecule to display
+    :param width: width of the image in pixels
+    :param height: height of the image in pixels
+    :param dpi: resolution of the image
+    :param save_as: optionally save the generated image file to a given location, defaults to ``None``
+
+    :return: image of the molecule generated using AMSView
+    """
+    from tempfile import NamedTemporaryFile
+    from IPython.display import Image
+
+    with NamedTemporaryFile(mode="w", suffix=".in", delete=False) as input_file:
+        input_path = input_file.name
+        molecule.writexyz(input_file)
+
+    if save_as:
+        img_path = save_as
+    else:
+        with NamedTemporaryFile(mode="wb", suffix=".png", delete=False) as img_file:
+            img_path = img_file.name
+
+    try:
+        os.system(
+            f'"$AMSBIN/amsview" "{input_path}" -transparent -batch -save "{img_path}" -scmgeometry "{width}x{height} -dpi {dpi}"'
+        )
+        with open(img_path, "rb") as image_file:
+            image_data = image_file.read()
+        img = Image(data=image_data, width=width)
+    finally:
+        os.remove(input_path)
+        if not save_as:
+            os.remove(img_path)
+
+    return img
 
 
 @requires_optional_package("rdkit")
