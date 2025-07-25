@@ -2,7 +2,6 @@ import os
 import re
 from typing import List, Optional, Tuple, Union, TYPE_CHECKING, Literal
 from tempfile import NamedTemporaryFile
-import IPython.display
 import numpy as np
 
 from scm.plams.core.errors import MissingOptionalPackageError
@@ -343,7 +342,7 @@ def open_in_ams_view(system: Union[Molecule, "ChemicalSystem"]):
         os.remove(input_path)
 
 
-@requires_optional_package("IPython")
+@requires_optional_package("PIL")
 @requires_ams(minimum_version="2025.204")
 def view(
     system: Union[Molecule, "ChemicalSystem"],
@@ -360,20 +359,20 @@ def view(
     show_lattice_vectors: bool = False,
     save_as: Optional[Union[str, os.PathLike]] = None,
     timeout: int = 10,
-) -> "IPython.display.Image":
+) -> "PilImage.Image":
     """
     View a chemical system or molecule in a Jupyter notebook by generating an image using AMSView.
 
     :param system: chemical system or molecule to display
     :param width: width of the image in pixels, defaults to ``800``
     :param height: height of the image in pixels, defaults to ``400``
-    :param padding: padding around system in Angstrom, defaults to ``0``
+    :param padding: padding around system in Angstrom, defaults to ``0``, can be negative
     :param dpi: resolution of the image in dots per inch, defaults to ``300``
     :param atom_label: optionally add label to atoms based on a property, defaults to ``None``
     :param atom_label_color: hexadecimal color code for atom label e.g. ``#000000``, defaults to white
     :param atom_label_size: scale atom labels by the given factor, to make them larger or smaller
     :param fixed_atom_size: use the same radius for all elements except Hydrogen, defaults to ``True``
-    :param view_plane: orientation of the normal to the view plane e.g. ``(1, 0, 0)`` - must be three values if supplied
+    :param view_plane: orientation of the normal to the view plane e.g. ``(0, 0, 1)`` - must be three values if supplied
     :param show_regions: display translucent spheres on atoms according to their regions, defaults to ``False``
     :param show_lattice_vectors: display the lattice vectors for periodic systems, defaults to ``False``
     :param save_as: optionally save the generated image file to a given location, defaults to ``None``
@@ -382,7 +381,7 @@ def view(
     :return: image of the molecule generated using AMSView
     """
     from tempfile import NamedTemporaryFile
-    from IPython.display import Image
+    from PIL import Image as PilImage
 
     with NamedTemporaryFile(mode="w", suffix=".in", delete=False) as input_file:
         input_path = input_file.name
@@ -400,7 +399,7 @@ def view(
             img_path = img_file.name
 
     try:
-        command = f'"$AMSBIN/amsview" "{input_path}" -transparent -batch -save "{img_path}" -scmgeometry "{width}x{height}" -dpi "{dpi}" -padding {Units.convert(padding, "angstrom", "bohr")}'
+        command = f'"$AMSBIN/amsview" "{input_path}" -transparent -batch -save "{img_path}" -scmgeometry "{width}x{height}" -dpi "{dpi}" -padding "{Units.convert(padding, "angstrom", "bohr")}" -showlatticevectors "{int(show_lattice_vectors)}"'
         if atom_label:
             command += f' -atomlabel "{atom_label}"'
         if atom_label_color and bool(re.fullmatch(r"#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})", atom_label_color)):
@@ -413,8 +412,6 @@ def view(
             command += f' -viewplane "{view_plane[0]} {view_plane[1]} {view_plane[2]}"'
         if not show_regions:
             command += " -hideregions"
-        if show_lattice_vectors:
-            command += f' -showlatticevectors 1'
 
         if not safe_system_call(command, timeout=timeout):
             raise AMSExecutionError(
@@ -422,9 +419,13 @@ def view(
                 "Failed to generate image using AMSView. Check the geometry or increase the timeout for very large systems.",
             )
 
-        with open(img_path, "rb") as image_file:
-            image_data = image_file.read()
-        img = Image(data=image_data, width=width)
+        # Open image file and resize, making sure to maintain aspect ratio as AMSView may not generate with precise dimensions
+        img = PilImage.open(img_path)
+        img_width, img_height = img.size
+        aspect_ratio = img_width / img_height
+        img = img.resize((width, int(np.ceil(width / aspect_ratio))))
+        if save_as:
+            img.save(img_path)
     finally:
         os.remove(input_path)
         if not save_as:
