@@ -42,7 +42,7 @@ Helper functions
        print(s)
 
 
-   def view(mol, width=400, height=400, show_lattice_vectors=False, view_plane=None, padding=0):
+   def view(mol, width=400, height=400, show_lattice_vectors=False, view_plane=None, padding=0, fixed_atom_size=True):
        if AMS2026:
            img = plams_view(
                mol,
@@ -51,6 +51,7 @@ Helper functions
                show_lattice_vectors=show_lattice_vectors,
                view_plane=view_plane,
                padding=padding,
+               fixed_atom_size=fixed_atom_size,
            )
 
            # Display in matplotlib if not running in notebook
@@ -364,7 +365,7 @@ This feature can be used if exactly **one** of the elements of the ``n_molecules
        out = packmol([sodium, chloride, water], n_molecules=[5, 5, None], density=1.029, box_bounds=[0, 0, 0, 19, 19, 19])
        printsummary(out)
        out.write("sodium-chloride-solution-1.xyz")
-       img = view(out, padding=-2.5)
+       img = view(out, padding=-2.5, fixed_atom_size=False)
    else:
        img = None
    img
@@ -385,7 +386,7 @@ Specify the total number of atoms instead of box bounds, and auto-determine a cu
        out = packmol([sodium, chloride, water], n_molecules=[5, 5, None], density=1.029, n_atoms=500)
        printsummary(out)
        out.write("sodium-chloride-solution-2.xyz")
-       img = view(out, padding=-2.5)
+       img = view(out, padding=-2.5, fixed_atom_size=False)
    else:
        img = None
    img
@@ -406,7 +407,7 @@ Specify the total number of atoms instead of the density (less useful option):
        out = packmol([sodium, chloride, water], n_molecules=[5, 5, None], n_atoms=500, box_bounds=[0, 0, 0, 12, 18, 24])
        printsummary(out)
        out.write("sodium-chloride-solution-3.xyz")
-       img = view(out, padding=-3)
+       img = view(out, padding=-3, fixed_atom_size=False)
    else:
        img = None
    img
@@ -439,7 +440,7 @@ Set ``sphere=True`` to pack in a sphere (non-periodic) instead of in a periodic 
    300 atoms, density = 1.000 g/cm^3, formula = H200O100
    #added molecules per species: [100], mole fractions: [1.0]
    Radius  of sphere: 8.939 ang.
-   Center of mass xyz (ang): (0.599157609271644, -0.19224616466867145, 0.36742191454779705)
+   Center of mass xyz (ang): (-0.3160872884927638, -0.23966780721469882, -0.014322173448546372)
 
 .. figure:: PackMol_files/PackMol_33_1.png
 
@@ -516,11 +517,11 @@ Microsolvation
    print(f"Microsolvated structure: {len(out)} atoms.")
    out.write("acetonitrile-microsolvated.xyz")
 
-   view(out, padding=-2)
+   view(out, padding=-1)
 
 ::
 
-   Microsolvated structure: 75 atoms.
+   Microsolvated structure: 69 atoms.
 
 .. figure:: PackMol_files/PackMol_38_1.png
 
@@ -589,10 +590,9 @@ First, create a slab using the ASE ``fcc111`` function
        slab.center(vacuum=11.0, axis=2)
        slab.set_pbc(True)
        slab = fromASE(slab)
-       slab.guess_bonds()
        out = packmol_around(slab, [water], n_molecules=[32], tolerance=1.8)
        out.write("Au211-water.xyz")
-       img = view(out, view_plane=(0, -1, 1), padding=-1, show_lattice_vectors=True)
+       img = view(out, width=800, height=600, view_plane=(1, 0.5, 0.5), padding=-4, show_lattice_vectors=True)
        print(f"{out.lattice=}")
    else:
        img = None
@@ -678,14 +678,14 @@ The bonds and atom properties are easiest to see by printing the System block fo
 
    System
      Atoms
-                 O       1.5685590000       2.5871930000       0.9990620000 region=mol0,oxygen_atom
-                 H       2.5219730000       2.8149100000       1.0041610000 mass=2.014 region=mol0
-                 H       1.0011150000       3.3885590000       1.0048290000 region=mol0
-                 O       2.9167460000       1.5048000000       2.8954870000 region=mol0,oxygen_atom
-                 H       2.3254090000       0.9891670000       2.3078470000 mass=2.014 region=mol0
-                 H       3.8228540000       1.1275390000       2.9247710000 region=mol0
-                 N       4.9301580000       2.0387810000       1.2609390000 region=mol1
-                 N       4.7634260000       0.9957490000       0.9197600000 region=mol1
+                 O       2.0332640000       3.1264470000       2.5071060000 region=mol0,oxygen_atom
+                 H       1.4500160000       3.9083790000       2.6034540000 mass=2.014 region=mol0
+                 H       1.6301540000       2.4378050000       1.9348390000 region=mol0
+                 O       1.1488570000       4.3793870000       4.8205360000 region=mol0,oxygen_atom
+                 H       1.3945580000       3.4306630000       4.8413800000 mass=2.014 region=mol0
+                 H       1.9393820000       4.9615990000       4.8028140000 region=mol0
+                 N       4.9450720000       4.5571360000       1.5380670000 region=mol1
+                 N       4.4822620000       3.7004390000       1.0051540000 region=mol1
      End
      BondOrders
         1 3 1.0
@@ -715,14 +715,14 @@ By default, the ``packmol()`` function assigns regions called ``mol0``, ``mol1``
 
    System
      Atoms
-                 O       4.7493570000       4.6209730000       0.9994850000 region=oxygen_atom,water
-                 H       3.7962610000       4.8500270000       1.0041370000 mass=2.014 region=water
-                 H       4.8919960000       3.6494490000       0.9963370000 region=water
-                 O       2.1763260000       1.3110290000       2.3285350000 region=oxygen_atom,water
-                 H       2.4275640000       2.0704930000       2.8950800000 mass=2.014 region=water
-                 H       1.8800680000       1.6010240000       1.4383960000 region=water
-                 N       4.0056350000       1.6596290000       1.2990100000 region=nitrogen_molecule
-                 N       4.9618360000       1.0959650000       1.3080910000 region=nitrogen_molecule
+                 O       1.0014170000       1.3494450000       3.9134270000 region=oxygen_atom,water
+                 H       1.4226850000       0.9991220000       4.7262540000 mass=2.014 region=water
+                 H       1.4280270000       1.0003340000       3.1008140000 region=water
+                 O       3.8098870000       2.0870270000       4.7210350000 region=oxygen_atom,water
+                 H       4.4888690000       1.3823120000       4.6641220000 mass=2.014 region=water
+                 H       4.2134010000       2.9814020000       4.7595860000 region=water
+                 N       1.0560970000       4.4117960000       4.9677290000 region=nitrogen_molecule
+                 N       1.9154520000       4.9689270000       4.5396710000 region=nitrogen_molecule
      End
      BondOrders
         1 3 1.0
@@ -747,14 +747,14 @@ Below, we also set ``keep_atom_properties=False``, this will remove the previous
 
    System
      Atoms
-                 O       4.4341800000       4.8152270000       4.3568160000 region=mol0
-                 H       4.7751880000       4.3464110000       3.5663710000 region=mol0
-                 H       3.4874840000       5.0567830000       4.2586680000 region=mol0
-                 O       2.0560340000       3.7106130000       0.9769990000 region=mol0
-                 H       1.2351260000       3.1860430000       1.0856950000 region=mol0
-                 H       1.8830870000       4.6757320000       1.0303880000 region=mol0
-                 N       1.5493200000       4.4044830000       5.0341110000 region=mol1
-                 N       0.9300260000       4.8735970000       4.2413140000 region=mol1
+                 O       4.0826910000       4.0735210000       1.8439750000 region=mol0
+                 H       4.9813400000       4.4159390000       1.6540800000 region=mol0
+                 H       3.4029060000       4.7799570000       1.7886980000 region=mol0
+                 O       4.2136080000       2.7602210000       3.7929600000 region=mol0
+                 H       4.4228300000       2.0649300000       3.1344200000 region=mol0
+                 H       4.5102370000       2.5105990000       4.6951320000 region=mol0
+                 N       1.8187930000       2.2350070000       3.4749680000 region=mol1
+                 N       2.0671430000       2.1548520000       2.3960720000 region=mol1
      End
      BondOrders
         1 3 1.0
@@ -786,14 +786,14 @@ Below, we also set ``keep_atom_properties=False``, this will remove the previous
 
    System
      Atoms
-                 O       3.9770870000       4.0086350000       4.6499920000 region=water
-                 H       3.2565020000       4.6723240000       4.6839500000 region=water
-                 H       4.8383650000       4.3893510000       4.9283250000 region=water
-                 O       3.0441680000       1.9685510000       3.7579850000 region=water
-                 H       2.8078580000       1.4714310000       2.9468690000 region=water
-                 H       2.3716300000       2.6491010000       3.9788010000 region=water
-                 N       1.0007640000       4.5229740000       0.9988140000 region=nitrogen_molecule
-                 N       1.9743520000       4.9674800000       1.2931970000 region=nitrogen_molecule
+                 O       1.2065880000       1.8829860000       4.9268090000 region=water
+                 H       1.0769050000       2.8546040000       4.9312450000 region=water
+                 H       2.1582480000       1.6410640000       4.9211980000 region=water
+                 O       4.4599410000       4.1007580000       3.3562200000 region=water
+                 H       3.9588850000       3.2727540000       3.5118830000 region=water
+                 H       3.8637100000       4.8698460000       3.2249690000 region=water
+                 N       2.0661000000       4.8379140000       4.8452940000 region=nitrogen_molecule
+                 N       1.3421740000       4.7845100000       4.0055330000 region=nitrogen_molecule
      End
      Lattice
             5.9692549746     0.0000000000     0.0000000000

@@ -423,9 +423,7 @@ def view(
         img = PilImage.open(img_path)
         img_width, img_height = img.size
         aspect_ratio = img_width / img_height
-        img = img.resize((width, int(np.ceil(width / aspect_ratio))))
-        if save_as:
-            img.save(img_path)
+        img = img.resize((width, int(np.ceil(width / aspect_ratio))), resample=PilImage.Resampling.LANCZOS, reducing_gap=3.0)
     finally:
         os.remove(input_path)
         if not save_as:

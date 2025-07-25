@@ -38,7 +38,7 @@ def printsummary(mol, details=None):
     print(s)
 
 
-def view(mol, width=400, height=400, show_lattice_vectors=False, view_plane=None, padding=0):
+def view(mol, width=400, height=400, show_lattice_vectors=False, view_plane=None, padding=0, fixed_atom_size=True):
     if AMS2026:
         img = plams_view(
             mol,
@@ -47,6 +47,7 @@ def view(mol, width=400, height=400, show_lattice_vectors=False, view_plane=None
             show_lattice_vectors=show_lattice_vectors,
             view_plane=view_plane,
             padding=padding,
+            fixed_atom_size=fixed_atom_size,
         )
 
         # Display in matplotlib if not running in notebook
@@ -234,7 +235,7 @@ if AMS2026:
     out = packmol([sodium, chloride, water], n_molecules=[5, 5, None], density=1.029, box_bounds=[0, 0, 0, 19, 19, 19])
     printsummary(out)
     out.write("sodium-chloride-solution-1.xyz")
-    img = view(out, padding=-2.5)
+    img = view(out, padding=-2.5, fixed_atom_size=False)
 else:
     img = None
 img
@@ -247,7 +248,7 @@ if AMS2026:
     out = packmol([sodium, chloride, water], n_molecules=[5, 5, None], density=1.029, n_atoms=500)
     printsummary(out)
     out.write("sodium-chloride-solution-2.xyz")
-    img = view(out, padding=-2.5)
+    img = view(out, padding=-2.5, fixed_atom_size=False)
 else:
     img = None
 img
@@ -260,7 +261,7 @@ if AMS2026:
     out = packmol([sodium, chloride, water], n_molecules=[5, 5, None], n_atoms=500, box_bounds=[0, 0, 0, 12, 18, 24])
     printsummary(out)
     out.write("sodium-chloride-solution-3.xyz")
-    img = view(out, padding=-3)
+    img = view(out, padding=-3, fixed_atom_size=False)
 else:
     img = None
 img
@@ -326,7 +327,7 @@ out = packmol_microsolvation(solute=acetonitrile, solvent=water, density=1.5, th
 print(f"Microsolvated structure: {len(out)} atoms.")
 out.write("acetonitrile-microsolvated.xyz")
 
-view(out, padding=-2)
+view(out, padding=-1)
 
 
 # ## Solid-liquid or solid-gas interfaces
@@ -371,10 +372,9 @@ if AMS2025:
     slab.center(vacuum=11.0, axis=2)
     slab.set_pbc(True)
     slab = fromASE(slab)
-    slab.guess_bonds()
     out = packmol_around(slab, [water], n_molecules=[32], tolerance=1.8)
     out.write("Au211-water.xyz")
-    img = view(out, view_plane=(0, -1, 1), padding=-1, show_lattice_vectors=True)
+    img = view(out, width=800, height=600, view_plane=(1, 0.5, 0.5), padding=-4, show_lattice_vectors=True)
     print(f"{out.lattice=}")
 else:
     img = None
