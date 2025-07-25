@@ -6,17 +6,22 @@ Initial imports
 
 .. code:: ipython3
 
-   from scm.plams import plot_molecule, from_smiles, Molecule
+   from scm.plams import from_smiles, Molecule
    from scm.plams.interfaces.molecule.packmol import packmol
    from ase.visualize.plot import plot_atoms
    from ase.build import fcc111, bulk
    import matplotlib.pyplot as plt
    from scm.version import release
+   import sys
 
    AMS2025 = release >= "2024.201"
    AMS2026 = release >= "2025.201"
    if AMS2025:
        from scm.plams import packmol_around
+   if AMS2026:
+       from scm.plams import view as plams_view
+   else:
+       from scm.plams import plot_molecule
 
 Helper functions
 ~~~~~~~~~~~~~~~~
@@ -36,6 +41,31 @@ Helper functions
            s += f'\n#added molecules per species: {details["n_molecules"]}, mole fractions: {details["mole_fractions"]}'
        print(s)
 
+
+   def view(mol, width=400, height=400, show_lattice_vectors=False, view_plane=None, padding=0):
+       if AMS2026:
+           img = plams_view(
+               mol,
+               width=width,
+               height=height,
+               show_lattice_vectors=show_lattice_vectors,
+               view_plane=view_plane,
+               padding=padding,
+           )
+
+           # Display in matplotlib if not running in notebook
+           if "ipykernel" not in sys.modules:
+               import numpy as np
+
+               img = img.convert("RGBA")
+               plt.imshow(np.array(img))
+               plt.axis("off")
+               plt.show()
+           else:
+               return img
+       else:
+           return plot_molecule(mol)
+
 Liquid water (fluid with 1 component)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -44,7 +74,7 @@ First, create the gasphase molecule:
 .. code:: ipython3
 
    water = from_smiles("O")
-   plot_molecule(water);
+   view(water, width=400, height=200)
 
 .. figure:: PackMol_files/PackMol_5_0.png
 
@@ -54,7 +84,7 @@ First, create the gasphase molecule:
    out = packmol(water, n_atoms=194, density=1.0)
    printsummary(out)
    out.write("water-1.xyz")
-   plot_molecule(out);
+   view(out, padding=-1.5)
 
 ::
 
@@ -69,7 +99,7 @@ First, create the gasphase molecule:
    out = packmol(water, density=1.0, box_bounds=[0.0, 0.0, 0.0, 8.0, 12.0, 14.0])
    printsummary(out)
    out.write("water-2.xyz")
-   plot_molecule(out);
+   view(out, show_lattice_vectors=True, view_plane=(0.5, 0.5, 1))
 
 ::
 
@@ -84,7 +114,7 @@ First, create the gasphase molecule:
    out = packmol(water, n_molecules=64, density=1.0)
    printsummary(out)
    out.write("water-3.xyz")
-   plot_molecule(out);
+   view(out, padding=-1.5)
 
 ::
 
@@ -99,7 +129,7 @@ First, create the gasphase molecule:
    out = packmol(water, n_molecules=64, box_bounds=[0.0, 0.0, 0.0, 12.0, 13.0, 14.0])
    printsummary(out)
    out.write("water-4.xyz")
-   plot_molecule(out);
+   view(out, padding=-1.5)
 
 ::
 
@@ -118,14 +148,17 @@ First, create the gasphase molecule:
        box.lattice = [[10.0, 2.0, -1.0], [-5.0, 8.0, 0.0], [0.0, -2.0, 11.0]]
        out = packmol_around(box, molecules=[water], n_molecules=[32])
        out.write("water-5.xyz")
-       plot_molecule(out);
+       img = view(out, show_lattice_vectors=True, view_plane=(1, 1, 1), padding=-0.5)
+   else:
+       img = None
+   img
 
 ::
 
    water-5.xyz: pure liquid in non-orthorhombic box (requires AMS2025 or later)
    NOTE: Non-orthorhombic boxes may yield inaccurate results, always carefully check the output
 
-.. figure:: PackMol_files/PackMol_10_1.png
+.. figure:: PackMol_files/PackMol_10_2.png
 
 .. code:: ipython3
 
@@ -134,7 +167,10 @@ First, create the gasphase molecule:
        print("Note: This density is meant to be equilibrated with NPT MD. It can be very inaccurate!")
        out = packmol(water, n_atoms=100)
        print(f"Guessed density: {out.get_density():.2f} kg/m^3")
-       plot_molecule(out);
+       img = view(out, padding=-1)
+   else:
+       img = None
+   img
 
 ::
 
@@ -152,7 +188,7 @@ Let’s also create a single acetonitrile molecule:
 .. code:: ipython3
 
    acetonitrile = from_smiles("CC#N")
-   plot_molecule(acetonitrile);
+   view(acetonitrile, width=300, height=300)
 
 .. figure:: PackMol_files/PackMol_13_0.png
 
@@ -195,7 +231,7 @@ By setting ``return_details=True``, you can get information about the mole fract
    )
    printsummary(out, details)
    out.write("water-acetonitrile-1.xyz")
-   plot_molecule(out);
+   view(out, padding=-1.5)
 
 ::
 
@@ -235,7 +271,7 @@ The ``details`` is a dictionary as follows:
    )
    printsummary(out, details)
    out.write("water-acetonitrile-2.xyz")
-   plot_molecule(out);
+   view(out, padding=-1.5)
 
 ::
 
@@ -256,7 +292,7 @@ The ``details`` is a dictionary as follows:
    )
    printsummary(out, details)
    out.write("water-acetonitrile-3.xyz")
-   plot_molecule(out);
+   view(out, padding=-1.5)
 
 ::
 
@@ -276,7 +312,7 @@ The ``details`` is a dictionary as follows:
    )
    printsummary(out)
    out.write("water-acetonitrile-4.xyz")
-   plot_molecule(out);
+   view(out, padding=-1.5)
 
 ::
 
@@ -292,7 +328,10 @@ The ``details`` is a dictionary as follows:
        print("Note: This density is meant to be equilibrated with NPT MD. It can be very inaccurate!")
        out = packmol([water, acetonitrile], mole_fractions=[x_water, x_acetonitrile], n_atoms=100)
        print(f"Guessed density: {out.get_density():.2f} kg/m^3")
-       plot_molecule(out);
+       img = view(out, padding=-1)
+   else:
+       img = None
+   img
 
 ::
 
@@ -325,7 +364,10 @@ This feature can be used if exactly **one** of the elements of the ``n_molecules
        out = packmol([sodium, chloride, water], n_molecules=[5, 5, None], density=1.029, box_bounds=[0, 0, 0, 19, 19, 19])
        printsummary(out)
        out.write("sodium-chloride-solution-1.xyz")
-       plot_molecule(out);
+       img = view(out, padding=-2.5)
+   else:
+       img = None
+   img
 
 ::
 
@@ -343,7 +385,10 @@ Specify the total number of atoms instead of box bounds, and auto-determine a cu
        out = packmol([sodium, chloride, water], n_molecules=[5, 5, None], density=1.029, n_atoms=500)
        printsummary(out)
        out.write("sodium-chloride-solution-2.xyz")
-       plot_molecule(out);
+       img = view(out, padding=-2.5)
+   else:
+       img = None
+   img
 
 ::
 
@@ -361,7 +406,10 @@ Specify the total number of atoms instead of the density (less useful option):
        out = packmol([sodium, chloride, water], n_molecules=[5, 5, None], n_atoms=500, box_bounds=[0, 0, 0, 12, 18, 24])
        printsummary(out)
        out.write("sodium-chloride-solution-3.xyz")
-       plot_molecule(out);
+       img = view(out, padding=-3)
+   else:
+       img = None
+   img
 
 ::
 
@@ -383,7 +431,7 @@ Set ``sphere=True`` to pack in a sphere (non-periodic) instead of in a periodic 
    print(f"Radius  of sphere: {details['radius']:.3f} ang.")
    print(f"Center of mass xyz (ang): {out.get_center_of_mass()}")
    out.write("water-sphere.xyz")
-   plot_molecule(out);
+   view(out, padding=-2)
 
 ::
 
@@ -391,7 +439,7 @@ Set ``sphere=True`` to pack in a sphere (non-periodic) instead of in a periodic 
    300 atoms, density = 1.000 g/cm^3, formula = H200O100
    #added molecules per species: [100], mole fractions: [1.0]
    Radius  of sphere: 8.939 ang.
-   Center of mass xyz (ang): (0.15768025309228317, 0.12207103040257866, 0.3250874654186094)
+   Center of mass xyz (ang): (0.599157609271644, -0.19224616466867145, 0.36742191454779705)
 
 .. figure:: PackMol_files/PackMol_33_1.png
 
@@ -411,7 +459,7 @@ Set ``sphere=True`` to pack in a sphere (non-periodic) instead of in a periodic 
    )
    printsummary(out, details)
    out.write("water-acetonitrile-sphere.xyz")
-   plot_molecule(out);
+   view(out, padding=-3)
 
 ::
 
@@ -441,7 +489,7 @@ In PLAMS, ``molecule.properties.charge`` specifies the charge:
    tot_charge = out.properties.get("charge", 0)
    print(f"Total charge of packmol-generated system: {tot_charge}")
    out.write("water-ammonium-chloride.xyz")
-   plot_molecule(out);
+   view(out)
 
 ::
 
@@ -468,12 +516,11 @@ Microsolvation
    print(f"Microsolvated structure: {len(out)} atoms.")
    out.write("acetonitrile-microsolvated.xyz")
 
-   figsize = (3, 3)
-   plot_molecule(out, figsize=figsize);
+   view(out, padding=-2)
 
 ::
 
-   Microsolvated structure: 81 atoms.
+   Microsolvated structure: 75 atoms.
 
 .. figure:: PackMol_files/PackMol_38_1.png
 
@@ -487,9 +534,9 @@ First, create a slab using the ASE ``fcc111`` function
    from scm.plams import plot_molecule, fromASE
    from ase.build import fcc111
 
-   rotation = "90x,0y,0z"  # sideview of slab
    slab = fromASE(fcc111("Al", size=(4, 6, 3), vacuum=15.0, orthogonal=True, periodic=True))
-   plot_molecule(slab, figsize=figsize, rotation=rotation);
+   slab.guess_bonds()
+   view(slab, view_plane=(1, 0, 0))
 
 .. figure:: PackMol_files/PackMol_40_0.png
 
@@ -500,12 +547,15 @@ First, create a slab using the ASE ``fcc111`` function
        out = packmol_around(slab, water, density=1.0)
        printsummary(out)
        out.write("al-water-pure.xyz")
-       plot_molecule(out, figsize=figsize, rotation=rotation);
+       img = view(out, width=800, height=600, view_plane=(1, 0, 0), padding=-3)
+   else:
+       img = None
+   img
 
 ::
 
    water surrounding an Al slab, from an approximate density
-   534 atoms, density = 1.325 g/cm^3, box = 11.455, 14.881, 34.677, formula = Al72H308O154
+   630 atoms, density = 1.487 g/cm^3, box = 11.455, 14.881, 34.677, formula = Al72H372O186
 
 .. figure:: PackMol_files/PackMol_41_1.png
 
@@ -516,12 +566,15 @@ First, create a slab using the ASE ``fcc111`` function
        out = packmol_around(slab, [water, acetonitrile], mole_fractions=[x_water, x_acetonitrile], density=density)
        printsummary(out)
        out.write("al-water-acetonitrile.xyz")
-       plot_molecule(out, figsize=figsize, rotation=rotation);
+       img = view(out, width=800, height=600, view_plane=(1, 0, 0), padding=-3)
+   else:
+       img = None
+   img
 
 ::
 
    2-1 water-acetonitrile mixture surrounding an Al slab, from mole fractions and an approximate density
-   468 atoms, density = 1.260 g/cm^3, box = 11.455, 14.881, 34.677, formula = C66H231Al72N33O66
+   552 atoms, density = 1.412 g/cm^3, box = 11.455, 14.881, 34.677, formula = C80H280Al72N40O80
 
 .. figure:: PackMol_files/PackMol_42_1.png
 
@@ -535,10 +588,15 @@ First, create a slab using the ASE ``fcc111`` function
        slab = surface("Au", (2, 1, 1), 6)
        slab.center(vacuum=11.0, axis=2)
        slab.set_pbc(True)
-       out = packmol_around(fromASE(slab), [water], n_molecules=[32], tolerance=1.8)
+       slab = fromASE(slab)
+       slab.guess_bonds()
+       out = packmol_around(slab, [water], n_molecules=[32], tolerance=1.8)
        out.write("Au211-water.xyz")
-       plot_molecule(out, figsize=figsize, rotation=rotation)
+       img = view(out, view_plane=(0, -1, 1), padding=-1, show_lattice_vectors=True)
        print(f"{out.lattice=}")
+   else:
+       img = None
+   img
 
 ::
 
@@ -559,8 +617,7 @@ Use the ``packmol_around`` function. You can decrease ``tolerance`` if you need 
    from ase.build import bulk
 
    bulk_Al = fromASE(bulk("Al", cubic=True).repeat((3, 3, 3)))
-   rotation = "-85x,5y,0z"
-   plot_molecule(bulk_Al, rotation=rotation, radii=0.4);
+   view(bulk_Al, padding=-2)
 
 .. figure:: PackMol_files/PackMol_45_0.png
 
@@ -573,15 +630,18 @@ Use the ``packmol_around`` function. You can decrease ``tolerance`` if you need 
            n_molecules=[50, 20],
            tolerance=1.5,
        )
-       plot_molecule(out, rotation=rotation, radii=0.4)
+       img = view(out, view_plane=(1, 0, 0), padding=-2)
        printsummary(out)
        out.write("al-bulk-with-h-he.xyz")
+   else:
+       img = None
+   img
 
 ::
 
    178 atoms, density = 2.819 g/cm^3, box = 12.150, 12.150, 12.150, formula = Al108H50He20
 
-.. figure:: PackMol_files/PackMol_46_1.png
+.. figure:: PackMol_files/PackMol_46_2.png
 
 Bonds, atom properties (force field types, regions, …)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -618,14 +678,14 @@ The bonds and atom properties are easiest to see by printing the System block fo
 
    System
      Atoms
-                 O       1.0073590000       4.6111920000       1.1556130000 region=mol0,oxygen_atom
-                 H       1.9264970000       4.9227350000       1.0177500000 mass=2.014 region=mol0
-                 H       0.9519560000       3.6309390000       1.1714300000 region=mol0
-                 O       3.9981590000       3.6235460000       1.9874440000 region=mol0,oxygen_atom
-                 H       3.7804710000       4.5774810000       2.0465920000 mass=2.014 region=mol0
-                 H       3.1914180000       3.0678290000       1.9198970000 region=mol0
-                 N       4.5064270000       1.5136730000       1.0489100000 region=mol1
-                 N       4.9425390000       1.0458000000       1.9561140000 region=mol1
+                 O       1.5685590000       2.5871930000       0.9990620000 region=mol0,oxygen_atom
+                 H       2.5219730000       2.8149100000       1.0041610000 mass=2.014 region=mol0
+                 H       1.0011150000       3.3885590000       1.0048290000 region=mol0
+                 O       2.9167460000       1.5048000000       2.8954870000 region=mol0,oxygen_atom
+                 H       2.3254090000       0.9891670000       2.3078470000 mass=2.014 region=mol0
+                 H       3.8228540000       1.1275390000       2.9247710000 region=mol0
+                 N       4.9301580000       2.0387810000       1.2609390000 region=mol1
+                 N       4.7634260000       0.9957490000       0.9197600000 region=mol1
      End
      BondOrders
         1 3 1.0
@@ -655,14 +715,14 @@ By default, the ``packmol()`` function assigns regions called ``mol0``, ``mol1``
 
    System
      Atoms
-                 O       4.1821980000       4.8199630000       4.9840650000 region=oxygen_atom,water
-                 H       3.2100940000       4.9400980000       4.9458590000 mass=2.014 region=water
-                 H       4.4322650000       3.8711140000       5.0210560000 region=water
-                 O       4.1005690000       0.9966850000       1.1977600000 region=oxygen_atom,water
-                 H       3.2552230000       1.4532120000       1.0032060000 mass=2.014 region=water
-                 H       4.8447710000       1.6301390000       1.2932370000 region=water
-                 N       4.9754450000       4.9471000000       1.2166720000 region=nitrogen_molecule
-                 N       4.3981240000       4.0228800000       1.0053990000 region=nitrogen_molecule
+                 O       4.7493570000       4.6209730000       0.9994850000 region=oxygen_atom,water
+                 H       3.7962610000       4.8500270000       1.0041370000 mass=2.014 region=water
+                 H       4.8919960000       3.6494490000       0.9963370000 region=water
+                 O       2.1763260000       1.3110290000       2.3285350000 region=oxygen_atom,water
+                 H       2.4275640000       2.0704930000       2.8950800000 mass=2.014 region=water
+                 H       1.8800680000       1.6010240000       1.4383960000 region=water
+                 N       4.0056350000       1.6596290000       1.2990100000 region=nitrogen_molecule
+                 N       4.9618360000       1.0959650000       1.3080910000 region=nitrogen_molecule
      End
      BondOrders
         1 3 1.0
@@ -687,14 +747,14 @@ Below, we also set ``keep_atom_properties=False``, this will remove the previous
 
    System
      Atoms
-                 O       1.0696000000       4.2552160000       4.2995780000 region=mol0
-                 H       1.5028600000       4.9649360000       4.8186760000 region=mol0
-                 H       0.9999960000       3.4192530000       4.8100060000 region=mol0
-                 O       2.2086470000       4.3489730000       1.4785500000 region=mol0
-                 H       1.9773590000       3.3965390000       1.4944480000 region=mol0
-                 H       1.5012670000       4.8902510000       1.0652130000 region=mol0
-                 N       1.3553860000       0.9554440000       2.0478570000 region=mol1
-                 N       1.0007740000       1.2900360000       1.0506520000 region=mol1
+                 O       4.4341800000       4.8152270000       4.3568160000 region=mol0
+                 H       4.7751880000       4.3464110000       3.5663710000 region=mol0
+                 H       3.4874840000       5.0567830000       4.2586680000 region=mol0
+                 O       2.0560340000       3.7106130000       0.9769990000 region=mol0
+                 H       1.2351260000       3.1860430000       1.0856950000 region=mol0
+                 H       1.8830870000       4.6757320000       1.0303880000 region=mol0
+                 N       1.5493200000       4.4044830000       5.0341110000 region=mol1
+                 N       0.9300260000       4.8735970000       4.2413140000 region=mol1
      End
      BondOrders
         1 3 1.0
@@ -726,14 +786,14 @@ Below, we also set ``keep_atom_properties=False``, this will remove the previous
 
    System
      Atoms
-                 O       4.9676900000       1.2341540000       3.1521120000 region=water
-                 H       4.8067990000       1.0000040000       2.2139400000 region=water
-                 H       4.6654150000       2.1452960000       3.3586670000 region=water
-                 O       3.4268240000       2.5484480000       1.0031490000 region=water
-                 H       2.5912260000       3.0609470000       1.0030040000 region=water
-                 H       4.2150230000       3.1340530000       0.9982650000 region=water
-                 N       1.1505700000       1.0349320000       1.9922020000 region=nitrogen_molecule
-                 N       1.0418150000       1.4725760000       0.9779250000 region=nitrogen_molecule
+                 O       3.9770870000       4.0086350000       4.6499920000 region=water
+                 H       3.2565020000       4.6723240000       4.6839500000 region=water
+                 H       4.8383650000       4.3893510000       4.9283250000 region=water
+                 O       3.0441680000       1.9685510000       3.7579850000 region=water
+                 H       2.8078580000       1.4714310000       2.9468690000 region=water
+                 H       2.3716300000       2.6491010000       3.9788010000 region=water
+                 N       1.0007640000       4.5229740000       0.9988140000 region=nitrogen_molecule
+                 N       1.9743520000       4.9674800000       1.2931970000 region=nitrogen_molecule
      End
      Lattice
             5.9692549746     0.0000000000     0.0000000000

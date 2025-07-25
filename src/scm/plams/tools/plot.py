@@ -349,7 +349,6 @@ def view(
     width: int = 800,
     height: int = 400,
     padding: float = 0,
-    dpi: int = 300,
     atom_label: Optional[Literal["AtomType", "Element", "Name", "SurfaceRadius"]] = None,
     atom_label_color: Optional[str] = None,
     atom_label_size: Optional[float] = None,
@@ -358,6 +357,7 @@ def view(
     show_regions: bool = False,
     show_lattice_vectors: bool = False,
     save_as: Optional[Union[str, os.PathLike]] = None,
+    dpi: int = 300,
     timeout: int = 10,
 ) -> "PilImage.Image":
     """
@@ -367,7 +367,6 @@ def view(
     :param width: width of the image in pixels, defaults to ``800``
     :param height: height of the image in pixels, defaults to ``400``
     :param padding: padding around system in Angstrom, defaults to ``0``, can be negative
-    :param dpi: resolution of the image in dots per inch, defaults to ``300``
     :param atom_label: optionally add label to atoms based on a property, defaults to ``None``
     :param atom_label_color: hexadecimal color code for atom label e.g. ``#000000``, defaults to white
     :param atom_label_size: scale atom labels by the given factor, to make them larger or smaller
@@ -376,6 +375,7 @@ def view(
     :param show_regions: display translucent spheres on atoms according to their regions, defaults to ``False``
     :param show_lattice_vectors: display the lattice vectors for periodic systems, defaults to ``False``
     :param save_as: optionally save the generated image file to a given location, defaults to ``None``
+    :param dpi: resolution of the saved image in dots per inch, defaults to ``300``
     :param timeout: kill AMSView process after given time in seconds, defaults to ``10``
 
     :return: image of the molecule generated using AMSView
