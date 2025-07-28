@@ -20,7 +20,8 @@ class TestRequiresAms:
         with pytest.raises(AMSBINEnvVarNotSetError):
             self.this_function_requires_any_ams()
 
-    def test_requires_ams_when_no_exe_errors(self):
+    def test_requires_ams_when_no_exe_errors(self, monkeypatch):
+        monkeypatch.setenv("AMSBIN", "foo")
         mock_result = Mock()
         mock_result.stdout = ""
         mock_result.stderr = "Something went wrong"
@@ -29,7 +30,8 @@ class TestRequiresAms:
             with pytest.raises(AMSExecutionError):
                 self.this_function_requires_any_ams()
 
-    def test_requires_ams_when_incompatible_version_errors(self):
+    def test_requires_ams_when_incompatible_version_errors(self, monkeypatch):
+        monkeypatch.setenv("AMSBIN", "foo")
         mock_result = Mock()
         mock_result.stdout = "release=2024.102"
         mock_result.stderr = ""
@@ -38,7 +40,8 @@ class TestRequiresAms:
             with pytest.raises(AMSVersionError):
                 self.this_function_requires_2025_ams()
 
-    def test_requires_ams_when_compatible_version_returns(self):
+    def test_requires_ams_when_compatible_version_returns(self, monkeypatch):
+        monkeypatch.setenv("AMSBIN", "foo")
         mock_result = Mock()
         mock_result.stdout = "release=2024.201"
         mock_result.stderr = ""
