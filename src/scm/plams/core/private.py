@@ -7,7 +7,7 @@ import time
 import warnings
 from contextlib import AbstractContextManager
 from os.path import join as opj
-from typing import Callable, Dict, NoReturn, List, Optional
+from typing import Callable, Dict, NoReturn, List, Optional, Sequence
 
 __all__: List[str] = []
 
@@ -57,7 +57,7 @@ def saferun(*args, **kwargs):
     raise last_error
 
 
-def safe_system_call(command: str, timeout: Optional[float] = 5, poll_interval: float = 0.1) -> bool:
+def safe_system_call(command: Sequence[str], timeout: Optional[float] = 5, poll_interval: float = 0.1) -> bool:
     """
     Execute a system call which kills the process if it errors or does not respond within the given time period.
 
@@ -65,14 +65,16 @@ def safe_system_call(command: str, timeout: Optional[float] = 5, poll_interval: 
     :param timeout: time to wait in seconds before killing the process, defaults to ``5``
     :param poll_interval: time to wait  in seconds before polling the process for completion, defaults to ``0.1``
     """
-    proc = subprocess.Popen(
-        command,
-        shell=True,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        start_new_session=(os.name == "posix"),
-        creationflags=(subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0),
-    )
+    try:
+        proc = subprocess.Popen(
+            command,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=(os.name == "posix"),
+            creationflags=(subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0),
+        )
+    except FileNotFoundError:
+        return False
 
     start = time.time()
 
