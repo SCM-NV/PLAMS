@@ -411,11 +411,19 @@ def view(
         raise ValueError(f"height must be a positive integer, but was '{height}'")
     if not isinstance(padding, (int, float)):
         raise ValueError(f"padding must be a numeric value, but was '{padding}'")
-    if not isinstance(view_plane, Sequence) or len(view_plane) != 3 or not all(isinstance(v, (int, float)) for v in view_plane):
+    if (
+        not isinstance(view_plane, Sequence)
+        or len(view_plane) != 3
+        or not all(isinstance(v, (int, float)) for v in view_plane)
+    ):
         raise ValueError(f"view_plane must be a sequence of three numeric values, but was '{view_plane}'")
     if not isinstance(atom_label_type, str) or atom_label_type not in ["AtomType", "Element", "Name", "SurfaceRadius"]:
-        raise ValueError(f"atom_label_type must be one of: 'AtomType', 'Element', 'Name', 'SurfaceRadius', but was '{atom_label_type}'")
-    if not isinstance(atom_label_color, str) or not bool(re.fullmatch(r"#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})", atom_label_color)):
+        raise ValueError(
+            f"atom_label_type must be one of: 'AtomType', 'Element', 'Name', 'SurfaceRadius', but was '{atom_label_type}'"
+        )
+    if not isinstance(atom_label_color, str) or not bool(
+        re.fullmatch(r"#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})", atom_label_color)
+    ):
         raise ValueError(f"atom_label_color must be a color hex code (starting with #), but was '{atom_label_color}'")
     if not isinstance(atom_label_size, (int, float)):
         raise ValueError(f"atom_label_size must be a numeric value, but was '{atom_label_size}'")
@@ -443,7 +451,7 @@ def view(
             "-viewplane",
             " ".join([str(v) for v in view_plane]),
             "-showunitcell",
-            f"thickness {unit_cell_edge_thickness}" if show_unit_cell else "hide"
+            f"thickness {unit_cell_edge_thickness}" if show_unit_cell else "hide",
         ]
         if fixed_atom_size:
             command += ["-fixedatomsize"]

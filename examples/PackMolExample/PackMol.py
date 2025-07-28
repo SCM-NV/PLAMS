@@ -38,16 +38,30 @@ def printsummary(mol, details=None):
     print(s)
 
 
-def view(mol, width=400, height=400, show_lattice_vectors=False, view_plane=None, padding=0, fixed_atom_size=True):
+def view(
+    mol,
+    width=400,
+    height=400,
+    show_lattice_vectors=False,
+    view_plane=(0, 0, 1),
+    padding=0,
+    fixed_atom_size=True,
+    show_regions=False,
+    show_atom_labels=False,
+):
     if AMS2026:
         img = plams_view(
             mol,
             width=width,
             height=height,
-            show_lattice_vectors=show_lattice_vectors,
-            view_plane=view_plane,
             padding=padding,
+            view_plane=view_plane,
             fixed_atom_size=fixed_atom_size,
+            show_lattice_vectors=show_lattice_vectors,
+            unit_cell_edge_thickness=0.05,
+            show_regions=show_regions,
+            show_atom_labels=show_atom_labels,
+            atom_label_type="Element",
         )
 
         # Display in matplotlib if not running in notebook
@@ -75,28 +89,29 @@ print("pure liquid from approximate number of atoms and exact density (in g/cm^3
 out = packmol(water, n_atoms=194, density=1.0)
 printsummary(out)
 out.write("water-1.xyz")
-view(out, padding=-1.5)
+rotated_view = (1, 0.5, 0.5)
+view(out, view_plane=rotated_view)
 
 
 print("pure liquid from approximate density (in g/cm^3) and an orthorhombic box")
 out = packmol(water, density=1.0, box_bounds=[0.0, 0.0, 0.0, 8.0, 12.0, 14.0])
 printsummary(out)
 out.write("water-2.xyz")
-view(out, show_lattice_vectors=True, view_plane=(0.5, 0.5, 1))
+view(out, show_lattice_vectors=True, view_plane=rotated_view)
 
 
 print("pure liquid with explicit number of molecules and exact density")
 out = packmol(water, n_molecules=64, density=1.0)
 printsummary(out)
 out.write("water-3.xyz")
-view(out, padding=-1.5)
+view(out, view_plane=rotated_view)
 
 
 print("pure liquid with explicit number of molecules and box")
 out = packmol(water, n_molecules=64, box_bounds=[0.0, 0.0, 0.0, 12.0, 13.0, 14.0])
 printsummary(out)
 out.write("water-4.xyz")
-view(out, padding=-1.5)
+view(out, view_plane=rotated_view)
 
 
 if AMS2025:
@@ -107,7 +122,7 @@ if AMS2025:
     box.lattice = [[10.0, 2.0, -1.0], [-5.0, 8.0, 0.0], [0.0, -2.0, 11.0]]
     out = packmol_around(box, molecules=[water], n_molecules=[32])
     out.write("water-5.xyz")
-    img = view(out, show_lattice_vectors=True, view_plane=(1, 1, 1), padding=-0.5)
+    img = view(out, show_lattice_vectors=True, view_plane=rotated_view, padding=-0.5)
 else:
     img = None
 img
@@ -118,7 +133,7 @@ if AMS2025:
     print("Note: This density is meant to be equilibrated with NPT MD. It can be very inaccurate!")
     out = packmol(water, n_atoms=100)
     print(f"Guessed density: {out.get_density():.2f} kg/m^3")
-    img = view(out, padding=-1)
+    img = view(out, view_plane=rotated_view)
 else:
     img = None
 img
@@ -160,7 +175,7 @@ out, details = packmol(
 )
 printsummary(out, details)
 out.write("water-acetonitrile-1.xyz")
-view(out, padding=-1.5)
+view(out, view_plane=rotated_view)
 
 
 # The ``details`` is a dictionary as follows:
@@ -179,7 +194,7 @@ out, details = packmol(
 )
 printsummary(out, details)
 out.write("water-acetonitrile-2.xyz")
-view(out, padding=-1.5)
+view(out, view_plane=rotated_view)
 
 
 print("2-1 water-acetonitrile from explicit number of molecules and density, cubic box with auto-determined size")
@@ -191,7 +206,7 @@ out, details = packmol(
 )
 printsummary(out, details)
 out.write("water-acetonitrile-3.xyz")
-view(out, padding=-1.5)
+view(out, view_plane=rotated_view)
 
 
 print("2-1 water-acetonitrile from explicit number of molecules and box")
@@ -202,7 +217,7 @@ out = packmol(
 )
 printsummary(out)
 out.write("water-acetonitrile-4.xyz")
-view(out, padding=-1.5)
+view(out, view_plane=rotated_view)
 
 
 if AMS2025:
@@ -210,7 +225,7 @@ if AMS2025:
     print("Note: This density is meant to be equilibrated with NPT MD. It can be very inaccurate!")
     out = packmol([water, acetonitrile], mole_fractions=[x_water, x_acetonitrile], n_atoms=100)
     print(f"Guessed density: {out.get_density():.2f} kg/m^3")
-    img = view(out, padding=-1)
+    img = view(out, view_plane=rotated_view)
 else:
     img = None
 img
@@ -235,7 +250,7 @@ if AMS2026:
     out = packmol([sodium, chloride, water], n_molecules=[5, 5, None], density=1.029, box_bounds=[0, 0, 0, 19, 19, 19])
     printsummary(out)
     out.write("sodium-chloride-solution-1.xyz")
-    img = view(out, padding=-2.5, fixed_atom_size=False)
+    img = view(out, view_plane=rotated_view, fixed_atom_size=False)
 else:
     img = None
 img
@@ -248,7 +263,7 @@ if AMS2026:
     out = packmol([sodium, chloride, water], n_molecules=[5, 5, None], density=1.029, n_atoms=500)
     printsummary(out)
     out.write("sodium-chloride-solution-2.xyz")
-    img = view(out, padding=-2.5, fixed_atom_size=False)
+    img = view(out, view_plane=rotated_view, fixed_atom_size=False)
 else:
     img = None
 img
@@ -261,7 +276,7 @@ if AMS2026:
     out = packmol([sodium, chloride, water], n_molecules=[5, 5, None], n_atoms=500, box_bounds=[0, 0, 0, 12, 18, 24])
     printsummary(out)
     out.write("sodium-chloride-solution-3.xyz")
-    img = view(out, padding=-3, fixed_atom_size=False)
+    img = view(out, view_plane=rotated_view, fixed_atom_size=False)
 else:
     img = None
 img
@@ -314,7 +329,7 @@ out = packmol(molecules=[water, ammonium, chloride], n_molecules=[3, 3, 1], dens
 tot_charge = out.properties.get("charge", 0)
 print(f"Total charge of packmol-generated system: {tot_charge}")
 out.write("water-ammonium-chloride.xyz")
-view(out)
+view(out, fixed_atom_size=False)
 
 
 # ## Microsolvation
@@ -338,7 +353,7 @@ from ase.build import fcc111
 
 slab = fromASE(fcc111("Al", size=(4, 6, 3), vacuum=15.0, orthogonal=True, periodic=True))
 slab.guess_bonds()
-view(slab, view_plane=(1, 0, 0))
+view(slab, view_plane=(1, 1, 1), fixed_atom_size=False)
 
 
 print("water surrounding an Al slab, from an approximate density")
@@ -346,7 +361,7 @@ if AMS2025:
     out = packmol_around(slab, water, density=1.0)
     printsummary(out)
     out.write("al-water-pure.xyz")
-    img = view(out, width=800, height=600, view_plane=(1, 0, 0), padding=-3)
+    img = view(out, width=800, height=600, view_plane=(1, 1, 1), padding=-2, fixed_atom_size=False)
 else:
     img = None
 img
@@ -357,7 +372,7 @@ if AMS2025:
     out = packmol_around(slab, [water, acetonitrile], mole_fractions=[x_water, x_acetonitrile], density=density)
     printsummary(out)
     out.write("al-water-acetonitrile.xyz")
-    img = view(out, width=800, height=600, view_plane=(1, 0, 0), padding=-3)
+    img = view(out, width=800, height=600, view_plane=(1, 1, 1), padding=-2, fixed_atom_size=False)
 else:
     img = None
 img
@@ -372,9 +387,10 @@ if AMS2025:
     slab.center(vacuum=11.0, axis=2)
     slab.set_pbc(True)
     slab = fromASE(slab)
+    slab.guess_bonds()
     out = packmol_around(slab, [water], n_molecules=[32], tolerance=1.8)
     out.write("Au211-water.xyz")
-    img = view(out, width=800, height=600, view_plane=(1, 0.5, 0.5), padding=-4, show_lattice_vectors=True)
+    img = view(out, width=800, height=600, view_plane=(0, 1, 1), padding=-3, fixed_atom_size=False)
     print(f"{out.lattice=}")
 else:
     img = None
@@ -389,7 +405,7 @@ from scm.plams import fromASE
 from ase.build import bulk
 
 bulk_Al = fromASE(bulk("Al", cubic=True).repeat((3, 3, 3)))
-view(bulk_Al, padding=-2)
+view(bulk_Al, view_plane=(0.8, 0.6, 0.6))
 
 
 if AMS2025:
@@ -399,7 +415,7 @@ if AMS2025:
         n_molecules=[50, 20],
         tolerance=1.5,
     )
-    img = view(out, view_plane=(1, 0, 0), padding=-2)
+    img = view(out, view_plane=(0.8, 0.6, 0.6))
     printsummary(out)
     out.write("al-bulk-with-h-he.xyz")
 else:
@@ -433,6 +449,7 @@ from scm.plams import AMSJob
 
 out = packmol([water, n2], n_molecules=[2, 1], density=0.5)
 print(AMSJob(molecule=out).get_input())
+view(out, show_regions=True, show_atom_labels=True)
 
 
 # By default, the ``packmol()`` function assigns regions called ``mol0``, ``mol1``, etc. to the different added molecules. The ``region_names`` option lets you set custom names.
@@ -444,12 +461,14 @@ out = packmol(
     region_names=["water", "nitrogen_molecule"],
 )
 print(AMSJob(molecule=out).get_input())
+view(out, show_regions=True, show_atom_labels=True)
 
 
 # Below, we also set ``keep_atom_properties=False``, this will remove the previous regions (in this example "oxygen_atom") and mass.
 
 out = packmol([water, n2], n_molecules=[2, 1], density=0.5, keep_atom_properties=False)
 print(AMSJob(molecule=out).get_input())
+view(out, show_regions=True, show_atom_labels=True)
 
 
 # ``keep_bonds=False`` will additionally ignore any defined bonds:
@@ -463,3 +482,4 @@ out = packmol(
     keep_atom_properties=False,
 )
 print(AMSJob(molecule=out).get_input())
+view(out, show_regions=True, show_atom_labels=True)

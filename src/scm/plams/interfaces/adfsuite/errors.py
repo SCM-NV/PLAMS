@@ -1,6 +1,3 @@
-from typing import Optional
-
-
 class AMSError(Exception):
     """
     General error relating to the AMS executable.

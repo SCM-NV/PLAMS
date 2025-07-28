@@ -42,16 +42,30 @@ Helper functions
        print(s)
 
 
-   def view(mol, width=400, height=400, show_lattice_vectors=False, view_plane=None, padding=0, fixed_atom_size=True):
+   def view(
+       mol,
+       width=400,
+       height=400,
+       show_lattice_vectors=False,
+       view_plane=(0, 0, 1),
+       padding=0,
+       fixed_atom_size=True,
+       show_regions=False,
+       show_atom_labels=False,
+   ):
        if AMS2026:
            img = plams_view(
                mol,
                width=width,
                height=height,
-               show_lattice_vectors=show_lattice_vectors,
-               view_plane=view_plane,
                padding=padding,
+               view_plane=view_plane,
                fixed_atom_size=fixed_atom_size,
+               show_lattice_vectors=show_lattice_vectors,
+               unit_cell_edge_thickness=0.05,
+               show_regions=show_regions,
+               show_atom_labels=show_atom_labels,
+               atom_label_type="Element",
            )
 
            # Display in matplotlib if not running in notebook
@@ -85,7 +99,8 @@ First, create the gasphase molecule:
    out = packmol(water, n_atoms=194, density=1.0)
    printsummary(out)
    out.write("water-1.xyz")
-   view(out, padding=-1.5)
+   rotated_view = (1, 0.5, 0.5)
+   view(out, view_plane=rotated_view)
 
 ::
 
@@ -100,7 +115,7 @@ First, create the gasphase molecule:
    out = packmol(water, density=1.0, box_bounds=[0.0, 0.0, 0.0, 8.0, 12.0, 14.0])
    printsummary(out)
    out.write("water-2.xyz")
-   view(out, show_lattice_vectors=True, view_plane=(0.5, 0.5, 1))
+   view(out, show_lattice_vectors=True, view_plane=rotated_view)
 
 ::
 
@@ -115,7 +130,7 @@ First, create the gasphase molecule:
    out = packmol(water, n_molecules=64, density=1.0)
    printsummary(out)
    out.write("water-3.xyz")
-   view(out, padding=-1.5)
+   view(out, view_plane=rotated_view)
 
 ::
 
@@ -130,7 +145,7 @@ First, create the gasphase molecule:
    out = packmol(water, n_molecules=64, box_bounds=[0.0, 0.0, 0.0, 12.0, 13.0, 14.0])
    printsummary(out)
    out.write("water-4.xyz")
-   view(out, padding=-1.5)
+   view(out, view_plane=rotated_view)
 
 ::
 
@@ -149,7 +164,7 @@ First, create the gasphase molecule:
        box.lattice = [[10.0, 2.0, -1.0], [-5.0, 8.0, 0.0], [0.0, -2.0, 11.0]]
        out = packmol_around(box, molecules=[water], n_molecules=[32])
        out.write("water-5.xyz")
-       img = view(out, show_lattice_vectors=True, view_plane=(1, 1, 1), padding=-0.5)
+       img = view(out, show_lattice_vectors=True, view_plane=rotated_view, padding=-0.5)
    else:
        img = None
    img
@@ -168,7 +183,7 @@ First, create the gasphase molecule:
        print("Note: This density is meant to be equilibrated with NPT MD. It can be very inaccurate!")
        out = packmol(water, n_atoms=100)
        print(f"Guessed density: {out.get_density():.2f} kg/m^3")
-       img = view(out, padding=-1)
+       img = view(out, view_plane=rotated_view)
    else:
        img = None
    img
@@ -232,7 +247,7 @@ By setting ``return_details=True``, you can get information about the mole fract
    )
    printsummary(out, details)
    out.write("water-acetonitrile-1.xyz")
-   view(out, padding=-1.5)
+   view(out, view_plane=rotated_view)
 
 ::
 
@@ -272,7 +287,7 @@ The ``details`` is a dictionary as follows:
    )
    printsummary(out, details)
    out.write("water-acetonitrile-2.xyz")
-   view(out, padding=-1.5)
+   view(out, view_plane=rotated_view)
 
 ::
 
@@ -293,7 +308,7 @@ The ``details`` is a dictionary as follows:
    )
    printsummary(out, details)
    out.write("water-acetonitrile-3.xyz")
-   view(out, padding=-1.5)
+   view(out, view_plane=rotated_view)
 
 ::
 
@@ -313,7 +328,7 @@ The ``details`` is a dictionary as follows:
    )
    printsummary(out)
    out.write("water-acetonitrile-4.xyz")
-   view(out, padding=-1.5)
+   view(out, view_plane=rotated_view)
 
 ::
 
@@ -329,7 +344,7 @@ The ``details`` is a dictionary as follows:
        print("Note: This density is meant to be equilibrated with NPT MD. It can be very inaccurate!")
        out = packmol([water, acetonitrile], mole_fractions=[x_water, x_acetonitrile], n_atoms=100)
        print(f"Guessed density: {out.get_density():.2f} kg/m^3")
-       img = view(out, padding=-1)
+       img = view(out, view_plane=rotated_view)
    else:
        img = None
    img
@@ -365,7 +380,7 @@ This feature can be used if exactly **one** of the elements of the ``n_molecules
        out = packmol([sodium, chloride, water], n_molecules=[5, 5, None], density=1.029, box_bounds=[0, 0, 0, 19, 19, 19])
        printsummary(out)
        out.write("sodium-chloride-solution-1.xyz")
-       img = view(out, padding=-2.5, fixed_atom_size=False)
+       img = view(out, view_plane=rotated_view, fixed_atom_size=False)
    else:
        img = None
    img
@@ -386,7 +401,7 @@ Specify the total number of atoms instead of box bounds, and auto-determine a cu
        out = packmol([sodium, chloride, water], n_molecules=[5, 5, None], density=1.029, n_atoms=500)
        printsummary(out)
        out.write("sodium-chloride-solution-2.xyz")
-       img = view(out, padding=-2.5, fixed_atom_size=False)
+       img = view(out, view_plane=rotated_view, fixed_atom_size=False)
    else:
        img = None
    img
@@ -407,7 +422,7 @@ Specify the total number of atoms instead of the density (less useful option):
        out = packmol([sodium, chloride, water], n_molecules=[5, 5, None], n_atoms=500, box_bounds=[0, 0, 0, 12, 18, 24])
        printsummary(out)
        out.write("sodium-chloride-solution-3.xyz")
-       img = view(out, padding=-3, fixed_atom_size=False)
+       img = view(out, view_plane=rotated_view, fixed_atom_size=False)
    else:
        img = None
    img
@@ -440,7 +455,7 @@ Set ``sphere=True`` to pack in a sphere (non-periodic) instead of in a periodic 
    300 atoms, density = 1.000 g/cm^3, formula = H200O100
    #added molecules per species: [100], mole fractions: [1.0]
    Radius  of sphere: 8.939 ang.
-   Center of mass xyz (ang): (-0.3160872884927638, -0.23966780721469882, -0.014322173448546372)
+   Center of mass xyz (ang): (-0.014403416811498319, 0.2887072322575067, 0.11725826018486431)
 
 .. figure:: PackMol_files/PackMol_33_1.png
 
@@ -490,7 +505,7 @@ In PLAMS, ``molecule.properties.charge`` specifies the charge:
    tot_charge = out.properties.get("charge", 0)
    print(f"Total charge of packmol-generated system: {tot_charge}")
    out.write("water-ammonium-chloride.xyz")
-   view(out)
+   view(out, fixed_atom_size=False)
 
 ::
 
@@ -521,7 +536,7 @@ Microsolvation
 
 ::
 
-   Microsolvated structure: 69 atoms.
+   Microsolvated structure: 75 atoms.
 
 .. figure:: PackMol_files/PackMol_38_1.png
 
@@ -537,7 +552,7 @@ First, create a slab using the ASE ``fcc111`` function
 
    slab = fromASE(fcc111("Al", size=(4, 6, 3), vacuum=15.0, orthogonal=True, periodic=True))
    slab.guess_bonds()
-   view(slab, view_plane=(1, 0, 0))
+   view(slab, view_plane=(1, 1, 1), fixed_atom_size=False)
 
 .. figure:: PackMol_files/PackMol_40_0.png
 
@@ -548,7 +563,7 @@ First, create a slab using the ASE ``fcc111`` function
        out = packmol_around(slab, water, density=1.0)
        printsummary(out)
        out.write("al-water-pure.xyz")
-       img = view(out, width=800, height=600, view_plane=(1, 0, 0), padding=-3)
+       img = view(out, width=800, height=600, view_plane=(1, 1, 1), padding=-2, fixed_atom_size=False)
    else:
        img = None
    img
@@ -567,7 +582,7 @@ First, create a slab using the ASE ``fcc111`` function
        out = packmol_around(slab, [water, acetonitrile], mole_fractions=[x_water, x_acetonitrile], density=density)
        printsummary(out)
        out.write("al-water-acetonitrile.xyz")
-       img = view(out, width=800, height=600, view_plane=(1, 0, 0), padding=-3)
+       img = view(out, width=800, height=600, view_plane=(1, 1, 1), padding=-2, fixed_atom_size=False)
    else:
        img = None
    img
@@ -590,9 +605,10 @@ First, create a slab using the ASE ``fcc111`` function
        slab.center(vacuum=11.0, axis=2)
        slab.set_pbc(True)
        slab = fromASE(slab)
+       slab.guess_bonds()
        out = packmol_around(slab, [water], n_molecules=[32], tolerance=1.8)
        out.write("Au211-water.xyz")
-       img = view(out, width=800, height=600, view_plane=(1, 0.5, 0.5), padding=-4, show_lattice_vectors=True)
+       img = view(out, width=800, height=600, view_plane=(0, 1, 1), padding=-3, fixed_atom_size=False)
        print(f"{out.lattice=}")
    else:
        img = None
@@ -617,7 +633,7 @@ Use the ``packmol_around`` function. You can decrease ``tolerance`` if you need 
    from ase.build import bulk
 
    bulk_Al = fromASE(bulk("Al", cubic=True).repeat((3, 3, 3)))
-   view(bulk_Al, padding=-2)
+   view(bulk_Al, view_plane=(0.8, 0.6, 0.6))
 
 .. figure:: PackMol_files/PackMol_45_0.png
 
@@ -630,7 +646,7 @@ Use the ``packmol_around`` function. You can decrease ``tolerance`` if you need 
            n_molecules=[50, 20],
            tolerance=1.5,
        )
-       img = view(out, view_plane=(1, 0, 0), padding=-2)
+       img = view(out, view_plane=(0.8, 0.6, 0.6))
        printsummary(out)
        out.write("al-bulk-with-h-he.xyz")
    else:
@@ -673,19 +689,20 @@ The bonds and atom properties are easiest to see by printing the System block fo
 
    out = packmol([water, n2], n_molecules=[2, 1], density=0.5)
    print(AMSJob(molecule=out).get_input())
+   view(out, show_regions=True, show_atom_labels=True)
 
 ::
 
    System
      Atoms
-                 O       2.0332640000       3.1264470000       2.5071060000 region=mol0,oxygen_atom
-                 H       1.4500160000       3.9083790000       2.6034540000 mass=2.014 region=mol0
-                 H       1.6301540000       2.4378050000       1.9348390000 region=mol0
-                 O       1.1488570000       4.3793870000       4.8205360000 region=mol0,oxygen_atom
-                 H       1.3945580000       3.4306630000       4.8413800000 mass=2.014 region=mol0
-                 H       1.9393820000       4.9615990000       4.8028140000 region=mol0
-                 N       4.9450720000       4.5571360000       1.5380670000 region=mol1
-                 N       4.4822620000       3.7004390000       1.0051540000 region=mol1
+                 O       1.8166390000       4.9611570000       1.9679550000 region=mol0,oxygen_atom
+                 H       1.3527710000       4.4125820000       1.3010430000 mass=2.014 region=mol0
+                 H       1.6288290000       4.6602920000       2.8836090000 region=mol0
+                 O       4.5034380000       4.8029080000       1.1705000000 region=mol0,oxygen_atom
+                 H       4.0287490000       3.9609170000       1.0074010000 mass=2.014 region=mol0
+                 H       4.9589970000       4.8033470000       2.0403740000 region=mol0
+                 N       1.0055170000       1.0079460000       4.6851980000 region=mol1
+                 N       1.7576740000       1.8213350000       4.6160790000 region=mol1
      End
      BondOrders
         1 3 1.0
@@ -698,6 +715,8 @@ The bonds and atom properties are easiest to see by printing the System block fo
             0.0000000000     0.0000000000     5.9692549746
      End
    End
+
+.. figure:: PackMol_files/PackMol_49_1.png
 
 By default, the ``packmol()`` function assigns regions called ``mol0``, ``mol1``, etc. to the different added molecules. The ``region_names`` option lets you set custom names.
 
@@ -710,19 +729,20 @@ By default, the ``packmol()`` function assigns regions called ``mol0``, ``mol1``
        region_names=["water", "nitrogen_molecule"],
    )
    print(AMSJob(molecule=out).get_input())
+   view(out, show_regions=True, show_atom_labels=True)
 
 ::
 
    System
      Atoms
-                 O       1.0014170000       1.3494450000       3.9134270000 region=oxygen_atom,water
-                 H       1.4226850000       0.9991220000       4.7262540000 mass=2.014 region=water
-                 H       1.4280270000       1.0003340000       3.1008140000 region=water
-                 O       3.8098870000       2.0870270000       4.7210350000 region=oxygen_atom,water
-                 H       4.4888690000       1.3823120000       4.6641220000 mass=2.014 region=water
-                 H       4.2134010000       2.9814020000       4.7595860000 region=water
-                 N       1.0560970000       4.4117960000       4.9677290000 region=nitrogen_molecule
-                 N       1.9154520000       4.9689270000       4.5396710000 region=nitrogen_molecule
+                 O       2.3362290000       3.9361160000       1.3516210000 region=oxygen_atom,water
+                 H       3.1443140000       4.4881420000       1.2955410000 mass=2.014 region=water
+                 H       1.5221780000       4.4831790000       1.3991370000 region=water
+                 O       1.8797570000       2.0466620000       2.4011240000 region=oxygen_atom,water
+                 H       1.1896280000       2.6361730000       2.7713630000 mass=2.014 region=water
+                 H       1.5483500000       1.5333400000       1.6324330000 region=water
+                 N       4.3861120000       1.0014070000       1.1450590000 region=nitrogen_molecule
+                 N       4.9694600000       1.7836530000       1.6741280000 region=nitrogen_molecule
      End
      BondOrders
         1 3 1.0
@@ -735,6 +755,8 @@ By default, the ``packmol()`` function assigns regions called ``mol0``, ``mol1``
             0.0000000000     0.0000000000     5.9692549746
      End
    End
+
+.. figure:: PackMol_files/PackMol_51_1.png
 
 Below, we also set ``keep_atom_properties=False``, this will remove the previous regions (in this example “oxygen_atom”) and mass.
 
@@ -742,19 +764,20 @@ Below, we also set ``keep_atom_properties=False``, this will remove the previous
 
    out = packmol([water, n2], n_molecules=[2, 1], density=0.5, keep_atom_properties=False)
    print(AMSJob(molecule=out).get_input())
+   view(out, show_regions=True, show_atom_labels=True)
 
 ::
 
    System
      Atoms
-                 O       4.0826910000       4.0735210000       1.8439750000 region=mol0
-                 H       4.9813400000       4.4159390000       1.6540800000 region=mol0
-                 H       3.4029060000       4.7799570000       1.7886980000 region=mol0
-                 O       4.2136080000       2.7602210000       3.7929600000 region=mol0
-                 H       4.4228300000       2.0649300000       3.1344200000 region=mol0
-                 H       4.5102370000       2.5105990000       4.6951320000 region=mol0
-                 N       1.8187930000       2.2350070000       3.4749680000 region=mol1
-                 N       2.0671430000       2.1548520000       2.3960720000 region=mol1
+                 O       2.1756340000       1.5751260000       2.6658940000 region=mol0
+                 H       1.3002480000       1.2160440000       2.9220940000 region=mol0
+                 H       2.1051910000       2.4829320000       2.2982790000 region=mol0
+                 O       4.2343750000       1.7558500000       4.5338390000 region=mol0
+                 H       5.0178530000       1.4762440000       5.0523560000 region=mol0
+                 H       3.8434830000       1.0089310000       4.0303210000 region=mol0
+                 N       4.1452710000       3.9531300000       4.5446220000 region=mol1
+                 N       4.4498740000       4.9592520000       4.9010670000 region=mol1
      End
      BondOrders
         1 3 1.0
@@ -767,6 +790,8 @@ Below, we also set ``keep_atom_properties=False``, this will remove the previous
             0.0000000000     0.0000000000     5.9692549746
      End
    End
+
+.. figure:: PackMol_files/PackMol_53_1.png
 
 ``keep_bonds=False`` will additionally ignore any defined bonds:
 
@@ -781,19 +806,20 @@ Below, we also set ``keep_atom_properties=False``, this will remove the previous
        keep_atom_properties=False,
    )
    print(AMSJob(molecule=out).get_input())
+   view(out, show_regions=True, show_atom_labels=True)
 
 ::
 
    System
      Atoms
-                 O       1.2065880000       1.8829860000       4.9268090000 region=water
-                 H       1.0769050000       2.8546040000       4.9312450000 region=water
-                 H       2.1582480000       1.6410640000       4.9211980000 region=water
-                 O       4.4599410000       4.1007580000       3.3562200000 region=water
-                 H       3.9588850000       3.2727540000       3.5118830000 region=water
-                 H       3.8637100000       4.8698460000       3.2249690000 region=water
-                 N       2.0661000000       4.8379140000       4.8452940000 region=nitrogen_molecule
-                 N       1.3421740000       4.7845100000       4.0055330000 region=nitrogen_molecule
+                 O       1.8050460000       2.3701290000       3.0088200000 region=water
+                 H       1.6791360000       1.4049800000       2.8925760000 region=water
+                 H       2.3639170000       2.5745860000       3.7898940000 region=water
+                 O       3.7473780000       3.4274130000       1.0512800000 region=water
+                 H       2.8410640000       3.7503140000       1.2389210000 region=water
+                 H       4.4196730000       3.8837870000       1.6026030000 region=water
+                 N       4.8226160000       4.9586330000       4.3416000000 region=nitrogen_molecule
+                 N       4.5470140000       4.0847910000       4.9681480000 region=nitrogen_molecule
      End
      Lattice
             5.9692549746     0.0000000000     0.0000000000
@@ -801,3 +827,5 @@ Below, we also set ``keep_atom_properties=False``, this will remove the previous
             0.0000000000     0.0000000000     5.9692549746
      End
    End
+
+.. figure:: PackMol_files/PackMol_55_1.png

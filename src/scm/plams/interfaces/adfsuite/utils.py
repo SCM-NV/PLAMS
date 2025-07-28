@@ -4,7 +4,7 @@ import os
 import subprocess
 import re
 
-from scm.plams.interfaces.adfsuite.errors import AMSBINEnvVarNotSetError, AMSExecutionError, AMSVersionError, AMSError
+from scm.plams.interfaces.adfsuite.errors import AMSBINEnvVarNotSetError, AMSExecutionError, AMSVersionError
 
 
 def requires_ams(minimum_version: Optional[str] = None):
