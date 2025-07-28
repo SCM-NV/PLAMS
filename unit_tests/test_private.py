@@ -12,6 +12,6 @@ class TestSafeSystemCall:
         assert not safe_system_call(["cmddoesnotexist"])
 
     def test_hanging_command(self):
-        cmd = ["timeout", "/T", "1"] if os.name == "nt" else ["sleep", "1"]
+        cmd = ["ping", "127.0.0.1", "-n", "2"] if os.name == "nt" else ["sleep", "1"]
         assert not safe_system_call(cmd, timeout=0.5, poll_interval=0.1)
         assert safe_system_call(cmd, timeout=2)
