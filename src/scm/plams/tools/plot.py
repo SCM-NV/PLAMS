@@ -349,7 +349,7 @@ def view(
     width: int = 800,
     height: int = 400,
     padding: float = 0,
-    view_plane: Tuple[float] = (0, 0, 1),
+    view_plane: Tuple[float, float, float] = (0.0, 0.0, 1.0),
     fixed_atom_size: bool = True,
     show_atom_labels: bool = False,
     atom_label_type: Literal["AtomType", "Element", "Name", "SurfaceRadius"] = "AtomType",

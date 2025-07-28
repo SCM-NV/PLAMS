@@ -71,7 +71,7 @@ def safe_system_call(command: Sequence[str], timeout: Optional[float] = 5, poll_
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             start_new_session=(os.name == "posix"),
-            creationflags=(subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0),
+            creationflags=(subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0),  # type: ignore
         )
     except FileNotFoundError:
         return False
