@@ -76,7 +76,8 @@ eda_job.run()
 # Finally, we extract the results of the energy decomposition:
 
 results = eda_job.results
-eda_res = eda_job.results.get_energy_decomposition()
+eda_res = eda_job.results.get_energy_decomposition(unit="kJ/mol")
 print("{:<20} {:>10}".format("Term", "Energy [kJ/mol]"))
 for key, value in eda_res.items():
     print("{:<20} {:>10.4f}".format(key, value))
+print("-------------------------------")

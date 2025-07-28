@@ -45,11 +45,11 @@ class ADFFragmentResults(Results):
         """Redirect to |AMSResults| of the full calculation."""
         return self.job.full.results.get_dipole_vector(unit)
 
-    def get_energy_decomposition(self, unit="kJ/mol") -> Dict[str, float]:
+    def get_energy_decomposition(self, unit="au") -> Dict[str, float]:
         """Get the energy decomposition of the fragment calculation.
 
         Args:
-            unit (str, optional): The unit of the energy. Defaults to 'kJ/mol'.
+            unit (str, optional): The unit of the energy. Defaults to 'au'.
 
         Returns:
             Dict[str, float]: The energy decomposition.
@@ -68,25 +68,19 @@ class ADFFragmentResults(Results):
         res = self.job.full.results
         res1 = self.job.f1.results
         res2 = self.job.f2.results
-        pos = -4  # position of the energy in au the output
-        # E_int appears in a comment below the PEDA Table of the output
-        ret["E_int"] = Units.convert(float(res.grep_output("Total Bonding Energy:")[-2].split()[pos]), "au", unit)
-        ret["E_int_disp"] = Units.convert(float(res.grep_output("Dispersion Energy:")[-1].split()[pos]), "au", unit)
-        ret["E_Pauli"] = Units.convert(
-            float(res.grep_output("Pauli Repulsion (Delta")[-1].split()[pos]),
-            "au",
-            unit,
-        )
-        ret["E_elstat"] = Units.convert(
-            float(res.grep_output("Electrostatic Interaction:")[-1].split()[pos]),
-            "au",
-            unit,
-        )
-        ret["E_orb"] = Units.convert(
-            float(res.grep_output("Total Orbital Interactions:")[-1].split()[pos]),
-            "au",
-            unit,
-        )
+
+        # remaining information on the output file
+        def try_grep_result(key, pattern, match_position=-1, split_position=4):
+            match = res.grep_output(pattern)
+            if match:
+                match = Units.convert(float(match[match_position].split()[split_position]), "au", unit)
+                ret[key] = match
+
+        try_grep_result("E_int", "Total Bonding Energy:", match_position=-2)
+        try_grep_result("E_int_disp", "Dispersion Energy:")
+        try_grep_result("E_Pauli", "Pauli Repulsion (Delta")
+        try_grep_result("E_elstat", "Electrostatic Interaction:")
+        try_grep_result("E_orb", "Total Orbital Interactions:")
 
         ret["E_1"] = res1.get_energy(unit=unit)
         ret["E_2"] = res2.get_energy(unit=unit)
@@ -178,7 +172,7 @@ class ADFFragmentResults(Results):
             )
         else:
             raise KeyError("NOCV orbital interaction not found in rkf file")
-        energies: List[float] | Tuple[List[float], List[float]]  #  make mypy happy
+        energies: Union[List[float], Tuple[List[float], List[float]]]  #  make mypy happy
         if isinstance(oi, tuple):
             energies = (_calc_energies(tpl[0]), _calc_energies(tpl[1]))
         elif isinstance(oi, list):
