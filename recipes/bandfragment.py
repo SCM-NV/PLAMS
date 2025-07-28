@@ -18,11 +18,11 @@ __all__ = ["BANDFragmentJob", "BANDFragmentResults"]
 class BANDFragmentResults(ADFFragmentResults):
     """Subclass of |ADFFragmentResults| for BAND calculations."""
 
-    def get_energy_decomposition(self, unit="kJ/mol") -> Dict[str, float]:
+    def get_energy_decomposition(self, unit="au") -> Dict[str, float]:
         """Get the energy decomposition of the fragment calculation.
 
         Args:
-            unit (str, optional): The unit of the energy. Defaults to 'kJ/mol'.
+            unit (str, optional): The unit of the energy. Defaults to 'au'.
 
         Returns:
             Dict[str, float]: The energy decomposition.
@@ -31,13 +31,18 @@ class BANDFragmentResults(ADFFragmentResults):
         res1 = self.job.f1.results
         res2 = self.job.f2.results
         ret = {}
-        pos = 2
-        # E_int appears in a comment below the PEDA Table of the output
-        ret["E_int"] = Units.convert(float(res.grep_output("E_int")[-2].split()[pos]), "au", unit)
-        ret["E_int_disp"] = Units.convert(float(res.grep_output("E_disp")[-1].split()[pos]), "au", unit)
-        ret["E_Pauli"] = Units.convert(float(res.grep_output("E_Pauli")[-1].split()[pos]), "au", unit)
-        ret["E_elstat"] = Units.convert(float(res.grep_output("E_elstat")[-1].split()[pos]), "au", unit)
-        ret["E_orb"] = Units.convert(float(res.grep_output("E_orb")[-1].split()[pos]), "au", unit)
+
+        def try_grep_result(key, pattern, match_position=-1, split_position=2):
+            match = res.grep_output(pattern)
+            if match:
+                match = Units.convert(float(match[match_position].split()[split_position]), "au", unit)
+                ret[key] = match
+
+        try_grep_result("E_int", "E_int", match_position=-2)
+        try_grep_result("E_int_disp", "E_disp")
+        try_grep_result("E_Pauli", "E_Pauli")
+        try_grep_result("E_elstat", "E_elstat")
+        try_grep_result("E_orb", "E_orb")
 
         ret["E_1"] = res1.get_energy(unit=unit)
         ret["E_2"] = res2.get_energy(unit=unit)

@@ -84,22 +84,22 @@ For efficiency in this example, we use a minimal basis and reduced computational
 
 ::
 
-   [25.07|16:11:02] JOB plamsjob STARTED
-   [25.07|16:11:02] JOB plamsjob RUNNING
-   [25.07|16:11:02] JOB plamsjob/frag1 STARTED
-   [25.07|16:11:02] JOB plamsjob/frag1 RUNNING
-   [25.07|16:11:49] JOB plamsjob/frag1 FINISHED
-   [25.07|16:11:49] JOB plamsjob/frag1 SUCCESSFUL
-   [25.07|16:11:49] JOB plamsjob/frag2 STARTED
-   [25.07|16:11:49] JOB plamsjob/frag2 RUNNING
-   [25.07|16:11:52] JOB plamsjob/frag2 FINISHED
-   [25.07|16:11:52] JOB plamsjob/frag2 SUCCESSFUL
+   [28.07|11:20:53] JOB plamsjob STARTED
+   [28.07|11:20:53] JOB plamsjob RUNNING
+   [28.07|11:20:53] JOB plamsjob/frag1 STARTED
+   [28.07|11:20:53] JOB plamsjob/frag1 RUNNING
+   [28.07|11:21:40] JOB plamsjob/frag1 FINISHED
+   [28.07|11:21:40] JOB plamsjob/frag1 SUCCESSFUL
+   [28.07|11:21:40] JOB plamsjob/frag2 STARTED
+   [28.07|11:21:40] JOB plamsjob/frag2 RUNNING
+   [28.07|11:21:43] JOB plamsjob/frag2 FINISHED
+   [28.07|11:21:43] JOB plamsjob/frag2 SUCCESSFUL
    ... (PLAMS log lines truncated) ...
 
 
 
 
-   <scm.plams.recipes.bandfragment.BANDFragmentResults at 0x12f943e20>
+   <scm.plams.recipes.bandfragment.BANDFragmentResults at 0x145404550>
 
 Print Results
 ~~~~~~~~~~~~~
@@ -109,10 +109,11 @@ Finally, we extract the results of the energy decomposition:
 .. code:: ipython3
 
    results = eda_job.results
-   eda_res = eda_job.results.get_energy_decomposition()
+   eda_res = eda_job.results.get_energy_decomposition(unit="kJ/mol")
    print("{:<20} {:>10}".format("Term", "Energy [kJ/mol]"))
    for key, value in eda_res.items():
        print("{:<20} {:>10.4f}".format(key, value))
+   print("-------------------------------")
 
 ::
 
@@ -124,3 +125,4 @@ Finally, we extract the results of the energy decomposition:
    E_orb                 -775.6514
    E_1                  -1861.0731
    E_2                     -1.7452
+   -------------------------------
