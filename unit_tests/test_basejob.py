@@ -229,6 +229,31 @@ sleep 0.0 && sed 's/input/output/g' plamsjob.in
         assert "self.postrun()" in job2.get_errormsg()
         assert "RuntimeError: something went wrong" in job2.get_errormsg()
 
+    def test_run_marks_jobs_as_failed_and_stores_exception_on_execution_error(self):
+        # Given job which errors in execution
+        job1 = DummySingleJob()
+
+        def filename_errors(t):
+            import inspect
+
+            s = inspect.stack()
+            caller = s[1].function
+            if caller == "_execute":
+                raise RuntimeError("something went wrong")
+            else:
+                return job1._filenames[t].replace("$JN", job1.name)
+
+        job1._filename = filename_errors
+
+        # When run job
+        job1.run()
+
+        # Then status is marked as failed
+        assert job1.status == JobStatus.FAILED
+        assert not job1.ok()
+        assert "_execute" in job1.get_errormsg()
+        assert "RuntimeError: something went wrong" in job1.get_errormsg()
+
     @pytest.mark.parametrize(
         "mode,expected",
         [
@@ -629,6 +654,36 @@ class TestMultiJob:
         assert not multi_job.ok()
         assert multi_job.status == JobStatus.FAILED
         assert [j.status for j in jobs] == [JobStatus.SUCCESSFUL, JobStatus.FAILED, JobStatus.FAILED]
+
+    def test_run_multiple_independent_single_jobs_error_in_execute(self, config):
+        runner = JobRunner(parallel=True, maxjobs=3)
+        config.sleepstep = 0.1
+
+        # Given 3 jobs which are dependent
+        jobs = [DummySingleJob() for _ in range(3)]
+
+        def filename_errors(t):
+            import inspect
+
+            s = inspect.stack()
+            caller = s[1].function
+            if caller == "_execute":
+                raise RuntimeError("something went wrong")
+            else:
+                return jobs[1]._filenames[t].replace("$JN", jobs[1].name)
+
+        jobs[1]._filename = filename_errors
+
+        multi_job = MultiJob(children=jobs)
+
+        # When run multi-job
+        multi_job.run(jobrunner=runner).wait()
+
+        # Then multi-job failed
+        assert not multi_job.check()
+        assert not multi_job.ok()
+        assert multi_job.status == JobStatus.FAILED
+        assert [j.status for j in jobs] == [JobStatus.SUCCESSFUL, JobStatus.FAILED, JobStatus.SUCCESSFUL]
 
     def test_run_multiple_independent_multijobs_all_succeed(self, config):
         runner = JobRunner(parallel=True, maxjobs=3)
