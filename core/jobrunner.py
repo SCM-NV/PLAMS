@@ -311,8 +311,8 @@ class GridRunner(JobRunner):
     config.pbs.special.queue = "-q "
     config.pbs.commands.submit = "qsub"
     config.pbs.commands.check = "qstat"
-    config.pbs.commands.getid = __pbs_get_jobid
-    config.pbs.commands.running = __pbs_running
+    config.pbs.commands.getid = __pbs_get_jobid.__func__
+    config.pbs.commands.running = __pbs_running.__func__
     # Slurm
     config.slurm.workdir = "-D"
     config.slurm.output = "-o"
@@ -324,8 +324,8 @@ class GridRunner(JobRunner):
     config.slurm.special.queue = "-p "
     config.slurm.commands.submit = "sbatch"
     config.slurm.commands.check = "squeue"
-    config.slurm.commands.getid = __slurm_get_jobid
-    config.slurm.commands.running = __slurm_running
+    config.slurm.commands.getid = __slurm_get_jobid.__func__
+    config.slurm.commands.running = __slurm_running.__func__
 
     def __init__(self, grid="auto", sleepstep=5, parallel=True, maxjobs=0):
         JobRunner.__init__(self, parallel=parallel, maxjobs=maxjobs)
