@@ -64,24 +64,11 @@ class BANDFragmentResults(ADFFragmentResults):
 class BANDFragmentJob(ADFFragmentJob):
     _result_type = BANDFragmentResults
 
-    def create_mapping_setting(self) -> None:
-        if "fragment" in self.full_settings.input.band:
-            log(
-                "Fragment already present in full_settings. Assuming that the user has already set up the mapping. Skipping the mapping setup.",
-                level=1,
-            )
-            return
-        # first fragment 1 then fragment 2
-        set1 = Settings()
-        set1.atommapping = {str(i + 1): str(i + 1) for i in range(len(self.fragment1))}
-        set2 = Settings()
-        set2.atommapping = {str(i + 1): str(i + 1 + len(self.fragment1)) for i in range(len(self.fragment2))}
-        # get the correct restart files
-        # working with relative paths does not work for unknown reasons
-        # using symlinks instead
-        set1.filename = f"{self.f1.name}.rkf"
-        set2.filename = f"{self.f2.name}.rkf"
-        self.full_settings.input.band.fragment = [set1, set2]
+    def prerun(self) -> None:
+        """Creates the fragment jobs."""
+        self.f1 = AMSJob(name="frag1", molecule=self.fragment1, settings=self.settings)
+        self.f2 = AMSJob(name="frag2", molecule=self.fragment2, settings=self.settings)
+        self.children += [self.f1, self.f2]
 
     def new_children(self) -> Union[None, List[AMSJob]]:
         """After the first round, add the full job to the children list."""
@@ -89,33 +76,27 @@ class BANDFragmentJob(ADFFragmentJob):
             return None
         else:
             # create the correct mapping settings for the full job
-            self.create_mapping_setting()
+            if "fragment" in self.full_settings.input.band:
+                log(
+                    "Fragment already present in full_settings. Assuming that the user has already set up the mapping. Skipping the mapping setup.",
+                    level=1,
+                )
+                return
+            # first fragment 1 then fragment 2
+            set1 = Settings()
+            set1.atommapping = {str(i + 1): str(i + 1) for i in range(len(self.fragment1))}
+            set2 = Settings()
+            set2.atommapping = {str(i + 1): str(i + 1 + len(self.fragment1)) for i in range(len(self.fragment2))}
+            set1.filename = (self.f1, "band")
+            set2.filename = (self.f2, "band")
+            self.full_settings.input.band.fragment = [set1, set2]
+
             # create the full job
             self.full = AMSJob(
                 name="full", molecule=self.fragment1 + self.fragment2, settings=self.settings + self.full_settings
             )
-            # dependencies are optional, but let's set them up
-            self.full.depend += [self.f1, self.f2]
-            # save the fragment paths for the prerun of the full job
-            self.full.frag_paths = []
-            for job in [self.f1, self.f2]:
-                self.full.frag_paths.append(job.path)
-
-            # edit full prerun to create symlinks
-            @add_to_instance(self.full)
-            def prerun(self):
-                """Create symlinks for the restart files."""
-                for i, job in enumerate(["frag1", "frag2"]):
-                    rel_path = relpath(self.frag_paths[i], self.path)
-                    symlink(opj(rel_path, "band.rkf"), opj(self.path, f"{job}.rkf"))
 
             return [self.full]
-
-    def prerun(self) -> None:
-        """Creates the fragment jobs."""
-        self.f1 = AMSJob(name="frag1", molecule=self.fragment1, settings=self.settings)
-        self.f2 = AMSJob(name="frag2", molecule=self.fragment2, settings=self.settings)
-        self.children += [self.f1, self.f2]
 
     @classmethod
     def load_external(cls, path: str, jobname: Optional[str] = None) -> "BANDFragmentJob":
