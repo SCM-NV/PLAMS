@@ -275,27 +275,25 @@ class GridRunner(JobRunner):
     # if [...].commands.finished exists it is used to check if the job is finished. It should be a function that takes a single string (job_id) as an argument and returns True or False
     # otherwise [...].commands.check is combined with job_id, executed as a subprocess and returned exit code is tested (nonzero return code indicates that job has finished)
 
-    @staticmethod
-    def __slurm_get_jobid(output: str):
+    # N.B. these SLURM/PBS functions are always used in a static way
+    # but as stored and accessed via Settings, cannot be decorated as such
+    def __slurm_get_jobid(output: str):  # type: ignore
         s = output.split()
         if len(s) > 0 and all([ch.isdigit() for ch in s[-1]]):
             return s[-1]
         return None
 
-    @staticmethod
-    def __slurm_running(output: str):
+    def __slurm_running(output: str):  # type: ignore
         lines = output.splitlines()[1:]
         return [line.split()[0] for line in lines]
 
-    @staticmethod
-    def __pbs_get_jobid(output: str):
+    def __pbs_get_jobid(output: str):  # type: ignore
         s = output.split(".")
         if len(s) > 0 and all([ch.isdigit() for ch in s[0]]):
             return s[0]
         return None
 
-    @staticmethod
-    def __pbs_running(output: str):
+    def __pbs_running(output: str):  # type: ignore
         lines = output.splitlines()[2:]
         return [line.split()[0].split(".")[0] for line in lines]
 
@@ -311,8 +309,8 @@ class GridRunner(JobRunner):
     config.pbs.special.queue = "-q "
     config.pbs.commands.submit = "qsub"
     config.pbs.commands.check = "qstat"
-    config.pbs.commands.getid = __pbs_get_jobid.__func__
-    config.pbs.commands.running = __pbs_running.__func__
+    config.pbs.commands.getid = __pbs_get_jobid
+    config.pbs.commands.running = __pbs_running
     # Slurm
     config.slurm.workdir = "-D"
     config.slurm.output = "-o"
@@ -324,8 +322,8 @@ class GridRunner(JobRunner):
     config.slurm.special.queue = "-p "
     config.slurm.commands.submit = "sbatch"
     config.slurm.commands.check = "squeue"
-    config.slurm.commands.getid = __slurm_get_jobid.__func__
-    config.slurm.commands.running = __slurm_running.__func__
+    config.slurm.commands.getid = __slurm_get_jobid
+    config.slurm.commands.running = __slurm_running
 
     def __init__(self, grid="auto", sleepstep=5, parallel=True, maxjobs=0):
         JobRunner.__init__(self, parallel=parallel, maxjobs=maxjobs)
