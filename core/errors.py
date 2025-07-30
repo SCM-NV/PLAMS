@@ -7,6 +7,7 @@ __all__ = [
     "UnitsError",
     "MoleculeError",
     "TrajectoryError",
+    "ProjectError",
     "MissingOptionalPackageError",
 ]
 
@@ -41,6 +42,10 @@ class MoleculeError(PlamsError):
 
 class TrajectoryError(PlamsError):
     """:class:`Trajectory<scm.plams.trajectories.TrajectoryFile>` error."""
+
+
+class ProjectError(PlamsError):
+    """:class:`Project<scm.plams.core.project.Project>` error."""
 
 
 class MissingOptionalPackageError(PlamsError):

@@ -9,6 +9,7 @@ from scm.plams.core.errors import (
     PTError,
     ResultsError,
     TrajectoryError,
+    ProjectError,
     UnitsError,
 )
 from scm.plams.core.functions import (
@@ -225,6 +226,7 @@ __all__ = [
     "UnitsError",
     "MoleculeError",
     "TrajectoryError",
+    "ProjectError",
     "Bond",
     "label_atoms",
     "PDBRecord",
