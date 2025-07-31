@@ -9,6 +9,8 @@ from typing import Dict
 from scm.plams.core.errors import ProjectError
 from scm.plams.core.project import Project
 
+from .test_basejob import DummySingleJob
+
 
 class TestProject:
 
@@ -62,3 +64,15 @@ class TestProject:
         # Then fails
         with pytest.raises(ProjectError, match=r"Project .* already exists"):
             Project.create(name, parent_dir=tmp_test_project_dir)
+
+    def test_foo(self, tmp_test_project_dir):
+        # Given name
+        name = self.get_random_name()
+
+        # When create project
+        project1 = Project.create(name, description="a test project", parent_dir=tmp_test_project_dir)
+
+        job = DummySingleJob()
+        project1.run_job(job)
+
+        assert 1 == 1

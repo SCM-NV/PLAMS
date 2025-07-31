@@ -52,3 +52,19 @@ JobStatusType = Union[
         "deleted",
     ],
 ]
+
+
+class ProjectMode(Enum):
+    """
+    Access mode for a PLAMS project.
+    """
+    CREATE = "x",
+    OVERWRITE = "w"
+
+
+class JobMode(Enum):
+    """
+    Run mode for a PLAMS job.
+    """
+    CREATE = "x",
+
