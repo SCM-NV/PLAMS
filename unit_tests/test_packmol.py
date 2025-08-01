@@ -19,7 +19,7 @@ from scm.plams.unit_tests.test_helpers import skip_if_no_ams_installation
 class TestPackmolStructure:
 
     @dataclass
-    class TestCase:
+    class PackMolTestCase:
         """
         Dataclass holding inputs for PackMolStructure and the expected values for attributes after initialization.
         """
@@ -44,7 +44,7 @@ class TestPackmolStructure:
 
     test_cases = [
         # Happy
-        TestCase(
+        PackMolTestCase(
             water,
             fixed=True,
             expected_n_molecules=1,
@@ -57,7 +57,7 @@ structure pm
 end structure
 """,
         ),
-        TestCase(
+        PackMolTestCase(
             water,
             fixed=True,
             n_molecules=1,
@@ -71,7 +71,7 @@ structure pm
 end structure
 """,
         ),
-        TestCase(
+        PackMolTestCase(
             water,
             fixed=True,
             box_bounds=[0, 0, 0, 5, 5, 5],
@@ -85,7 +85,7 @@ structure pm
 end structure
 """,
         ),
-        TestCase(
+        PackMolTestCase(
             water_in_box,
             fixed=True,
             expected_n_molecules=1,
@@ -99,7 +99,7 @@ structure pm
 end structure
 """,
         ),
-        TestCase(
+        PackMolTestCase(
             water,
             fixed=True,
             sphere=True,
@@ -113,7 +113,7 @@ structure pm
 end structure
 """,
         ),
-        TestCase(
+        PackMolTestCase(
             water,
             box_bounds=[0, 0, 0, 10, 10, 10],
             density=0.9,
@@ -126,7 +126,7 @@ structure pm
 end structure
 """,
         ),
-        TestCase(
+        PackMolTestCase(
             water,
             box_bounds=[0, 0, 0, 10, 10, 10],
             n_molecules=20,
@@ -139,7 +139,7 @@ structure pm
 end structure
 """,
         ),
-        TestCase(
+        PackMolTestCase(
             water,
             n_molecules=25,
             density=1.0,
@@ -152,7 +152,7 @@ structure pm
 end structure
 """,
         ),
-        TestCase(
+        PackMolTestCase(
             water,
             n_atoms=75,
             density=1.0,
@@ -165,7 +165,7 @@ structure pm
 end structure
 """,
         ),
-        TestCase(
+        PackMolTestCase(
             water,
             box_bounds=[0, 0, 0, 10, 10, 10],
             n_atoms=60,
@@ -180,7 +180,7 @@ structure pm
 end structure
 """,
         ),
-        TestCase(
+        PackMolTestCase(
             water,
             n_molecules=0,
             box_bounds=[0, 0, 0, 5, 5, 5],
@@ -189,38 +189,38 @@ end structure
             expected_input="",
         ),
         # Unhappy
-        TestCase(water, fixed=True, n_molecules=2, expected_error="n_molecules must be 1"),
-        TestCase(water, fixed=True, density=42, expected_error="density cannot be set"),
-        TestCase(
+        PackMolTestCase(water, fixed=True, n_molecules=2, expected_error="n_molecules must be 1"),
+        PackMolTestCase(water, fixed=True, density=42, expected_error="density cannot be set"),
+        PackMolTestCase(
             water,
             box_bounds=[0, 0, 0, 10, 10, 10],
             density=0.9,
             n_molecules=10,
             expected_error="exactly two of box_bounds, density and n_molecules/n_atoms must be set",
         ),
-        TestCase(
+        PackMolTestCase(
             water,
             box_bounds=[0, 0, 0, 10, 10, 10],
             density=0.9,
             n_atoms=30,
             expected_error="exactly two of box_bounds, density and n_molecules/n_atoms must be set",
         ),
-        TestCase(
+        PackMolTestCase(
             water,
             n_molecules=30,
             expected_error="exactly two of box_bounds, density and n_molecules/n_atoms must be set",
         ),
-        TestCase(
+        PackMolTestCase(
             water,
             box_bounds=[0, 0, 0, 10, 10, 10],
             expected_error="exactly two of box_bounds, density and n_molecules/n_atoms must be set",
         ),
-        TestCase(
+        PackMolTestCase(
             water,
             density=1,
             expected_error="exactly two of box_bounds, density and n_molecules/n_atoms must be set",
         ),
-        TestCase(
+        PackMolTestCase(
             water,
             n_atoms=10,
             expected_error="exactly two of box_bounds, density and n_molecules/n_atoms must be set",
