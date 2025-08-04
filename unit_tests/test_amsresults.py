@@ -7,7 +7,7 @@ from scm.plams.interfaces.adfsuite.ams import AMSJob, AMSResults
 from scm.plams.tools.kftools import KFFile
 from scm.plams.core.errors import FileError, MissingOptionalPackageError
 from scm.plams.mol.molecule import Molecule
-from scm.plams.unit_tests.test_helpers import skip_if_no_ams_installation
+from .test_helpers import skip_if_no_ams_installation
 
 # ToDo: Add tests for other job types e.g. MD, BAND etc. to test other result functions
 

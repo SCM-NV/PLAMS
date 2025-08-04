@@ -6,8 +6,8 @@ from threading import Thread
 from scm.plams.core.settings import Settings
 from scm.plams.mol.molecule import Molecule
 from scm.plams.mol.atom import Atom
-from scm.plams.unit_tests.test_helpers import get_mock_import_function, skip_if_no_ams_installation
 from scm.plams.interfaces.adfsuite.inputparser import input_to_settings
+from .test_helpers import get_mock_import_function, skip_if_no_ams_installation
 
 
 @pytest.fixture

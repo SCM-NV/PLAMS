@@ -14,7 +14,7 @@ from scm.plams.mol.bond import Bond
 from scm.plams.mol.molecule import Molecule, MoleculeError
 from scm.plams.core.functions import read_all_molecules_in_xyz_file
 from scm.plams.interfaces.molecule.rdkit import from_smiles
-from scm.plams.unit_tests.test_helpers import skip_if_no_ams_installation
+from .test_helpers import skip_if_no_ams_installation
 
 
 class MoleculeTestBase(ABC):

@@ -19,7 +19,7 @@ It simply redirects the usual |AMSResults| methods to the results of the full sy
 
 A derived subclass |NOCVBandFragmentJob| is also provided. It can be usefull for generating NOCV plots after the PEDA-NOCV calculation.
 
-.. literalinclude:: ../../../../recipes/bandfragment.py
+.. literalinclude:: ../../../../src/scm/plams/recipes/bandfragment.py
 
 .. include:: BandFrag.common_header.rst
 .. include:: bandfrag.ipynb.rst

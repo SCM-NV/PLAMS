@@ -4,7 +4,7 @@ except ImportError:
     pass
 
 from scm.plams import AMSJob, Settings
-from scm.plams.unit_tests.test_helpers import skip_if_no_ams_installation
+from .test_helpers import skip_if_no_ams_installation
 
 
 def test_hybrid_engine_input():

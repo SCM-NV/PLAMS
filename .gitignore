@@ -79,3 +79,6 @@ svn.authors
 
 # jupyter checkpoints
 .ipynb_checkpoints/
+
+# versioning
+version.py

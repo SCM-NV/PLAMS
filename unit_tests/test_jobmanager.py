@@ -8,7 +8,7 @@ from scm.plams.core.jobmanager import JobManager
 from scm.plams.core.settings import JobManagerSettings
 from scm.plams.core.errors import PlamsError
 from scm.plams.core.functions import jobs_in_directory
-from scm.plams.unit_tests.test_basejob import DummySingleJob
+from .test_basejob import DummySingleJob
 
 
 class TestJobManager:
