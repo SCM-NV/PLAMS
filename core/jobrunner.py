@@ -275,27 +275,25 @@ class GridRunner(JobRunner):
     # if [...].commands.finished exists it is used to check if the job is finished. It should be a function that takes a single string (job_id) as an argument and returns True or False
     # otherwise [...].commands.check is combined with job_id, executed as a subprocess and returned exit code is tested (nonzero return code indicates that job has finished)
 
-    @staticmethod
-    def __slurm_get_jobid(output: str):
+    # N.B. these SLURM/PBS functions are always used in a static way
+    # but as stored and accessed via Settings, cannot be decorated as such
+    def __slurm_get_jobid(output: str):  # type: ignore
         s = output.split()
         if len(s) > 0 and all([ch.isdigit() for ch in s[-1]]):
             return s[-1]
         return None
 
-    @staticmethod
-    def __slurm_running(output: str):
+    def __slurm_running(output: str):  # type: ignore
         lines = output.splitlines()[1:]
         return [line.split()[0] for line in lines]
 
-    @staticmethod
-    def __pbs_get_jobid(output: str):
+    def __pbs_get_jobid(output: str):  # type: ignore
         s = output.split(".")
         if len(s) > 0 and all([ch.isdigit() for ch in s[0]]):
             return s[0]
         return None
 
-    @staticmethod
-    def __pbs_running(output: str):
+    def __pbs_running(output: str):  # type: ignore
         lines = output.splitlines()[2:]
         return [line.split()[0].split(".")[0] for line in lines]
 
