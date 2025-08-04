@@ -334,8 +334,9 @@ def sum_of_atomic_volumes(molecule: Molecule) -> float:
     return (4 / 3) * np.pi * sum(at.radius**3 for at in molecule)
 
 
-def guess_density(molecules: Sequence[Molecule], coeffs: Sequence[Union[int, float]]) -> float:
-    """Guess a density for a liquid of the given molecules and stoichiometric coefficients.
+def guess_density(molecules: Sequence[Union[Molecule, "ChemicalSystem"]], coeffs: Sequence[Union[int, float]]) -> float:
+    """
+    Guess a density for a liquid of the given molecules and stoichiometric coefficients.
 
     This density is most of the time lower than the experimental density and is NOT meant
     to be accurate. Always equilibrate the density with NPT MD after creating a box with a
@@ -346,28 +347,41 @@ def guess_density(molecules: Sequence[Molecule], coeffs: Sequence[Union[int, flo
     if len(molecules) != len(coeffs):
         raise ValueError(f"Incompatible lengths: {len(molecules)=}, {len(coeffs)=}")
 
-    bond_volume_decrease_factor, estimated_volume_multiplier = 0.15, 18
     tot_estimated_volume = 0
     sum_atomic_masses = 0
     for mol, coeff in zip(molecules, coeffs):
-        sum_atomic_volumes = 0
-        estimated_volume = 0
-        bond_volume_decrease = 0
+        tot_estimated_volume += coeff * _guess_molecular_volume(mol)
         for at in mol:
-            radius = PeriodicTable.get_radius(at.symbol)
-            if PeriodicTable.get_metallic(at.symbol):
-                radius *= 0.5
-            bond_volume_decrease += (
-                coeff * bond_volume_decrease_factor * min(len(at.bonds), 0.3) ** 0.3 * (4 / 3) * np.pi * radius**3
-            )
-            sum_atomic_volumes += coeff * (4 / 3) * np.pi * radius**3  # ang^3
             sum_atomic_masses += coeff * PeriodicTable.get_mass(at.symbol)
 
-        estimated_volume += sum_atomic_volumes - bond_volume_decrease
-        estimated_volume *= estimated_volume_multiplier + 10 / max(4, len(mol))
-        tot_estimated_volume += estimated_volume
-
     return sum_atomic_masses * Units.conversion_ratio("amu", "g") / (tot_estimated_volume * 1e-24)
+
+
+def _guess_molecular_volume(molecule: Union[Molecule, "ChemicalSystem"]) -> float:
+    """
+    Guess the molecular volume for the given molecule in ang^3.
+
+    This volume is calculated using a very approximate method and is NOT meant to be accurate.
+    """
+    sum_atomic_volumes = 0
+    metallic_elements = {k: PeriodicTable.get_metallic(k) for k in set([a.symbol for a in molecule])}
+    for at in molecule:
+        radius = PeriodicTable.get_radius(at.symbol)
+        if metallic_elements[at.symbol]:
+            radius *= 0.6
+        sum_atomic_volumes += (4 / 3) * np.pi * radius**3  # ang^3
+
+    # Note this really is a rough estimation based on very little
+    # if you come up with a better quick estimation go ahead and change it
+    bond_volume_correction = 0.16 * (
+        len(molecule.bonds) / len(molecule.atoms) if (molecule.bonds and molecule.atoms) else 1
+    )
+    estimated_volume = 2.2 * sum_atomic_volumes / bond_volume_correction
+
+    if all(metallic_elements.values()) and not any(el in metallic_elements.keys() for el in ["Si", "Sb", "Ge", "Po"]):
+        estimated_volume /= 2
+
+    return estimated_volume
 
 
 @overload
@@ -1003,10 +1017,8 @@ def packmol_around(
 
     # step 2, get remaining volume
     def get_details_for_remaining_volume(original_ucs, molecules, **kwargs):
-        sum_r3 = np.sum(np.fromiter((at.element.radius**3 for at in original_ucs), dtype=np.float32))
-        current_atomic_volume = (4 / 3) * np.pi * sum_r3
-        current_atomic_volume /= 0.74  # use packing efficiency in ccp as example to take up more volume
-        remaining_volume = original_volume - current_atomic_volume
+        current_estimated_volume = _guess_molecular_volume(original_ucs)
+        remaining_volume = original_volume - current_estimated_volume
         # temporary value to call the original packmol with
         temp_L = np.cbrt(remaining_volume)
         box_bounds_for_remaining_volume = [0.0, 0.0, 0.0, temp_L, temp_L, temp_L]
@@ -1020,7 +1032,7 @@ def packmol_around(
             **kwargs,
         )
 
-        details["current_atomic_volume"] = current_atomic_volume
+        details["current_atomic_volume"] = current_estimated_volume
         return details
 
     molecules = tolist(molecules)

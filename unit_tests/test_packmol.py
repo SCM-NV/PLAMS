@@ -1,19 +1,25 @@
 import re
 
+import numpy as np
 import pytest
 from dataclasses import dataclass
 from typing import Optional, List, Union
 
-from scm.plams.mol.molecule import Molecule
+from scm.plams.mol.molecule import Molecule, Atom
 from scm.plams.interfaces.molecule.rdkit import from_smiles
-from scm.plams.interfaces.molecule.packmol import PackMolStructure, packmol
+from scm.plams.interfaces.molecule.packmol import (
+    PackMolStructure,
+    packmol,
+    guess_density,
+    packmol_around,
+)
 from scm.plams.unit_tests.test_helpers import skip_if_no_ams_installation
 
 
 class TestPackmolStructure:
 
     @dataclass
-    class TestCase:
+    class PackMolTestCase:
         """
         Dataclass holding inputs for PackMolStructure and the expected values for attributes after initialization.
         """
@@ -38,7 +44,7 @@ class TestPackmolStructure:
 
     test_cases = [
         # Happy
-        TestCase(
+        PackMolTestCase(
             water,
             fixed=True,
             expected_n_molecules=1,
@@ -51,7 +57,7 @@ structure pm
 end structure
 """,
         ),
-        TestCase(
+        PackMolTestCase(
             water,
             fixed=True,
             n_molecules=1,
@@ -65,7 +71,7 @@ structure pm
 end structure
 """,
         ),
-        TestCase(
+        PackMolTestCase(
             water,
             fixed=True,
             box_bounds=[0, 0, 0, 5, 5, 5],
@@ -79,7 +85,7 @@ structure pm
 end structure
 """,
         ),
-        TestCase(
+        PackMolTestCase(
             water_in_box,
             fixed=True,
             expected_n_molecules=1,
@@ -93,7 +99,7 @@ structure pm
 end structure
 """,
         ),
-        TestCase(
+        PackMolTestCase(
             water,
             fixed=True,
             sphere=True,
@@ -107,7 +113,7 @@ structure pm
 end structure
 """,
         ),
-        TestCase(
+        PackMolTestCase(
             water,
             box_bounds=[0, 0, 0, 10, 10, 10],
             density=0.9,
@@ -120,7 +126,7 @@ structure pm
 end structure
 """,
         ),
-        TestCase(
+        PackMolTestCase(
             water,
             box_bounds=[0, 0, 0, 10, 10, 10],
             n_molecules=20,
@@ -133,7 +139,7 @@ structure pm
 end structure
 """,
         ),
-        TestCase(
+        PackMolTestCase(
             water,
             n_molecules=25,
             density=1.0,
@@ -146,7 +152,7 @@ structure pm
 end structure
 """,
         ),
-        TestCase(
+        PackMolTestCase(
             water,
             n_atoms=75,
             density=1.0,
@@ -159,7 +165,7 @@ structure pm
 end structure
 """,
         ),
-        TestCase(
+        PackMolTestCase(
             water,
             box_bounds=[0, 0, 0, 10, 10, 10],
             n_atoms=60,
@@ -174,7 +180,7 @@ structure pm
 end structure
 """,
         ),
-        TestCase(
+        PackMolTestCase(
             water,
             n_molecules=0,
             box_bounds=[0, 0, 0, 5, 5, 5],
@@ -183,38 +189,38 @@ end structure
             expected_input="",
         ),
         # Unhappy
-        TestCase(water, fixed=True, n_molecules=2, expected_error="n_molecules must be 1"),
-        TestCase(water, fixed=True, density=42, expected_error="density cannot be set"),
-        TestCase(
+        PackMolTestCase(water, fixed=True, n_molecules=2, expected_error="n_molecules must be 1"),
+        PackMolTestCase(water, fixed=True, density=42, expected_error="density cannot be set"),
+        PackMolTestCase(
             water,
             box_bounds=[0, 0, 0, 10, 10, 10],
             density=0.9,
             n_molecules=10,
             expected_error="exactly two of box_bounds, density and n_molecules/n_atoms must be set",
         ),
-        TestCase(
+        PackMolTestCase(
             water,
             box_bounds=[0, 0, 0, 10, 10, 10],
             density=0.9,
             n_atoms=30,
             expected_error="exactly two of box_bounds, density and n_molecules/n_atoms must be set",
         ),
-        TestCase(
+        PackMolTestCase(
             water,
             n_molecules=30,
             expected_error="exactly two of box_bounds, density and n_molecules/n_atoms must be set",
         ),
-        TestCase(
+        PackMolTestCase(
             water,
             box_bounds=[0, 0, 0, 10, 10, 10],
             expected_error="exactly two of box_bounds, density and n_molecules/n_atoms must be set",
         ),
-        TestCase(
+        PackMolTestCase(
             water,
             density=1,
             expected_error="exactly two of box_bounds, density and n_molecules/n_atoms must be set",
         ),
-        TestCase(
+        PackMolTestCase(
             water,
             n_atoms=10,
             expected_error="exactly two of box_bounds, density and n_molecules/n_atoms must be set",
@@ -554,8 +560,8 @@ class TestPackMol:
             expected_n_atoms=99,
             expected_n_molecules=[33],
             expected_mole_fractions=[1.0],
-            expected_volume=866.5519946802023,
-            expected_density=1.1392298507913536,
+            expected_volume=973.603502283497,
+            expected_density=1.0139670792957152,
         ),
         HappyTestCase(
             [water, acetonitrile],
@@ -618,9 +624,9 @@ class TestPackMol:
             expected_n_atoms=201,
             expected_n_molecules=[33, 17],
             expected_mole_fractions=[0.66, 0.34],
-            expected_volume=2543.322893286219,
-            expected_density=0.8438036982763867,
-            expected_radius=8.46780724966871,
+            expected_volume=2544.596756672291,
+            expected_density=0.8433812774612032,
+            expected_radius=8.469220758642498,
         ),
         HappyTestCase(
             molecules=[water, ammonium, chloride],
@@ -837,3 +843,148 @@ class TestPackMol:
         else:
             for i, (m, _) in enumerate(mols.values()):
                 assert all(a.properties.region == {f"mol{i}"} for a in m.atoms)
+
+
+class TestGuessDensity:
+
+    @pytest.mark.parametrize(
+        "smiles, expected, prev_implementation, reference",
+        [
+            ["O", 1.0140, 1.1392, 1],
+            ["CO", 0.9035, 0.8465, 0.791],
+            ["CCO", 0.8665, 0.7832, 0.789],
+            ["CCCO", 0.8479, 0.7542, 0.803],
+            ["CC(=O)C", 0.8284, 0.7439, 0.784],
+            ["CC(=O)O", 0.9492, 0.8653, 1.049],
+            ["CCOCC", 0.8368, 0.7375, 0.713],
+            ["Cc1ccccc1", 0.7786, 0.6405, 0.867],
+            ["c1ccccc1", 0.7762, 0.6329, 0.877],
+            ["Oc1ccccc1", 0.8509, 0.6961, 1.07],
+            ["c1ccccc1N", 0.8208, 0.6734, 1.021],
+            ["c1ccc(cc1)[N+](=O)[O-]", 0.9360, 0.7680, 1.20],
+            ["ClC(Cl)Cl", 0.8111, 0.7784, 1.49],
+            ["CS(=O)C", 0.8151, 0.7319, 1.1004],
+            ["COC(=O)C", 0.9216, 0.8233, 0.933],
+            ["CCOC(=O)c1ccccc1", 0.8740, 0.7264, 1.045],
+            ["CCCCCCCCO", 0.8170, 0.7091, 0.83],
+            ["COC(=O)c1ccccc1C(=O)OC", 0.9354, 0.7799, 1.19],
+            ["CC(C)O[Ti](OC(C)C)(OC(C)C)OC(C)C", 0.9945, 0.8883, 0.96],
+            ["C[Al](C)C", 0.8548, 0.8775, 0.752],
+            ["C[Hg]C", 3.2238, 3.529, 2.961],
+            ["He", 0.1189, 0.07978, 0.125],
+            ["Li", 0.5296, 0.30693, 0.512],
+            ["Be", 1.7124, 0.9923, 1.690],
+            ["B", 0.3924, 0.3919, 2.08],
+            ["Na", 0.9537, 0.5527, 0.927],
+            ["Mg", 1.584, 0.9180, 1.584],
+            ["Al", 2.4632, 1.4274, 2.375],
+            ["Si", 2.3406, 2.7128, 2.57],
+            ["Ti", 4.1059, 2.3794, 4.506],
+            ["Fe", 7.4526, 4.3189, 7.86],
+            ["Cu", 8.0890, 4.6876, 8.96],
+            ["Ge", 5.3388, 6.1878, 5.323],
+            ["As", 1.2193, 0.8178, 5.323],
+            ["Zr", 6.2928, 3.6468, 6.52],
+            ["Sn", 7.4538, 4.3195, 7.265],
+            ["Sb", 5.7976, 6.7196, 6.697],
+            ["Te", 1.4307, 0.9596, 6.240],
+            ["W", 19.0859, 11.0605, 19.25],
+            ["Pt", 19.8161, 11.4836, 21.450],
+            ["Pb", 10.3207, 5.9810, 11.34],
+            ["Po", 10.1663, 11.7831, 9.196],
+            ["Es", 10.4543, 6.0584, 8.84],
+        ],
+        ids=[
+            "water",
+            "methanol",
+            "ethanol",
+            "propanol",
+            "acetone",
+            "acetic acid",
+            "diethyl ether",
+            "toluene",
+            "benzene",
+            "phenol",
+            "aniline",
+            "nitrobenzene",
+            "chloroform",
+            "dmso",
+            "methyl acetate",
+            "ethyl benzoate",
+            "1-octanol",
+            "dimethyl phthalate",
+            "titanium isopropoxide",
+            "trimethylaluminum",
+            "dimethylmercury",
+            "liquid_He",
+            "liquid_Li",
+            "liquid_Be",
+            "liquid_B",
+            "liquid_Na",
+            "liquid_Mg",
+            "liquid_Al",
+            "liquid_Si",
+            "liquid_Ti",
+            "liquid_Fe",
+            "liquid_Cu",
+            "liquid_Ge",
+            "liquid_As",
+            "liquid_Zr",
+            "liquid_Sn",
+            "liquid_Sb",
+            "liquid_Te",
+            "liquid_W",
+            "liquid_Pt",
+            "liquid_Pb",
+            "liquid_Po",
+            "liquid_Es",
+        ],
+    )
+    def test_guess_density(self, smiles, expected, prev_implementation, reference):
+        try:
+            mol = from_smiles(smiles)
+        except Exception:
+            mol = Molecule()
+            atom = Atom(symbol=smiles)
+            mol.add_atom(atom)
+
+        mols = [mol]
+        try:
+            import scm.libbase  # noqa F401
+            from scm.utils.conversions import plams_molecule_to_chemsys
+
+            mols.append(plams_molecule_to_chemsys(mols[0]))
+        except ImportError:
+            pass
+
+        for mol in mols:
+            actual = guess_density([mol], [1])
+
+            # keep track of previous implementation in case of making further improvements
+            # uncomment this to see how they compare
+            # abs_diff = np.abs(actual - reference)
+            # abs_diff_prev = np.abs(prev_implementation - reference)
+            # assert abs_diff < abs_diff_prev
+
+            assert np.isclose(actual, expected, atol=0.0001), print(f"{actual=:}, {expected=}")
+            if smiles not in ["B", "As", "Te"]:
+                assert np.isclose(actual, reference, rtol=0.5), print(f"{actual=:}, {reference=}")
+
+
+class TestPackMolAround:
+
+    def test_pack_water_iteratively(self):
+        skip_if_no_ams_installation()
+
+        water = from_smiles("O")
+
+        empty = Molecule()
+        empty.lattice = [[10, 0, 0], [0, 10, 0], [0, 0, 10]]
+
+        num_atoms = []
+        box = empty
+        for _ in range(6):
+            box = packmol_around(box, water, density=0.5)
+            num_atoms.append(len(box))
+
+        assert num_atoms == [51, 75, 87, 93, 96, 99]

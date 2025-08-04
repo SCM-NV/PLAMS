@@ -10,6 +10,7 @@ For example, 2024.101 is the major release of 2024, and 2024.102 is the first bu
 This changelog is effective from the 2025 releases.
 
 ## [Unreleased]
+* New `BANDFragment` and updated `ADFFragment` recepis for automatic EDA calculations.
 
 ### Added
 * `AMSAnalysisJobs` now have Pisa support, accept multiple AMSJobs as input, and no longer overwrite user supplied input settings.
@@ -25,6 +26,11 @@ This changelog is effective from the 2025 releases.
 
 ### Changed
 * `JobAnalysis` returns an updated copy on modification instead of performing the operation in-place
+* `packmol` can accept a single `None` value for `n_molecules` if two of `n_atoms`, `density` and `box_bounds` are specified. The missing value is then auto-calculated.
+
+### Fixed
+* Method to guess density in `packmol_around` changed to resolve large underestimations in molecular volumes
+* Regression in `GridRunner` which caused some SLURM and PBS commands to silently fail and jobs to be incorrectly awaited
 
 
 ## 2025.103

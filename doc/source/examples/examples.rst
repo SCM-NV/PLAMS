@@ -160,6 +160,7 @@ The source code of ``recipes`` modules is presented here to demonstrate how easy
     COSMORSConformers/COSMORSConformers
     MDJobs
     ADFFrag/ADFFrag
+    BandFrag/BandFrag
     ReorganizationEnergy/ReorganizationEnergy
     ADFNBO/ADFNBO
     NumGrad/NumGrad

@@ -244,6 +244,7 @@ class TestWater(MoleculeTestBase):
     def test_add_hatoms(self, mol, hydroxide):
         skip_if_no_ams_installation()
 
+        hydroxide.guess_bonds()
         water = hydroxide.add_hatoms()
         assert mol.label(4) == water.label(4)
 
@@ -1008,6 +1009,7 @@ class TestFragments(MoleculeTestBase):
 
         # Given two fragments with no bond information
         # When add H atoms
+        mol.guess_bonds()
         mol2 = mol.add_hatoms()
 
         # Then adds hydrogens according to guessed bonds
