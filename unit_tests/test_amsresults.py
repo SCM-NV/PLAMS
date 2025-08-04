@@ -1,12 +1,12 @@
+from unittest.mock import MagicMock
+
 import numpy as np
 import pytest
-from unittest.mock import MagicMock
 from ase import Atoms as AseAtoms
-
-from scm.plams.interfaces.adfsuite.ams import AMSJob, AMSResults
-from scm.plams.tools.kftools import KFFile
 from scm.plams.core.errors import FileError, MissingOptionalPackageError
+from scm.plams.interfaces.adfsuite.ams import AMSJob, AMSResults
 from scm.plams.mol.molecule import Molecule
+from scm.plams.tools.kftools import KFFile
 from scm.plams.unit_tests.test_helpers import skip_if_no_ams_installation
 
 # ToDo: Add tests for other job types e.g. MD, BAND etc. to test other result functions
@@ -91,6 +91,14 @@ class TestWaterOptimizationAMSResults:
         # When call get  engine names
         # Then dftb engine name returned
         assert water_opt_results.engine_names() == ["dftb"]
+
+    def test_get_main_engine(self, water_opt_results):
+        # Given results of water optimization job containing dftb engine rkf
+        water_opt_results.collect()
+
+        # When call get_main_engine_name
+        # Then dftb engine name returned
+        assert water_opt_results.get_main_engine_name() == "dftb"
 
     def test_rkfpath_returns_absolute_path(self, water_opt_results, rkf_folder):
         # Given water optimization results
