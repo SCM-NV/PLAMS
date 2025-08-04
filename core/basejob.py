@@ -37,8 +37,9 @@ def _fail_on_exception(func):
     def wrapper(self: "Job", *args, **kwargs):
         try:
             return func(self, *args, **kwargs)
-        except Exception:
+        except Exception as ex:
             # Mark job status as failed and the results as complete
+            log(f"Encountered exception {ex} in {self.name}, marking job as {JobStatus.FAILED}", 5)  # type: ignore
             self.status = JobStatus.FAILED
             self.results.finished.set()  # type: ignore
             self.results.done.set()  # type: ignore
@@ -312,7 +313,7 @@ class Job(ABC):
             log("Collecting results of {}".format(self.name), 7)
             self.results.collect()
             self.results.finished.set()
-            if self.status != JobStatus.CRASHED:
+            if self.status != JobStatus.CRASHED and self.status != JobStatus.FAILED:
                 self.status = JobStatus.FINISHED
                 self._log_status(3)
                 if self.check():

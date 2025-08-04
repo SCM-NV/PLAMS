@@ -13,6 +13,7 @@ This changelog is effective from the 2025 releases.
 
 ### Fixed
 * `JobManager.load_job` and `load` can load multi-jobs from a `.dill` file from PLAMS<2025
+* Regression in `GridRunner` which caused some SLURM and PBS commands to silently fail and jobs to be incorrectly awaited
 
 ## 2025.103
 
