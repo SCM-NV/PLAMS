@@ -653,6 +653,17 @@ class TestWaterOptimizationAMSResults:
             ],
         )
 
+    def test_get_reduced_masses_as_expected(self, water_opt_results):
+        # Given water optimization results with dftb engine
+        # When get reduced masses
+        # Then returned as expected
+        water_opt_results.collect()
+        print(water_opt_results.get_reduced_masses())
+        assert np.allclose(
+            water_opt_results.get_reduced_masses(),
+            [1.08423216, 1.04372064, 1.08486885],
+        )
+
     def test_get_charges_as_expected(self, water_opt_results):
         # Given water optimization results with dftb engine
         # When get charges
