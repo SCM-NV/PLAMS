@@ -12,7 +12,7 @@ import traceback
 
 from scm.plams.core.enums import JobStatus, JobStatusType
 from scm.plams.core.errors import FileError, JobError, PlamsError, ResultsError
-from scm.plams.core.functions import get_config, log
+from scm.plams.core.functions import get_config, log, retry
 from scm.plams.core.private import sha256
 from scm.plams.core.results import Results
 from scm.plams.core.settings import Settings
@@ -332,6 +332,28 @@ class Job(ABC):
 
         log("{}._finalize() finished".format(self.name), 7)
         self._log_status(1)
+
+    @retry()
+    def delete(self):
+        """
+        Permanently delete the job directory and remove from the job manager.
+        This allows the job name to be re-used.
+
+        Status is marked as deleted, and the results can no longer be accessed.
+        """
+        if self.status != JobStatus.CREATED:
+            self.results.wait()
+
+        # In case job.jobmanager is None, run() method was not called yet, so no JobManager knows about this job and no folder exists.
+        if self.jobmanager is not None:
+            self.jobmanager.remove_job(self)
+
+        if self.parent is not None:
+            self.parent.remove_child(self)
+
+        self.status = JobStatus.DELETED
+        self.path = None
+        self._log_status(5)
 
     def __getstate__(self):
         """Prepare this job instance for pickling.

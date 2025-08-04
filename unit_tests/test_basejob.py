@@ -561,6 +561,162 @@ sleep 0.0 && sed 's/input/output/g' plamsjob.in
         assert job._full_name() == "dummy_job"
         assert job._full_name("some/rundir") == "some/rundir/dummy_job"
 
+    def test_delete_created_job(self, config):
+        # Given job
+        job = DummySingleJob()
+
+        # When deleted
+        job.delete()
+
+        # Then status set to deleted
+        assert job.status == JobStatus.DELETED
+        assert job.path is None
+        with pytest.raises(ResultsError):
+            _ = job.results.grep_output("")
+
+    def test_delete_running_job(self, config):
+        # Given job
+        job = DummySingleJob(wait=0.5)
+        job.run()
+        path = job.path
+
+        # When deleted while running
+        job.delete()
+
+        # Then waits, job files removed and job path removed
+        assert job.status == JobStatus.DELETED
+        assert job.name not in config.default_jobmanager.names
+        assert job not in config.default_jobmanager.jobs
+        assert not Path(path).exists()
+        assert job.path is None
+        with pytest.raises(ResultsError):
+            _ = job.results.grep_output("")
+
+    def test_delete_job_then_rerun_with_same_name(self, config):
+        # Given job
+        name = f"to-be-deleted-{uuid.uuid4()}"
+        job1 = DummySingleJob(name=name)
+        job1.run()
+        path1 = job1.path
+
+        # When deleted
+        job1.delete()
+
+        # Then can rerun job with the same name, and results cannot be accessed from first job
+        job2 = DummySingleJob(name=name)
+        job2.run()
+
+        assert job1.name == job2.name
+        assert job1.path is None
+        with pytest.raises(ResultsError):
+            job1.results.grep_output("")
+        assert job2.path == path1
+        assert job2.results.grep_output("")
+
+    def test_delete_many_jobs_then_rerun_with_same_name(self, config):
+        # Given jobs with same name
+        name = f"to-be-deleted-{uuid.uuid4()}"
+        jobs = [DummySingleJob(name=name) for _ in range(10)]
+        for job in jobs:
+            job.run()
+        for job in jobs:
+            job.results.wait()
+        path = jobs[0].path
+
+        # When jobs which are not the final job are deleted
+        jobs[0].delete()
+        jobs[4].delete()
+        jobs[7].delete()
+
+        # Then next job follows on from last job
+        jobs.append(DummySingleJob(name=name))
+        jobs[-1].run().wait()
+        assert int(jobs[-1].name[-3:]) == 11
+
+        # When last jobs are deleted
+        jobs[-2].delete()
+        jobs[-1].delete()
+
+        # Then next job follows on from highest remaining job
+        jobs.append(DummySingleJob(name=name))
+        jobs[-1].run().wait()
+        assert int(jobs[-1].name[-3:]) == 10
+
+        # When all other jobs are deleted
+        jobs[1].delete()
+        jobs[2].delete()
+        jobs[3].delete()
+        jobs[5].delete()
+        jobs[-1].delete()
+        jobs[6].delete()
+        jobs[8].delete()
+
+        # Then count is fully reset and next job has the base name
+        jobs.append(DummySingleJob(name=name))
+        jobs[-1].run().wait()
+        last_job = jobs.pop()
+        assert last_job.name == name
+        assert last_job.results.grep_output("")
+        assert jobs[0].path is None
+        with pytest.raises(ResultsError):
+            jobs[0].results.grep_output("")
+        assert all(job.status == JobStatus.DELETED for job in jobs)
+        assert len(list(Path(path).parent.glob(f"{name}*"))) == 1
+
+    def test_delete_many_jobs_with_same_name_in_different_sub_dirs(self, config):
+        # Given jobs with same name in different sub dirs
+        name = f"to-be-deleted-{uuid.uuid4()}"
+        with jobs_in_directory("dir1") as dir1:
+            jobs1 = [DummySingleJob(name=name) for _ in range(5)]
+            for j in jobs1:
+                j.run()
+        with jobs_in_directory("dir2") as dir2:
+            jobs2 = [DummySingleJob(name=name) for _ in range(5)]
+            for j in jobs2:
+                j.run()
+            with jobs_in_directory("dir3") as dir3:
+                jobs3 = [DummySingleJob(name=name) for _ in range(5)]
+                for j in jobs3:
+                    j.run()
+        for j in jobs1 + jobs2 + jobs3:
+            j.results.wait()
+
+        # When jobs deleted from a subdir
+        for job in jobs2[::-1]:
+            job.delete()
+
+        # Then jobs in other dirs unaffected
+        assert len(config.default_jobmanager.names) == 2
+        assert all(job.status == JobStatus.SUCCESSFUL for job in jobs1)
+        assert all(job.status == JobStatus.DELETED for job in jobs2)
+        assert all(job.status == JobStatus.SUCCESSFUL for job in jobs3)
+        with pytest.raises(ResultsError):
+            jobs2[0].results.grep_output("")
+        assert jobs1[0].results.grep_output("")
+        assert jobs3[0].results.grep_output("")
+        assert len(list(dir2.glob(f"{name}*"))) == 0
+        assert len(list(dir1.glob(f"{name}*"))) == 5
+        assert len(list(dir3.glob(f"{name}*"))) == 5
+
+        # When jobs deleted from a subdir
+        for job in jobs1:
+            job.delete()
+
+        # Then jobs in other dirs unaffected
+        assert len(config.default_jobmanager.names) == 1
+        assert all(job.status == JobStatus.DELETED for job in jobs1)
+        assert all(job.status == JobStatus.SUCCESSFUL for job in jobs3)
+
+        # When jobs deleted from a subdir
+        jobs3[1].delete()
+        jobs3[3].delete()
+        jobs3[4].delete()
+        jobs3[2].delete()
+        jobs3[0].delete()
+
+        # Then jobs in other dirs unaffected
+        assert len(config.default_jobmanager.names) == 0
+
 
 class TestMultiJob:
     """

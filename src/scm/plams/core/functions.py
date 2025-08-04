@@ -400,24 +400,10 @@ def load_all(path, jobmanager=None):
 
 # ===========================================================================
 
-
-@retry()
 def delete_job(job: "Job"):
     """Remove *job* from its corresponding |JobManager| and delete the job folder from the disk. Mark *job* as 'deleted'."""
-
-    if job.status != JobStatus.CREATED:
-        job.results.wait()
-
-    # In case job.jobmanager is None, run() method was not called yet, so no JobManager knows about this job and no folder exists.
-    if job.jobmanager is not None:
-        job.jobmanager.remove_job(job)
-
-    if job.parent is not None:
-        job.parent.remove_child(job)
-
-    job.status = JobStatus.DELETED
-    job._log_status(5)
-
+    # wrapper around the method, for backwards compatibility
+    job.delete()
 
 # ===========================================================================
 

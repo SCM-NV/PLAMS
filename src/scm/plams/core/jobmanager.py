@@ -4,7 +4,7 @@ import shutil
 import threading
 from os.path import join as opj
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional, List, Dict
+from typing import TYPE_CHECKING, Optional, List, Dict, Tuple
 
 from scm.plams.core.basejob import MultiJob
 from scm.plams.core.enums import JobStatus
@@ -59,6 +59,7 @@ class JobManager:
         self.settings = settings
         self.jobs: List[Job] = []
         self.names: Dict[str, int] = {}
+        self._job_full_name_map: Dict[Job, Tuple[str, int]] = {}
         self.hashes: Dict[str, Job] = {}
 
         self._register_lock = threading.RLock()
@@ -196,11 +197,27 @@ class JobManager:
         return job
 
     def remove_job(self, job):
-        """Remove *job* from the job manager. Forget its hash."""
+        """
+        Remove *job* from the job manager.
+
+        This removes its hash and resets the name count to the last remaining job with the same name.
+        """
         with self._register_lock:
             if job in self.jobs:
                 self.jobs.remove(job)
                 job.jobmanager = None
+            if job in self._job_full_name_map:
+                name, cnt = self._job_full_name_map.pop(job)
+                if name in self.names:
+                    if cnt == self.names[name]:
+                        if cnt == 1:
+                            self.names.pop(name)
+                        else:
+                            remaining = [c for n, c in self._job_full_name_map.values() if n == name]
+                            if remaining:
+                                self.names[name] = max(remaining)
+                            else:
+                                self.names.pop(name)
             h = job.hash()
             if h in self.hashes and self.hashes[h] == job:
                 del self.hashes[h]
@@ -252,6 +269,8 @@ class JobManager:
             os.mkdir(job.path)
 
             self.jobs.append(job)
+            self._job_full_name_map[job] = (orgfname, self.names[orgfname])
+
             job.status = JobStatus.REGISTERED
             log("Job {} registered".format(job.name), 7)
 
