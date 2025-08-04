@@ -1085,7 +1085,7 @@ class AMSResults(Results):
         """
         pvdos = self._process_engine_results(lambda x: x.read("Vibrations", "PVDOS"), engine)
         nNormalModes = self._process_engine_results(lambda x: x.read("Vibrations", "nNormalModes"), engine)
-        nAtoms = len(self.job.molecule)
+        nAtoms = len(self.get_main_molecule())
         pvdos = np.array(pvdos).reshape(nNormalModes, nAtoms)
         return pvdos
 

@@ -658,10 +658,23 @@ class TestWaterOptimizationAMSResults:
         # When get reduced masses
         # Then returned as expected
         water_opt_results.collect()
-        print(water_opt_results.get_reduced_masses())
         assert np.allclose(
             water_opt_results.get_reduced_masses(),
             [1.08423216, 1.04372064, 1.08486885],
+        )
+
+    def test_get_pvdos_as_expected(self, water_opt_results):
+        # Given water optimization results with dftb engine
+        # When get pvdos
+        # Then returned as expected
+        water_opt_results.collect()
+        assert np.allclose(
+            water_opt_results.get_pvdos("dftb"),
+            [
+                [0.07521014, 0.46239493, 0.46239493],
+                [0.03670473, 0.48164764, 0.48164763],
+                [0.07579235, 0.46210382, 0.46210383],
+            ],
         )
 
     def test_get_charges_as_expected(self, water_opt_results):
