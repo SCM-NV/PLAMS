@@ -4,7 +4,6 @@ import re
 
 from scm.plams.mol.molecule import Molecule
 from scm.plams.interfaces.molecule.ase import toASE, fromASE
-from scm.plams.unit_tests.test_helpers import get_mock_find_spec, get_mock_open_function
 from scm.plams.core.errors import MissingOptionalPackageError
 from scm.plams.interfaces.molecule.rdkit import (
     from_rdmol,
@@ -16,6 +15,7 @@ from scm.plams.interfaces.molecule.rdkit import (
     get_reaction_image,
 )
 from scm.plams.interfaces.molecule.packmol import packmol
+from .test_helpers import get_mock_find_spec, get_mock_open_function
 
 
 @pytest.fixture

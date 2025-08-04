@@ -88,18 +88,21 @@ Documentation = "https://www.scm.com/doc/plams/"
 GitHub = "https://github.com/SCM-NV/PLAMS/"
 Changelog = "https://github.com/SCM-NV/PLAMS/blob/trunk/CHANGELOG.md"
 
-[build-system]
-requires = ["setuptools >= 61.0"]
-build-backend = "setuptools.build_meta"
-
 [project.scripts]
 scm-plams = "scm.plams.scripts.plams:main"
 
-[tool.setuptools]
-package-dir = { "scm.plams" = "." }
+[build-system]
+requires = ["hatchling>=1.26", "hatch-vcs>=0.4.0", "setuptools-scm<9"]
+build-backend = "hatchling.build"
 
-[tool.setuptools.dynamic]
-version = {attr = "version.__version__"}
+[tool.hatch.build.targets.wheel]
+packages = ["src/scm"]
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/scm/plams/version.py"
 
 [tool.scm]
 copy-to-target = [".flake8", "examples/**/*", "unit_tests/**/*"]

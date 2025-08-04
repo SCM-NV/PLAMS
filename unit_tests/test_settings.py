@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import patch
 
 from scm.plams.core.settings import Settings, ConfigSettings
-from scm.plams.unit_tests.test_helpers import assert_config_as_expected
+from .test_helpers import assert_config_as_expected
 
 
 class TestSettings:

@@ -1,13 +1,13 @@
 from unittest.mock import MagicMock
-
 import numpy as np
 import pytest
 from ase import Atoms as AseAtoms
-from scm.plams.core.errors import FileError, MissingOptionalPackageError
+
 from scm.plams.interfaces.adfsuite.ams import AMSJob, AMSResults
-from scm.plams.mol.molecule import Molecule
 from scm.plams.tools.kftools import KFFile
-from scm.plams.unit_tests.test_helpers import skip_if_no_ams_installation
+from scm.plams.core.errors import FileError, MissingOptionalPackageError
+from scm.plams.mol.molecule import Molecule
+from .test_helpers import skip_if_no_ams_installation
 
 # ToDo: Add tests for other job types e.g. MD, BAND etc. to test other result functions
 

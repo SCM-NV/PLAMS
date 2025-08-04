@@ -10,10 +10,10 @@ from scm.plams.interfaces.molecule.rdkit import from_smiles
 from scm.plams.interfaces.adfsuite.ams import AMSJob, AMSResults
 from scm.plams.core.jobmanager import JobManager
 from scm.plams.core.enums import JobStatus
-from scm.plams.unit_tests.test_basejob import DummySingleJob
-from scm.plams.unit_tests.test_helpers import temp_file_path, skip_if_no_scm_pisa, skip_if_no_scm_libbase
 from scm.plams.tools.job_analysis import JobAnalysis
 from scm.plams.core.settings import Settings, JobManagerSettings
+from .test_basejob import DummySingleJob
+from .test_helpers import temp_file_path, skip_if_no_scm_pisa, skip_if_no_scm_libbase
 
 
 class TestJobAnalysis:
