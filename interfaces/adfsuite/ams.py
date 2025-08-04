@@ -4,15 +4,31 @@ from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Set, Tuple
 
 import numpy as np
 from scm.plams.core.basejob import SingleJob
-from scm.plams.core.errors import FileError, JobError, MissingOptionalPackageError, PlamsError, PTError, ResultsError
-from scm.plams.core.functions import get_config, log, parse_heredoc, requires_optional_package
+from scm.plams.core.errors import (
+    FileError,
+    JobError,
+    MissingOptionalPackageError,
+    PlamsError,
+    PTError,
+    ResultsError,
+)
+from scm.plams.core.functions import (
+    get_config,
+    log,
+    parse_heredoc,
+    requires_optional_package,
+)
 from scm.plams.core.private import sha256
 from scm.plams.core.results import Results
 from scm.plams.core.settings import Settings
 from scm.plams.mol.atom import Atom
 from scm.plams.mol.bond import Bond
 from scm.plams.mol.molecule import Molecule
-from scm.plams.tools.converters import gaussian_output_to_ams, qe_output_to_ams, vasp_output_to_ams
+from scm.plams.tools.converters import (
+    gaussian_output_to_ams,
+    qe_output_to_ams,
+    vasp_output_to_ams,
+)
 from scm.plams.tools.kftools import KFFile, KFReader
 from scm.plams.tools.units import Units
 
@@ -1079,13 +1095,11 @@ class AMSResults(Results):
 
         The *engine* argument should be the identifier of the file you wish to read. To access a file called ``something.rkf`` you need to call this function with ``engine='something'``. The *engine* argument can be omitted if there's only one engine results file in the job folder.
         """
-        reduced_masses = np.array(
-            self._process_engine_results(lambda x: x.read("Vibrations", "ReducedMasses"), engine)
-        )
+        reduced_masses = np.array(self._process_engine_results(lambda x: x.read("Vibrations", "ReducedMasses"), engine))
         return reduced_masses
 
     def get_normal_modes(
-        self, mass_weighted_hessian_eigenvectors: Optional[bool] = False, engine: Optional[str] = None
+        self, engine: Optional[str] = None, mass_weighted_hessian_eigenvectors: Optional[bool] = False
     ):
         """Return a numpy array of normal modes with shape: (num_normal_modes, num_atoms, 3), expressed in dimensionless units.
         If mass_weighted_hessian_eigenvectors=True it returns the mass_weighted_hessian_eigenvectors.
@@ -1389,7 +1403,9 @@ class AMSResults(Results):
 
         * ``filename`` -- Name of the RKF file that contains ForceField data
         """
-        from scm.plams.interfaces.adfsuite.forcefieldparams import forcefield_params_from_kf
+        from scm.plams.interfaces.adfsuite.forcefieldparams import (
+            forcefield_params_from_kf,
+        )
 
         return self._process_engine_results(forcefield_params_from_kf, engine)
 
