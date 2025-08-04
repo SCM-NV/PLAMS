@@ -88,6 +88,9 @@ Documentation = "https://www.scm.com/doc/plams/"
 GitHub = "https://github.com/SCM-NV/PLAMS/"
 Changelog = "https://github.com/SCM-NV/PLAMS/blob/trunk/CHANGELOG.md"
 
+[project.scripts]
+scm-plams = "scm.plams.scripts.plams:main"
+
 [build-system]
 requires = ["hatchling>=1.26", "hatch-vcs>=0.4.0", "setuptools-scm<9"]
 build-backend = "hatchling.build"
