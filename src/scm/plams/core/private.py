@@ -40,7 +40,14 @@ def sha256(string):
 
 
 def saferun(*args, **kwargs):
-    """A wrapper around :func:`subprocess.run` repeating the call ``config.saferun.repeat`` times with ``config.saferun.delay`` interval in case of :exc:`BlockingIOError` being raised (any other exception is not caught and directly passed above). All arguments (*args* and *kwargs*) are passed directly to :func:`~subprocess.run`. If all attempts fail, the last raised :exc:`BlockingIOError` is reraised."""
+    """
+    A wrapper around :func:`subprocess.run` repeating the call ``config.saferun.repeat`` times with ``config.saferun.delay``
+    interval in case of :exc:`BlockingIOError` being raised, (any other exception is not caught and directly passed above).
+    All arguments (*args* and *kwargs*) are passed directly to :func:`~subprocess.run`.
+    If all attempts fail, the last raised :exc:`BlockingIOError` is reraised.
+
+    This is useful for multi-threading/async run calls with I/O.
+    """
     from scm.plams.core.functions import get_config, log
 
     attempt = 0
@@ -57,7 +64,7 @@ def saferun(*args, **kwargs):
     raise last_error
 
 
-def safe_system_call(command: Sequence[str], timeout: Optional[float] = 5, poll_interval: float = 0.1) -> bool:
+def run_with_timeout(command: Sequence[str], timeout: Optional[float] = 5, poll_interval: float = 0.1) -> bool:
     """
     Execute a system call which kills the process if it errors or does not respond within the given time period.
 

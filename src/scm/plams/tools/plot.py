@@ -10,7 +10,7 @@ from scm.plams.interfaces.adfsuite.ams import AMSJob
 from scm.plams.interfaces.adfsuite.utils import requires_ams
 from scm.plams.interfaces.adfsuite.errors import AMSExecutionError
 from scm.plams.mol.molecule import Molecule
-from scm.plams.core.private import safe_system_call
+from scm.plams.core.private import run_with_timeout
 from scm.plams.tools.units import Units
 
 try:
@@ -336,7 +336,7 @@ def open_in_ams_view(system: Union[Molecule, "ChemicalSystem"]):
 
     try:
         command = [os.path.expandvars("$AMSBIN/amsview"), input_path]
-        if not safe_system_call(command, timeout=None):
+        if not run_with_timeout(command, timeout=None):
             raise AMSExecutionError(command, "Failed to load molecule in AMSView.")
     finally:
         os.remove(input_path)
@@ -467,7 +467,7 @@ def view(
                 str(atom_label_size),
             ]
 
-        if not safe_system_call(command, timeout=timeout):
+        if not run_with_timeout(command, timeout=timeout):
             raise AMSExecutionError(
                 command,
                 "Failed to generate image using AMSView. Check the geometry or increase the timeout for very large systems.",
