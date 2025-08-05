@@ -1,34 +1,20 @@
 import os
+import re
 from os.path import join as opj
 from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Set, Tuple, Union
 
 import numpy as np
+
 from scm.plams.core.basejob import SingleJob
-from scm.plams.core.errors import (
-    FileError,
-    JobError,
-    MissingOptionalPackageError,
-    PlamsError,
-    PTError,
-    ResultsError,
-)
-from scm.plams.core.functions import (
-    get_config,
-    log,
-    parse_heredoc,
-    requires_optional_package,
-)
+from scm.plams.core.errors import FileError, JobError, MissingOptionalPackageError, PlamsError, PTError, ResultsError
+from scm.plams.core.functions import get_config, log, parse_heredoc, requires_optional_package
 from scm.plams.core.private import sha256
 from scm.plams.core.results import Results
 from scm.plams.core.settings import Settings
 from scm.plams.mol.atom import Atom
 from scm.plams.mol.bond import Bond
 from scm.plams.mol.molecule import Molecule
-from scm.plams.tools.converters import (
-    gaussian_output_to_ams,
-    qe_output_to_ams,
-    vasp_output_to_ams,
-)
+from scm.plams.tools.converters import gaussian_output_to_ams, qe_output_to_ams, vasp_output_to_ams
 from scm.plams.tools.kftools import KFFile, KFReader
 from scm.plams.tools.units import Units
 
@@ -48,6 +34,7 @@ except ImportError:
 
 if TYPE_CHECKING:
     from ase import Atoms as AseAtoms
+
     from scm.plams.core.jobmanager import JobManager
     from scm.plams.core.jobrunner import JobRunner
     from scm.plams.tools.kftools import TRead
@@ -170,15 +157,29 @@ class AMSResults(Results):
 
         For geometry optimizations, this means that it will return the engine.rkf file and not any of the GOStep*.rkf files.
 
+        For molecular dynamics, this means that it will return the last MDStep rkf.
+
         Raises ValueError if it cannot determine a unique main engine file or if no engine file is present.
         """
         engine_names = self.engine_names()
         original_task = str(self.job.get_task()).lower()
+
         # if GO allows to save extra .rkf files
         if original_task == "geometryoptimization":
             engine_names = [x for x in engine_names if "GOStep" not in x]
+
         # remove hybrid engine sub engines
         engine_names = [x for x in engine_names if "hybrid-" not in x]
+
+        # if MD find most recent MDStep
+        if original_task == "moleculardynamics":
+            engine_names = sorted(
+                [x for x in engine_names if "term" not in x],
+                # I have decided to use regex but probably just replacing MDStep from the engine would work as well
+                key=lambda x: int(re.match(r"[a-zA-Z]*(\d+)", x).group(1)),
+            )
+            engine_names = [engine_names[-1]]
+
         if len(engine_names) != 1:
             raise ValueError(
                 f"Cannot get main engine name from {engine_names} for job in: {self.job.path} with {list(self.rkfs.keys())}"
@@ -1403,9 +1404,7 @@ class AMSResults(Results):
 
         * ``filename`` -- Name of the RKF file that contains ForceField data
         """
-        from scm.plams.interfaces.adfsuite.forcefieldparams import (
-            forcefield_params_from_kf,
-        )
+        from scm.plams.interfaces.adfsuite.forcefieldparams import forcefield_params_from_kf
 
         return self._process_engine_results(forcefield_params_from_kf, engine)
 
@@ -2001,6 +2000,7 @@ class AMSResults(Results):
     @requires_optional_package("scipy")
     def _get_green_kubo_viscosity(pressuretensor, time_step, max_dt, volume, temperature, xy=True, yz=True, xz=True):
         from scipy.integrate import cumtrapz
+
         from scm.plams.tools.units import Units
         from scm.plams.trajectories.analysis import autocorrelation
 
@@ -2062,6 +2062,7 @@ class AMSResults(Results):
 
         """
         from scipy.integrate import cumtrapz
+
         from scm.plams.tools.units import Units
         from scm.plams.trajectories.analysis import autocorrelation
 
