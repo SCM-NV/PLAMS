@@ -2,7 +2,7 @@ import time
 import pytest
 
 from scm.plams.core.jobrunner import JobRunner
-from .test_basejob import DummySingleJob, log_call
+from test_basejob import DummySingleJob, log_call
 
 
 class LoggedJobRunner(JobRunner):
