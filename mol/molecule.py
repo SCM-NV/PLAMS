@@ -32,7 +32,7 @@ from scm.plams.tools.periodic_table import PT
 from scm.plams.tools.units import Units
 
 input_parser_available = "AMSBIN" in os.environ
-from typing import Callable, Dict, Iterable, List, Optional, Set, Tuple, Union, overload
+from typing import Callable, Dict, Iterable, List, Optional, Set, Tuple, Union, overload, Literal
 
 __all__ = ["Molecule"]
 
@@ -2145,6 +2145,38 @@ class Molecule:
             return evals, evecs.transpose()
         else:
             return evals
+
+    def get_rotational_constants(self, units:Literal["cm-1", "MHz", "s-1"]="MHz"):
+        """Get the rotational constant (B).
+
+        :param units: _description_, defaults to "MHz"
+        :type units: str, optional
+        :raises Exception: _description_
+        :return: _description_
+        :rtype: _type_
+        """
+        eigvals = self.get_moments_of_inertia(mass_unit="au")
+
+        # Convert from (g/mol)*A2 to kg*m*s-1
+        eigvals *= 1.0e-23 / Units.constants["NA"]
+        # Compute rotational constant in s-1 (correct for linear molecules)
+        eigvals_tmp = eigvals.copy()
+        eigvals_tmp[eigvals == 0.0] = 1.0
+        bconsts = sconst.h / (8 * np.pi**2 * eigvals_tmp)
+        bconsts[eigvals == 0.0] = 0.0
+
+        if units == "cm-1":
+            # Convert to from s-1 to cm-1
+            bconsts = bconsts * 1.0e-2 / Units.constants["c"]
+        elif units == "MHz":
+            # Convert from s-1 to MHz
+            bconsts *= 1e-6
+        elif units == "s-1":
+            pass
+        else:
+            raise Exception("The unit %s is not recognized for rotational constants " % (units))
+        bconsts = np.sort(bconsts)[::-1]
+        return bconsts   
 
     def get_gyration_radius(self, unit: Optional[str] = "angstrom") -> float:
         """Return the gyration radius of the molecule by default in angstrom. It gives information about the overall dimensions of the rotating molecule around its center of mass.
