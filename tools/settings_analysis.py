@@ -146,3 +146,26 @@ class CategorizeSettings:
         else:
             raise ValueError(f"Unknown collision method {self.collision}")
         return ret
+
+    @classmethod
+    def from_classmethod_collection(cls, cls_collection):
+        """
+        Example:
+
+        class Engines:
+            @classmethod
+            def DFTB(cls):
+                engine = plams.Settings()
+                engine.input.dftb
+                return engine
+
+            @classmethod
+            def FF(cls):
+                engine = plams.Settings()
+                engine.input.forcefield
+                return engine
+
+        categorize_settings = CategorizeSettings.from_classmethod_collection(Engines)
+        """
+        vaild_methods_names = list(filter(lambda x: not x.startswith("_"), dir(cls_collection)))
+        return cls(collection_categories={k: getattr(cls_collection, k)() for k in vaild_methods_names})
