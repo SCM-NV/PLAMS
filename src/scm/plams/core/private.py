@@ -7,7 +7,7 @@ import time
 import warnings
 from contextlib import AbstractContextManager
 from os.path import join as opj
-from typing import Callable, Dict, NoReturn, List, Optional, Sequence
+from typing import Callable, Dict, NoReturn, List, Optional, Sequence, Mapping
 
 __all__: List[str] = []
 
@@ -64,24 +64,32 @@ def saferun(*args, **kwargs):
     raise last_error
 
 
-def run_with_timeout(command: Sequence[str], timeout: Optional[float] = 5, poll_interval: float = 0.1) -> bool:
+def run_with_timeout(
+    command: Sequence[str],
+    timeout: Optional[float] = 5,
+    poll_interval: float = 0.1,
+    env: Optional[Mapping[str, str]] = None,
+):
     """
     Execute a system call which kills the process if it errors or does not respond within the given time period.
 
     :param command: command to execute
     :param timeout: time to wait in seconds before killing the process, defaults to ``5``
     :param poll_interval: time to wait  in seconds before polling the process for completion, defaults to ``0.1``
+
+    :raises FileNotFoundError: if the command is invalid
+    :raises TimeoutError: if the process does not complete within the specified timeout
+    :raises subprocess.CalledProcessError: if the process exits with a non-zero return code
     """
-    try:
-        proc = subprocess.Popen(
-            command,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            start_new_session=(os.name == "posix"),
-            creationflags=(subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0),  # type: ignore
-        )
-    except FileNotFoundError:
-        return False
+    result = {"return_code": None, "stdout": None, "stderr": None}
+    proc = subprocess.Popen(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        start_new_session=(os.name == "posix"),
+        creationflags=(subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0),  # type: ignore
+        env=env,
+    )
 
     start = time.time()
 
@@ -90,11 +98,18 @@ def run_with_timeout(command: Sequence[str], timeout: Optional[float] = 5, poll_
         now = time.time()
 
         if ret is not None:
-            return ret == 0
+            stdout, stderr = proc.communicate()
+            stdout = stdout.decode()
+            stderr = stderr.decode()
+            if proc.returncode != 0:
+                raise subprocess.CalledProcessError(
+                    returncode=proc.returncode, cmd=command, output=stdout, stderr=stderr
+                )
+            return result
 
         if timeout and now - start > timeout:
             proc.kill()
-            return False
+            raise TimeoutError(f"Timeout of {timeout} seconds reached")
 
         time.sleep(poll_interval)
 
