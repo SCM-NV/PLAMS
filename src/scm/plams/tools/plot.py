@@ -1,17 +1,10 @@
-import os
-import re
-from typing import List, Optional, Tuple, Union, TYPE_CHECKING, Literal, Sequence
-from tempfile import NamedTemporaryFile
+from typing import List, Optional, Tuple, Union, TYPE_CHECKING
 import numpy as np
 
 from scm.plams.core.errors import MissingOptionalPackageError
 from scm.plams.core.functions import requires_optional_package
 from scm.plams.interfaces.adfsuite.ams import AMSJob
-from scm.plams.interfaces.adfsuite.utils import requires_ams
-from scm.plams.interfaces.adfsuite.errors import AMSExecutionError
 from scm.plams.mol.molecule import Molecule
-from scm.plams.core.private import run_with_timeout
-from scm.plams.tools.units import Units
 
 try:
     from scm.libbase import UnifiedChemicalSystem as ChemicalSystem
@@ -31,7 +24,6 @@ __all__ = [
     "plot_phonons_dos",
     "plot_phonons_thermodynamic_properties",
     "plot_molecule",
-    "open_in_ams_view",
     "view",
     "plot_correlation",
     "plot_msd",
@@ -316,176 +308,6 @@ def plot_molecule(molecule, figsize=None, ax=None, keep_axis: bool = False, **kw
         ax.axis("off")
 
     return ax
-
-
-@requires_ams(minimum_version="2025.204")
-def open_in_ams_view(system: Union[Molecule, "ChemicalSystem"]):
-    """
-    Open chemical system or molecule in AMSView.
-
-    :param system: chemical system or molecule to display in AMSView
-    """
-    with NamedTemporaryFile(mode="w", suffix=".in", delete=False) as input_file:
-        input_path = input_file.name
-        if isinstance(system, Molecule):
-            system.writein(input_file)
-        elif _has_scm_chemsys and isinstance(system, ChemicalSystem):
-            input_file.write(str(system))
-        else:
-            raise ValueError(f"System must be a PLAMS Molecule or a ChemicalSystem, but was {type(system).__name__}")
-
-    try:
-        command = [os.path.expandvars("$AMSBIN/amsview"), input_path]
-        if not run_with_timeout(command, timeout=None):
-            raise AMSExecutionError(command, "Failed to load molecule in AMSView.")
-    finally:
-        os.remove(input_path)
-
-
-@requires_optional_package("PIL")
-@requires_ams(minimum_version="2025.204")
-def view(
-    system: Union[Molecule, "ChemicalSystem"],
-    width: int = 800,
-    height: int = 400,
-    padding: float = 0,
-    view_plane: Tuple[float, float, float] = (0.0, 0.0, 1.0),
-    fixed_atom_size: bool = True,
-    show_atom_labels: bool = False,
-    atom_label_type: Literal["AtomType", "Element", "Name", "SurfaceRadius"] = "AtomType",
-    atom_label_color: str = "#000000",
-    atom_label_size: float = 1.0,
-    show_regions: bool = False,
-    show_lattice_vectors: bool = False,
-    show_unit_cell: bool = True,
-    unit_cell_edge_thickness: float = 0.05,
-    save_as: Optional[Union[str, os.PathLike]] = None,
-    dpi: int = 300,
-    timeout: int = 10,
-) -> "PilImage.Image":
-    """
-    View a chemical system or molecule in a Jupyter notebook by generating an image using AMSView.
-
-    :param system: chemical system or molecule to display
-    :param width: width of the image in pixels, defaults to ``800``
-    :param height: height of the image in pixels, defaults to ``400``
-    :param padding: padding around system in Angstrom, defaults to ``0`` (can be negative)
-    :param view_plane: orientation of the normal to the view plane, defaults ``(0, 0, 1)`` i.e. in the x-y plane
-    :param fixed_atom_size: use the same radius for all elements (except Hydrogen), defaults to ``True``
-    :param show_atom_labels: display text label on each atom, defaults to ``False``
-    :param atom_label_type: property used for atom labels, defaults to ``AtomType``
-    :param atom_label_color: hexadecimal color code for atom labels, defaults to ``#000000`` i.e. black
-    :param atom_label_size: scale atom labels by the given factor, to make them larger or smaller, defaults to ``1.0``
-    :param show_regions: display translucent spheres on atoms according to their regions, defaults to ``False``
-    :param show_lattice_vectors: display the lattice vectors for periodic systems, defaults to ``False``
-    :param show_unit_cell: display unit cell for periodic systems using semi-transparent edges, defaults to ``True``
-    :param unit_cell_edge_thickness: specify thickness of the displayed unit cell boundary, defaults to ``0.05``
-    :param save_as: optionally save the generated image file to a given location, defaults to ``None``
-    :param dpi: resolution of the saved image in dots per inch, defaults to ``300``
-    :param timeout: kill AMSView process after given time in seconds, defaults to ``10``
-
-    :return: image of the molecule generated using AMSView
-    """
-    from tempfile import NamedTemporaryFile
-    from PIL import Image as PilImage
-
-    with NamedTemporaryFile(mode="w", suffix=".in", delete=False) as input_file:
-        input_path = input_file.name
-        if isinstance(system, Molecule):
-            system.writein(input_file)
-        elif _has_scm_chemsys and isinstance(system, ChemicalSystem):
-            input_file.write(str(system))
-        else:
-            raise ValueError(f"System must be a PLAMS Molecule or a ChemicalSystem, but was {type(system).__name__}")
-
-    if save_as:
-        img_path = save_as
-    else:
-        with NamedTemporaryFile(mode="wb", suffix=".png", delete=False) as img_file:
-            img_path = img_file.name
-
-    # Validation to help prevent AMSView crashing due to bad options
-    if not isinstance(width, int) or width < 0:
-        raise ValueError(f"width must be a positive integer, but was '{width}'")
-    if not isinstance(height, int) or height < 0:
-        raise ValueError(f"height must be a positive integer, but was '{height}'")
-    if not isinstance(padding, (int, float)):
-        raise ValueError(f"padding must be a numeric value, but was '{padding}'")
-    if (
-        not isinstance(view_plane, Sequence)
-        or len(view_plane) != 3
-        or not all(isinstance(v, (int, float)) for v in view_plane)
-    ):
-        raise ValueError(f"view_plane must be a sequence of three numeric values, but was '{view_plane}'")
-    if not isinstance(atom_label_type, str) or atom_label_type not in ["AtomType", "Element", "Name", "SurfaceRadius"]:
-        raise ValueError(
-            f"atom_label_type must be one of: 'AtomType', 'Element', 'Name', 'SurfaceRadius', but was '{atom_label_type}'"
-        )
-    if not isinstance(atom_label_color, str) or not bool(
-        re.fullmatch(r"#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})", atom_label_color)
-    ):
-        raise ValueError(f"atom_label_color must be a color hex code (starting with #), but was '{atom_label_color}'")
-    if not isinstance(atom_label_size, (int, float)):
-        raise ValueError(f"atom_label_size must be a numeric value, but was '{atom_label_size}'")
-    if not isinstance(unit_cell_edge_thickness, (int, float)) or unit_cell_edge_thickness < 0:
-        raise ValueError(f"unit_cell_edge_thickness must be a positive float, but was '{unit_cell_edge_thickness}'")
-    if not isinstance(dpi, int) or dpi < 0:
-        raise ValueError(f"dpi must be a positive integer, but was '{dpi}'")
-
-    try:
-        command = [
-            os.path.expandvars("$AMSBIN/amsview"),
-            input_path,
-            "-transparent",
-            "-batch",
-            "-save",
-            img_path,
-            "-scmgeometry",
-            f"{width}x{height}",
-            "-dpi",
-            str(dpi),
-            "-padding",
-            str(Units.convert(padding, "angstrom", "bohr")),
-            "-showlatticevectors",
-            str(int(show_lattice_vectors)),
-            "-viewplane",
-            " ".join([str(v) for v in view_plane]),
-            "-showunitcell",
-            f"thickness {unit_cell_edge_thickness}" if show_unit_cell else "hide",
-        ]
-        if fixed_atom_size:
-            command += ["-fixedatomsize"]
-        if not show_regions:
-            command += ["-hideregions"]
-        if show_atom_labels:
-            command += [
-                "-atomlabel",
-                atom_label_type,
-                "-labelcolor",
-                atom_label_color,
-                "-labelsize",
-                str(atom_label_size),
-            ]
-
-        if not run_with_timeout(command, timeout=timeout):
-            raise AMSExecutionError(
-                command,
-                "Failed to generate image using AMSView. Check the geometry or increase the timeout for very large systems.",
-            )
-
-        # Open image file and resize, making sure to maintain aspect ratio as AMSView may not generate with precise dimensions
-        img = PilImage.open(img_path)
-        img_width, img_height = img.size
-        aspect_ratio = img_width / img_height
-        img = img.resize(
-            (width, int(np.ceil(width / aspect_ratio))), resample=PilImage.Resampling.LANCZOS, reducing_gap=3.0
-        )
-    finally:
-        os.remove(input_path)
-        if not save_as:
-            os.remove(img_path)
-
-    return img
 
 
 @requires_optional_package("rdkit")
