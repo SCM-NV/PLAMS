@@ -2,7 +2,7 @@ import pytest
 from pathlib import Path
 
 from scm.plams.core.errors import ResultsError
-from .test_basejob import DummySingleJob
+from test_basejob import DummySingleJob
 
 
 class TestResults:
