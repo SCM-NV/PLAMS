@@ -1,6 +1,6 @@
 import PIL
 import pytest
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 import numpy as np
 
 from scm.plams.tools.view import view, ViewConfig, _get_view_plane
@@ -65,10 +65,18 @@ class TestView:
             "pic_dpi",
         ],
     )
-    def test_view_command_passed_to_amsview(self, view_config, expected, water):
-        with patch("scm.plams.tools.view.run_with_timeout") as mock_run_with_timeout:
+    def test_view_command_passed_to_amsview(self, view_config, expected, water, monkeypatch):
+
+        with patch("scm.plams.tools.view.run_with_timeout") as mock_run_with_timeout, patch(
+            "subprocess.run"
+        ) as mock_run:
             # This call will fail to generate the image due to the mock
             # but we are just testing that the command to AMSview is generated properly
+            response = MagicMock()
+            response.stderr = None
+            response.stdout = "release=2025.204"
+            mock_run.return_value = response
+            monkeypatch.setenv("AMSBIN", "dummy_value")
             try:
                 view(
                     water,
