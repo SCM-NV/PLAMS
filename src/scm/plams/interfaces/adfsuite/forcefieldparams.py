@@ -8,6 +8,7 @@ This class can do that.
 from typing import Optional, Tuple, Sequence, List
 
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     from scm.plams.tools.kftools import KFFile
 
