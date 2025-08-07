@@ -6,13 +6,6 @@ from scm.plams.core.functions import requires_optional_package
 from scm.plams.interfaces.adfsuite.ams import AMSJob
 from scm.plams.mol.molecule import Molecule
 
-try:
-    from scm.libbase import UnifiedChemicalSystem as ChemicalSystem
-
-    _has_scm_chemsys = True
-except ImportError:
-    _has_scm_chemsys = False
-
 if TYPE_CHECKING:
     import matplotlib.pyplot as plt
     from os import PathLike
@@ -24,7 +17,6 @@ __all__ = [
     "plot_phonons_dos",
     "plot_phonons_thermodynamic_properties",
     "plot_molecule",
-    "view",
     "plot_correlation",
     "plot_msd",
     "plot_work_function",

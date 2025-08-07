@@ -124,7 +124,7 @@ class ViewConfig:
         ):
             raise ValueError(f"normal must be a sequence of three numeric values, but was '{self.normal}'")
         if not self.direction and not self.normal:
-            raise ValueError(f"direction or normal must be specified")
+            raise ValueError("direction or normal must be specified")
         if not isinstance(self.lattice_as_basis, bool):
             raise ValueError(f"lattice_as_basis must be a boolean value, but was '{self.lattice_as_basis}'")
 
@@ -401,7 +401,7 @@ def _get_view_plane(system: Union[Molecule, "ChemicalSystem"], config: ViewConfi
         else:
             raise ValueError(f"direction '{config.direction}' not recognized: '{main_view_axis}' cannot be parsed")
     else:
-        raise ValueError(f"direction or normal must be specified")
+        raise ValueError("direction or normal must be specified")
 
     # convert to cartesian basis and normalize
     normal_cartesian_basis = basis @ normal
