@@ -326,6 +326,8 @@ def view(
             resample=PilImage.Resampling.LANCZOS,
             reducing_gap=3.0,
         )
+    except subprocess.CalledProcessError as ex:
+        raise AMSExecutionError(" ".join(command), ex.stderr)
     finally:
         os.remove(input_path)
         if not config.picture_path:
