@@ -98,9 +98,9 @@ def run_with_timeout(
         now = time.time()
 
         if ret is not None:
-            stdout, stderr = proc.communicate()
-            stdout = stdout.decode()
-            stderr = stderr.decode()
+            stdout_encoded, stderr_encoded = proc.communicate()
+            stdout = stdout_encoded.decode()
+            stderr = stderr_encoded.decode()
             if proc.returncode != 0:
                 raise subprocess.CalledProcessError(
                     returncode=proc.returncode, cmd=command, output=stdout, stderr=stderr

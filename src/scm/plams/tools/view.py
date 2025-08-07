@@ -22,6 +22,24 @@ if TYPE_CHECKING:
 
 __all__ = ["ViewConfig", "view"]
 
+ViewDirections = Literal[
+    "along_x",
+    "along_y",
+    "along_z",
+    "tilt_x",
+    "tilt_y",
+    "tilt_z",
+    "small_tilt_x",
+    "small_tilt_y",
+    "small_tilt_z",
+    "large_tilt_x",
+    "large_tilt_y",
+    "large_tilt_z",
+    "corner_x",
+    "corner_y",
+    "corner_z",
+]
+
 
 @dataclass
 class ViewConfig:
@@ -30,7 +48,7 @@ class ViewConfig:
 
     :ivar width: width of the image in pixels, defaults to ``800``
     :ivar height: height of the image in pixels, defaults to ``400``
-    :ivar padding: padding around system in Angstrom, defaults to ``0`` (can be negative)
+    :ivar padding: padding around system in Angstrom, defaults to ``0.0`` (can be negative)
     :ivar direction: direction to view system along, selected from a series of preset values, defaults to ``along_z``
     :ivar normal: orientation of the normal to the view plane, takes precedence over direction when specified, defaults to ``None``
     :ivar lattice_as_basis: whether to use lattice vectors (where available) as the view basis, otherwise uses cartesian axes, defaults to ``False``
@@ -53,26 +71,8 @@ class ViewConfig:
     # Image/viewpoint
     width: int = 800
     height: int = 400
-    padding: int = 0
-    direction: Optional[
-        Literal[
-            "along_x",
-            "along_y",
-            "along_z",
-            "tilt_x",
-            "tilt_y",
-            "tilt_z",
-            "small_tilt_x",
-            "small_tilt_y",
-            "small_tilt_z",
-            "large_tilt_x",
-            "large_tilt_y",
-            "large_tilt_z",
-            "corner_x",
-            "corner_y",
-            "corner_z",
-        ]
-    ] = "along_z"
+    padding: float = 0.0
+    direction: Optional[ViewDirections] = "along_z"
     normal: Optional[Tuple[float, float, float]] = None
     lattice_as_basis: bool = False
 
@@ -114,9 +114,10 @@ class ViewConfig:
             raise ValueError(f"height must be a positive integer, but was '{self.height}'")
         if not isinstance(self.padding, (int, float)):
             raise ValueError(f"padding must be a numeric value, but was '{self.padding}'")
-        # further validated in _get_view_plane
-        if self.direction and (not isinstance(self.direction, str)):
-            raise ValueError(f"direction must be a string value, but was '{self.direction}'")
+        if self.direction and (not isinstance(self.direction, str) or self.direction not in ViewDirections.__args__):
+            raise ValueError(
+                f"direction must be one of: '{', '.join(ViewDirections.__args__)}'; but was '{self.direction}'"
+            )
         if self.normal and (
             not isinstance(self.normal, Sequence)
             or len(self.normal) != 3
@@ -183,7 +184,7 @@ def view(
     width: Optional[int] = None,
     height: Optional[int] = None,
     padding: Optional[float] = None,
-    direction: Optional[Literal["foo"]] = None,
+    direction: Optional[ViewDirections] = None,
     lattice_as_basis: Optional[bool] = None,
     fixed_atom_size: Optional[bool] = None,
     show_atom_labels: Optional[bool] = None,
@@ -240,12 +241,12 @@ def view(
         config.show_regions = show_regions
 
     if show_unit_cell_edges is not None:
-        config.show_edges = show_unit_cell_edges
+        config.show_unit_cell_edges = show_unit_cell_edges
     if show_lattice_vectors is not None:
         config.show_lattice_vectors = show_lattice_vectors
 
     if picture_path is not None:
-        config.path = picture_path
+        config.picture_path = picture_path
 
     if open_window is not None:
         config.open_window = open_window
