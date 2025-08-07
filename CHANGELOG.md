@@ -19,7 +19,7 @@ This changelog is effective from the 2025 releases.
 * `get_system_blocks_as_molecules_from_input` method to extract molecules from AMS text input
 * `JobAnalysis.add_rkf_field` method to simplify adding values from an rkf to the analysis
 * `JobAnalysis.get_settings_field_key` and `JobAnalysis.get_rkf_field_key` methods to simplify getting the correct keys for analysis fields
-* `run_directory` context manager which allows jobs to be run in a subdirectory of the job manager working directory
+* `jobs_in_directory` context manager which allows jobs to be run in a subdirectory of the job manager working directory
 * `AMSResults.get_main_engine_name` returns the main engine name, useful for all the getters in `AMSResults`
 * `AMSResults.get_pvdos`, `AMSResults.get_reduced_masses` returns associated results
 * `AMSResults.get_normal_modes` now explicitly give the option to return the mass_weighted_hessian_eigenvectors
