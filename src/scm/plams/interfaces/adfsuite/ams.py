@@ -1277,6 +1277,8 @@ class AMSResults(Results):
             post_process=post_process,
         )
 
+        return data
+
     def get_n_spin(self, engine: Optional[str] = None) -> int:
         """n_spin is 1 in case of spin-restricted or spin-orbit coupling calculations, and 2 in case of spin-unrestricted calculations
 
