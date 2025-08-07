@@ -1,5 +1,6 @@
 import os
 from os.path import join as opj
+from typing import Union
 
 import numpy as np
 
@@ -387,3 +388,7 @@ class SCMJob(SingleJob):
     def settings_to_mol(s: Settings) -> None:
         """An abstract method for extracting molecules from input settings (see :meth:`SCMJob.from_inputfile`)."""
         return None
+
+
+"""Custom typehint for types that can be used to automatically convert to an rkf path inside `job.settings.input`."""
+TSCMJobPath = Union[str, SCMJob, SCMResults]
