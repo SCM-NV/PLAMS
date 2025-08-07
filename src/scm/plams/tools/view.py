@@ -187,6 +187,7 @@ def view(
     lattice_as_basis: Optional[bool] = None,
     fixed_atom_size: Optional[bool] = None,
     show_atom_labels: Optional[bool] = None,
+    atom_label_type: Optional[Literal["AtomType", "Element", "Name", "SurfaceRadius"]] = None,
     show_regions: Optional[bool] = None,
     show_unit_cell_edges: Optional[bool] = None,
     show_lattice_vectors: Optional[bool] = None,
@@ -205,6 +206,7 @@ def view(
     :param lattice_as_basis: override for whether to use lattice vectors (where available) as the view basis
     :param fixed_atom_size: override to use the same radius for all elements (except Hydrogen)
     :param show_atom_labels: override to display text label on each atom
+    :param atom_label_type: override for property used for atom labels
     :param show_regions: override to display translucent spheres on atoms according to their regions
     :param show_unit_cell_edges: override to display unit cell for periodic systems using semi-transparent edges
     :param show_lattice_vectors: override to display the lattice vectors for periodic systems
@@ -217,33 +219,35 @@ def view(
 
     # Set up config objects, applying any config overrides from the keyword args
     config = config or ViewConfig()
-    if width:
+    if width is not None:
         config.width = width
-    if height:
+    if height is not None:
         config.height = height
-    if padding:
+    if padding is not None:
         config.padding = padding
-    if lattice_as_basis:
+    if lattice_as_basis is not None:
         config.lattice_as_basis = lattice_as_basis
-    if direction:
+    if direction is not None:
         config.direction = direction
 
-    if fixed_atom_size:
+    if fixed_atom_size is not None:
         config.fixed_atom_size = fixed_atom_size
-    if show_atom_labels:
+    if show_atom_labels is not None:
         config.show_atom_labels = show_atom_labels
-    if show_regions:
+    if atom_label_type is not None:
+        config.atom_label_type = atom_label_type
+    if show_regions is not None:
         config.show_regions = show_regions
 
-    if show_unit_cell_edges:
+    if show_unit_cell_edges is not None:
         config.show_edges = show_unit_cell_edges
-    if show_lattice_vectors:
+    if show_lattice_vectors is not None:
         config.show_lattice_vectors = show_lattice_vectors
 
-    if picture_path:
+    if picture_path is not None:
         config.path = picture_path
 
-    if open_window:
+    if open_window is not None:
         config.open_window = open_window
         config.timeout = 10 if not config.open_window else None
 
