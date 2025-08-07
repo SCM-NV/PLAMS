@@ -1,6 +1,5 @@
 import os
 import re
-
 from typing import Optional, Tuple, Union, TYPE_CHECKING, Literal, Sequence
 import numpy as np
 from dataclasses import dataclass
@@ -32,9 +31,9 @@ class ViewConfig:
     :ivar width: width of the image in pixels, defaults to ``800``
     :ivar height: height of the image in pixels, defaults to ``400``
     :ivar padding: padding around system in Angstrom, defaults to ``0`` (can be negative)
-    :ivar direction: direction to view system along, selected from a series of preset values
-    :ivar normal: orientation of the normal to the view plane, defaults ``(0, 0, 1)`` i.e. in the x-y plane
-    :ivar rotation: rotation angles in degrees around the x, y and z axes, defaults to ``(0, 0, 0)``
+    :ivar direction: direction to view system along, selected from a series of preset values, defaults to ``along_z``
+    :ivar normal: orientation of the normal to the view plane, takes precedence over direction when specified, defaults to ``None``
+    :ivar lattice_as_basis: whether to use lattice vectors (where available) as the view basis, otherwise uses cartesian axes, defaults to ``False``
     :ivar dpi: resolution of any saved image in dots per inch, defaults to ``300``
     :ivar picture_path: optional path for the location to save the generated image file, defaults to ``None``
     :ivar fixed_atom_size: use the same radius for all elements (except Hydrogen), defaults to ``True``
@@ -50,13 +49,32 @@ class ViewConfig:
     :ivar timeout: kill AMSView process after given time in seconds, defaults to ``10`` if window is not opened, otherwise no limit
     :ivar open_window: open AMSview in a dedicated window if ``True``, otherwise render image offscreen, defaults to ``False``
     """
+
     # Image/viewpoint
     width: int = 800
     height: int = 400
     padding: int = 0
-    direction: Optional[Literal["foo"]] = None
-    normal: Tuple[float, float, float] = (0.0, 0.0, 1.0)
-    rotation: Tuple[float, float, float] = (0.0, 0.0, 0.0)
+    direction: Optional[
+        Literal[
+            "along_x",
+            "along_y",
+            "along_z",
+            "tilt_x",
+            "tilt_y",
+            "tilt_z",
+            "small_tilt_x",
+            "small_tilt_y",
+            "small_tilt_z",
+            "large_tilt_x",
+            "large_tilt_y",
+            "large_tilt_z",
+            "corner_x",
+            "corner_y",
+            "corner_z",
+        ]
+    ] = "along_z"
+    normal: Optional[Tuple[float, float, float]] = None
+    lattice_as_basis: bool = False
 
     # Picture
     dpi: int = 300
@@ -96,20 +114,19 @@ class ViewConfig:
             raise ValueError(f"height must be a positive integer, but was '{self.height}'")
         if not isinstance(self.padding, (int, float)):
             raise ValueError(f"padding must be a numeric value, but was '{self.padding}'")
-        if self.direction and (not isinstance(self.direction, str) or self.direction not in ["foo"]):
-            raise ValueError(f"direction must be one of: 'foo', but was '{self.direction}'")
-        if (
+        # further validated in _get_view_plane
+        if self.direction and (not isinstance(self.direction, str)):
+            raise ValueError(f"direction must be a string value, but was '{self.direction}'")
+        if self.normal and (
             not isinstance(self.normal, Sequence)
             or len(self.normal) != 3
             or not all(isinstance(v, (int, float)) for v in self.normal)
         ):
             raise ValueError(f"normal must be a sequence of three numeric values, but was '{self.normal}'")
-        if (
-            not isinstance(self.rotation, Sequence)
-            or len(self.rotation) != 3
-            or not all(isinstance(v, (int, float)) for v in self.rotation)
-        ):
-            raise ValueError(f"rotation must be a sequence of three numeric values, but was '{self.rotation}'")
+        if not self.direction and not self.normal:
+            raise ValueError(f"direction or normal must be specified")
+        if not isinstance(self.lattice_as_basis, bool):
+            raise ValueError(f"lattice_as_basis must be a boolean value, but was '{self.lattice_as_basis}'")
 
         if not isinstance(self.dpi, int) or self.dpi < 0:
             raise ValueError(f"dpi must be a positive integer, but was '{self.dpi}'")
@@ -130,7 +147,7 @@ class ViewConfig:
                 f"atom_label_type must be one of: 'AtomType', 'Element', 'Name', 'SurfaceRadius', but was '{self.atom_label_type}'"
             )
         if not isinstance(self.atom_label_color, str) or not bool(
-                re.fullmatch(r"#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})", self.atom_label_color)
+            re.fullmatch(r"#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})", self.atom_label_color)
         ):
             raise ValueError(
                 f"atom_label_color must be a color hex code (starting with #), but was '{self.atom_label_color}'"
@@ -143,7 +160,9 @@ class ViewConfig:
         if not isinstance(self.show_unit_cell_edges, bool):
             raise ValueError(f"show_unit_cell_edges must be a boolean value, but was '{self.show_unit_cell_edges}'")
         if not isinstance(self.unit_cell_edge_thickness, (int, float)) or self.unit_cell_edge_thickness < 0:
-            raise ValueError(f"unit_cell_edge_thickness must be a positive numeric value, but was '{self.unit_cell_edge_thickness}'")
+            raise ValueError(
+                f"unit_cell_edge_thickness must be a positive numeric value, but was '{self.unit_cell_edge_thickness}'"
+            )
         if not isinstance(self.show_unit_cell_faces, bool):
             raise ValueError(f"show_unit_cell_faces must be a boolean value, but was '{self.show_unit_cell_faces}'")
         if not isinstance(self.show_lattice_vectors, bool):
@@ -165,6 +184,7 @@ def view(
     height: Optional[int] = None,
     padding: Optional[float] = None,
     direction: Optional[Literal["foo"]] = None,
+    lattice_as_basis: Optional[bool] = None,
     fixed_atom_size: Optional[bool] = None,
     show_atom_labels: Optional[bool] = None,
     show_regions: Optional[bool] = None,
@@ -182,6 +202,7 @@ def view(
     :param height: override for height of the image in pixels
     :param padding: override for padding around system in Angstrom
     :param direction: override for direction to view system along
+    :param lattice_as_basis: override for whether to use lattice vectors (where available) as the view basis
     :param fixed_atom_size: override to use the same radius for all elements (except Hydrogen)
     :param show_atom_labels: override to display text label on each atom
     :param show_regions: override to display translucent spheres on atoms according to their regions
@@ -202,6 +223,8 @@ def view(
         config.height = height
     if padding:
         config.padding = padding
+    if lattice_as_basis:
+        config.lattice_as_basis = lattice_as_basis
     if direction:
         config.direction = direction
 
@@ -256,11 +279,11 @@ def view(
             "-dpi",
             str(config.dpi),
             "-padding",
-            str(Units.convert(config.padding, "angstrom", "bohr")),
+            f"{Units.convert(config.padding, 'angstrom', 'bohr'):.6f}",
             "-showlatticevectors",
             str(int(config.show_lattice_vectors)),
             "-viewplane",
-            " ".join([str(v) for v in config.normal]),
+            _get_view_plane(system, config),
         ]
         if config.fixed_atom_size:
             command += ["-fixedatomsize"]
@@ -304,3 +327,80 @@ def view(
             os.remove(img_path)
 
     return img
+
+
+def _get_view_plane(system: Union[Molecule, "ChemicalSystem"], config: ViewConfig) -> str:
+    # use cartesian basis or lattice vector basis as required
+    basis = np.identity(3)
+    if config.lattice_as_basis:
+        if isinstance(system, Molecule) and system.lattice:
+            for i, vec in enumerate(system.lattice):
+                basis[:, i] = np.array(vec)
+        elif _has_scm_chemsys and isinstance(system, ChemicalSystem):
+            for i, vec in enumerate(system.lattice.vectors):
+                basis[:, i] = np.array(vec)
+    basis = basis / np.linalg.norm(basis, axis=0, keepdims=True)
+
+    # get preset or explicitly specified normal
+    if config.normal:
+        normal = np.array(config.normal)
+    elif config.direction:
+        # N.B. currently AMSview only accepts the normal to the view plane as input
+        # this restricts slightly what we can support
+        # e.g. 'along_-z' (0, 0, 1) and 'along_z' (0, 0, -1) render the same, hence only z is supported for clarity
+
+        # parse direction
+        parts = config.direction.split("_")
+
+        # extract main axis
+        if len(parts) == 1 or not all(parts):
+            raise ValueError(f"direction '{config.direction}' not recognized")
+        else:
+            main_view_axis = parts[-1]
+            if main_view_axis not in ["x", "y", "z"]:
+                raise ValueError(f"direction '{config.direction}' not recognized: '{main_view_axis}' cannot be parsed")
+
+        # orientate based on keyword and main axis
+        keywords = parts[:-1]
+        if len(keywords) == 2:
+            modifier = keywords[0]
+            main_keyword = keywords[1]
+        else:
+            modifier = None
+            main_keyword = keywords[0]
+
+        if (
+            len(keywords) > 2
+            or (modifier and main_keyword != "tilt")
+            or (modifier and modifier not in ["small", "large"])
+        ):
+            raise ValueError(f"direction '{config.direction}' not recognized: '{'_'.join(keywords)}' cannot be parsed")
+
+        if main_keyword == "along":
+            main_value = -1.0
+            other_value = 0.0
+        elif main_keyword == "tilt":
+            main_value = -1.0
+            other_value = 0.1 if modifier is None else (0.05 if modifier == "small" else 0.2)
+        elif main_keyword == "corner":
+            main_value = -1.0
+            other_value = 1.0
+        else:
+            raise ValueError(f"direction '{config.direction}' not recognized: '{main_keyword}' cannot be parsed")
+
+        if main_view_axis == "x":
+            normal = np.array([main_value, other_value, other_value])
+        elif main_view_axis == "y":
+            normal = np.array([other_value, main_value, other_value])
+        elif main_view_axis == "z":
+            normal = np.array([other_value, other_value, main_value])
+        else:
+            raise ValueError(f"direction '{config.direction}' not recognized: '{main_view_axis}' cannot be parsed")
+    else:
+        raise ValueError(f"direction or normal must be specified")
+
+    # convert to cartesian basis and normalize
+    normal_cartesian_basis = basis @ normal
+    normal_cartesian_basis /= np.linalg.norm(normal_cartesian_basis)
+
+    return " ".join([f"{v:.6f}" for v in normal_cartesian_basis])
