@@ -1,7 +1,9 @@
 import threading
 from functools import cached_property
 from contextvars import copy_context
-from typing import Callable, TypeVar, Generic
+from typing import Callable, TypeVar, Generic, Optional, Type, Iterable, Any, Mapping
+from typing_extensions import ParamSpec
+from types import TracebackType
 
 
 class LimitedSemaphore:
@@ -19,7 +21,7 @@ class LimitedSemaphore:
         self._set_lock = threading.Lock()
         self._condition = threading.Condition(threading.Lock())
 
-    def acquire(self):
+    def acquire(self) -> None:
         """
         Acquire a semaphore, decrementing internal counter by one.
 
@@ -34,7 +36,7 @@ class LimitedSemaphore:
 
     __enter__ = acquire
 
-    def release(self, n: int = 1):
+    def release(self, n: int = 1) -> None:
         """
         Release a semaphore, incrementing the internal counter by one or more.
 
@@ -53,7 +55,12 @@ class LimitedSemaphore:
             self._value += n
             self._condition.notify_all()
 
-    def __exit__(self, t, v, tb):
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_value: Optional[BaseException],
+        traceback: Optional[TracebackType],
+    ) -> None:
         self.release()
 
     @property
@@ -70,7 +77,7 @@ class LimitedSemaphore:
             return self._max_value
 
     @max_value.setter
-    def max_value(self, max_value: int):
+    def max_value(self, max_value: int) -> None:
         with self._set_lock:
             with self._condition:
                 diff = max_value - self._max_value
@@ -127,11 +134,14 @@ class LazyWrapper(Generic[T]):
         """
         return "value" in self.__dict__
 
-    def __str__(self):
+    def __str__(self) -> str:
         if self.initialized:
             return f"Initialized LazyWrapper[{type(self.value).__name__}]"
         else:
             return "Uninitialized LazyWrapper"
+
+
+P = ParamSpec("P")
 
 
 class ContextAwareThread(threading.Thread):
@@ -139,12 +149,31 @@ class ContextAwareThread(threading.Thread):
     Thread which runs in a context copied from parent thread
     """
 
-    def __init__(self, group=None, target=None, name=None, args=(), kwargs=None, *, daemon=None):
+    def __init__(
+        self,
+        group: None = None,
+        target: Optional[Callable[..., Any]] = None,
+        name: Optional[str] = None,
+        args: Iterable[Any] = (),
+        kwargs: Optional[Mapping[str, Any]] = None,
+        *,
+        daemon: Optional[bool] = None,
+    ) -> None:
         self._context = copy_context()
-        super().__init__(group=group, target=target, name=name, args=args, kwargs=kwargs, daemon=daemon)
+        super().__init__(
+            group=group,
+            target=target,
+            name=name,
+            args=tuple(args),
+            kwargs=dict(kwargs) if kwargs is not None else None,
+            daemon=daemon,
+        )
 
-    def run(self):
+    def run(self) -> None:
         """
         Run thread target in the context copied from the parent thread
         """
         self._context.run(super().run)
+
+
+ContextAwareThread()
