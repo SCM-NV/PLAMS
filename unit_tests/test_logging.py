@@ -13,8 +13,8 @@ from scm.plams.core.functions import delete_job
 from scm.plams.core.errors import FileError, PlamsError
 from scm.plams.core.logging import get_logger, TextLogger, CSVLogger
 from scm.plams.core.formatters import JobCSVFormatter
-from .test_helpers import temp_file_path
-from .test_basejob import DummySingleJob
+from test_helpers import temp_file_path
+from test_basejob import DummySingleJob
 
 
 class TestGetLogger:

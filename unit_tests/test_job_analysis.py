@@ -12,8 +12,8 @@ from scm.plams.core.jobmanager import JobManager
 from scm.plams.core.enums import JobStatus
 from scm.plams.tools.job_analysis import JobAnalysis
 from scm.plams.core.settings import Settings, JobManagerSettings
-from .test_basejob import DummySingleJob
-from .test_helpers import temp_file_path, skip_if_no_scm_pisa, skip_if_no_scm_libbase
+from test_basejob import DummySingleJob
+from test_helpers import temp_file_path, skip_if_no_scm_pisa, skip_if_no_scm_libbase
 
 
 class TestJobAnalysis:

@@ -27,7 +27,7 @@ from scm.plams.tools.plot import (
     plot_msd,
     plot_work_function,
 )
-from .test_helpers import skip_if_no_scm_pisa
+from test_helpers import skip_if_no_scm_pisa
 
 # Use non-interactive backend for ci env
 # Results are available for inspection in the result_images directory
