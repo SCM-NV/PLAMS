@@ -288,13 +288,13 @@ class ForceFieldPatch:
         return ljtypes, ljlines
 
 
-def forcefield_params_from_kf(kf: "KFFile") -> Tuple[List[int], List[str], Optional[ForceFieldPatch]]:
+def forcefield_params_from_kf(kf: "KFFile") -> Tuple[List[float], List[str], Optional[ForceFieldPatch]]:
     """
     Read the parameters from kf
     """
-    charges: List[int] = kf.read("AMSResults", "Charges")
+    charges: List[float] = kf.read("AMSResults", "Charges", return_as_list=True)
     alltypes: List[str] = kf.read("AMSResults", "AtomTyping.atomTypes").split("\x00")
-    indices: List[int] = kf.read("AMSResults", "AtomTyping.atomIndexToType")
+    indices: List[int] = kf.read("AMSResults", "AtomTyping.atomIndexToType", return_as_list=True)
     types = [alltypes[i - 1] for i in indices]
 
     # Read the force field patch
