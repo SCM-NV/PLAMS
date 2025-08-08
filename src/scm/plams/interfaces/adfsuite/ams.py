@@ -1213,10 +1213,21 @@ class AMSResults(Results):
             -1,
         )
 
-    def _get_ir_raman_spectrum(
+    def get_vcd_rotational_strength(self, engine: Optional[str] = None) -> np.ndarray:
+        """Return the vibrational rotational strengths in 10^(-44) esu^2 cm^2
+
+        The *engine* argument should be the identifier of the file you wish to read. To access a file called ``something.rkf`` you need to call this function with ``engine='something'``. The *engine* argument can be omitted if there's only one engine results file in the job folder.
+        """
+        return np.asarray(
+            self._process_engine_results(lambda x: x.read("Vibrations", "RotationalStrength"), engine)
+        ).reshape(
+            -1,
+        )
+
+    def _get_ir_vcd_raman_spectrum(
         self,
         engine: Optional[str] = None,
-        spectrum_type: Literal["ir", "raman"] = "ir",
+        spectrum_type: Literal["ir", "raman", "vcd"] = "ir",
         broadening_type: Literal["gaussian", "lorentzian"] = "gaussian",
         broadening_width=40,
         min_x=0,
@@ -1238,6 +1249,8 @@ class AMSResults(Results):
                 intensities = self.get_ir_intensities(engine=engine)
             elif spectrum_type == "raman":
                 intensities = self.get_raman_intensities(engine=engine)
+            elif spectrum_type == "vcd":
+                intensities = self.get_vcd_rotational_strength(engine=engine)
 
         x_data, y_data = broaden_results(
             centers=frequencies,
@@ -1267,7 +1280,7 @@ class AMSResults(Results):
 
         The *engine* argument should be the identifier of the file you wish to read. To access a file called ``something.rkf`` you need to call this function with ``engine='something'``. The *engine* argument can be omitted if there's only one engine results file in the job folder.
         """
-        data = self._get_ir_raman_spectrum(
+        data = self._get_ir_vcd_raman_spectrum(
             engine=engine,
             spectrum_type="ir",
             broadening_type=broadening_type,
@@ -1294,9 +1307,36 @@ class AMSResults(Results):
 
         The *engine* argument should be the identifier of the file you wish to read. To access a file called ``something.rkf`` you need to call this function with ``engine='something'``. The *engine* argument can be omitted if there's only one engine results file in the job folder.
         """
-        data = self._get_ir_raman_spectrum(
+        data = self._get_ir_vcd_raman_spectrum(
             engine=engine,
             spectrum_type="raman",
+            broadening_type=broadening_type,
+            broadening_width=broadening_width,
+            min_x=min_x,
+            max_x=max_x,
+            x_spacing=x_spacing,
+            post_process=post_process,
+        )
+
+        return data
+
+    def get_vcd_spectrum(
+        self,
+        engine: Optional[str] = None,
+        broadening_type: Literal["gaussian", "lorentzian"] = "gaussian",
+        broadening_width=40,
+        min_x=0,
+        max_x=4000,
+        x_spacing=0.5,
+        post_process: Optional[Literal["all_intensities_to_1", "max_to_1"]] = None,
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """Return the VCD spectrum in terms of rotatory strength. Units: frequencies are in cm-1, the intensities by the default are in 10^(-44) esu^2 cm^2 but if post_process is all_intensities_to_1 the units are in modes counts otherwise if equal to max_to_1 are in arbitrary units.
+
+        The *engine* argument should be the identifier of the file you wish to read. To access a file called ``something.rkf`` you need to call this function with ``engine='something'``. The *engine* argument can be omitted if there's only one engine results file in the job folder.
+        """
+        data = self._get_ir_vcd_raman_spectrum(
+            engine=engine,
+            spectrum_type="vcd",
             broadening_type=broadening_type,
             broadening_width=broadening_width,
             min_x=min_x,
