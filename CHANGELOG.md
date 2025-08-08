@@ -33,7 +33,6 @@ This changelog is effective from the 2025 releases.
 * Method to guess density in `packmol_around` changed to resolve large underestimations in molecular volumes
 * Regression in `GridRunner` which caused some SLURM and PBS commands to silently fail and jobs to be incorrectly awaited
 
-
 ## 2025.103
 
 ### Fixed

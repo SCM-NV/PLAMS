@@ -175,8 +175,7 @@ class AMSResults(Results):
         if original_task == "moleculardynamics":
             engine_names = sorted(
                 [x for x in engine_names if "term" not in x],
-                # I have decided to use regex but probably just replacing MDStep from the engine would work as well
-                key=lambda x: int(re.match(r"[a-zA-Z]*(\d+)", x).group(1)),
+                key=lambda x: int(m.group(1)) if (m := re.match(r"[a-zA-Z]*(\d+)", x)) else -1,
             )
             engine_names = [engine_names[-1]]
 
