@@ -1,6 +1,6 @@
+from unittest.mock import MagicMock
 import numpy as np
 import pytest
-from unittest.mock import MagicMock
 from ase import Atoms as AseAtoms
 
 from scm.plams.interfaces.adfsuite.ams import AMSJob, AMSResults
@@ -91,6 +91,14 @@ class TestWaterOptimizationAMSResults:
         # When call get  engine names
         # Then dftb engine name returned
         assert water_opt_results.engine_names() == ["dftb"]
+
+    def test_get_main_engine(self, water_opt_results):
+        # Given results of water optimization job containing dftb engine rkf
+        water_opt_results.collect()
+
+        # When call get_main_engine_name
+        # Then dftb engine name returned
+        assert water_opt_results.get_main_engine_name() == "dftb"
 
     def test_rkfpath_returns_absolute_path(self, water_opt_results, rkf_folder):
         # Given water optimization results
@@ -642,6 +650,30 @@ class TestWaterOptimizationAMSResults:
                     [6.97032293e-01, -1.07590134e-01, 1.13086149e-16],
                     [1.07590135e-01, -6.97032299e-01, 1.48847456e-30],
                 ],
+            ],
+        )
+
+    def test_get_reduced_masses_as_expected(self, water_opt_results):
+        # Given water optimization results with dftb engine
+        # When get reduced masses
+        # Then returned as expected
+        water_opt_results.collect()
+        assert np.allclose(
+            water_opt_results.get_reduced_masses(),
+            [1.08423216, 1.04372064, 1.08486885],
+        )
+
+    def test_get_pvdos_as_expected(self, water_opt_results):
+        # Given water optimization results with dftb engine
+        # When get pvdos
+        # Then returned as expected
+        water_opt_results.collect()
+        assert np.allclose(
+            water_opt_results.get_pvdos("dftb"),
+            [
+                [0.07521014, 0.46239493, 0.46239493],
+                [0.03670473, 0.48164764, 0.48164763],
+                [0.07579235, 0.46210382, 0.46210383],
             ],
         )
 
