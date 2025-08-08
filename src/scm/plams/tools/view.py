@@ -1,10 +1,12 @@
 import os
 import re
+import subprocess
 from typing import Optional, Tuple, Union, TYPE_CHECKING, Literal, Sequence
 import numpy as np
 from dataclasses import dataclass
 
 from scm.plams.core.functions import requires_optional_package
+from scm.plams.interfaces.adfsuite.errors import AMSExecutionError
 from scm.plams.interfaces.adfsuite.utils import requires_ams
 from scm.plams.mol.molecule import Molecule
 from scm.plams.core.private import run_with_timeout
@@ -114,9 +116,9 @@ class ViewConfig:
             raise ValueError(f"height must be a positive integer, but was '{self.height}'")
         if not isinstance(self.padding, (int, float)):
             raise ValueError(f"padding must be a numeric value, but was '{self.padding}'")
-        if self.direction and (not isinstance(self.direction, str) or self.direction not in ViewDirections.__args__):
+        if self.direction and (not isinstance(self.direction, str) or self.direction not in ViewDirections.__args__):  # type: ignore
             raise ValueError(
-                f"direction must be one of: '{', '.join(ViewDirections.__args__)}'; but was '{self.direction}'"
+                f"direction must be one of: '{', '.join(ViewDirections.__args__)}'; but was '{self.direction}'"  # type: ignore
             )
         if self.normal and (
             not isinstance(self.normal, Sequence)
@@ -266,7 +268,7 @@ def view(
             raise ValueError(f"System must be a PLAMS Molecule or a ChemicalSystem, but was {type(system).__name__}")
 
     if config.picture_path:
-        img_path = config.picture_path
+        img_path = str(config.picture_path)
     else:
         with NamedTemporaryFile(mode="wb", suffix=".png", delete=False) as img_file:
             img_path = img_file.name

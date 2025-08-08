@@ -5,7 +5,7 @@ import subprocess
 from scm.plams.core.private import run_with_timeout
 
 
-class TestSafeSystemCall:
+class TestRunWithTimeout:
 
     def test_happy_command(self):
         run_with_timeout(["echo", "1"])
