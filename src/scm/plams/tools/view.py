@@ -1,11 +1,18 @@
 import os
 import re
 import subprocess
-from typing import Optional, Tuple, Union, TYPE_CHECKING, Literal, Sequence
+from typing import Optional, Tuple, Union, TYPE_CHECKING, Literal, Sequence, List, Dict
 import numpy as np
 from dataclasses import dataclass
+import platform
+from threading import Lock
+import select
+import time
+from contextlib import contextmanager
+import atexit
+import shutil
 
-from scm.plams.core.functions import requires_optional_package
+from scm.plams.core.functions import requires_optional_package, log
 from scm.plams.interfaces.adfsuite.errors import AMSExecutionError
 from scm.plams.interfaces.adfsuite.utils import requires_ams
 from scm.plams.mol.molecule import Molecule
@@ -274,6 +281,15 @@ def view(
             img_path = img_file.name
 
     # Build and execute command
+    # check if on linux and running headless
+    env = os.environ.copy()
+    if platform.system() == "Linux" and "DISPLAY" not in env:
+        xvfb_manager = _XvfbManager()
+        xvfb_manager.start()
+        env["SCM_OPENGL_SOFTWARE"] = "1"
+    else:
+        xvfb_manager = None
+
     try:
         command = [
             os.path.expandvars("$AMSBIN/amsview"),
@@ -315,9 +331,11 @@ def view(
         if not config.open_window:
             command += ["-batch"]
 
-        env = os.environ.copy()
-        env["SCM_OPENGL_SOFTWARE"] = "1"
-        run_with_timeout(command, timeout=config.timeout, env=env)
+        if xvfb_manager:
+            with xvfb_manager.session(env=env):
+                run_with_timeout(command, timeout=config.timeout, env=env)
+        else:
+            run_with_timeout(command, timeout=config.timeout, env=env)
 
         # Open image file and resize, making sure to maintain aspect ratio as AMSView may not generate with precise dimensions
         img = PilImage.open(img_path)
@@ -413,3 +431,223 @@ def _get_view_plane(system: Union[Molecule, "ChemicalSystem"], config: ViewConfi
     normal_cartesian_basis /= np.linalg.norm(normal_cartesian_basis)
 
     return " ".join([f"{v:.6f}" for v in normal_cartesian_basis])
+
+
+class _XvfbManager:
+    """
+    Singleton class to manage xvfb virtual display server.
+    Allows graphical programs (like AMSview) to run on headless linux server.
+
+    See: https://github.com/ponty/PyVirtualDisplay for inspiration
+    """
+
+    _instance = None
+    _lock = Lock()
+    xvfb = "Xvfb"
+
+    def __new__(cls, *args, **kwargs):
+        with cls._lock:
+            if cls._instance is None:
+                cls._instance = super().__new__(cls)
+                cls._instance._initialized = False
+        return cls._instance
+
+    def __init__(
+        self,
+        size=(1024, 768),
+        color_depth=24,
+        startup_timeout=30,
+        startup_retries=3,
+    ):
+        if self._initialized:
+            return
+        self._screen = 0
+        self._size = size
+        self._color_depth = color_depth
+        self._startup_timeout = startup_timeout
+        self._startup_retries = startup_retries
+        self._started = False
+        self._read_file_descriptor = None
+        self._write_file_descriptor = None
+        self._proc = None
+        self._stdout = None
+        self._stderr = None
+        self.display_number = None
+
+    @classmethod
+    def check_xvfb(cls):
+        """
+        Check if Xvfb is installed and runnable
+        """
+        if not shutil.which(cls.xvfb):
+            raise RuntimeError("Could not find Xvfb, please install it or add it to the PATH")
+        try:
+            ret = subprocess.run([cls.xvfb, "-help"], capture_output=True, check=True)
+            stderr = ret.stderr
+            helptext = stderr.decode("utf-8", "ignore")
+            if "-displayfd" not in helptext:
+                raise RuntimeError(
+                    "Found version of Xvfb does not have '-displayfd' support, please update and try again"
+                )
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            raise RuntimeError("Could not successfully run 'Xvfb -help'")
+
+    def start(self):
+        """
+        Starts display. If already started this is a no-op.
+        """
+        with self._lock:
+            if self._started:
+                return
+
+            self.check_xvfb()
+
+            log("Starting Xvfb...", 3)
+
+            retry_count = 0
+            while True:
+                try:
+                    self._read_file_descriptor, self._write_file_descriptor = os.pipe()
+                    self._proc = subprocess.Popen(
+                        self._command,
+                        pass_fds=[self._write_file_descriptor],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                    )
+                    self._await_display_number()
+                    break
+                except (RuntimeError, TimeoutError, FileNotFoundError) as ex:
+                    log(f"Xvfb failed to start. Error was {ex}", 5)
+                    time.sleep(0.05)
+                    retry_count += 1
+                    self._kill()
+                    if retry_count >= self._startup_retries:
+                        log(
+                            f"Xvfb failed to start after {retry_count} retries with a {self._startup_retries}s timeout",
+                            3,
+                        )
+                        raise RuntimeError(
+                            f"Xvfb failed to start after {retry_count} retries with a {self._startup_timeout}s timeout. Command was: {self._command}. Last error was: {self._stderr}."
+                        )
+                finally:
+                    os.close(self._read_file_descriptor)
+                    os.close(self._write_file_descriptor)
+
+            atexit.register(self.stop)
+            self._started = True
+            log("Xvfb started", 3)
+
+    def _await_display_number(self):
+        """
+        Wait for display number to be written to the file descriptor.
+        """
+        buffer = b""
+        start_time = time.monotonic()
+
+        while True:
+            # Poll file descriptor every 0.1s
+            ready, _, _ = select.select([self._read_file_descriptor], [], [], 0.1)
+
+            # Check that process did not die before sending anything
+            if not self.alive:
+                raise RuntimeError(f"Xvfb closed. Command was: {self._command}. Error was: {self._stderr}")
+
+            if self._read_file_descriptor in ready:
+                chunk = os.read(self._read_file_descriptor, 1024)
+                if not chunk:  # EOF
+                    break
+                buffer += chunk
+
+                # Stop if newline found
+                if b"\n" in chunk:
+                    buffer = buffer.split(b"\n", 1)[0]
+                    break
+
+            # Final timeout to prevent hanging
+            if time.monotonic() - start_time >= self._startup_timeout:
+                raise TimeoutError(f"Xvfb timed out. Command was: {self._command}. Error was: {self._stderr}")
+
+        self.display_number = int(buffer.decode("ascii", errors="replace"))
+
+    def _kill(self):
+        """
+        Kill Xvfb subprocess if it is running
+        """
+        if self.alive:
+            try:
+                self._proc.kill()
+            except (ProcessLookupError, OSError):
+                pass
+
+            self._proc.wait()
+
+    @property
+    def _command(self) -> List[str]:
+        """
+        Command to start Xvfb
+        """
+        return [
+            self.xvfb,
+            "-nolisten",
+            "tcp",
+            "-screen",
+            f"{self._screen} {self._size[0]}x{self._size[1]}x{self._color_depth}",
+            "-displayfd",
+            str(self._write_file_descriptor),
+        ]
+
+    @property
+    def alive(self) -> bool:
+        """
+        Check whether Xvfb process is alive and running
+        """
+        if not self._proc:
+            return False
+
+        rc = self._proc.poll()
+        if rc is not None:
+            self._stdout, self._stderr = self._proc.communicate()
+        return rc is None
+
+    @property
+    def display(self) -> Optional[str]:
+        """
+        Get current display value, if available
+        """
+        return f":{self.display_number}" if self.display_number else None
+
+    @contextmanager
+    def session(self, env: Optional[Dict[str, str]] = None) -> Dict[str, str]:
+        """
+        Exclusively use a running Xvfb virtual server display for a process.
+        Takes a lock so the display can only be used in this session context, and sets the ``DISPLAY`` environment variable.
+        Uses the provided user environment, or takes a copy of current environment.
+        The set of environment variables is then returned, and can be used in a subprocess call.
+
+        :param env: optional user environment, defaults to ``None``
+        """
+        with self._lock:
+            env = env if env else os.environ.copy()
+
+            if not self.display:
+                raise RuntimeError(
+                    f"Xvfb display is not set, server has{' not' if not self._started else ''} been started"
+                )
+
+            env["DISPLAY"] = self.display
+            yield env
+
+    def stop(self):
+        """
+        Stops display. If not started this is a no-op.
+        This is automatically registered to fire ``atexit``, when display is started.
+        """
+        if not self._started:
+            return
+
+        log("Stopping Xvfb...", 3)
+
+        self._kill()
+        self.display_number = None
+        self._started = False
+        log("Xvfb stopped.", 3)

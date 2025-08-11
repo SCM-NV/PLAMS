@@ -1,9 +1,10 @@
+import os
 import PIL
 import pytest
 from unittest.mock import patch, MagicMock
 import numpy as np
 
-from scm.plams.tools.view import view, ViewConfig, _get_view_plane
+from scm.plams.tools.view import view, ViewConfig, _get_view_plane, _XvfbManager
 from scm.plams.mol.molecule import Molecule
 
 try:
@@ -165,3 +166,223 @@ class TestView:
     def test_get_view_plane_with_unhappy_direction(self, direction, water):
         with pytest.raises(ValueError):
             _get_view_plane(water, ViewConfig(direction=direction))
+
+
+class TestXvfbManager:
+
+    @pytest.fixture(autouse=True)
+    def reset_singleton(self):
+        _XvfbManager._instance = None
+
+    def test_get_command(self, monkeypatch):
+        # Given parameters
+        manager = _XvfbManager(size=(800, 400), color_depth=16)
+        manager._write_file_descriptor = 42
+
+        # When get command
+        # Then values passed to xvfb command
+        assert " ".join(manager._command) == "Xvfb -nolisten tcp -screen 0 800x400x16 -displayfd 42"
+
+    def test_alive(self):
+        # Given manager with no process
+        manager = _XvfbManager()
+        manager._proc = None
+        # When check alive
+        # Then fails
+        assert not manager.alive
+
+        # Given manager with ongoing process
+        # When check alive
+        # Then passes
+        manager._proc = MagicMock()
+        manager._proc.poll.return_value = None
+        assert manager.alive
+
+        # Given manager with finished process
+        # When check alive
+        # Then fails and stdout/stderr captured
+        manager._proc.poll.return_value = 0
+        manager._proc.communicate.return_value = ("foo", "bar")
+        assert not manager.alive
+        assert manager._stdout == "foo"
+        assert manager._stderr == "bar"
+
+    def test_await_display_number(self):
+        # Given manager with failed process
+        manager = _XvfbManager(startup_timeout=0.2)
+        manager._read_file_descriptor, manager._write_file_descriptor = os.pipe()
+        manager._proc = MagicMock()
+        manager._proc.poll.return_value = 1
+        manager._proc.communicate.return_value = ("foo", "bar")
+        assert manager.display is None
+
+        # When wait for display number
+        # Then errors
+        with pytest.raises(RuntimeError):
+            manager._await_display_number()
+
+        # Given manager with long ongoing process
+        manager._proc.poll.return_value = None
+
+        # When wait for display number
+        # Then errors
+        with pytest.raises(TimeoutError):
+            manager._await_display_number()
+
+        # Given manager with process writing to file descriptor
+        os.write(manager._write_file_descriptor, b"99\n")
+
+        # When wait for display number
+        # Then set
+        manager._await_display_number()
+        assert manager.display_number == 99
+        assert manager.display == ":99"
+
+        os.close(manager._read_file_descriptor)
+        os.close(manager._write_file_descriptor)
+
+    def test_check_xvfb(self):
+        # Given manager
+        manager = _XvfbManager()
+
+        # When Xvfb not on path
+        # Then check fails
+        with pytest.raises(RuntimeError):
+            manager.check_xvfb()
+
+        with patch("shutil.which") as mock_which:
+            mock_which.return_value = "foo/Xvfb"
+
+            # When Xvfb cannot be run
+            # Then check fails
+            with pytest.raises(RuntimeError):
+                assert manager.check_xvfb()
+
+            with patch("subprocess.run") as mock_run:
+                mock_ret = MagicMock()
+                mock_run.return_value = mock_ret
+                # When does not have displayfd
+                # Then check fails
+                with pytest.raises(RuntimeError):
+                    manager.check_xvfb()
+
+                mock_ret.stderr = b"""\
+                -nocursor              disable the cursor
+                -core                  generate core dump on fatal error
+                -displayfd fd          file descriptor to write display number to when ready to connect
+                """
+                # Otherwise passes
+                manager.check_xvfb()
+
+    def test_start(self):
+        # Given manager failing xvfb command
+
+        manager = _XvfbManager(startup_timeout=0.2, startup_retries=3)
+
+        # When start
+        # Then all attempts fail
+        with pytest.raises(RuntimeError):
+            manager.start()
+
+        # Given manager with succeeding xvfb command
+        with patch("subprocess.Popen") as mock_popen, patch("shutil.which") as mock_which, patch(
+            "subprocess.run"
+        ) as mock_run:
+            mock_which.return_value = "foo/Xvfb"
+            mock_run_ret = MagicMock()
+            mock_run_ret.stderr = b"-displayfd fd"
+            mock_run.return_value = mock_run_ret
+            calls = [0]
+
+            def fails_once_then_passes(*args, **kwargs):
+                calls[0] += 1
+                mock_ret = MagicMock()
+                if calls[0] == 1:
+                    mock_ret.communicate.return_value = ("foo", "bar")
+                    return mock_ret
+                elif calls[0] == 2:
+                    mock_ret.poll.return_value = None
+                    os.write(manager._write_file_descriptor, b"99\n")
+                    return mock_ret
+                return
+
+            mock_popen.side_effect = fails_once_then_passes
+
+            # When start
+            manager.start()
+
+            # Then display set
+            assert manager.display_number == 99
+            assert manager.display == ":99"
+
+    def test_session(self):
+        # Given manager
+        manager = _XvfbManager()
+
+        # When not started
+        with pytest.raises(RuntimeError):
+
+            # Then session raises error
+            with manager.session():
+                pass
+
+        # When started
+        with patch("subprocess.Popen") as mock_popen, patch("shutil.which") as mock_which, patch(
+            "subprocess.run"
+        ) as mock_run:
+            mock_which.return_value = "foo/Xvfb"
+            mock_run_ret = MagicMock()
+            mock_run_ret.stderr = b"-displayfd fd"
+            mock_run.return_value = mock_run_ret
+
+            def setup(*args, **kwargs):
+                mock_ret = MagicMock()
+                mock_ret.poll.return_value = None
+                os.write(manager._write_file_descriptor, b"99\n")
+                return mock_ret
+
+            mock_popen.side_effect = setup
+
+            manager.start()
+
+        # Then session sets display env var
+        user_env = os.environ.copy()
+        user_env["TEST"] = "foo"
+        with manager.session(env=user_env) as env:
+            assert env["TEST"] == "foo"
+            assert env["DISPLAY"] == ":99"
+        with manager.session() as env:
+            assert env["DISPLAY"] == ":99"
+
+    def test_stop(self):
+        # Given manager
+        manager = _XvfbManager()
+
+        # When stopped without being started
+        # Then call is a no-op
+        manager.stop()
+        assert manager.display is None
+
+        # When started
+        with patch("subprocess.Popen") as mock_popen, patch("shutil.which") as mock_which, patch(
+            "subprocess.run"
+        ) as mock_run:
+            mock_which.return_value = "foo/Xvfb"
+            mock_run_ret = MagicMock()
+            mock_run_ret.stderr = b"-displayfd fd"
+            mock_run.return_value = mock_run_ret
+
+            def setup(*args, **kwargs):
+                mock_ret = MagicMock()
+                mock_ret.poll.return_value = None
+                os.write(manager._write_file_descriptor, b"99\n")
+                return mock_ret
+
+            mock_popen.side_effect = setup
+
+            manager.start()
+            assert manager.display_number == 99
+
+        # Then stop clears display variable
+        manager.stop()
+        assert manager.display_number is None
