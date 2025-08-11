@@ -35,18 +35,33 @@ ViewDirections = Literal[
     "along_x",
     "along_y",
     "along_z",
+    "along_a",
+    "along_b",
+    "along_c",
     "tilt_x",
     "tilt_y",
     "tilt_z",
+    "tilt_a",
+    "tilt_b",
+    "tilt_c",
     "small_tilt_x",
     "small_tilt_y",
     "small_tilt_z",
+    "small_tilt_a",
+    "small_tilt_b",
+    "small_tilt_c",
     "large_tilt_x",
     "large_tilt_y",
     "large_tilt_z",
+    "large_tilt_a",
+    "large_tilt_b",
+    "large_tilt_c",
     "corner_x",
     "corner_y",
     "corner_z",
+    "corner_a",
+    "corner_b",
+    "corner_c",
 ]
 
 
@@ -60,7 +75,7 @@ class ViewConfig:
     :ivar padding: padding around system in Angstrom, defaults to ``0.0`` (can be negative)
     :ivar direction: direction to view system along, selected from a series of preset values, defaults to ``along_z``
     :ivar normal: orientation of the normal to the view plane, takes precedence over direction when specified, defaults to ``None``
-    :ivar lattice_as_basis: whether to use lattice vectors (where available) as the view basis, otherwise uses cartesian axes, defaults to ``False``
+    :ivar normal_basis: whether to use cartesian axes, ``xyz``, or lattice vectors (where applicable), ``abc``, as the basis for the normal to the view plane, defaults to ``xyz``
     :ivar dpi: resolution of any saved image in dots per inch, defaults to ``300``
     :ivar picture_path: optional path for the location to save the generated image file, defaults to ``None``
     :ivar fixed_atom_size: use the same radius for all elements (except Hydrogen), defaults to ``True``
@@ -83,7 +98,7 @@ class ViewConfig:
     padding: float = 0.0
     direction: Optional[ViewDirections] = "along_z"
     normal: Optional[Tuple[float, float, float]] = None
-    lattice_as_basis: bool = False
+    normal_basis: Literal["xyz", "abc"] = "xyz"
 
     # Picture
     dpi: int = 300
@@ -135,8 +150,8 @@ class ViewConfig:
             raise ValueError(f"normal must be a sequence of three numeric values, but was '{self.normal}'")
         if not self.direction and not self.normal:
             raise ValueError("direction or normal must be specified")
-        if not isinstance(self.lattice_as_basis, bool):
-            raise ValueError(f"lattice_as_basis must be a boolean value, but was '{self.lattice_as_basis}'")
+        if not isinstance(self.normal_basis, str) or self.normal_basis not in ["xyz", "abc"]:
+            raise ValueError(f"normal_basis must be a boolean value, but was '{self.normal_basis}'")
 
         if not isinstance(self.dpi, int) or self.dpi < 0:
             raise ValueError(f"dpi must be a positive integer, but was '{self.dpi}'")
@@ -194,7 +209,7 @@ def view(
     height: Optional[int] = None,
     padding: Optional[float] = None,
     direction: Optional[ViewDirections] = None,
-    lattice_as_basis: Optional[bool] = None,
+    normal_basis: Optional[bool] = None,
     fixed_atom_size: Optional[bool] = None,
     show_atom_labels: Optional[bool] = None,
     atom_label_type: Optional[Literal["AtomType", "Element", "Name", "SurfaceRadius"]] = None,
@@ -213,7 +228,6 @@ def view(
     :param height: override for height of the image in pixels
     :param padding: override for padding around system in Angstrom
     :param direction: override for direction to view system along
-    :param lattice_as_basis: override for whether to use lattice vectors (where available) as the view basis
     :param fixed_atom_size: override to use the same radius for all elements (except Hydrogen)
     :param show_atom_labels: override to display text label on each atom
     :param atom_label_type: override for property used for atom labels
@@ -235,8 +249,6 @@ def view(
         config.height = height
     if padding is not None:
         config.padding = padding
-    if lattice_as_basis is not None:
-        config.lattice_as_basis = lattice_as_basis
     if direction is not None:
         config.direction = direction
 
@@ -357,20 +369,10 @@ def view(
 
 
 def _get_view_plane(system: Union[Molecule, "ChemicalSystem"], config: ViewConfig) -> str:
-    # use cartesian basis or lattice vector basis as required
-    basis = np.identity(3)
-    if config.lattice_as_basis:
-        if isinstance(system, Molecule) and system.lattice:
-            for i, vec in enumerate(system.lattice):
-                basis[:, i] = np.array(vec)
-        elif _has_scm_chemsys and isinstance(system, ChemicalSystem):
-            for i, vec in enumerate(system.lattice.vectors):
-                basis[:, i] = np.array(vec)
-    basis = basis / np.linalg.norm(basis, axis=0, keepdims=True)
-
     # get preset or explicitly specified normal
     if config.normal:
         normal = np.array(config.normal)
+        use_lattice_basis = config.normal_basis == "abc"
     elif config.direction:
         # N.B. currently AMSview only accepts the normal to the view plane as input
         # this restricts slightly what we can support
@@ -384,8 +386,11 @@ def _get_view_plane(system: Union[Molecule, "ChemicalSystem"], config: ViewConfi
             raise ValueError(f"direction '{config.direction}' not recognized")
         else:
             main_view_axis = parts[-1]
-            if main_view_axis not in ["x", "y", "z"]:
+            if main_view_axis not in ["x", "y", "z", "a", "b", "c"]:
                 raise ValueError(f"direction '{config.direction}' not recognized: '{main_view_axis}' cannot be parsed")
+
+        # determine whether we are using cartesian axes or lattice vectors as basis
+        use_lattice_basis = main_view_axis in ["a", "b", "c"]
 
         # orientate based on keyword and main axis
         keywords = parts[:-1]
@@ -415,16 +420,27 @@ def _get_view_plane(system: Union[Molecule, "ChemicalSystem"], config: ViewConfi
         else:
             raise ValueError(f"direction '{config.direction}' not recognized: '{main_keyword}' cannot be parsed")
 
-        if main_view_axis == "x":
+        if main_view_axis == "x" or main_view_axis == "a":
             normal = np.array([main_value, other_value, other_value])
-        elif main_view_axis == "y":
+        elif main_view_axis == "y" or main_view_axis == "b":
             normal = np.array([other_value, main_value, other_value])
-        elif main_view_axis == "z":
+        elif main_view_axis == "z" or main_view_axis == "c":
             normal = np.array([other_value, other_value, main_value])
         else:
             raise ValueError(f"direction '{config.direction}' not recognized: '{main_view_axis}' cannot be parsed")
     else:
         raise ValueError("direction or normal must be specified")
+
+    # use cartesian basis or lattice vector basis as required
+    basis = np.identity(3)
+    if use_lattice_basis:
+        if isinstance(system, Molecule) and system.lattice:
+            for i, vec in enumerate(system.lattice):
+                basis[:, i] = np.array(vec)
+        elif _has_scm_chemsys and isinstance(system, ChemicalSystem):
+            for i, vec in enumerate(system.lattice.vectors):
+                basis[:, i] = np.array(vec)
+    basis = basis / np.linalg.norm(basis, axis=0, keepdims=True)
 
     # convert to cartesian basis and normalize
     normal_cartesian_basis = basis @ normal
