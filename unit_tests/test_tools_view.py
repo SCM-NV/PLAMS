@@ -266,7 +266,7 @@ class TestXvfbManager:
                 with pytest.raises(RuntimeError):
                     manager.check_xvfb()
 
-                mock_ret.stderr = b"""\
+                mock_ret.stderr = """\
                 -nocursor              disable the cursor
                 -core                  generate core dump on fatal error
                 -displayfd fd          file descriptor to write display number to when ready to connect
@@ -290,7 +290,7 @@ class TestXvfbManager:
         ) as mock_run:
             mock_which.return_value = "foo/Xvfb"
             mock_run_ret = MagicMock()
-            mock_run_ret.stderr = b"-displayfd fd"
+            mock_run_ret.stderr = "-displayfd fd"
             mock_run.return_value = mock_run_ret
             calls = [0]
 
@@ -315,6 +315,9 @@ class TestXvfbManager:
             assert manager.display_number == 99
             assert manager.display == ":99"
 
+            manager.start()
+            manager.start()
+
     def test_session(self):
         # Given manager
         manager = _XvfbManager()
@@ -332,7 +335,7 @@ class TestXvfbManager:
         ) as mock_run:
             mock_which.return_value = "foo/Xvfb"
             mock_run_ret = MagicMock()
-            mock_run_ret.stderr = b"-displayfd fd"
+            mock_run_ret.stderr = "-displayfd fd"
             mock_run.return_value = mock_run_ret
 
             def setup(*args, **kwargs):
@@ -369,7 +372,7 @@ class TestXvfbManager:
         ) as mock_run:
             mock_which.return_value = "foo/Xvfb"
             mock_run_ret = MagicMock()
-            mock_run_ret.stderr = b"-displayfd fd"
+            mock_run_ret.stderr = "-displayfd fd"
             mock_run.return_value = mock_run_ret
 
             def setup(*args, **kwargs):
@@ -386,3 +389,30 @@ class TestXvfbManager:
         # Then stop clears display variable
         manager.stop()
         assert manager.display_number is None
+
+    def test_singleton(self):
+        # Given two managers
+        manager1 = _XvfbManager()
+        manager2 = _XvfbManager()
+
+        # When start one manager
+        with patch("subprocess.Popen") as mock_popen, patch("shutil.which") as mock_which, patch(
+            "subprocess.run"
+        ) as mock_run:
+            mock_which.return_value = "foo/Xvfb"
+            mock_run_ret = MagicMock()
+            mock_run_ret.stderr = "-displayfd fd"
+            mock_run.return_value = mock_run_ret
+
+            def setup(*args, **kwargs):
+                mock_ret = MagicMock()
+                mock_ret.poll.return_value = None
+                os.write(manager1._write_file_descriptor, b"99\n")
+                return mock_ret
+
+            mock_popen.side_effect = setup
+
+            manager1.start()
+
+        # Then second manager is also on the same display
+        assert manager2.display_number == manager1.display_number == 99

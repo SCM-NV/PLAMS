@@ -473,6 +473,7 @@ class _XvfbManager:
         self._stdout = None
         self._stderr = None
         self.display_number = None
+        self._initialized = True
 
     @classmethod
     def check_xvfb(cls):
@@ -482,15 +483,14 @@ class _XvfbManager:
         if not shutil.which(cls.xvfb):
             raise RuntimeError("Could not find Xvfb, please install it or add it to the PATH")
         try:
-            ret = subprocess.run([cls.xvfb, "-help"], capture_output=True, check=True)
-            stderr = ret.stderr
-            helptext = stderr.decode("utf-8", "ignore")
+            ret = subprocess.run([cls.xvfb, "-help"], capture_output=True, check=True, text=True)
+            helptext = ret.stderr or ret.stdout or ""
             if "-displayfd" not in helptext:
                 raise RuntimeError(
                     "Found version of Xvfb does not have '-displayfd' support, please update and try again"
                 )
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            raise RuntimeError("Could not successfully run 'Xvfb -help'")
+        except (subprocess.CalledProcessError, FileNotFoundError) as ex:
+            raise RuntimeError(f"Could not successfully run 'Xvfb -help'. Error was: {ex}")
 
     def start(self):
         """
@@ -533,7 +533,7 @@ class _XvfbManager:
                     os.close(self._read_file_descriptor)
                     os.close(self._write_file_descriptor)
 
-            atexit.register(self.stop)
+            atexit.register(self._stop)
             self._started = True
             log("Xvfb started", 3)
 
@@ -591,7 +591,8 @@ class _XvfbManager:
             "-nolisten",
             "tcp",
             "-screen",
-            f"{self._screen} {self._size[0]}x{self._size[1]}x{self._color_depth}",
+            f"{self._screen}",
+            f"{self._size[0]}x{self._size[1]}x{self._color_depth}",
             "-displayfd",
             str(self._write_file_descriptor),
         ]
@@ -646,8 +647,17 @@ class _XvfbManager:
             return
 
         log("Stopping Xvfb...", 3)
+        self._stop()
+        log("Xvfb stopped.", 3)
+
+    def _stop(self):
+        """
+        Stops display without logging. If not started this is a no-op.
+        This is automatically registered to fire ``atexit``, when display is started.
+        """
+        if not self._started:
+            return
 
         self._kill()
         self.display_number = None
         self._started = False
-        log("Xvfb stopped.", 3)
