@@ -1,11 +1,12 @@
 import os
-import PIL
 import pytest
 from unittest.mock import patch, MagicMock
 import numpy as np
 
-from scm.plams.tools.view import view, ViewConfig, _get_view_plane, _XvfbManager
+from scm.plams.interfaces.adfsuite.errors import AMSExecutionError
+from scm.plams.tools.view import view, ViewConfig, _AmsViewBackend, _AmsViewXvfbBackend, _XvfbManager, _AsePlotViewBackend
 from scm.plams.mol.molecule import Molecule
+from test_helpers import skip_if_no_ams_installation
 
 try:
     from scm.libbase import UnifiedChemicalSystem as ChemicalSystem, UnifiedLattice as Lattice
@@ -15,24 +16,62 @@ except ImportError:
     _has_scm_chemsys = False
 
 
+@pytest.fixture
+def water(xyz_folder):
+    water = Molecule(xyz_folder / "water.xyz")
+    water.guess_bonds()
+    return water
+
+
 class TestView:
 
-    @pytest.fixture
-    def water(self, xyz_folder):
-        water = Molecule(xyz_folder / "water.xyz")
-        water.guess_bonds()
-        return water
+    def test_backends_cache(self, water):
+        # Given backend cache with no successful backends
+        view._backends = {
+            "amsview": (_AmsViewBackend(), False, RuntimeError("something went wrong")),
+            "amsview_xvfb": (_AmsViewXvfbBackend(), False, RuntimeError("something also went wrong")),
+            "ase_plot": (_AsePlotViewBackend(), False, RuntimeError("something else went wrong"))
+        }
+
+        # When view
+        # Then raises error
+        with pytest.raises(RuntimeError):
+            view(water, backend="auto")
+        with pytest.raises(RuntimeError):
+            view(water, backend="amsview")
+
+        # Given backend cache with successful backend
+        view._backends["ase_plot"] = (_AsePlotViewBackend(), True, None)
+
+        # When view
+        # Then succeeds
+        view(water, backend="auto")
+
+
+class TestAmsViewBackend:
+
+    backend = _AmsViewBackend
+
+    def test_check_available(self, monkeypatch):
+        with patch("scm.plams.tools.view.run_with_timeout") as mock_run_with_timeout, patch(
+            "subprocess.run"
+        ) as mock_run:
+            response = MagicMock()
+            response.stderr = "something went wrong"
+            mock_run.return_value = response
+            with pytest.raises(AMSExecutionError):
+                self.backend.check_available()
 
     @pytest.mark.parametrize(
         "view_config, expected",
         [
             (
-                None,
-                "-transparent -scmgeometry 800x400 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 -1.000000 -fixedatomsize -hideregions -showunitcell thickness 0.05 -batch",
+                ViewConfig(),
+                "foo.in -save bar.png -transparent -scmgeometry 800x400 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 -1.000000 -fixedatomsize -hideregions -showunitcell thickness 0.05 -batch",
             ),
             (
                 ViewConfig(width=100, height=100, normal=(1.0, 0.0, 0.0)),
-                "-transparent -scmgeometry 100x100 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 1.000000 0.000000 0.000000 -fixedatomsize -hideregions -showunitcell thickness 0.05 -batch",
+                "foo.in -save bar.png -transparent -scmgeometry 100x100 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 1.000000 0.000000 0.000000 -fixedatomsize -hideregions -showunitcell thickness 0.05 -batch",
             ),
             (
                 ViewConfig(
@@ -42,19 +81,19 @@ class TestView:
                     atom_label_size=2,
                     show_regions=True,
                 ),
-                "-transparent -scmgeometry 800x400 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 -1.000000 -atomlabel AtomType -labelcolor #FFFFFF -labelsize 2 -showunitcell thickness 0.05 -batch",
+                "foo.in -save bar.png -transparent -scmgeometry 800x400 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 -1.000000 -atomlabel AtomType -labelcolor #FFFFFF -labelsize 2 -showunitcell thickness 0.05 -batch",
             ),
             (
                 ViewConfig(show_unit_cell_edges=True, unit_cell_edge_thickness=0.2),
-                "-transparent -scmgeometry 800x400 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 -1.000000 -fixedatomsize -hideregions -showunitcell thickness 0.2 -batch",
+                "foo.in -save bar.png -transparent -scmgeometry 800x400 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 -1.000000 -fixedatomsize -hideregions -showunitcell thickness 0.2 -batch",
             ),
             (
                 ViewConfig(show_unit_cell_faces=True, show_lattice_vectors=True),
-                "-transparent -scmgeometry 800x400 -dpi 300 -padding 0.000000 -showlatticevectors 1 -viewplane 0.000000 0.000000 -1.000000 -fixedatomsize -hideregions -showunitcell faces -batch",
+                "foo.in -save bar.png -transparent -scmgeometry 800x400 -dpi 300 -padding 0.000000 -showlatticevectors 1 -viewplane 0.000000 0.000000 -1.000000 -fixedatomsize -hideregions -showunitcell faces -batch",
             ),
             (
                 ViewConfig(dpi=600),
-                "-transparent -scmgeometry 800x400 -dpi 600 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 -1.000000 -fixedatomsize -hideregions -showunitcell thickness 0.05 -batch",
+                "foo.in -save bar.png -transparent -scmgeometry 800x400 -dpi 600 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 -1.000000 -fixedatomsize -hideregions -showunitcell thickness 0.05 -batch",
             ),
         ],
         ids=[
@@ -66,31 +105,11 @@ class TestView:
             "pic_dpi",
         ],
     )
-    def test_view_command_passed_to_amsview(self, view_config, expected, water, monkeypatch):
+    def test_get_command(self, view_config, expected, water):
+        command = self.backend.get_command(water, view_config, input_path="foo.in", img_path="bar.png")
 
-        with patch("scm.plams.tools.view.run_with_timeout") as mock_run_with_timeout, patch(
-            "subprocess.run"
-        ) as mock_run:
-            # This call will fail to generate the image due to the mock
-            # but we are just testing that the command to AMSview is generated properly
-            response = MagicMock()
-            response.stderr = None
-            response.stdout = "release=2025.204"
-            mock_run.return_value = response
-            monkeypatch.setenv("AMSBIN", "dummy_value")
-            try:
-                view(
-                    water,
-                    config=view_config or ViewConfig(),
-                )
-            except PIL.UnidentifiedImageError:
-                pass
-
-            mock_run_with_timeout.assert_called()
-
-            called_args, _ = mock_run_with_timeout.call_args
-            command = str.join(" ", called_args[0][4:])
-            assert command == expected
+        command = str.join(" ", command[1:])
+        assert command == expected
 
     @pytest.mark.parametrize(
         "normal_basis, normal, lattice, expected",
@@ -120,7 +139,7 @@ class TestView:
             mols.append(box_cs)
 
         for mol in mols:
-            actual = _get_view_plane(mol, ViewConfig(normal_basis=normal_basis, normal=normal))
+            actual = self.backend.get_view_plane(mol, ViewConfig(normal_basis=normal_basis, normal=normal))
             assert actual == expected
 
     @pytest.mark.parametrize(
@@ -157,7 +176,7 @@ class TestView:
             mols.append(box_cs)
 
         for mol in mols:
-            actual = _get_view_plane(mol, ViewConfig(direction=direction))
+            actual = self.backend.get_view_plane(mol, ViewConfig(direction=direction))
             assert actual == expected
 
     @pytest.mark.parametrize(
@@ -165,7 +184,22 @@ class TestView:
     )
     def test_get_view_plane_with_unhappy_direction(self, direction, water):
         with pytest.raises(ValueError):
-            _get_view_plane(water, ViewConfig(direction=direction))
+            self.backend.get_view_plane(water, ViewConfig(direction=direction))
+
+    def test_generate_image(self, water):
+        skip_if_no_ams_installation()
+
+        img = self.backend.generate_image(water, ViewConfig())
+
+        assert img is not None
+
+
+class TestAmsViewXvfbBackend(TestAmsViewBackend):
+
+    backend = _AmsViewXvfbBackend
+
+    def test_generate_image(self, water):
+        pytest.skip("Skipping as Xvfb not installed")
 
 
 class TestXvfbManager:

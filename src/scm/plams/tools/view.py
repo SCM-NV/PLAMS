@@ -4,13 +4,14 @@ import subprocess
 from typing import Optional, Tuple, Union, TYPE_CHECKING, Literal, Sequence, List, Dict
 import numpy as np
 from dataclasses import dataclass
-import platform
 from threading import Lock
 import select
 import time
 from contextlib import contextmanager
 import atexit
 import shutil
+from abc import ABC, abstractmethod
+from tempfile import NamedTemporaryFile
 
 from scm.plams.core.functions import requires_optional_package, log
 from scm.plams.interfaces.adfsuite.errors import AMSExecutionError
@@ -64,11 +65,13 @@ ViewDirections = Literal[
     "corner_c",
 ]
 
+Backends = Literal["amsview", "amsview_xvfb", "ase_plot", "auto"]
+
 
 @dataclass
 class ViewConfig:
     """
-    Configuration for view settings for AMSview
+    Configuration for view settings
 
     :ivar width: width of the image in pixels, defaults to ``800``
     :ivar height: height of the image in pixels, defaults to ``400``
@@ -88,7 +91,8 @@ class ViewConfig:
     :ivar unit_cell_edge_thickness: specify thickness of the displayed unit cell boundary, defaults to ``0.05``
     :ivar show_unit_cell_faces: display unit cell for periodic systems using semi-transparent faces, defaults to ``False``
     :ivar show_lattice_vectors: display the lattice vectors for periodic systems, defaults to ``False``
-    :ivar timeout: kill AMSView process after given time in seconds, defaults to ``10`` if window is not opened, otherwise no limit
+    :ivar backend: program to use as a backend to generate images, defaults to ``auto`` i.e. any available program
+    :ivar timeout: kill visualization process after given time in seconds, defaults to ``10`` if window is not opened, otherwise no limit
     :ivar open_window: open AMSview in a dedicated window if ``True``, otherwise render image offscreen, defaults to ``False``
     """
 
@@ -119,6 +123,7 @@ class ViewConfig:
     show_lattice_vectors: bool = False
 
     # Program
+    backend: Literal[Backends] = "auto"
     timeout: Optional[int] = None
     open_window: bool = False
 
@@ -151,7 +156,7 @@ class ViewConfig:
         if not self.direction and not self.normal:
             raise ValueError("direction or normal must be specified")
         if not isinstance(self.normal_basis, str) or self.normal_basis not in ["xyz", "abc"]:
-            raise ValueError(f"normal_basis must be a boolean value, but was '{self.normal_basis}'")
+            raise ValueError(f"normal_basis must be one of: 'xyz', 'ase', but was '{self.normal_basis}'")
 
         if not isinstance(self.dpi, int) or self.dpi < 0:
             raise ValueError(f"dpi must be a positive integer, but was '{self.dpi}'")
@@ -193,6 +198,10 @@ class ViewConfig:
         if not isinstance(self.show_lattice_vectors, bool):
             raise ValueError(f"show_lattice_vectors must be a boolean value, but was '{self.show_lattice_vectors}'")
 
+        if not isinstance(self.backend, str) or self.backend not in Backends.__args__:  # type: ignore
+            raise ValueError(
+                f"backend must be one of: '{', '.join(Backends.__args__)}'; but was '{self.backend}'"  # type: ignore
+            )
         if self.timeout and (not isinstance(self.timeout, int) or self.timeout < 0):
             raise ValueError(f"timeout must be a positive integer, but was '{self.timeout}'")
         if not isinstance(self.open_window, bool):
@@ -209,7 +218,6 @@ def view(
     height: Optional[int] = None,
     padding: Optional[float] = None,
     direction: Optional[ViewDirections] = None,
-    normal_basis: Optional[bool] = None,
     fixed_atom_size: Optional[bool] = None,
     show_atom_labels: Optional[bool] = None,
     atom_label_type: Optional[Literal["AtomType", "Element", "Name", "SurfaceRadius"]] = None,
@@ -217,13 +225,14 @@ def view(
     show_unit_cell_edges: Optional[bool] = None,
     show_lattice_vectors: Optional[bool] = None,
     picture_path: Optional[Union[str, os.PathLike]] = None,
+    backend: Optional[Backends] = None,
     open_window: Optional[bool] = None,
 ) -> "PilImage.Image":
     """
-    View a chemical system or molecule in a Jupyter notebook by generating an image using AMSview.
+    View a chemical system or molecule in a Jupyter notebook by generating an image using AMSview/ASE
 
     :param system: molecule or chemical system to visualize
-    :param config: configuration for AMSview
+    :param config: configuration for view
     :param width: override for width of the image in pixels
     :param height: override for height of the image in pixels
     :param padding: override for padding around system in Angstrom
@@ -235,12 +244,10 @@ def view(
     :param show_unit_cell_edges: override to display unit cell for periodic systems using semi-transparent edges
     :param show_lattice_vectors: override to display the lattice vectors for periodic systems
     :param picture_path: override for path for the location to save the generated image file
+    :param backend: override for program to use as a backend to generate images
     :param open_window: override to open AMSview in a dedicated window
     :return: image of the molecule generated using AMSView
     """
-    from tempfile import NamedTemporaryFile
-    from PIL import Image as PilImage
-
     # Set up config objects, applying any config overrides from the keyword args
     config = config or ViewConfig()
     if width is not None:
@@ -269,40 +276,103 @@ def view(
     if picture_path is not None:
         config.picture_path = picture_path
 
+    if backend is not None:
+        config.backend = backend
     if open_window is not None:
         config.open_window = open_window
         config.timeout = 10 if not config.open_window else None
 
-    # Validation to help prevent AMSView crashing due to bad options
+    # On first call check which backends are available
+    if not hasattr(view, "_backends"):
+        def check_backend_available(b):
+            try:
+                b.check_available()
+                return b, True, None
+            except Exception as ex:
+                return b, False, ex
+        backends = {
+            "amsview": check_backend_available(_AmsViewBackend()),
+            "amsview_xvfb": check_backend_available(_AmsViewXvfbBackend()),
+            "ase_plot": check_backend_available(_AsePlotViewBackend())
+        }
+        view._backends = backends
+    else:
+        backends = view._backends
+
+    # On subsequent calls get the available backend
+    if config.backend != "auto" and config.backend not in backends:
+        raise ValueError(f"View backend '{config.backend}' not recognised")
+
+    if config.backend == "auto":
+        available_backends = [v for v in backends.values() if v[1]]
+        if not any(available_backends):
+            errors = "\n\t".join([f"{k}: {err}" for k, (_, __, err) in backends.items()])
+            raise RuntimeError(f"No backends available for view.\nErrors were:\n\t{errors}")
+        else:
+            backend, _, __ = available_backends[0]
+    else:
+        backend, available, error = backends[config.backend]
+        if not available:
+            raise RuntimeError(f"Backend '{config.backend}' not available for view.\nError was: {error}")
+
+    # Validation to help prevent crashing due to bad options
     config.validate()
 
-    # Write temporary input file
-    with NamedTemporaryFile(mode="w", suffix=".in", delete=False) as input_file:
-        input_path = input_file.name
-        if isinstance(system, Molecule):
-            system.writein(input_file)
-        elif _has_scm_chemsys and isinstance(system, ChemicalSystem):
-            input_file.write(str(system))
-        else:
-            raise ValueError(f"System must be a PLAMS Molecule or a ChemicalSystem, but was {type(system).__name__}")
+    # Render image with backend
+    img = backend.generate_image(system, config)
 
-    if config.picture_path:
-        img_path = str(config.picture_path)
-    else:
-        with NamedTemporaryFile(mode="wb", suffix=".png", delete=False) as img_file:
-            img_path = img_file.name
+    return img
 
-    # Build and execute command
-    # check if on linux and running headless
-    env = os.environ.copy()
-    if platform.system() == "Linux" and "DISPLAY" not in env:
-        xvfb_manager = _XvfbManager()
-        xvfb_manager.start()
-        env["SCM_OPENGL_SOFTWARE"] = "1"
-    else:
-        xvfb_manager = None
 
-    try:
+class _ViewBackend(ABC):
+    """
+    Abstract base class for a viewer for a molecule/chemical system
+    """
+
+    @classmethod
+    @abstractmethod
+    def check_available(cls):
+        """
+        Check whether this backend is available on the current system, otherwise raise an error
+        """
+
+    @classmethod
+    @abstractmethod
+    def generate_image(cls, system: Union[Molecule, "ChemicalSystem"], config: ViewConfig) -> "PilImage.Image":
+        """
+        Generate image file for the given system
+
+        :param system: molecule or chemical system to visualize
+        :param config: configuration for view
+        """
+
+
+class _AmsViewBackend(_ViewBackend):
+    """
+    Viewer for molecule/chemical system using AMSview backend.
+    """
+
+    @classmethod
+    @requires_ams(minimum_version="2025.204")
+    def check_available(cls):
+        canary_call = [os.path.expandvars("$AMSBIN/amsview"), "-h", "-batch"]
+        try:
+            subprocess.run(canary_call, capture_output=True, check=True, text=True)
+        except (subprocess.CalledProcessError, FileNotFoundError) as ex:
+            raise AMSExecutionError(" ".join(canary_call), ex)
+
+    @classmethod
+    def get_command(
+        cls, system: Union[Molecule, "ChemicalSystem"], config: ViewConfig, input_path: str, img_path: str
+    ) -> List[str]:
+        """
+        Generate command for AMSview
+
+        :param system: molecule or chemical system to visualize
+        :param config: configuration for view
+        :param input_path: path to .in file for system
+        :param img_path: path to output image file
+        """
         command = [
             os.path.expandvars("$AMSBIN/amsview"),
             input_path,
@@ -318,7 +388,7 @@ def view(
             "-showlatticevectors",
             str(int(config.show_lattice_vectors)),
             "-viewplane",
-            _get_view_plane(system, config),
+            cls.get_view_plane(system, config),
         ]
         if config.fixed_atom_size:
             command += ["-fixedatomsize"]
@@ -343,110 +413,169 @@ def view(
         if not config.open_window:
             command += ["-batch"]
 
-        if xvfb_manager:
-            with xvfb_manager.session(env=env):
-                run_with_timeout(command, timeout=config.timeout, env=env)
-        else:
-            run_with_timeout(command, timeout=config.timeout, env=env)
+        return command
 
-        # Open image file and resize, making sure to maintain aspect ratio as AMSView may not generate with precise dimensions
-        img = PilImage.open(img_path)
-        img_width, img_height = img.size
-        aspect_ratio = img_width / img_height
-        img = img.resize(
-            (config.width, int(np.ceil(config.width / aspect_ratio))),
-            resample=PilImage.Resampling.LANCZOS,
-            reducing_gap=3.0,
-        )
-    except subprocess.CalledProcessError as ex:
-        raise AMSExecutionError(" ".join(command), ex.stderr)
-    finally:
-        os.remove(input_path)
-        if not config.picture_path:
-            os.remove(img_path)
+    @staticmethod
+    def get_view_plane(system: Union[Molecule, "ChemicalSystem"], config: ViewConfig) -> str:
+        """
+        Get view plane for system from config as a normal vector
 
-    return img
+        :param system: molecule or chemical system to visualize
+        :param config: configuration for view
+        """
+        # get preset or explicitly specified normal
+        if config.normal:
+            normal = np.array(config.normal)
+            use_lattice_basis = config.normal_basis == "abc"
+        elif config.direction:
+            # N.B. currently AMSview only accepts the normal to the view plane as input
+            # this restricts slightly what we can support
+            # e.g. 'along_-z' (0, 0, 1) and 'along_z' (0, 0, -1) render the same, hence only z is supported for clarity
 
+            # parse direction
+            parts = config.direction.split("_")
 
-def _get_view_plane(system: Union[Molecule, "ChemicalSystem"], config: ViewConfig) -> str:
-    # get preset or explicitly specified normal
-    if config.normal:
-        normal = np.array(config.normal)
-        use_lattice_basis = config.normal_basis == "abc"
-    elif config.direction:
-        # N.B. currently AMSview only accepts the normal to the view plane as input
-        # this restricts slightly what we can support
-        # e.g. 'along_-z' (0, 0, 1) and 'along_z' (0, 0, -1) render the same, hence only z is supported for clarity
+            # extract main axis
+            if len(parts) == 1 or not all(parts):
+                raise ValueError(f"direction '{config.direction}' not recognized")
+            else:
+                main_view_axis = parts[-1]
+                if main_view_axis not in ["x", "y", "z", "a", "b", "c"]:
+                    raise ValueError(
+                        f"direction '{config.direction}' not recognized: '{main_view_axis}' cannot be parsed"
+                    )
 
-        # parse direction
-        parts = config.direction.split("_")
+            # determine whether we are using cartesian axes or lattice vectors as basis
+            use_lattice_basis = main_view_axis in ["a", "b", "c"]
 
-        # extract main axis
-        if len(parts) == 1 or not all(parts):
-            raise ValueError(f"direction '{config.direction}' not recognized")
-        else:
-            main_view_axis = parts[-1]
-            if main_view_axis not in ["x", "y", "z", "a", "b", "c"]:
+            # orientate based on keyword and main axis
+            keywords = parts[:-1]
+            if len(keywords) == 2:
+                modifier = keywords[0]
+                main_keyword = keywords[1]
+            else:
+                modifier = None
+                main_keyword = keywords[0]
+
+            if (
+                len(keywords) > 2
+                or (modifier and main_keyword != "tilt")
+                or (modifier and modifier not in ["small", "large"])
+            ):
+                raise ValueError(
+                    f"direction '{config.direction}' not recognized: '{'_'.join(keywords)}' cannot be parsed"
+                )
+
+            if main_keyword == "along":
+                main_value = -1.0
+                other_value = 0.0
+            elif main_keyword == "tilt":
+                main_value = -1.0
+                other_value = 0.1 if modifier is None else (0.05 if modifier == "small" else 0.2)
+            elif main_keyword == "corner":
+                main_value = -1.0
+                other_value = 1.0
+            else:
+                raise ValueError(f"direction '{config.direction}' not recognized: '{main_keyword}' cannot be parsed")
+
+            if main_view_axis == "x" or main_view_axis == "a":
+                normal = np.array([main_value, other_value, other_value])
+            elif main_view_axis == "y" or main_view_axis == "b":
+                normal = np.array([other_value, main_value, other_value])
+            elif main_view_axis == "z" or main_view_axis == "c":
+                normal = np.array([other_value, other_value, main_value])
+            else:
                 raise ValueError(f"direction '{config.direction}' not recognized: '{main_view_axis}' cannot be parsed")
-
-        # determine whether we are using cartesian axes or lattice vectors as basis
-        use_lattice_basis = main_view_axis in ["a", "b", "c"]
-
-        # orientate based on keyword and main axis
-        keywords = parts[:-1]
-        if len(keywords) == 2:
-            modifier = keywords[0]
-            main_keyword = keywords[1]
         else:
-            modifier = None
-            main_keyword = keywords[0]
+            raise ValueError("direction or normal must be specified")
 
-        if (
-            len(keywords) > 2
-            or (modifier and main_keyword != "tilt")
-            or (modifier and modifier not in ["small", "large"])
-        ):
-            raise ValueError(f"direction '{config.direction}' not recognized: '{'_'.join(keywords)}' cannot be parsed")
+        # use cartesian basis or lattice vector basis as required
+        basis = np.identity(3)
+        if use_lattice_basis:
+            if isinstance(system, Molecule) and system.lattice:
+                for i, vec in enumerate(system.lattice):
+                    basis[:, i] = np.array(vec)
+            elif _has_scm_chemsys and isinstance(system, ChemicalSystem):
+                for i, vec in enumerate(system.lattice.vectors):
+                    basis[:, i] = np.array(vec)
+        basis = basis / np.linalg.norm(basis, axis=0, keepdims=True)
 
-        if main_keyword == "along":
-            main_value = -1.0
-            other_value = 0.0
-        elif main_keyword == "tilt":
-            main_value = -1.0
-            other_value = 0.1 if modifier is None else (0.05 if modifier == "small" else 0.2)
-        elif main_keyword == "corner":
-            main_value = -1.0
-            other_value = 1.0
+        # convert to cartesian basis and normalize
+        normal_cartesian_basis = basis @ normal
+        normal_cartesian_basis /= np.linalg.norm(normal_cartesian_basis)
+
+        return " ".join([f"{v:.6f}" for v in normal_cartesian_basis])
+
+    @classmethod
+    def run_command(cls, command: List[str], config: ViewConfig):
+        """
+        Execute command
+        """
+        run_with_timeout(command, timeout=config.timeout)
+
+    @classmethod
+    def generate_image(cls, system: Union[Molecule, "ChemicalSystem"], config: ViewConfig) -> "PilImage.Image":
+        from PIL import Image as PilImage
+
+        # Write temporary input file
+        with NamedTemporaryFile(mode="w", suffix=".in", delete=False) as input_file:
+            input_path = input_file.name
+            if isinstance(system, Molecule):
+                system.writein(input_file)
+            elif _has_scm_chemsys and isinstance(system, ChemicalSystem):
+                input_file.write(str(system))
+            else:
+                raise ValueError(
+                    f"System must be a PLAMS Molecule or a ChemicalSystem, but was {type(system).__name__}"
+                )
+
+        if config.picture_path:
+            img_path = str(config.picture_path)
         else:
-            raise ValueError(f"direction '{config.direction}' not recognized: '{main_keyword}' cannot be parsed")
+            with NamedTemporaryFile(mode="wb", suffix=".png", delete=False) as img_file:
+                img_path = img_file.name
 
-        if main_view_axis == "x" or main_view_axis == "a":
-            normal = np.array([main_value, other_value, other_value])
-        elif main_view_axis == "y" or main_view_axis == "b":
-            normal = np.array([other_value, main_value, other_value])
-        elif main_view_axis == "z" or main_view_axis == "c":
-            normal = np.array([other_value, other_value, main_value])
-        else:
-            raise ValueError(f"direction '{config.direction}' not recognized: '{main_view_axis}' cannot be parsed")
-    else:
-        raise ValueError("direction or normal must be specified")
+        # Build and execute command
+        command = cls.get_command(system, config, input_path, img_path)
+        try:
+            cls.run_command(command, config)
 
-    # use cartesian basis or lattice vector basis as required
-    basis = np.identity(3)
-    if use_lattice_basis:
-        if isinstance(system, Molecule) and system.lattice:
-            for i, vec in enumerate(system.lattice):
-                basis[:, i] = np.array(vec)
-        elif _has_scm_chemsys and isinstance(system, ChemicalSystem):
-            for i, vec in enumerate(system.lattice.vectors):
-                basis[:, i] = np.array(vec)
-    basis = basis / np.linalg.norm(basis, axis=0, keepdims=True)
+            # Open image file and resize, making sure to maintain aspect ratio as AMSView may not generate with precise dimensions
+            img = PilImage.open(img_path)
+            img_width, img_height = img.size
+            aspect_ratio = img_width / img_height
+            img = img.resize(
+                (config.width, int(np.ceil(config.width / aspect_ratio))),
+                resample=PilImage.Resampling.LANCZOS,
+                reducing_gap=3.0,
+            )
+        except subprocess.CalledProcessError as ex:
+            raise AMSExecutionError(" ".join(command), ex.stderr)
+        finally:
+            os.remove(input_path)
+            if not config.picture_path:
+                os.remove(img_path)
 
-    # convert to cartesian basis and normalize
-    normal_cartesian_basis = basis @ normal
-    normal_cartesian_basis /= np.linalg.norm(normal_cartesian_basis)
+        return img
 
-    return " ".join([f"{v:.6f}" for v in normal_cartesian_basis])
+
+class _AmsViewXvfbBackend(_AmsViewBackend):
+
+    @classmethod
+    def check_available(cls):
+        super().check_available()
+        _XvfbManager.check_xvfb()
+
+    @classmethod
+    def run_command(cls, command: List[str], config: ViewConfig):
+        env = os.environ.copy()
+        env["SCM_OPENGL_SOFTWARE"] = "1"
+
+        manager = _XvfbManager()
+        manager.start()
+
+        with manager.session(env=env):
+            super().run_command(command, config)
 
 
 class _XvfbManager:
@@ -677,3 +806,15 @@ class _XvfbManager:
         self._kill()
         self.display_number = None
         self._started = False
+
+
+class _AsePlotViewBackend(_ViewBackend):
+
+    @classmethod
+    @requires_optional_package("ase")
+    def check_available(cls):
+        return
+
+    @classmethod
+    def generate_image(cls, system: Union[Molecule, "ChemicalSystem"], config: ViewConfig) -> "PilImage.Image":
+        pass
