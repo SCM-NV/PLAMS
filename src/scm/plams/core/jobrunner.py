@@ -11,14 +11,26 @@ from scm.plams.core.private import saferun
 from scm.plams.core.settings import Settings
 from scm.plams.core.threading_utils import LimitedSemaphore, ContextAwareThread
 
+from typing import Callable, TypeVar, Dict, Any, Tuple, TYPE_CHECKING, Optional, List
+from typing_extensions import ParamSpec, Concatenate
+
+if TYPE_CHECKING:
+    from scm.plams.core.basejob import Job
+    from scm.plams.core.jobmanager import JobManager
+
 __all__ = ["JobRunner", "GridRunner"]
 
 
-def _in_thread(func):
+P = ParamSpec("P")
+Cls = TypeVar("Cls", bound=type)
+SelfT = TypeVar("SelfT", bound="JobRunner")
+
+
+def _in_thread(func: Callable[Concatenate[SelfT, P], None]) -> Callable[Concatenate[SelfT, P], None]:
     """Decorator for an instance method. If ``parallel`` attribute of given instance is ``True``, run decorated method in a separate :class:`~threading.Thread`. This thread is usually a daemon thread, the decision is based on ``config.daemon_threads`` entry."""
 
     @functools.wraps(func)
-    def wrapper(self, *args, **kwargs):
+    def wrapper(self: SelfT, /, *args: P.args, **kwargs: P.kwargs) -> None:
         if self.parallel:
             t = ContextAwareThread(name="plamsthread", target=func, args=(self,) + args, kwargs=kwargs)
             t.daemon = get_config().daemon_threads
@@ -29,11 +41,11 @@ def _in_thread(func):
     return wrapper
 
 
-def _in_limited_thread(func):
+def _in_limited_thread(func: Callable[Concatenate[SelfT, P], None]) -> Callable[Concatenate[SelfT, P], None]:
     """More careful version of the ``in_thread`` decorator: a new job thread will only be launched if the currently active number of threads is below the ``maxthreads`` limit set in :meth:`~scm.plams.core.jobrunner.JobRunner.__init__`."""
 
     @functools.wraps(func)
-    def wrapper(self, *args, **kwargs):
+    def wrapper(self: SelfT, /, *args: P.args, **kwargs: P.kwargs) -> None:
         if self.parallel:
             t = ContextAwareThread(name="plamsthread", target=func, args=(self,) + args, kwargs=kwargs)
             t.daemon = get_config().daemon_threads
@@ -51,11 +63,11 @@ def _in_limited_thread(func):
     return wrapper
 
 
-def _limit(func):
+def _limit(func: Callable[Concatenate[SelfT, P], None]) -> Callable[Concatenate[SelfT, P], None]:
     """Decorator for an instance method. If ``_job_limit`` attribute of given instance is not ``None``, use this attribute to wrap decorated method via :ref:`with<with-locks>` statement."""
 
     @functools.wraps(func)
-    def wrapper(self, *args, **kwargs):
+    def wrapper(self: SelfT, /, *args: P.args, **kwargs: P.kwargs) -> None:
         if self._job_limit:
             with self._job_limit:
                 return func(self, *args, **kwargs)
@@ -68,9 +80,9 @@ def _limit(func):
 class _MetaRunner(type):
     """Metaclass for |JobRunner|. During an instance creation wrap the :meth:`~scm.plams.core.jobrunner.JobRunner.call` method with :func:`_limit` decorator which enforces a limit on the number of simultaneous :meth:`~scm.plams.core.jobrunner.JobRunner.call` calls."""
 
-    def __new__(meta, name, bases, dct):
+    def __new__(cls: Cls, name: str, bases: Tuple[type], dct: Dict[str, Any]) -> Cls:
         dct["call"] = _limit(dct["call"])
-        return type.__new__(meta, name, bases, dct)
+        return type.__new__(cls, name, bases, dct)
 
 
 # ===========================================================================
@@ -174,7 +186,7 @@ class JobRunner(metaclass=_MetaRunner):
         else:
             self._jobthread_limit = LimitedSemaphore(value) if value else None
 
-    def call(self, runscript, workdir, out, err, runflags):
+    def call(self, runscript: str, workdir: str, out: str, err: str, runflags: Any) -> int:
         """call(runscript, workdir, out, err, runflags)
         Execute the *runscript* in the folder *workdir*. Redirect output and error streams to *out* and *err*, respectively.
 
@@ -201,7 +213,7 @@ class JobRunner(metaclass=_MetaRunner):
         return process.returncode
 
     @_in_limited_thread
-    def _run_job(self, job, jobmanager):
+    def _run_job(self, job: "Job", jobmanager: "JobManager") -> None:
         """_run_job(job, jobmanager)
         This method aggregates the parts of :ref:`job-life-cycle` that are supposed to be run in a separate thread in case of parallel job execution. It is wrapped with :func:`_in_limited_thread` decorator.
 
@@ -277,23 +289,23 @@ class GridRunner(JobRunner):
 
     # N.B. these SLURM/PBS functions are always used in a static way
     # but as stored and accessed via Settings, cannot be decorated as such
-    def __slurm_get_jobid(output: str):  # type: ignore
+    def __slurm_get_jobid(output: str) -> Optional[str]:  # type: ignore
         s = output.split()
         if len(s) > 0 and all([ch.isdigit() for ch in s[-1]]):
             return s[-1]
         return None
 
-    def __slurm_running(output: str):  # type: ignore
+    def __slurm_running(output: str) -> List[str]:  # type: ignore
         lines = output.splitlines()[1:]
         return [line.split()[0] for line in lines]
 
-    def __pbs_get_jobid(output: str):  # type: ignore
+    def __pbs_get_jobid(output: str) -> Optional[str]:  # type: ignore
         s = output.split(".")
         if len(s) > 0 and all([ch.isdigit() for ch in s[0]]):
             return s[0]
         return None
 
-    def __pbs_running(output: str):  # type: ignore
+    def __pbs_running(output: str) -> List[str]:  # type: ignore
         lines = output.splitlines()[2:]
         return [line.split()[0].split(".")[0] for line in lines]
 
@@ -325,10 +337,10 @@ class GridRunner(JobRunner):
     config.slurm.commands.getid = __slurm_get_jobid
     config.slurm.commands.running = __slurm_running
 
-    def __init__(self, grid="auto", sleepstep=5, parallel=True, maxjobs=0):
+    def __init__(self, grid: str = "auto", sleepstep: int = 5, parallel: bool = True, maxjobs: int = 0):
         JobRunner.__init__(self, parallel=parallel, maxjobs=maxjobs)
         self.sleepstep = sleepstep
-        self._active_jobs = {}
+        self._active_jobs: Dict[str, threading.Event] = {}
         self._active_lock = threading.Lock()
         self._mainlock = threading.Lock()
 
@@ -347,7 +359,7 @@ class GridRunner(JobRunner):
                 "GridRunner: invalid 'grid' argument. 'grid' should be either a Settings instance (see documentations for details) or a string occurring in GridRunner.config or 'auto' for autodetection"
             )
 
-    def call(self, runscript, workdir, out, err, runflags):
+    def call(self, runscript: str, workdir: str, out: str, err: str, runflags: Any) -> int:
         """call(runscript, workdir, out, err, runflags)
         Submit *runscript* to the queueing system with *workdir* as the working directory. Redirect output and error streams to *out* and *err*, respectively. *runflags* stores varoius submit command options.
 
@@ -431,7 +443,7 @@ class GridRunner(JobRunner):
         return 0
 
     @_in_thread
-    def _check_queue(self):
+    def _check_queue(self) -> None:
         """Query the queueing system to obtain a list of currently running jobs. Check for active jobs that are not any more in the queue and release their locks. Repeat this procedure every ``sleepstep`` seconds until there are no more active jobs. The ``_mainlock`` lock ensures that there is at most one thread executing the main loop of this method at the same time."""
         if self._mainlock.acquire(blocking=False):
             try:
@@ -453,7 +465,7 @@ class GridRunner(JobRunner):
             finally:
                 self._mainlock.release()
 
-    def _autodetect(self):
+    def _autodetect(self) -> Optional[Settings]:
         """Try to autodetect the type of queueing system.
 
         The autodetection mechanism is very simple. For each entry in ``GridRunner.config`` the submit command followed by ``--version`` is executed (for example ``qsub --version``). If the execution was successful (which is indicated by the exit code 0), that queueing system is present and it is chosen. Thus if there are multiple queueing systems installed, only one of them is picked -- the one which "name" (indicated by a key in ``GridRunner.config``) is first in the lexicographical order.
