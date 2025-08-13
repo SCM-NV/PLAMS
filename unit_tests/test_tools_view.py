@@ -4,7 +4,9 @@ from unittest.mock import patch, MagicMock
 import numpy as np
 
 from scm.plams.interfaces.adfsuite.errors import AMSExecutionError
-from scm.plams.tools.view import view, ViewConfig, _AmsViewBackend, _AmsViewXvfbBackend, _XvfbManager, _AsePlotViewBackend
+from scm.plams.interfaces.adfsuite.ams import AMSJob
+from scm.plams.interfaces.molecule.rdkit import from_smiles
+from scm.plams.tools.view import view, ViewConfig, _AmsViewBackend, _AmsViewXvfbBackend, _XvfbManager, _AsePlotBackend
 from scm.plams.mol.molecule import Molecule
 from test_helpers import skip_if_no_ams_installation
 
@@ -18,7 +20,7 @@ except ImportError:
 
 @pytest.fixture
 def water(xyz_folder):
-    water = Molecule(xyz_folder / "water.xyz")
+    water = from_smiles("O")
     water.guess_bonds()
     return water
 
@@ -30,7 +32,7 @@ class TestView:
         view._backends = {
             "amsview": (_AmsViewBackend(), False, RuntimeError("something went wrong")),
             "amsview_xvfb": (_AmsViewXvfbBackend(), False, RuntimeError("something also went wrong")),
-            "ase_plot": (_AsePlotViewBackend(), False, RuntimeError("something else went wrong"))
+            "ase_plot": (_AsePlotBackend(), False, RuntimeError("something else went wrong"))
         }
 
         # When view
@@ -41,7 +43,7 @@ class TestView:
             view(water, backend="amsview")
 
         # Given backend cache with successful backend
-        view._backends["ase_plot"] = (_AsePlotViewBackend(), True, None)
+        view._backends["ase_plot"] = (_AsePlotBackend(), True, None)
 
         # When view
         # Then succeeds
@@ -67,7 +69,7 @@ class TestAmsViewBackend:
         [
             (
                 ViewConfig(),
-                "foo.in -save bar.png -transparent -scmgeometry 800x400 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 -1.000000 -fixedatomsize -hideregions -showunitcell thickness 0.05 -batch",
+                "foo.in -save bar.png -transparent -scmgeometry 800x400 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 1.000000 -fixedatomsize -hideregions -showunitcell thickness 0.05 -batch",
             ),
             (
                 ViewConfig(width=100, height=100, normal=(1.0, 0.0, 0.0)),
@@ -81,19 +83,19 @@ class TestAmsViewBackend:
                     atom_label_size=2,
                     show_regions=True,
                 ),
-                "foo.in -save bar.png -transparent -scmgeometry 800x400 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 -1.000000 -atomlabel AtomType -labelcolor #FFFFFF -labelsize 2 -showunitcell thickness 0.05 -batch",
+                "foo.in -save bar.png -transparent -scmgeometry 800x400 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 1.000000 -atomlabel AtomType -labelcolor #FFFFFF -labelsize 2 -showunitcell thickness 0.05 -batch",
             ),
             (
                 ViewConfig(show_unit_cell_edges=True, unit_cell_edge_thickness=0.2),
-                "foo.in -save bar.png -transparent -scmgeometry 800x400 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 -1.000000 -fixedatomsize -hideregions -showunitcell thickness 0.2 -batch",
+                "foo.in -save bar.png -transparent -scmgeometry 800x400 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 1.000000 -fixedatomsize -hideregions -showunitcell thickness 0.2 -batch",
             ),
             (
                 ViewConfig(show_unit_cell_faces=True, show_lattice_vectors=True),
-                "foo.in -save bar.png -transparent -scmgeometry 800x400 -dpi 300 -padding 0.000000 -showlatticevectors 1 -viewplane 0.000000 0.000000 -1.000000 -fixedatomsize -hideregions -showunitcell faces -batch",
+                "foo.in -save bar.png -transparent -scmgeometry 800x400 -dpi 300 -padding 0.000000 -showlatticevectors 1 -viewplane 0.000000 0.000000 1.000000 -fixedatomsize -hideregions -showunitcell faces -batch",
             ),
             (
                 ViewConfig(dpi=600),
-                "foo.in -save bar.png -transparent -scmgeometry 800x400 -dpi 600 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 -1.000000 -fixedatomsize -hideregions -showunitcell thickness 0.05 -batch",
+                "foo.in -save bar.png -transparent -scmgeometry 800x400 -dpi 600 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 1.000000 -fixedatomsize -hideregions -showunitcell thickness 0.05 -batch",
             ),
         ],
         ids=[
@@ -145,12 +147,12 @@ class TestAmsViewBackend:
     @pytest.mark.parametrize(
         "direction, lattice, expected",
         [
-            ("along_x", [[5, 5, 0], [5, -5, 0], [0, 0, 10]], "-1.000000 0.000000 0.000000"),
-            ("along_y", [[5, 5, 0], [5, -5, 0], [0, 0, 10]], "0.000000 -1.000000 0.000000"),
-            ("along_z", [[5, 5, 0], [5, -5, 0], [0, 0, 10]], "0.000000 0.000000 -1.000000"),
-            ("along_a", [[5, 5, 0], [5, -5, 0], [0, 0, 10]], "-0.707107 -0.707107 0.000000"),
-            ("along_b", [[5, 5, 0], [5, -5, 0], [0, 0, 10]], "-0.707107 0.707107 0.000000"),
-            ("along_c", [[5, 5, 0], [5, -5, 0], [0, 0, 10]], "0.000000 0.000000 -1.000000"),
+            ("along_x", [[5, 5, 0], [5, -5, 0], [0, 0, 10]], "1.000000 0.000000 0.000000"),
+            ("along_y", [[5, 5, 0], [5, -5, 0], [0, 0, 10]], "0.000000 1.000000 0.000000"),
+            ("along_z", [[5, 5, 0], [5, -5, 0], [0, 0, 10]], "0.000000 0.000000 1.000000"),
+            ("along_a", [[5, 5, 0], [5, -5, 0], [0, 0, 10]], "0.707107 0.707107 0.000000"),
+            ("along_b", [[5, 5, 0], [5, -5, 0], [0, 0, 10]], "0.707107 -0.707107 0.000000"),
+            ("along_c", [[5, 5, 0], [5, -5, 0], [0, 0, 10]], "0.000000 0.000000 1.000000"),
             ("tilt_x", [[10, 2, -1.0], [-5, 8, 0], [0, -2, 11]], "-0.990148 0.099015 0.099015"),
             ("small_tilt_y", [[10, 2, -1.0], [-5, 8, 0], [0, -2, 11]], "0.049875 -0.997509 0.049875"),
             ("large_tilt_z", [[10, 2, -1.0], [-5, 8, 0], [0, -2, 11]], "0.192450 0.192450 -0.962250"),
@@ -450,3 +452,57 @@ class TestXvfbManager:
 
         # Then second manager is also on the same display
         assert manager2.display_number == manager1.display_number == 99
+
+
+class TestAsePlotBackend:
+
+    backend = _AsePlotBackend
+
+    @pytest.mark.parametrize(
+        "direction, lattice, expected",
+        [
+            ("along_x", [[5, 5, 0], [5, -5, 0], [0, 0, 10]], "-90y"),
+            ("along_y", [[5, 5, 0], [5, -5, 0], [0, 0, 10]], "90x"),
+            ("along_z", [[5, 5, 0], [5, -5, 0], [0, 0, 10]], ""),
+            ("along_a", [[5, 5, 0], [5, -5, 0], [0, 0, 10]], "90.00x,-45.00y,-90.00z"),
+            ("along_b", [[5, 5, 0], [5, -5, 0], [0, 0, 10]], "-90.00x,-45.00y,90.00z"),
+            ("along_c", [[5, 5, 0], [5, -5, 0], [0, 0, 10]], ""),
+            ("tilt_x", [[10, 2, -1.0], [-5, 8, 0], [0, -2, 11]], "45.00x,81.95y,90.00z"),
+            ("small_tilt_y", [[10, 2, -1.0], [-5, 8, 0], [0, -2, 11]], "-87.14x,-2.86y,90.00z"),
+            ("large_tilt_z", [[10, 2, -1.0], [-5, 8, 0], [0, -2, 11]], "168.69x,-11.10y,-7.22z"),
+            ("tilt_a", [[10, 2, -1.0], [-5, 8, 0], [0, -2, 11]], "-33.21x,77.18y,-90.00z"),
+            ("small_tilt_b", [[10, 2, -1.0], [-5, 8, 0], [0, -2, 11]], "-87.01x,-34.30y,90.00z"),
+            ("large_tilt_c", [[10, 2, -1.0], [-5, 8, 0], [0, -2, 11]], "158.88x,-4.74y,-90.00z"),
+            ("corner_x", [[1, 0, 0]], "45.00x,35.26y,90.00z"),
+            ("corner_y", [[5, 5, 0], [5, -5, 0]], "-45.00x,-35.26y,90.00z"),
+            ("corner_z", [[5, 5, 0], [5, -5, 0]], "135.00x,-35.26y,-90.00z"),
+            ("corner_a", [[1, 0, 0]], "45.00x,35.26y,90.00z"),
+            ("corner_b", [[5, 5, 0], [5, -5, 0]], "54.74x,0.00y,0.00z"),
+            ("corner_c", [[5, 5, 0], [5, -5, 0]], "180.00x,-54.74y,90.00z"),
+        ],
+    )
+    def test_get_view_rotation_with_happy_direction(self, direction, lattice, expected):
+        mols = []
+        box = Molecule()
+        box.lattice = lattice
+        mols.append(box)
+        if _has_scm_chemsys:
+            box_cs = ChemicalSystem()
+            box_cs.lattice = Lattice(np.array(lattice))
+            mols.append(box_cs)
+
+        for mol in mols:
+            actual = self.backend.get_view_rotation(mol, ViewConfig(direction=direction))
+            assert actual == expected
+
+    def test_foo(self, water):
+        water.lattice = [[10.0, 2.0, -1.0], [-5.0, 8.0, 0.0], [0.0, -2.0, 11.0]]
+        water.lattice = [[12.481548435518771, 0.0, 0.0], [0.0, 12.481548435518771, 0.0], [0.0, 0.0, 12.481548435518771]]
+        water.lattice = [[12.481548435518771, 0.0, 0.0]]
+        water.atoms[0].properties.region = {"O"}
+        water.atoms[1].properties.region = {"H"}
+        water.atoms[2].properties.region = {"H"}
+
+        water = ChemicalSystem(AMSJob(molecule=water).get_input())
+
+        view(water, ViewConfig(atom_label_size=4, atom_label_color="#0000FF"), backend="ase_plot", padding=1, show_regions=True, show_atom_labels=True, atom_label_type="Name")

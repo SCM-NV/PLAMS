@@ -111,7 +111,7 @@ class ViewConfig:
     # Atom/molecule/bond etc. representation
     fixed_atom_size: bool = True
     show_atom_labels: bool = False
-    atom_label_type: Literal["AtomType", "Element", "Name", "SurfaceRadius"] = "AtomType"
+    atom_label_type: Literal["AtomType", "Element", "Name"] = "AtomType"
     atom_label_color: str = "#000000"
     atom_label_size: float = 1.0
     show_regions: bool = False
@@ -171,10 +171,9 @@ class ViewConfig:
             "AtomType",
             "Element",
             "Name",
-            "SurfaceRadius",
         ]:
             raise ValueError(
-                f"atom_label_type must be one of: 'AtomType', 'Element', 'Name', 'SurfaceRadius', but was '{self.atom_label_type}'"
+                f"atom_label_type must be one of: 'AtomType', 'Element', 'Name', but was '{self.atom_label_type}'"
             )
         if not isinstance(self.atom_label_color, str) or not bool(
             re.fullmatch(r"#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})", self.atom_label_color)
@@ -220,7 +219,7 @@ def view(
     direction: Optional[ViewDirections] = None,
     fixed_atom_size: Optional[bool] = None,
     show_atom_labels: Optional[bool] = None,
-    atom_label_type: Optional[Literal["AtomType", "Element", "Name", "SurfaceRadius"]] = None,
+    atom_label_type: Optional[Literal["AtomType", "Element", "Name"]] = None,
     show_regions: Optional[bool] = None,
     show_unit_cell_edges: Optional[bool] = None,
     show_lattice_vectors: Optional[bool] = None,
@@ -293,7 +292,7 @@ def view(
         backends = {
             "amsview": check_backend_available(_AmsViewBackend()),
             "amsview_xvfb": check_backend_available(_AmsViewXvfbBackend()),
-            "ase_plot": check_backend_available(_AsePlotViewBackend())
+            "ase_plot": check_backend_available(_AsePlotBackend())
         }
         view._backends = backends
     else:
@@ -345,6 +344,97 @@ class _ViewBackend(ABC):
         :param system: molecule or chemical system to visualize
         :param config: configuration for view
         """
+
+    @staticmethod
+    def get_view_plane(system: Union[Molecule, "ChemicalSystem"], config: ViewConfig) -> str:
+        """
+        Get view plane for system from config as a normal vector
+
+        :param system: molecule or chemical system to visualize
+        :param config: configuration for view
+        """
+        # get preset or explicitly specified normal
+        if config.normal:
+            normal = np.array(config.normal)
+            use_lattice_basis = config.normal_basis == "abc"
+        elif config.direction:
+            # N.B. currently AMSview only accepts the normal to the view plane as input
+            # this restricts slightly what we can support
+            # e.g. 'along_-z' (0, 0, 1) and 'along_z' (0, 0, -1) render the same, hence only z is supported for clarity
+
+            # parse direction
+            parts = config.direction.split("_")
+
+            # extract main axis
+            if len(parts) == 1 or not all(parts):
+                raise ValueError(f"direction '{config.direction}' not recognized")
+            else:
+                main_view_axis = parts[-1]
+                if main_view_axis not in ["x", "y", "z", "a", "b", "c"]:
+                    raise ValueError(
+                        f"direction '{config.direction}' not recognized: '{main_view_axis}' cannot be parsed"
+                    )
+
+            # determine whether we are using cartesian axes or lattice vectors as basis
+            use_lattice_basis = main_view_axis in ["a", "b", "c"]
+
+            # orientate based on keyword and main axis
+            keywords = parts[:-1]
+            if len(keywords) == 2:
+                modifier = keywords[0]
+                main_keyword = keywords[1]
+            else:
+                modifier = None
+                main_keyword = keywords[0]
+
+            if (
+                    len(keywords) > 2
+                    or (modifier and main_keyword != "tilt")
+                    or (modifier and modifier not in ["small", "large"])
+            ):
+                raise ValueError(
+                    f"direction '{config.direction}' not recognized: '{'_'.join(keywords)}' cannot be parsed"
+                )
+
+            if main_keyword == "along":
+                main_value = 1.0
+                other_value = 0.0
+            elif main_keyword == "tilt":
+                main_value = -1.0
+                other_value = 0.1 if modifier is None else (0.05 if modifier == "small" else 0.2)
+            elif main_keyword == "corner":
+                main_value = -1.0
+                other_value = 1.0
+            else:
+                raise ValueError(f"direction '{config.direction}' not recognized: '{main_keyword}' cannot be parsed")
+
+            if main_view_axis == "x" or main_view_axis == "a":
+                normal = np.array([main_value, other_value, other_value])
+            elif main_view_axis == "y" or main_view_axis == "b":
+                normal = np.array([other_value, main_value, other_value])
+            elif main_view_axis == "z" or main_view_axis == "c":
+                normal = np.array([other_value, other_value, main_value])
+            else:
+                raise ValueError(f"direction '{config.direction}' not recognized: '{main_view_axis}' cannot be parsed")
+        else:
+            raise ValueError("direction or normal must be specified")
+
+        # use cartesian basis or lattice vector basis as required
+        basis = np.identity(3)
+        if use_lattice_basis:
+            if isinstance(system, Molecule) and system.lattice:
+                for i, vec in enumerate(system.lattice):
+                    basis[:, i] = np.array(vec)
+            elif _has_scm_chemsys and isinstance(system, ChemicalSystem):
+                for i, vec in enumerate(system.lattice.vectors):
+                    basis[:, i] = np.array(vec)
+        basis = basis / np.linalg.norm(basis, axis=0, keepdims=True)
+
+        # convert to cartesian basis and normalize
+        normal_cartesian_basis = basis @ normal
+        normal_cartesian_basis /= np.linalg.norm(normal_cartesian_basis)
+
+        return " ".join([f"{v:.6f}" for v in normal_cartesian_basis])
 
 
 class _AmsViewBackend(_ViewBackend):
@@ -414,97 +504,6 @@ class _AmsViewBackend(_ViewBackend):
             command += ["-batch"]
 
         return command
-
-    @staticmethod
-    def get_view_plane(system: Union[Molecule, "ChemicalSystem"], config: ViewConfig) -> str:
-        """
-        Get view plane for system from config as a normal vector
-
-        :param system: molecule or chemical system to visualize
-        :param config: configuration for view
-        """
-        # get preset or explicitly specified normal
-        if config.normal:
-            normal = np.array(config.normal)
-            use_lattice_basis = config.normal_basis == "abc"
-        elif config.direction:
-            # N.B. currently AMSview only accepts the normal to the view plane as input
-            # this restricts slightly what we can support
-            # e.g. 'along_-z' (0, 0, 1) and 'along_z' (0, 0, -1) render the same, hence only z is supported for clarity
-
-            # parse direction
-            parts = config.direction.split("_")
-
-            # extract main axis
-            if len(parts) == 1 or not all(parts):
-                raise ValueError(f"direction '{config.direction}' not recognized")
-            else:
-                main_view_axis = parts[-1]
-                if main_view_axis not in ["x", "y", "z", "a", "b", "c"]:
-                    raise ValueError(
-                        f"direction '{config.direction}' not recognized: '{main_view_axis}' cannot be parsed"
-                    )
-
-            # determine whether we are using cartesian axes or lattice vectors as basis
-            use_lattice_basis = main_view_axis in ["a", "b", "c"]
-
-            # orientate based on keyword and main axis
-            keywords = parts[:-1]
-            if len(keywords) == 2:
-                modifier = keywords[0]
-                main_keyword = keywords[1]
-            else:
-                modifier = None
-                main_keyword = keywords[0]
-
-            if (
-                len(keywords) > 2
-                or (modifier and main_keyword != "tilt")
-                or (modifier and modifier not in ["small", "large"])
-            ):
-                raise ValueError(
-                    f"direction '{config.direction}' not recognized: '{'_'.join(keywords)}' cannot be parsed"
-                )
-
-            if main_keyword == "along":
-                main_value = -1.0
-                other_value = 0.0
-            elif main_keyword == "tilt":
-                main_value = -1.0
-                other_value = 0.1 if modifier is None else (0.05 if modifier == "small" else 0.2)
-            elif main_keyword == "corner":
-                main_value = -1.0
-                other_value = 1.0
-            else:
-                raise ValueError(f"direction '{config.direction}' not recognized: '{main_keyword}' cannot be parsed")
-
-            if main_view_axis == "x" or main_view_axis == "a":
-                normal = np.array([main_value, other_value, other_value])
-            elif main_view_axis == "y" or main_view_axis == "b":
-                normal = np.array([other_value, main_value, other_value])
-            elif main_view_axis == "z" or main_view_axis == "c":
-                normal = np.array([other_value, other_value, main_value])
-            else:
-                raise ValueError(f"direction '{config.direction}' not recognized: '{main_view_axis}' cannot be parsed")
-        else:
-            raise ValueError("direction or normal must be specified")
-
-        # use cartesian basis or lattice vector basis as required
-        basis = np.identity(3)
-        if use_lattice_basis:
-            if isinstance(system, Molecule) and system.lattice:
-                for i, vec in enumerate(system.lattice):
-                    basis[:, i] = np.array(vec)
-            elif _has_scm_chemsys and isinstance(system, ChemicalSystem):
-                for i, vec in enumerate(system.lattice.vectors):
-                    basis[:, i] = np.array(vec)
-        basis = basis / np.linalg.norm(basis, axis=0, keepdims=True)
-
-        # convert to cartesian basis and normalize
-        normal_cartesian_basis = basis @ normal
-        normal_cartesian_basis /= np.linalg.norm(normal_cartesian_basis)
-
-        return " ".join([f"{v:.6f}" for v in normal_cartesian_basis])
 
     @classmethod
     def run_command(cls, command: List[str], config: ViewConfig):
@@ -808,13 +807,213 @@ class _XvfbManager:
         self._started = False
 
 
-class _AsePlotViewBackend(_ViewBackend):
+class _AsePlotBackend(_ViewBackend):
 
     @classmethod
     @requires_optional_package("ase")
+    @requires_optional_package("matplotlib")
+    @requires_optional_package("scipy")
     def check_available(cls):
         return
 
     @classmethod
     def generate_image(cls, system: Union[Molecule, "ChemicalSystem"], config: ViewConfig) -> "PilImage.Image":
-        pass
+        from PIL import Image as PilImage
+        import matplotlib.pyplot as plt
+        import matplotlib.patches as patches
+        import matplotlib.cm as colormaps
+        from ase.visualize.plot import Matplotlib
+        from scm.plams.interfaces.molecule.ase import toASE
+
+        #     :ivar show_atom_labels: display text label on each atom, defaults to ``False``
+        #     :ivar atom_label_type: property used for atom labels, defaults to ``AtomType``
+        #     :ivar atom_label_color: hexadecimal color code for atom labels, defaults to ``#000000`` i.e. black
+        #     :ivar atom_label_size: scale atom labels by the given factor, to make them larger or smaller, defaults to ``1.0``
+
+        # Convert system to ASE atoms
+        if isinstance(system, Molecule):
+            ase_atoms = toASE(system)
+        elif _has_scm_chemsys and isinstance(system, ChemicalSystem):
+            ase_atoms = system.to_ase_atoms()
+        else:
+            raise ValueError(
+                f"System must be a PLAMS Molecule or a ChemicalSystem, but was {type(system).__name__}"
+            )
+
+        # Get image path for (temporary) file
+        if config.picture_path:
+            img_path = str(config.picture_path)
+        else:
+            with NamedTemporaryFile(mode="wb", suffix=".png", delete=False) as img_file:
+                img_path = img_file.name
+
+        # Create axis
+        fig, ax = plt.subplots(figsize=(config.width / config.dpi, config.height / config.dpi), dpi=config.dpi)
+
+        # Set options
+        rotation = cls.get_view_rotation(system, config)
+        radii = [0.31 if at.symbol == "H" else 0.5 for at in ase_atoms] if config.fixed_atom_size else None
+        show_unit_cell = 2 if config.show_unit_cell_edges else 0
+
+        try:
+            # Equivalent of plot_atoms from ASE, but gives us more flexibility
+            import matplotlib.pyplot as plt
+            if ax is None:
+                ax = plt.gca()
+            plotter = Matplotlib(ase_atoms, ax, rotation=rotation, radii=radii, show_unit_cell=show_unit_cell)
+            plotter.write()
+
+            # Reduce atom circle outer line width
+            for patch in ax.patches:
+                if isinstance(patch, plt.Circle):
+                    patch.set_linewidth(0.2)
+                elif isinstance(patch, patches.PathPatch):
+                    patch.set_linewidth(config.unit_cell_edge_thickness)
+
+            # Set unit cell line width
+            for line in ax.lines:
+                line.set_linewidth(config.unit_cell_edge_thickness)
+
+            # Draw lattice vectors
+            if config.show_lattice_vectors:
+                # Find the corner to place the lattice vectors on, choose the bottom leftmost-corner (after possible rotation)
+                vertices = plotter.cell_vertices
+                bottom_mask = vertices[:, 1] <= np.median(vertices[:, 1])
+                bottom_left_idx = np.where(bottom_mask)[0][np.argmin(vertices[bottom_mask, 0])]
+                bottom_left = plotter.cell_vertices[bottom_left_idx, :]
+
+                # Find the lattice displacements for this corner
+                # This relies on the fact that we know the following order for the vertices:
+                # 0 0 0 o
+                # 0 0 1 c
+                # 0 1 0 b
+                # 0 1 1 b + c
+                # 1 0 0 a
+                # 1 0 1 a + c
+                # 1 1 0 a + b
+                # 1 1 1 a + b + c
+                bottom_left_displacements = [int(d) for d in format(bottom_left_idx, '03b')]
+
+                # Draw vectors to the three nearest vertices using these displacements
+                for i, color in zip(range(3), ["r", "g", "b"]):
+                    vertex_displacements = [j for j in bottom_left_displacements]
+                    vertex_displacements[i] = 0 if bottom_left_displacements[i] == 1 else 1
+                    vertex_idx = int("".join(str(d) for d in vertex_displacements), 2)
+                    vertex = plotter.cell_vertices[vertex_idx, :]
+                    if not np.allclose(vertex - bottom_left, 0):
+                        ax.arrow(bottom_left[0], bottom_left[1], vertex[0] - bottom_left[0], vertex[1] - bottom_left[1], head_width=0, head_length=0, color=color)
+
+            # Draw unit cell faces
+            if config.show_unit_cell_faces:
+                verts = plotter.cell_vertices
+                faces = [
+                    [verts[j, :2] for j in [0, 1, 3, 2]],
+                    [verts[j, :2] for j in [4, 5, 7, 6]],
+                    [verts[j, :2] for j in [0, 1, 5, 4]],
+                    [verts[j, :2] for j in [2, 3, 7, 6]],
+                    [verts[j, :2] for j in [1, 3, 7, 5]],
+                    [verts[j, :2] for j in [0, 2, 6, 4]],
+                ]
+                for face in faces:
+                    poly = patches.Polygon(face, fill=True, color="grey", alpha=0.05)
+                    ax.add_patch(poly)
+
+            # Draw regions
+            if config.show_regions:
+                if isinstance(system, Molecule):
+                    regions = [list(at.properties.region) for at in system]
+                elif _has_scm_chemsys and isinstance(system, ChemicalSystem):
+                    regions = [system.get_regions_of_atom(at) for at in system]
+
+                atom_counter = 0
+                color_counter = 0
+                cmap = colormaps.get_cmap("tab10")
+                region_cmap = {}
+                for patch in ax.patches:
+                    if isinstance(patch, plt.Circle):
+                        atom_regions = regions[atom_counter]
+                        for region in atom_regions:
+                            if region in region_cmap:
+                                color = region_cmap[region]
+                            else:
+                                color = cmap.colors[color_counter]
+                                region_cmap[region] = color
+                                color_counter += 1
+                            region_patch = patches.Circle(patch.get_center(), patch.radius * 1.5, alpha=0.2, color=color, linewidth=0)
+                            ax.add_patch(region_patch)
+                        atom_counter += 1
+
+            # Add labels
+            atom_type_counts = {}
+            if config.show_atom_labels:
+                for i, at in enumerate(ase_atoms):
+                    x, y = plotter.positions[i, :2]
+                    l = at.symbol
+                    if config.atom_label_type == "Name":
+                        if l in atom_type_counts:
+                            atom_type_counts[l] += 1
+                        else:
+                            atom_type_counts[l] = 1
+                        l += f"({atom_type_counts[l]})"
+                    ax.text(x, y, l, ha="center", va="center", fontsize=1 * config.atom_label_size, color=config.atom_label_color)
+
+            # Add padding to image
+            if config.padding:
+                xlim = ax.get_xlim()
+                ylim = ax.get_ylim()
+                ax.set_xlim(xlim[0] - config.padding, xlim[1] + config.padding)
+                ax.set_ylim(ylim[0] - config.padding, ylim[1] + config.padding)
+
+            ax.axis("off")
+
+            fig.savefig(img_path, dpi=config.dpi, bbox_inches="tight")
+
+            img = PilImage.open(img_path)
+            # img_width, img_height = img.size
+            # aspect_ratio = img_width / img_height
+            # img = img.resize(
+            #     (config.width, int(np.ceil(config.width / aspect_ratio))),
+            #     resample=PilImage.Resampling.LANCZOS,
+            #     reducing_gap=3.0,
+            # )
+        finally:
+            plt.close(fig)
+            if not config.picture_path:
+                os.remove(img_path)
+
+        return img
+
+    @classmethod
+    def get_view_rotation(cls, system: Union[Molecule, "ChemicalSystem"], config: ViewConfig) -> str:
+        """
+        Get view rotation for system from config as Euler angles
+
+        :param system: molecule or chemical system to visualize
+        :param config: configuration for view
+        """
+        import warnings
+        from scipy.spatial.transform import Rotation
+
+        normal = np.array([float(v) for v in cls.get_view_plane(system, config).split(" ")])
+
+        # Calculate rotation to z-axis (ASE default), then convert to Euler angles
+        xyz = np.eye(3)
+        if np.allclose(normal, xyz[0, :]):
+            return "-90y"
+        elif np.allclose(normal, xyz[0, :]):
+            return "90y"
+        if np.allclose(normal, xyz[1, :]):
+            return "90x"
+        elif np.allclose(normal, xyz[1, :]):
+            return "-90x"
+        elif np.allclose(normal, xyz[2, :]):
+            return ""
+        elif np.allclose(normal, -xyz[2, :]):
+            return "180x,180z"
+
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", message="Optimal rotation is not uniquely or poorly defined for the given sets of vectors.")
+            rotation, _ = Rotation.align_vectors([xyz[2, :]], [normal])
+            angles = Rotation.from_matrix(rotation.as_matrix()).as_euler("xyz", degrees=True)
+
+        return ",".join(f"{ang:.2f}{ax}" for ang, ax in zip(angles, "xyz"))
