@@ -32,7 +32,7 @@ class TestView:
         view._backends = {
             "amsview": (_AmsViewBackend(), False, RuntimeError("something went wrong")),
             "amsview_xvfb": (_AmsViewXvfbBackend(), False, RuntimeError("something also went wrong")),
-            "ase_plot": (_AsePlotBackend(), False, RuntimeError("something else went wrong"))
+            "ase_plot": (_AsePlotBackend(), False, RuntimeError("something else went wrong")),
         }
 
         # When view
@@ -69,11 +69,11 @@ class TestAmsViewBackend:
         [
             (
                 ViewConfig(),
-                "foo.in -save bar.png -transparent -scmgeometry 800x400 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 1.000000 -fixedatomsize -hideregions -showunitcell thickness 0.05 -batch",
+                "foo.in -transparent -scmgeometry 800x400 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 1.000000 -fixedatomsize -hideregions -showunitcell thickness 0.05 -save bar.png -batch",
             ),
             (
                 ViewConfig(width=100, height=100, normal=(1.0, 0.0, 0.0)),
-                "foo.in -save bar.png -transparent -scmgeometry 100x100 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 1.000000 0.000000 0.000000 -fixedatomsize -hideregions -showunitcell thickness 0.05 -batch",
+                "foo.in -transparent -scmgeometry 100x100 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 1.000000 0.000000 0.000000 -fixedatomsize -hideregions -showunitcell thickness 0.05 -save bar.png -batch",
             ),
             (
                 ViewConfig(
@@ -83,19 +83,19 @@ class TestAmsViewBackend:
                     atom_label_size=2,
                     show_regions=True,
                 ),
-                "foo.in -save bar.png -transparent -scmgeometry 800x400 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 1.000000 -atomlabel AtomType -labelcolor #FFFFFF -labelsize 2 -showunitcell thickness 0.05 -batch",
+                "foo.in -transparent -scmgeometry 800x400 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 1.000000 -atomlabel AtomType -labelcolor #FFFFFF -labelsize 2 -showunitcell thickness 0.05 -save bar.png -batch",
             ),
             (
                 ViewConfig(show_unit_cell_edges=True, unit_cell_edge_thickness=0.2),
-                "foo.in -save bar.png -transparent -scmgeometry 800x400 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 1.000000 -fixedatomsize -hideregions -showunitcell thickness 0.2 -batch",
+                "foo.in -transparent -scmgeometry 800x400 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 1.000000 -fixedatomsize -hideregions -showunitcell thickness 0.2 -save bar.png -batch",
             ),
             (
                 ViewConfig(show_unit_cell_faces=True, show_lattice_vectors=True),
-                "foo.in -save bar.png -transparent -scmgeometry 800x400 -dpi 300 -padding 0.000000 -showlatticevectors 1 -viewplane 0.000000 0.000000 1.000000 -fixedatomsize -hideregions -showunitcell faces -batch",
+                "foo.in -transparent -scmgeometry 800x400 -dpi 300 -padding 0.000000 -showlatticevectors 1 -viewplane 0.000000 0.000000 1.000000 -fixedatomsize -hideregions -showunitcell faces -save bar.png -batch",
             ),
             (
                 ViewConfig(dpi=600),
-                "foo.in -save bar.png -transparent -scmgeometry 800x400 -dpi 600 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 1.000000 -fixedatomsize -hideregions -showunitcell thickness 0.05 -batch",
+                "foo.in -transparent -scmgeometry 800x400 -dpi 600 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 1.000000 -fixedatomsize -hideregions -showunitcell thickness 0.05 -save bar.png -batch",
             ),
         ],
         ids=[
@@ -495,14 +495,43 @@ class TestAsePlotBackend:
             actual = self.backend.get_view_rotation(mol, ViewConfig(direction=direction))
             assert actual == expected
 
-    def test_foo(self, water):
-        water.lattice = [[10.0, 2.0, -1.0], [-5.0, 8.0, 0.0], [0.0, -2.0, 11.0]]
-        water.lattice = [[12.481548435518771, 0.0, 0.0], [0.0, 12.481548435518771, 0.0], [0.0, 0.0, 12.481548435518771]]
-        water.lattice = [[12.481548435518771, 0.0, 0.0]]
-        water.atoms[0].properties.region = {"O"}
-        water.atoms[1].properties.region = {"H"}
-        water.atoms[2].properties.region = {"H"}
+    def test_view(self):
+        # Given a series of molecules, chemical systems and options, check that the view method generates an image (not the contents)
+        single_water = from_smiles("O")
 
-        water = ChemicalSystem(AMSJob(molecule=water).get_input())
+        single_water_in_1d_box = single_water.copy()
+        single_water_in_1d_box.lattice = [[10.0, 0.0, 0.0]]
+        single_water_in_1d_box.atoms[0].properties.region = {"O"}
 
-        view(water, ViewConfig(atom_label_size=4, atom_label_color="#0000FF"), backend="ase_plot", padding=1, show_regions=True, show_atom_labels=True, atom_label_type="Name")
+        single_water_in_2d_box = single_water_in_1d_box.copy()
+        single_water_in_2d_box.lattice = [[10.0, 0.0, 0.0], [0.0, 12.0, 0.0]]
+        single_water_in_2d_box.atoms[1].properties.region = {"H"}
+
+        single_water_in_3d_box = single_water_in_2d_box.copy()
+        single_water_in_3d_box.lattice = [[10.0, 0.0, 0.0], [0.0, 12.0, 0.0], [0.0, 0.0, 15.0]]
+        single_water_in_3d_box.atoms[2].properties.region = {"H"}
+
+        single_water_in_3d_non_orthorhombic_box = single_water_in_3d_box.copy()
+        single_water_in_3d_non_orthorhombic_box.lattice = [[10.0, 2.0, -1.0], [-5.0, 8.0, 0.0], [0.0, -2.0, 11.0]]
+        single_water_in_3d_non_orthorhombic_box.atoms[0].properties.region = {"water"}
+        single_water_in_3d_non_orthorhombic_box.atoms[1].properties.region = {"water"}
+        single_water_in_3d_non_orthorhombic_box.atoms[2].properties.region = {"water"}
+
+        molecules = [
+            single_water,
+            single_water_in_1d_box,
+            single_water_in_2d_box,
+            single_water_in_3d_box,
+            single_water_in_3d_non_orthorhombic_box,
+        ]
+        if _has_scm_chemsys:
+            chem_systems = []
+            for m in molecules:
+                chem_systems.append(ChemicalSystem(AMSJob(molecule=m).get_input()))
+            molecules += chem_systems
+
+        for m in molecules:
+            view(m, ViewConfig())
+            x = 1
+
+        assert 1 == 0

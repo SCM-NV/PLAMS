@@ -3,7 +3,7 @@ import re
 import subprocess
 from typing import Optional, Tuple, Union, TYPE_CHECKING, Literal, Sequence, List, Dict
 import numpy as np
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from threading import Lock
 import select
 import time
@@ -283,16 +283,18 @@ def view(
 
     # On first call check which backends are available
     if not hasattr(view, "_backends"):
+
         def check_backend_available(b):
             try:
                 b.check_available()
                 return b, True, None
             except Exception as ex:
                 return b, False, ex
+
         backends = {
             "amsview": check_backend_available(_AmsViewBackend()),
             "amsview_xvfb": check_backend_available(_AmsViewXvfbBackend()),
-            "ase_plot": check_backend_available(_AsePlotBackend())
+            "ase_plot": check_backend_available(_AsePlotBackend()),
         }
         view._backends = backends
     else:
@@ -388,9 +390,9 @@ class _ViewBackend(ABC):
                 main_keyword = keywords[0]
 
             if (
-                    len(keywords) > 2
-                    or (modifier and main_keyword != "tilt")
-                    or (modifier and modifier not in ["small", "large"])
+                len(keywords) > 2
+                or (modifier and main_keyword != "tilt")
+                or (modifier and modifier not in ["small", "large"])
             ):
                 raise ValueError(
                     f"direction '{config.direction}' not recognized: '{'_'.join(keywords)}' cannot be parsed"
@@ -466,8 +468,6 @@ class _AmsViewBackend(_ViewBackend):
         command = [
             os.path.expandvars("$AMSBIN/amsview"),
             input_path,
-            "-save",
-            img_path,
             "-transparent",
             "-scmgeometry",
             f"{config.width}x{config.height}",
@@ -501,7 +501,7 @@ class _AmsViewBackend(_ViewBackend):
             command += ["-showunitcell", "hide"]
 
         if not config.open_window:
-            command += ["-batch"]
+            command += ["-save", img_path, "-batch"]
 
         return command
 
@@ -537,6 +537,12 @@ class _AmsViewBackend(_ViewBackend):
         # Build and execute command
         command = cls.get_command(system, config, input_path, img_path)
         try:
+            # For open-window, we run command twice, once to generate the image and the second to view
+            # as both cannot be combined without the window auto-closing
+            if config.open_window:
+                save_config = replace(config, open_window=False, timeout=10)
+                save_command = cls.get_command(system, save_config, input_path, img_path)
+                cls.run_command(save_command, save_config)
             cls.run_command(command, config)
 
             # Open image file and resize, making sure to maintain aspect ratio as AMSView may not generate with precise dimensions
@@ -825,20 +831,13 @@ class _AsePlotBackend(_ViewBackend):
         from ase.visualize.plot import Matplotlib
         from scm.plams.interfaces.molecule.ase import toASE
 
-        #     :ivar show_atom_labels: display text label on each atom, defaults to ``False``
-        #     :ivar atom_label_type: property used for atom labels, defaults to ``AtomType``
-        #     :ivar atom_label_color: hexadecimal color code for atom labels, defaults to ``#000000`` i.e. black
-        #     :ivar atom_label_size: scale atom labels by the given factor, to make them larger or smaller, defaults to ``1.0``
-
         # Convert system to ASE atoms
         if isinstance(system, Molecule):
             ase_atoms = toASE(system)
         elif _has_scm_chemsys and isinstance(system, ChemicalSystem):
             ase_atoms = system.to_ase_atoms()
         else:
-            raise ValueError(
-                f"System must be a PLAMS Molecule or a ChemicalSystem, but was {type(system).__name__}"
-            )
+            raise ValueError(f"System must be a PLAMS Molecule or a ChemicalSystem, but was {type(system).__name__}")
 
         # Get image path for (temporary) file
         if config.picture_path:
@@ -858,6 +857,7 @@ class _AsePlotBackend(_ViewBackend):
         try:
             # Equivalent of plot_atoms from ASE, but gives us more flexibility
             import matplotlib.pyplot as plt
+
             if ax is None:
                 ax = plt.gca()
             plotter = Matplotlib(ase_atoms, ax, rotation=rotation, radii=radii, show_unit_cell=show_unit_cell)
@@ -892,7 +892,7 @@ class _AsePlotBackend(_ViewBackend):
                 # 1 0 1 a + c
                 # 1 1 0 a + b
                 # 1 1 1 a + b + c
-                bottom_left_displacements = [int(d) for d in format(bottom_left_idx, '03b')]
+                bottom_left_displacements = [int(d) for d in format(bottom_left_idx, "03b")]
 
                 # Draw vectors to the three nearest vertices using these displacements
                 for i, color in zip(range(3), ["r", "g", "b"]):
@@ -901,7 +901,15 @@ class _AsePlotBackend(_ViewBackend):
                     vertex_idx = int("".join(str(d) for d in vertex_displacements), 2)
                     vertex = plotter.cell_vertices[vertex_idx, :]
                     if not np.allclose(vertex - bottom_left, 0):
-                        ax.arrow(bottom_left[0], bottom_left[1], vertex[0] - bottom_left[0], vertex[1] - bottom_left[1], head_width=0, head_length=0, color=color)
+                        ax.arrow(
+                            bottom_left[0],
+                            bottom_left[1],
+                            vertex[0] - bottom_left[0],
+                            vertex[1] - bottom_left[1],
+                            head_width=0,
+                            head_length=0,
+                            color=color,
+                        )
 
             # Draw unit cell faces
             if config.show_unit_cell_faces:
@@ -939,7 +947,9 @@ class _AsePlotBackend(_ViewBackend):
                                 color = cmap.colors[color_counter]
                                 region_cmap[region] = color
                                 color_counter += 1
-                            region_patch = patches.Circle(patch.get_center(), patch.radius * 1.5, alpha=0.2, color=color, linewidth=0)
+                            region_patch = patches.Circle(
+                                patch.get_center(), patch.radius * 1.5, alpha=0.2, color=color, linewidth=0
+                            )
                             ax.add_patch(region_patch)
                         atom_counter += 1
 
@@ -955,7 +965,15 @@ class _AsePlotBackend(_ViewBackend):
                         else:
                             atom_type_counts[l] = 1
                         l += f"({atom_type_counts[l]})"
-                    ax.text(x, y, l, ha="center", va="center", fontsize=1 * config.atom_label_size, color=config.atom_label_color)
+                    ax.text(
+                        x,
+                        y,
+                        l,
+                        ha="center",
+                        va="center",
+                        fontsize=4 * config.atom_label_size,
+                        color=config.atom_label_color,
+                    )
 
             # Add padding to image
             if config.padding:
@@ -969,13 +987,13 @@ class _AsePlotBackend(_ViewBackend):
             fig.savefig(img_path, dpi=config.dpi, bbox_inches="tight")
 
             img = PilImage.open(img_path)
-            # img_width, img_height = img.size
-            # aspect_ratio = img_width / img_height
-            # img = img.resize(
-            #     (config.width, int(np.ceil(config.width / aspect_ratio))),
-            #     resample=PilImage.Resampling.LANCZOS,
-            #     reducing_gap=3.0,
-            # )
+            img_width, img_height = img.size
+            aspect_ratio = img_width / img_height
+            img = img.resize(
+                (config.width, int(np.ceil(config.width / aspect_ratio))),
+                resample=PilImage.Resampling.LANCZOS,
+                reducing_gap=3.0,
+            )
         finally:
             plt.close(fig)
             if not config.picture_path:
@@ -1012,7 +1030,9 @@ class _AsePlotBackend(_ViewBackend):
             return "180x,180z"
 
         with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", message="Optimal rotation is not uniquely or poorly defined for the given sets of vectors.")
+            warnings.filterwarnings(
+                "ignore", message="Optimal rotation is not uniquely or poorly defined for the given sets of vectors."
+            )
             rotation, _ = Rotation.align_vectors([xyz[2, :]], [normal])
             angles = Rotation.from_matrix(rotation.as_matrix()).as_euler("xyz", degrees=True)
 
