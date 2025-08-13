@@ -6,7 +6,21 @@ import datetime
 import time
 from os.path import join as opj
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, Generator, Iterable, List, Optional, Union, Tuple
+from typing import (
+    TYPE_CHECKING,
+    Dict,
+    Generator,
+    Iterable,
+    List,
+    Optional,
+    Union,
+    Tuple,
+    Callable,
+    TypeVar,
+    Any,
+    Iterator,
+)
+from typing_extensions import ParamSpec, ParamSpecKwargs, Concatenate
 from abc import ABC, abstractmethod
 import traceback
 
@@ -29,13 +43,18 @@ if TYPE_CHECKING:
     from scm.plams.core.jobmanager import JobManager
     from scm.plams.core.jobrunner import JobRunner
 
+P = ParamSpec("P")
+K = ParamSpecKwargs
+T = TypeVar("T")
+
+
 __all__ = ["SingleJob", "MultiJob"]
 
 
-def _fail_on_exception(func):
+def _fail_on_exception(func: Callable[Concatenate["Job", P], T]) -> Callable[Concatenate["Job", P], Optional[T]]:
     """Decorator to wrap a job method and mark the job as failed on any exception."""
 
-    def wrapper(self: "Job", *args, **kwargs):
+    def wrapper(self: "Job", /, *args: P.args, **kwargs: P.kwargs) -> Optional[T]:
         try:
             return func(self, *args, **kwargs)
         except Exception as ex:
@@ -98,12 +117,12 @@ class Job(ABC):
         if os.path.sep in name:
             raise PlamsError("Job name cannot contain {}".format(os.path.sep))
         self._status_log: List[Tuple[datetime.datetime, str]] = []
-        self.status = JobStatus.CREATED
+        self.status: str = JobStatus.CREATED
         self.results = self.__class__._result_type(self)
         self.name = name
         self.path: Optional[str] = None
-        self.jobmanager = None
-        self.parent = None
+        self.jobmanager: Optional["JobManager"] = None
+        self.parent: Optional["MultiJob"] = None
         self.settings = Settings()
         self.default_settings = [get_config().job]
         self.depend = depend or []
@@ -150,7 +169,7 @@ class Job(ABC):
         return self._status_log
 
     def run(
-        self, jobrunner: Optional["JobRunner"] = None, jobmanager: Optional["JobManager"] = None, **kwargs
+        self, jobrunner: Optional["JobRunner"] = None, jobmanager: Optional["JobManager"] = None, **kwargs: Any
     ) -> Results:
         """Run the job using *jobmanager* and *jobrunner* (or defaults, if ``None``). Other keyword arguments (*\*\*kwargs*) are stored in ``run`` branch of job's settings. Returned value is the |Results| instance associated with this job.
 
@@ -333,7 +352,7 @@ class Job(ABC):
         log("{}._finalize() finished".format(self.name), 7)
         self._log_status(1)
 
-    def __getstate__(self):
+    def __getstate__(self) -> Dict[str, Any]:
         """Prepare this job instance for pickling.
 
         Attributes ``jobmanager``, ``parent``, ``default_settings`` and ``_lock`` are removed, as well as all attributes listed in ``self._dont_pickle``.
@@ -482,7 +501,7 @@ class SingleJob(Job):
         os.chmod(runfile, os.stat(runfile).st_mode | stat.S_IEXEC)
 
     @_fail_on_exception
-    def _execute(self, jobrunner) -> None:
+    def _execute(self, jobrunner: JobRunner) -> None:
         """Execute previously created runscript using *jobrunner*.
 
         The method :meth:`~scm.plams.core.jobrunner.JobRunner.call` of *jobrunner* is used. Working directory is ``self.path``. ``self.settings.run`` is passed as ``runflags`` argument.
@@ -504,12 +523,12 @@ class SingleJob(Job):
                 self.status = JobStatus.CRASHED
         log("{}._execute() finished".format(self.name), 7)
 
-    def _filename(self, t) -> str:
+    def _filename(self, t: str) -> str:
         """Return filename for file of type *t*. *t* can be any key from ``_filenames`` dictionary. ``$JN`` is replaced with job name in the returned string."""
         return self._filenames[t].replace("$JN", self.name)
 
     @classmethod
-    def load(cls, path, jobmanager: Optional["JobManager"] = None, strict: bool = True) -> "SingleJob":
+    def load(cls, path: str, jobmanager: Optional["JobManager"] = None, strict: bool = True) -> "SingleJob":
         """
         Loads a Job instance from `path`, where path can either be a
         directory with a `*.dill` file, or the full path to the `*.dill` file.
@@ -647,9 +666,9 @@ class MultiJob(Job):
     Private attributes ``_active_children`` and ``_lock`` are essential for proper parallel execution. Please do not modify them.
     """
 
-    def __init__(self, children=None, childrunner=None, **kwargs):
+    def __init__(self, children: Optional[List[Job]] = None, childrunner: Optional[JobRunner] = None, **kwargs):
         Job.__init__(self, **kwargs)
-        self.children = [] if children is None else children
+        self.children: List[Job] = [] if children is None else children
         self.childrunner = childrunner
         self._active_children = 0
         self._lock = threading.Lock()
@@ -703,7 +722,7 @@ class MultiJob(Job):
         for child in self:
             child.parent = self
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[Job]:
         """Iterate through ``children``. If it is a dictionary, iterate through its values."""
         if isinstance(self.children, dict):
             return iter(self.children.values())

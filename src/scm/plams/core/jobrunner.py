@@ -359,7 +359,7 @@ class GridRunner(JobRunner):
                 "GridRunner: invalid 'grid' argument. 'grid' should be either a Settings instance (see documentations for details) or a string occurring in GridRunner.config or 'auto' for autodetection"
             )
 
-    def call(self, runscript: str, workdir: str, out: str, err: str, runflags: Any) -> int:
+    def call(self, runscript: str, workdir: str, out: Optional[str], err: str, runflags: Any) -> int:
         """call(runscript, workdir, out, err, runflags)
         Submit *runscript* to the queueing system with *workdir* as the working directory. Redirect output and error streams to *out* and *err*, respectively. *runflags* stores varoius submit command options.
 

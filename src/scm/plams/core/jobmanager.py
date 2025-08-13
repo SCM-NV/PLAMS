@@ -134,7 +134,7 @@ class JobManager:
             )
         return self._job_logger
 
-    def load_job(self, filename):
+    def load_job(self, filename: str) -> "Job":
         """Load previously saved job from *filename*.
 
         *Filename* should be a path to a ``.dill`` file in some job folder. A |Job| instance stored there is loaded and returned. All attributes of this instance removed before pickling are restored. That includes ``jobmanager``, ``path`` (the absolute path to the folder containing *filename* is used) and ``default_settings`` (a list containing only ``config.job``).
