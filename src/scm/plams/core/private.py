@@ -7,12 +7,18 @@ import time
 import warnings
 from contextlib import AbstractContextManager
 from os.path import join as opj
-from typing import Callable, Dict, NoReturn, List, Optional
+from typing import Callable, Dict, NoReturn, List, Optional, TypeVar, Union, Any, Type, Callable
+from typing_extensions import ParamSpec
+from types import TracebackType
+
 
 __all__: List[str] = []
 
+T = TypeVar("T")
+P = ParamSpec("P")
 
-def smart_copy(obj, owncopy=[], without=[]):
+
+def smart_copy(obj: T, owncopy: List[str] = [], without: List[str] = []) -> T:
     """Return a copy of *obj*. Attributes of *obj* listed in *without* are ignored. Attributes listed in *owncopy* are copied by calling their own ``copy()`` methods. All other attributes are copied using :func:`copy.deepcopy`."""
 
     ret = obj.__class__()
@@ -27,7 +33,7 @@ def smart_copy(obj, owncopy=[], without=[]):
 # ===========================================================================
 
 
-def sha256(string):
+def sha256(string: Union[str, bytes]) -> str:
     """A small utility wrapper around :ref:`hashlib.sha256<hash-algorithms>`."""
     if not isinstance(string, bytes):
         string = str(string).encode()
@@ -39,7 +45,7 @@ def sha256(string):
 # ===========================================================================
 
 
-def saferun(*args, **kwargs):
+def saferun(*args: Any, **kwargs: Any) -> subprocess.CompletedProcess[Any]:
     """A wrapper around :func:`subprocess.run` repeating the call ``config.saferun.repeat`` times with ``config.saferun.delay`` interval in case of :exc:`BlockingIOError` being raised (any other exception is not caught and directly passed above). All arguments (*args* and *kwargs*) are passed directly to :func:`~subprocess.run`. If all attempts fail, the last raised :exc:`BlockingIOError` is reraised."""
     from scm.plams.core.functions import get_config, log
 
@@ -102,7 +108,12 @@ class UpdateSysPath(AbstractContextManager):
         if self.path is not None:
             sys.path.append(self.path)
 
-    def __exit__(self, exc_type, exc_value, traceback) -> None:
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_value: Optional[BaseException],
+        traceback: Optional[TracebackType],
+    ) -> None:
         """If not ``None``, remove :attr:`UpdateSyspath.path` from :data:`sys.path`."""
         if self.path is not None:
             try:
@@ -146,23 +157,19 @@ def parse_action(action: str) -> Callable[[Exception], None]:
 # ===========================================================================
 
 
-def retry(sleep=0.1, maxtries=10):
+def retry(sleep: float = 0.1, maxtries: int = 10):
     # wrapper for sleep-retrying a function call. use with `@retry()`
     from time import sleep as _sleep
 
     def wrap1(f):
-        def wrap2(*a, __count=0, **kw):
+        def wrap2(*a: Any, __count: int = 0, **kw: Any):
             try:
                 return f(*a, **kw)
             except Exception as e:
                 if __count > maxtries:
-                    raise e from None  # ignores stack trace
+                    raise e from None  # ignore stack trace
                 _sleep(sleep)
-                wrap2(
-                    *a,
-                    __count=__count + 1,
-                    **kw,
-                )
+                return wrap2(*a, __count=__count + 1, **kw)
 
         return wrap2
 
