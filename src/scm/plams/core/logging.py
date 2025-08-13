@@ -76,8 +76,8 @@ class Logger(ABC):
         stdout_level: int = 0,
         logfile_level: int = 0,
         logfile_path: Optional[str] = None,
-        *args,
-        **kwargs,
+        *args: Any,
+        **kwargs: Any,
     ) -> None:
         """
         Configure logging to stdout and the logfile, and its formatting.
@@ -90,7 +90,7 @@ class Logger(ABC):
         """
         pass
 
-    def _configure_stdout_handler(self, level: int):
+    def _configure_stdout_handler(self, level: int) -> None:
         """
         Configure the stdout handler, initializing and adjusting the level if required
         """
@@ -105,7 +105,7 @@ class Logger(ABC):
         if level != 28 - self._stdout_handler.level:
             self._stdout_handler.setLevel(28 - level)
 
-    def _configure_file_handler(self, level: int, logfile_path: Optional[str]):
+    def _configure_file_handler(self, level: int, logfile_path: Optional[str]) -> None:
         """
         Configure the file handler, setting the logfile and adjusting the level if required
         """
@@ -286,7 +286,7 @@ class CSVFormatter(logging.Formatter):
         return self._write_headers
 
     @write_headers.setter
-    def write_headers(self, value: bool):
+    def write_headers(self, value: bool) -> None:
         self._write_headers = value
 
     def format(self, record: logging.LogRecord) -> str:
@@ -324,7 +324,7 @@ class CSVFormatter(logging.Formatter):
         csv_writer.writerow(log_record)
         return row.getvalue().strip()
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> bool:
         if type(other) is not type(self):
             return False
         return (
@@ -351,7 +351,7 @@ class CSVLogger(Logger):
         include_level: bool = False,
         include_name: bool = False,
         csv_formatter: Type[CSVFormatter] = CSVFormatter,
-    ):
+    ) -> None:
         """
         Configure logging to stdout and the logfile, and its formatting.
 
