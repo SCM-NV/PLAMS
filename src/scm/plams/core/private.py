@@ -7,7 +7,7 @@ import time
 import warnings
 from contextlib import AbstractContextManager
 from os.path import join as opj
-from typing import Callable, Dict, NoReturn, List, Optional, TypeVar, Union, Any, Type, Callable
+from typing import Callable, Dict, NoReturn, List, Optional, TypeVar, Union, Any, Type
 from typing_extensions import ParamSpec
 from types import TracebackType
 
