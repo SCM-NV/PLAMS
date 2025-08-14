@@ -45,7 +45,7 @@ def sha256(string: Union[str, bytes]) -> str:
 # ===========================================================================
 
 
-def saferun(*args: Any, **kwargs: Any) -> subprocess.CompletedProcess[Any]:
+def saferun(*args: Any, **kwargs: Any) -> "subprocess.CompletedProcess[Any]":
     """A wrapper around :func:`subprocess.run` repeating the call ``config.saferun.repeat`` times with ``config.saferun.delay`` interval in case of :exc:`BlockingIOError` being raised (any other exception is not caught and directly passed above). All arguments (*args* and *kwargs*) are passed directly to :func:`~subprocess.run`. If all attempts fail, the last raised :exc:`BlockingIOError` is reraised."""
     from scm.plams.core.functions import get_config, log
 

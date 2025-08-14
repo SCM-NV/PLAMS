@@ -501,7 +501,7 @@ class SingleJob(Job):
         os.chmod(runfile, os.stat(runfile).st_mode | stat.S_IEXEC)
 
     @_fail_on_exception
-    def _execute(self, jobrunner: JobRunner) -> None:
+    def _execute(self, jobrunner: "JobRunner") -> None:
         """Execute previously created runscript using *jobrunner*.
 
         The method :meth:`~scm.plams.core.jobrunner.JobRunner.call` of *jobrunner* is used. Working directory is ``self.path``. ``self.settings.run`` is passed as ``runflags`` argument.
@@ -666,7 +666,7 @@ class MultiJob(Job):
     Private attributes ``_active_children`` and ``_lock`` are essential for proper parallel execution. Please do not modify them.
     """
 
-    def __init__(self, children: Optional[List[Job]] = None, childrunner: Optional[JobRunner] = None, **kwargs):
+    def __init__(self, children: Optional[List[Job]] = None, childrunner: Optional["JobRunner"] = None, **kwargs):
         Job.__init__(self, **kwargs)
         self.children: List[Job] = [] if children is None else children
         self.childrunner = childrunner
