@@ -1,7 +1,8 @@
 import os
 import re
 import subprocess
-from typing import Optional, Tuple, Union, TYPE_CHECKING, Literal, Sequence, List, Dict
+from typing import Optional, Tuple, Union, TYPE_CHECKING, Literal, Sequence, List, Dict, Generator
+
 import numpy as np
 from dataclasses import dataclass, replace
 from threading import Lock
@@ -309,9 +310,9 @@ def view(
             errors = "\n\t".join([f"{k}: {err}" for k, (_, __, err) in backends.items()])
             raise RuntimeError(f"No backends available for view.\nErrors were:\n\t{errors}")
         else:
-            backend, _, __ = available_backends[0]
+            selected_backend, _, __ = available_backends[0]
     else:
-        backend, available, error = backends[config.backend]
+        selected_backend, available, error = backends[config.backend]
         if not available:
             raise RuntimeError(f"Backend '{config.backend}' not available for view.\nError was: {error}")
 
@@ -319,7 +320,7 @@ def view(
     config.validate()
 
     # Render image with backend
-    img = backend.generate_image(system, config)
+    img = selected_backend.generate_image(system, config)
 
     return img
 
@@ -591,6 +592,7 @@ class _XvfbManager:
     """
 
     _instance = None
+    _initialized = False
     _lock = Lock()
     xvfb = "Xvfb"
 
@@ -598,7 +600,6 @@ class _XvfbManager:
         with cls._lock:
             if cls._instance is None:
                 cls._instance = super().__new__(cls)
-                cls._instance._initialized = False
         return cls._instance
 
     def __init__(
@@ -655,8 +656,8 @@ class _XvfbManager:
 
             retry_count = 0
             while True:
+                self._read_file_descriptor, self._write_file_descriptor = os.pipe()
                 try:
-                    self._read_file_descriptor, self._write_file_descriptor = os.pipe()
                     self._proc = subprocess.Popen(
                         self._command,
                         pass_fds=[self._write_file_descriptor],
@@ -701,7 +702,7 @@ class _XvfbManager:
             if not self.alive:
                 raise RuntimeError(f"Xvfb closed. Command was: {self._command}. Error was: {self._stderr}")
 
-            if self._read_file_descriptor in ready:
+            if self._read_file_descriptor is not None and self._read_file_descriptor in ready:
                 chunk = os.read(self._read_file_descriptor, 1024)
                 if not chunk:  # EOF
                     break
@@ -722,7 +723,7 @@ class _XvfbManager:
         """
         Kill Xvfb subprocess if it is running
         """
-        if self.alive:
+        if self._proc and self.alive:
             try:
                 self._proc.kill()
             except (ProcessLookupError, OSError):
@@ -767,7 +768,7 @@ class _XvfbManager:
         return f":{self.display_number}" if self.display_number else None
 
     @contextmanager
-    def session(self, env: Optional[Dict[str, str]] = None) -> Dict[str, str]:
+    def session(self, env: Optional[Dict[str, str]] = None) -> Generator[Dict[str, str], None, None]:
         """
         Exclusively use a running Xvfb virtual server display for a process.
         Takes a lock so the display can only be used in this session context, and sets the ``DISPLAY`` environment variable.
@@ -826,6 +827,7 @@ class _AsePlotBackend(_ViewBackend):
         from PIL import Image as PilImage
         import matplotlib.pyplot as plt
         import matplotlib.patches as patches
+        import matplotlib.colors as colors
         from ase.visualize.plot import Matplotlib
         from scm.plams.interfaces.molecule.ase import toASE
 
@@ -939,7 +941,7 @@ class _AsePlotBackend(_ViewBackend):
                 cmap = colormaps.get_cmap("tab10")
                 atom_counter = 0
                 color_counter = 0
-                region_cmap = {}
+                region_cmap: Dict[str, colors.Colormap] = {}
                 for patch in ax.patches:
                     if isinstance(patch, plt.Circle):
                         atom_regions = regions[atom_counter]
@@ -957,7 +959,7 @@ class _AsePlotBackend(_ViewBackend):
                         atom_counter += 1
 
             # Add labels
-            atom_type_counts = {}
+            atom_type_counts: Dict[str, int] = {}
             if config.show_atom_labels:
                 for i, at in enumerate(ase_atoms):
                     x, y = plotter.positions[i, :2]
