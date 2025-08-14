@@ -826,7 +826,6 @@ class _AsePlotBackend(_ViewBackend):
         from PIL import Image as PilImage
         import matplotlib.pyplot as plt
         import matplotlib.patches as patches
-        import matplotlib.cm as colormaps
         from ase.visualize.plot import Matplotlib
         from scm.plams.interfaces.molecule.ase import toASE
 
@@ -932,9 +931,14 @@ class _AsePlotBackend(_ViewBackend):
                 elif _has_scm_chemsys and isinstance(system, ChemicalSystem):
                     regions = [system.get_regions_of_atom(at) for at in system]
 
+                try:
+                    import matplotlib.colormaps as colormaps
+                except ImportError:
+                    import matplotlib.cm as colormaps
+
+                cmap = colormaps.get_cmap("tab10")
                 atom_counter = 0
                 color_counter = 0
-                cmap = colormaps.get_cmap("tab10")
                 region_cmap = {}
                 for patch in ax.patches:
                     if isinstance(patch, plt.Circle):
