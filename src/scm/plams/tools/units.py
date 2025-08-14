@@ -1,9 +1,11 @@
 import collections
 import math
-from typing import Dict
+from typing import Dict, TypeVar, NoReturn
 
 from scm.plams.core.errors import UnitsError
 import numpy as np
+
+T = TypeVar("T")
 
 __all__ = ["Units"]
 
@@ -114,7 +116,7 @@ class Units:
 
     """
 
-    constants = {}
+    constants: Dict[str, float] = {}
     constants["Bohr_radius"] = 0.529177210903  # A     http://physics.nist.gov/cgi-bin/cuu/Value?bohrrada0
     constants["Avogadro_constant"] = constants["NA"] = (
         6.022140857e23  # 1/mol http://physics.nist.gov/cgi-bin/cuu/Value?na
@@ -126,21 +128,21 @@ class Units:
         8.8541878128e-12  # F*m-1=C/(V*m) https://physics.nist.gov/cgi-bin/cuu/Value?ep0
     )
 
-    distance = {}
+    distance: Dict[str, float] = {}
     distance["A"] = distance["Angstrom"] = distance["Ang"] = 1.0
     distance["Bohr"] = distance["bohr"] = distance["a.u."] = distance["au"] = 1.0 / constants["Bohr_radius"]
     distance["nm"] = distance["A"] / 10.0
     distance["pm"] = distance["A"] * 100.0
     distance["m"] = distance["A"] * 1e-10
 
-    rec_distance = {}
+    rec_distance: Dict[str, float] = {}
     rec_distance["1/A"] = rec_distance["1/Ang"] = rec_distance["1/Angstrom"] = rec_distance["A^-1"] = rec_distance[
         "Ang^-1"
     ] = rec_distance["Angstrom^-1"] = 1.0
     rec_distance["1/m"] = rec_distance["m^-1"] = 1e10
     rec_distance["1/Bohr"] = rec_distance["Bohr^-1"] = constants["Bohr_radius"]
 
-    energy = {}
+    energy: Dict[str, float] = {}
     energy["au"] = energy["a.u."] = energy["Hartree"] = energy["Ha"] = 1.0
     energy["eV"] = 27.211386245988  # http://physics.nist.gov/cgi-bin/cuu/Value?hrev
     energy["kJ/mol"] = 4.359744650e-21 * constants["NA"]  # http://physics.nist.gov/cgi-bin/cuu/Value?hrj
@@ -153,12 +155,12 @@ class Units:
     )
     energy["THz"] = energy["Hz"] / 1e12
 
-    mass = {}
+    mass: Dict[str, float] = {}
     mass["au"] = mass["a.u."] = mass["amu"] = 1.0
     mass["kg"] = 1.66053906660e-27
     mass["g"] = mass["kg"] * 1e3
 
-    time = {}
+    time: Dict[str, float] = {}
     time["s"] = 1.0
     time["ms"] = time["s"] * 1e3
     time["us"] = time["s"] * 1e6
@@ -167,17 +169,17 @@ class Units:
     time["fs"] = time["s"] * 1e15
     time["au"] = time["a.u."] = time["s"] / 2.4188843265857e-17  # https://physics.nist.gov/cgi-bin/cuu/Value?aut
 
-    angle = {}
+    angle: Dict[str, float] = {}
     angle["degree"] = angle["deg"] = 1.0
     angle["radian"] = angle["rad"] = math.pi / 180.0
     angle["grad"] = 100.0 / 90.0
     angle["circle"] = 1.0 / 360.0
 
-    charge = {}
+    charge: Dict[str, float] = {}
     charge["a.u."] = charge["au"] = charge["e"] = 1.0
     charge["C"] = charge["coulomb"] = constants["e"]
 
-    dipole = {}
+    dipole: Dict[str, float] = {}
     for k, v in charge.items():
         if (k == "au") or (k == "a.u."):  # remove 'au','a.u.' options
             continue
@@ -191,7 +193,7 @@ class Units:
 
     # from support info https://doi.org/10.48550/arXiv.2310.13310 it is preferable to highlight that this is molecular polarizability,
     # it should be also /mol units but it is usually omitted and for consistency in the dipole units I removed, but both dipole and molecular_polarizability should have /mol
-    molecular_polarizability = {}
+    molecular_polarizability: Dict[str, float] = {}
     molecular_polarizability["au"] = molecular_polarizability["a.u."] = molecular_polarizability[
         "e^2*bohr^2/hartree"
     ] = molecular_polarizability["(e*bohr)^2/hartree"] = 1.0
@@ -207,9 +209,9 @@ class Units:
     )
     molecular_polarizability["bohr^3"] = molecular_polarizability["Ang^3"] / constants["Bohr_radius"] ** 3
 
-    forces = {}
-    hessian = {}
-    stress = {}
+    forces: Dict[str, float] = {}
+    hessian: Dict[str, float] = {}
+    stress: Dict[str, float] = {}
     for k, v in energy.items():
         for k1, v1 in distance.items():
             forces[k + "/" + k1] = v / v1
@@ -223,7 +225,7 @@ class Units:
     stress["bar"] = stress["Pa"] * 1e-5
     stress["atm"] = stress["bar"] / 1.01325
 
-    dicts = {}
+    dicts: Dict[str, Dict[str, float]] = {}
     dicts["distance"] = distance
     dicts["energy"] = energy
     dicts["mass"] = mass
@@ -246,12 +248,12 @@ class Units:
                 quantities_for_unit[unit] = {}
             quantities_for_unit[unit][quantity] = factor
 
-    def __init__(self):
+    def __init__(self) -> NoReturn:
         raise UnitsError("Instances of Units cannot be created")
 
     @classmethod
-    def find_unit(cls, unit):
-        ret = {}
+    def find_unit(cls, unit: str) -> Dict[str, str]:
+        ret: Dict[str, str] = {}
         u = unit.lower()
         quantities = cls.quantities_for_unit.get(u, {})
         for quantity in quantities:
@@ -262,7 +264,7 @@ class Units:
         return ret
 
     @classmethod
-    def conversion_ratio(cls, inp, out) -> float:
+    def conversion_ratio(cls, inp: str, out: str) -> float:
         """Return conversion ratio from unit *inp* to *out*."""
         if inp == out:
             return 1.0
@@ -298,10 +300,13 @@ class Units:
                     )
 
     @classmethod
-    def convert(cls, value, inp, out):
+    def convert(cls, value: T, inp: str, out: str) -> T:
         """Convert *value* from unit *inp* to *out*.
 
         *value* can be a single number or a container (list, tuple, numpy.array etc.). In the latter case a container of the same type and length is returned. Conversion happens recursively, so this method can be used to convert, for example, a list of lists of numbers, or any other hierarchical container structure. Conversion is applied on all levels, to all values that are numbers (also numpy number types). All other values (strings, bools etc.) remain unchanged.
+        Note that type hints can be wrong for this method:
+        *value* types with leaf type of int/np.int will be converted to float/np.float but annotated as int.
+        *value* with containers with different depth will not give a useful typehint (but are converted correctly).
         """
         if value is None or isinstance(value, (bool, str)) or inp == out:
             return value
@@ -316,7 +321,7 @@ class Units:
         return value
 
     @classmethod
-    def ascii2unicode(cls, string):
+    def ascii2unicode(cls, string: str) -> str:
         """
         Converts '^2' to '²' etc., for prettier printing of units.
         """
