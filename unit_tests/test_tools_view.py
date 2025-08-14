@@ -55,9 +55,8 @@ class TestAmsViewBackend:
     backend = _AmsViewBackend
 
     def test_check_available(self, monkeypatch):
-        with patch("scm.plams.tools.view.run_with_timeout") as mock_run_with_timeout, patch(
-            "subprocess.run"
-        ) as mock_run:
+        monkeypatch.setenv("AMSBIN", "test/ams")
+        with patch("subprocess.run") as mock_run:
             response = MagicMock()
             response.stderr = "something went wrong"
             mock_run.return_value = response
@@ -517,6 +516,34 @@ class TestAsePlotBackend:
         single_water_in_3d_non_orthorhombic_box.atoms[1].properties.region = {"water"}
         single_water_in_3d_non_orthorhombic_box.atoms[2].properties.region = {"water"}
 
+        # These are not necessarily pretty, just functional to test the options!
+        configs = []
+        configs.append(ViewConfig())
+        configs.append(ViewConfig(
+            padding=1,
+            direction="tilt_z",
+            dpi=300,
+            fixed_atom_size=True,
+            show_atom_labels=True,
+            atom_label_type="Element",
+            atom_label_color="#FFFFFF",
+            atom_label_size=2,
+            show_regions=True,
+            show_unit_cell_edges=True,
+            unit_cell_edge_thickness=2,
+            show_lattice_vectors=True
+        ))
+        configs.append(
+            ViewConfig(
+                normal=(0.3, 0.3, 0.3),
+                normal_basis="abc",
+                fixed_atom_size=False,
+                show_atom_labels=True,
+                atom_label_type="Name",
+                show_unit_cell_faces=True
+            )
+        )
+
         molecules = [
             single_water,
             single_water_in_1d_box,
@@ -531,7 +558,5 @@ class TestAsePlotBackend:
             molecules += chem_systems
 
         for m in molecules:
-            view(m, ViewConfig())
-            x = 1
-
-        assert 1 == 0
+            for c in configs:
+                view(m, c, backend="ase_plot")

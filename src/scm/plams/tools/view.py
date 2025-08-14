@@ -208,7 +208,6 @@ class ViewConfig:
 
 
 @requires_optional_package("PIL")
-@requires_ams(minimum_version="2025.204")
 def view(
     system: Union[Molecule, "ChemicalSystem"],
     config: Optional[ViewConfig] = None,
