@@ -40,30 +40,45 @@ ViewDirections = Literal[
     "along_a",
     "along_b",
     "along_c",
+    "along_pca1",
+    "along_pca2",
+    "along_pca3",
     "tilt_x",
     "tilt_y",
     "tilt_z",
     "tilt_a",
     "tilt_b",
     "tilt_c",
+    "tilt_pca1",
+    "tilt_pca2",
+    "tilt_pca3",
     "small_tilt_x",
     "small_tilt_y",
     "small_tilt_z",
     "small_tilt_a",
     "small_tilt_b",
     "small_tilt_c",
+    "small_tilt_pca1",
+    "small_tilt_pca2",
+    "small_tilt_pca3",
     "large_tilt_x",
     "large_tilt_y",
     "large_tilt_z",
     "large_tilt_a",
     "large_tilt_b",
     "large_tilt_c",
+    "large_tilt_pca1",
+    "large_tilt_pca2",
+    "large_tilt_pca3",
     "corner_x",
     "corner_y",
     "corner_z",
     "corner_a",
     "corner_b",
     "corner_c",
+    "corner_pca1",
+    "corner_pca2",
+    "corner_pca3",
 ]
 
 Backends = Literal["amsview", "amsview_xvfb", "ase_plot", "auto"]
@@ -79,7 +94,7 @@ class ViewConfig:
     :ivar padding: padding around system in Angstrom, defaults to ``0.0`` (can be negative)
     :ivar direction: direction to view system along, selected from a series of preset values, defaults to ``along_z``
     :ivar normal: orientation of the normal to the view plane, takes precedence over direction when specified, defaults to ``None``
-    :ivar normal_basis: whether to use cartesian axes, ``xyz``, or lattice vectors (where applicable), ``abc``, as the basis for the normal to the view plane, defaults to ``xyz``
+    :ivar normal_basis: whether to use cartesian axes, ``xyz``, lattice vectors (where applicable), ``abc``, or principal component analysis vectors ``pca``, as the basis for the normal to the view plane, defaults to ``xyz``
     :ivar dpi: resolution of any saved image in dots per inch, defaults to ``300``
     :ivar picture_path: optional path for the location to save the generated image file, defaults to ``None``
     :ivar fixed_atom_size: use the same radius for all elements (except Hydrogen), defaults to ``True``
@@ -103,7 +118,7 @@ class ViewConfig:
     padding: float = 0.0
     direction: Optional[ViewDirections] = "along_z"
     normal: Optional[Tuple[float, float, float]] = None
-    normal_basis: Literal["xyz", "abc"] = "xyz"
+    normal_basis: Literal["xyz", "abc", "pca"] = "xyz"
 
     # Picture
     dpi: int = 300
@@ -156,8 +171,8 @@ class ViewConfig:
             raise ValueError(f"normal must be a sequence of three numeric values, but was '{self.normal}'")
         if not self.direction and not self.normal:
             raise ValueError("direction or normal must be specified")
-        if not isinstance(self.normal_basis, str) or self.normal_basis not in ["xyz", "abc"]:
-            raise ValueError(f"normal_basis must be one of: 'xyz', 'ase', but was '{self.normal_basis}'")
+        if not isinstance(self.normal_basis, str) or self.normal_basis not in ["xyz", "abc", "pca"]:
+            raise ValueError(f"normal_basis must be one of: 'xyz', 'ase', 'pca', but was '{self.normal_basis}'")
 
         if not isinstance(self.dpi, int) or self.dpi < 0:
             raise ValueError(f"dpi must be a positive integer, but was '{self.dpi}'")
@@ -359,6 +374,7 @@ class _ViewBackend(ABC):
         if config.normal:
             normal = np.array(config.normal)
             use_lattice_basis = config.normal_basis == "abc"
+            use_pca_basis = config.normal_basis == "pca"
         elif config.direction:
             # N.B. currently AMSview only accepts the normal to the view plane as input
             # this restricts slightly what we can support
@@ -372,13 +388,14 @@ class _ViewBackend(ABC):
                 raise ValueError(f"direction '{config.direction}' not recognized")
             else:
                 main_view_axis = parts[-1]
-                if main_view_axis not in ["x", "y", "z", "a", "b", "c"]:
+                if main_view_axis not in ["x", "y", "z", "a", "b", "c", "pca1", "pca2", "pca3"]:
                     raise ValueError(
                         f"direction '{config.direction}' not recognized: '{main_view_axis}' cannot be parsed"
                     )
 
             # determine whether we are using cartesian axes or lattice vectors as basis
             use_lattice_basis = main_view_axis in ["a", "b", "c"]
+            use_pca_basis = main_view_axis in ["pca1", "pca2", "pca3"]
 
             # orientate based on keyword and main axis
             keywords = parts[:-1]
@@ -410,18 +427,18 @@ class _ViewBackend(ABC):
             else:
                 raise ValueError(f"direction '{config.direction}' not recognized: '{main_keyword}' cannot be parsed")
 
-            if main_view_axis == "x" or main_view_axis == "a":
+            if main_view_axis == "x" or main_view_axis == "a" or main_view_axis == "pca1":
                 normal = np.array([main_value, other_value, other_value])
-            elif main_view_axis == "y" or main_view_axis == "b":
+            elif main_view_axis == "y" or main_view_axis == "b" or main_view_axis == "pca2":
                 normal = np.array([other_value, main_value, other_value])
-            elif main_view_axis == "z" or main_view_axis == "c":
+            elif main_view_axis == "z" or main_view_axis == "c" or main_view_axis == "pca3":
                 normal = np.array([other_value, other_value, main_value])
             else:
                 raise ValueError(f"direction '{config.direction}' not recognized: '{main_view_axis}' cannot be parsed")
         else:
             raise ValueError("direction or normal must be specified")
 
-        # use cartesian basis or lattice vector basis as required
+        # use cartesian basis, lattice vector basis or principal component analysis basis as required
         basis = np.identity(3)
         if use_lattice_basis:
             if isinstance(system, Molecule) and system.lattice:
@@ -430,6 +447,33 @@ class _ViewBackend(ABC):
             elif _has_scm_chemsys and isinstance(system, ChemicalSystem):
                 for i, vec in enumerate(system.lattice.vectors):
                     basis[:, i] = np.array(vec)
+        if use_pca_basis:
+            if isinstance(system, Molecule):
+                coords = system.as_array()
+                masses = np.array([1e-3 if m == 0 else m for m in system.get_masses()])  # small correction for 0 masses
+            elif _has_scm_chemsys and isinstance(system, ChemicalSystem):
+                coords = system.coords
+                masses = np.array([1e-3 if at.mass == 0 else at.mass for at in system.atoms])
+            else:
+                # fall-back to cartesian
+                coords = []
+                masses = []
+
+            # centre coords on origin
+            if len(coords) > 0 and len(masses) > 0:
+                total_mass = masses.sum()
+                com = (masses[:, None] * coords).sum(axis=0) / total_mass
+                recentred_coords = coords - com
+
+                # calculate covariance matrix and compute eigen vectors and values
+                covariance = (recentred_coords * masses[:, None]).T @ recentred_coords / total_mass
+                eigen_vals, eigen_vecs = np.linalg.eigh(covariance)
+
+                # sort in order of increasing variance
+                order = np.argsort(eigen_vals)[::-1]
+                basis = eigen_vecs[:, order]
+                if np.linalg.det(basis) < 0:
+                    basis[:, 2] *= -1
         basis = basis / np.linalg.norm(basis, axis=0, keepdims=True)
 
         # convert to cartesian basis and normalize
@@ -929,7 +973,10 @@ class _AsePlotBackend(_ViewBackend):
             # Draw regions
             if config.show_regions:
                 if isinstance(system, Molecule):
-                    regions = [list(at.properties.region) for at in system]
+                    regions = [
+                        [at.properties.region] if isinstance(at.properties.region, str) else list(at.properties.region)
+                        for at in system
+                    ]
                 elif _has_scm_chemsys and isinstance(system, ChemicalSystem):
                     regions = [system.get_regions_of_atom(at) for at in system]
 
@@ -939,24 +986,29 @@ class _AsePlotBackend(_ViewBackend):
                     import matplotlib.cm as colormaps
 
                 cmap = colormaps.get_cmap("tab10")
-                atom_counter = 0
                 color_counter = 0
                 region_cmap: Dict[str, colors.Colormap] = {}
                 for patch in ax.patches:
                     if isinstance(patch, plt.Circle):
-                        atom_regions = regions[atom_counter]
-                        for region in atom_regions:
-                            if region in region_cmap:
-                                color = region_cmap[region]
-                            else:
-                                color = cmap.colors[color_counter]
-                                region_cmap[region] = color
-                                color_counter += 1
-                            region_patch = patches.Circle(
-                                patch.get_center(), patch.radius * 1.5, alpha=0.2, color=color, linewidth=0
-                            )
-                            ax.add_patch(region_patch)
-                        atom_counter += 1
+                        # Patches are not necessarily in the same order as the atoms
+                        # so using the centre of the patch we find the correct atom
+                        # not super efficient, but probably not using regions on very large systems...
+                        x, y = patch.get_center()
+                        d_sq = (plotter.positions[:, 0] - x) ** 2 + (plotter.positions[:, 1] - y) ** 2
+                        atom_idx = np.argmin(d_sq)
+                        if d_sq[atom_idx] < 1e-6:  # arbitrary tolerance
+                            atom_regions = regions[atom_idx]
+                            for region in atom_regions:
+                                if region in region_cmap:
+                                    color = region_cmap[region]
+                                else:
+                                    color = cmap.colors[color_counter]
+                                    region_cmap[region] = color
+                                    color_counter += 1
+                                region_patch = patches.Circle(
+                                    patch.get_center(), patch.radius * 1.5, alpha=0.2, color=color, linewidth=0
+                                )
+                                ax.add_patch(region_patch)
 
             # Add labels
             atom_type_counts: Dict[str, int] = {}
