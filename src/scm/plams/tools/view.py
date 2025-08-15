@@ -448,6 +448,7 @@ class _ViewBackend(ABC):
                 for i, vec in enumerate(system.lattice.vectors):
                     basis[:, i] = np.array(vec)
         if use_pca_basis:
+            skip = False
             if isinstance(system, Molecule):
                 coords = system.as_array()
                 masses = np.array([1e-3 if m == 0 else m for m in system.get_masses()])  # small correction for 0 masses
@@ -456,11 +457,10 @@ class _ViewBackend(ABC):
                 masses = np.array([1e-3 if at.mass == 0 else at.mass for at in system.atoms])
             else:
                 # fall-back to cartesian
-                coords = []
-                masses = []
+                skip = True
 
             # centre coords on origin
-            if len(coords) > 0 and len(masses) > 0:
+            if not skip and len(coords) > 0 and len(masses) > 0:
                 total_mass = masses.sum()
                 com = (masses[:, None] * coords).sum(axis=0) / total_mass
                 recentred_coords = coords - com
