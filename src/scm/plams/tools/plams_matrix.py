@@ -1,5 +1,9 @@
 import numpy
 
+from typing import TypeVar, Optional, Any, Type
+
+TSelf = TypeVar("TSelf", bound="PLAMSMatrix")
+
 
 class PLAMSMatrix(numpy.ndarray):
     """
@@ -8,7 +12,7 @@ class PLAMSMatrix(numpy.ndarray):
     Note: Here and there I round decimals to 1.e-10. Marked with comment 'Rounding'
     """
 
-    def __new__(cls, *args, **kwargs):
+    def __new__(cls: Type[TSelf], *args: Any, **kwargs: Any) -> TSelf:
         """
         Creates the instance
         """
@@ -21,7 +25,7 @@ class PLAMSMatrix(numpy.ndarray):
             raise Exception("PLAMSMatrix requires a numpy.ndarray as the single argument.")
         return matrix.view(cls)
 
-    def __array_finalize__(self, obj):
+    def __array_finalize__(self, obj: object) -> None:
         """
         Now initialize the instance
         """
@@ -29,7 +33,7 @@ class PLAMSMatrix(numpy.ndarray):
         if len(self.shape) > 2:
             raise Exception("A PLAMSMatrix can only be of dimension 2 ", self.shape)
 
-    def nullspace(self):
+    def nullspace(self) -> numpy.ndarray:
         """
         Get the nullspace vectors using Gaussian elimination
         """
@@ -60,7 +64,7 @@ class PLAMSMatrix(numpy.ndarray):
 
         return basis
 
-    def rref(self, max_row=None, max_col=None):
+    def rref(self: TSelf, max_row: Optional[int] = None, max_col: Optional[int] = None) -> TSelf:
         """
         Reduce self to row-echolon form
 
@@ -90,7 +94,7 @@ class PLAMSMatrix(numpy.ndarray):
 
         return matrix
 
-    def get_heading_zeros(self, irow):
+    def get_heading_zeros(self, irow: int) -> int:
         """
         Get the number of zeros at the start of this row
         """
@@ -103,7 +107,7 @@ class PLAMSMatrix(numpy.ndarray):
             nzeros += 1
         return nzeros
 
-    def as_string(self, space=8):
+    def as_string(self, space: int = 8) -> str:
         """
         Print a numpy matrix in nice format
         """
@@ -120,7 +124,7 @@ class PLAMSMatrix(numpy.ndarray):
     # Private methods
     #################
 
-    def _get_big_matrix(self):
+    def _get_big_matrix(self) -> "PLAMSMatrix":
         """
         Get the big matrix upon which we want to do column elinimation
         """
@@ -132,7 +136,7 @@ class PLAMSMatrix(numpy.ndarray):
         bigmat[:n] = self
         return bigmat
 
-    def _perform_gaussian_elimination(self, max_row, max_col):
+    def _perform_gaussian_elimination(self, max_row: int, max_col: int) -> None:
         """
         Perform Gaussian elimination up to max_row
         """
@@ -161,7 +165,7 @@ class PLAMSMatrix(numpy.ndarray):
             # If no good row was found, we are back to the original one, and set that one
             self[:, :] = A
 
-    def _gaussian_elimination_of_region(self, min_row=None, max_col=None):
+    def _gaussian_elimination_of_region(self, min_row: int, max_col: int) -> None:
         """
         Perform Gaussian elimination only on the rows min_row and higher, and only up to max_col
 
@@ -179,7 +183,7 @@ class PLAMSMatrix(numpy.ndarray):
             else:
                 icount += 1
 
-    def _set_row_to_echolon_form(self, irow, final=None):
+    def _set_row_to_echolon_form(self, irow: int, final: Optional[int] = None) -> None:
         """
         Eliminate values in row irow, with zeros up to column final
 
@@ -202,7 +206,7 @@ class PLAMSMatrix(numpy.ndarray):
             scale = -self[irow, icol] / self[prev_col, icol]
             self._row_add(prev_col, irow, scale)
 
-    def _shift_row_to(self, k, l):
+    def _shift_row_to(self, k: int, l: int) -> None:
         """
         Shift row k to a later row l, and have the rest shift up
         """
@@ -212,7 +216,7 @@ class PLAMSMatrix(numpy.ndarray):
         self[k:l] = self[k + 1 : l + 1]
         self[l] = row
 
-    def _row_add(self, k, l, scale):
+    def _row_add(self, k: int, l: int, scale: float) -> None:
         """
         Changes row l: Adds values of row k multiplied by scale.
         """
