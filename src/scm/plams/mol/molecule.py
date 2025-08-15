@@ -32,7 +32,7 @@ from scm.plams.tools.periodic_table import PT
 from scm.plams.tools.units import Units
 
 input_parser_available = "AMSBIN" in os.environ
-from typing import Callable, Dict, Iterable, List, Optional, Set, Tuple, Union, overload
+from typing import Callable, Dict, Iterable, List, Optional, Set, Tuple, Union, overload, Literal
 
 __all__ = ["Molecule"]
 
@@ -2051,6 +2051,10 @@ class Molecule:
         strain -= 1.0
         self.apply_strain([strain, strain, strain, 0, 0, 0], voigt_form=True)
 
+    @overload
+    def get_formula(self, as_dict: Literal[True]) -> Dict[str, int]: ...
+    @overload
+    def get_formula(self, as_dict: Literal[False] = False) -> str: ...
     def get_formula(self, as_dict=False):
         """Calculate the molecular formula of the molecule according to the Hill system.
 
@@ -2063,7 +2067,7 @@ class Molecule:
             C378H629N105O118S1
 
         """
-        occ = {}
+        occ: Dict[str, int] = {}
         for atom in self:
             if atom.symbol not in occ:
                 occ[atom.symbol] = 0

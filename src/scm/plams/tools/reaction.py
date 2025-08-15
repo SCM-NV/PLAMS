@@ -1,7 +1,11 @@
 import numpy
+
 from scm.plams.mol.molecule import Molecule
 from scm.plams.interfaces.molecule.rdkit import to_smiles
 from scm.plams.core.functions import requires_optional_package
+
+from typing import Union, Optional, Iterable, Sequence
+import numpy.typing
 
 
 class ReactionEquation:
@@ -11,7 +15,9 @@ class ReactionEquation:
 
     nullspace_methods = ["sympy", "plams"]
 
-    def __init__(self, reactants, products, method="plams"):
+    def __init__(
+        self, reactants: Sequence[Union[Molecule, str]], products: Sequence[Union[Molecule, str]], method: str = "plams"
+    ):
         """
         Initiate the reaction
 
@@ -66,7 +72,7 @@ class ReactionEquation:
 
         logging.getLogger("pyomo.core").setLevel(logging.ERROR)
 
-    def prepare_state(self):
+    def prepare_state(self) -> None:
         """
         Do the time consuming stuff that needs to be done before we call balance
         """
@@ -81,7 +87,7 @@ class ReactionEquation:
         # print ('basis: ')
         # print (self.basis)
 
-    def balance(self, min_coeffs=None):
+    def balance(self, min_coeffs: Optional[Iterable[int]] = None) -> Optional[numpy.typing.NDArray]:
         """
         Balance the equation to any set of molecules specified in min_coeffs
 
