@@ -18,5 +18,6 @@ In each part you can find API specification of a particular component, an explan
     utils
     trajectories
     jobanalysis
+    view
 
 
