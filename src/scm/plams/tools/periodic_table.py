@@ -1,5 +1,5 @@
 from scm.plams.core.errors import PTError
-from typing import List
+from typing import List, Union, Optional, NoReturn
 import numpy
 
 __all__ = ["PeriodicTable", "PT"]
@@ -150,13 +150,13 @@ class PeriodicTable:
     symtonum = {d[0]: i for i, d in enumerate(data)}
 
     # Collection of symbols used for different kinds of dummy atoms:
-    dummysymbols = ["Xx", "El", "Eh", "J"]
+    dummysymbols: List[str] = ["Xx", "El", "Eh", "J"]
 
-    def __init__(self):
+    def __init__(self) -> NoReturn:
         raise PTError("Instances of PeriodicTable cannot be created")
 
     @classmethod
-    def get_atomic_number(cls, symbol):
+    def get_atomic_number(cls, symbol: str) -> int:
         """Convert atomic symbol to atomic number."""
         if symbol.lower().capitalize() in cls.dummysymbols:
             return 0
@@ -167,7 +167,7 @@ class PeriodicTable:
         return number
 
     @classmethod
-    def get_symbol(cls, atnum):
+    def get_symbol(cls, atnum: int) -> str:
         """Convert atomic number to atomic symbol."""
         try:
             symbol = cls.data[atnum][0]
@@ -176,7 +176,7 @@ class PeriodicTable:
         return symbol
 
     @classmethod
-    def get_mass(cls, arg):
+    def get_mass(cls, arg: Union[str, int]) -> float:
         """Convert atomic symbol or atomic number to atomic mass."""
         if isinstance(arg, str) and arg.lower().capitalize() in ["El", "Eh"]:
             return cls.get_mass("H")
@@ -184,42 +184,42 @@ class PeriodicTable:
             return cls._get_property(arg, 1)
 
     @classmethod
-    def get_radius(cls, arg):
+    def get_radius(cls, arg: Union[str, int]) -> float:
         """Convert atomic symbol or atomic number to radius."""
         return cls._get_property(arg, 2)
 
     @classmethod
-    def get_connectors(cls, arg):
+    def get_connectors(cls, arg: Union[str, int]) -> int:
         """Convert atomic symbol or atomic number to number of connectors."""
         return cls._get_property(arg, 3)
 
     @classmethod
-    def get_metallic(cls, arg):
-        """Convert atomic symbol or atomic number to number of connectors."""
+    def get_metallic(cls, arg: Union[str, int]) -> int:
+        """Convert atomic symbol or atomic number to is_metallic."""
         return cls._get_property(arg, 4)
 
     @classmethod
-    def get_electronegative(cls, arg):
-        """Convert atomic symbol or atomic number to number of connectors."""
+    def get_electronegative(cls, arg: Union[str, int]) -> int:
+        """Convert atomic symbol or atomic number to is_electronegative."""
         return cls._get_property(arg, 5)
 
     @classmethod
-    def set_mass(cls, element, value):
+    def set_mass(cls, element: str, value: float) -> None:
         """Set the mass of *element* to *value*."""
         cls.data[cls.get_atomic_number(element)][1] = value
 
     @classmethod
-    def set_radius(cls, element, value):
+    def set_radius(cls, element: str, value: float) -> None:
         """Set the radius of *element* to *value*."""
         cls.data[cls.get_atomic_number(element)][2] = value
 
     @classmethod
-    def set_connectors(cls, element, value):
+    def set_connectors(cls, element: str, value: int) -> None:
         """Set the number of connectors of *element* to *value*."""
         cls.data[cls.get_atomic_number(element)][3] = value
 
     @classmethod
-    def _get_property(cls, arg, prop):
+    def _get_property(cls, arg: Union[str, int], prop: int) -> Union[str, float, int, None]:
         """Get property of element described by either symbol or atomic number. Skeleton method for :meth:`get_radius`, :meth:`get_mass` and  :meth:`get_connectors`."""
         if isinstance(arg, str):
             pr = cls.data[cls.get_atomic_number(arg)][prop]
@@ -231,7 +231,7 @@ class PeriodicTable:
         return pr
 
     @classmethod
-    def get_electron_affinity(cls, arg):
+    def get_electron_affinity(cls, arg: Union[str, int]) -> Optional[float]:
         """
         Get the electron affinity of the metal element
 
@@ -240,7 +240,7 @@ class PeriodicTable:
         return cls._get_property(arg, 6)
 
     @classmethod
-    def get_ionization_energy(cls, arg):
+    def get_ionization_energy(cls, arg: Union[str, int]) -> Optional[float]:
         """
         Get the electron affinity of the metal element
 
