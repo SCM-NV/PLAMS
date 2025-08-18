@@ -14,7 +14,7 @@ except ImportError:
     _has_ase = False
 
 if TYPE_CHECKING:
-    from ase import atoms as ASEAtoms
+    from ase.atoms import Atoms as ASEAtoms
 
 
 __all__ = ["toASE", "fromASE"]
