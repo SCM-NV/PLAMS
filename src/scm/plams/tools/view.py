@@ -626,6 +626,13 @@ class _AmsViewXvfbBackend(_AmsViewBackend):
         with manager.session(env=env):
             run_with_timeout(command, timeout=config.timeout, env=env)
 
+    @classmethod
+    def generate_image(cls, system: Union[Molecule, "ChemicalSystem"], config: ViewConfig) -> "PilImage.Image":
+        # do not open the AMSview window with xvfb, otherwise it will hang
+        if config.open_window:
+            config = replace(config, open_window=False, timeout=10)
+        return super().generate_image(system, config)
+
 
 class _XvfbManager:
     """
