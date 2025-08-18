@@ -175,7 +175,7 @@ add_bonds(nanotube_atoms, nanotube)
 # Rotate from z-axis to x-axis (default in AMS)
 nanotube.rotate([[0, 0, 1], [0, 1, 0], [-1, 0, 0]], lattice=True)
 
-plams.view(nanotube, show_unit_cell_edges=False, backend="amsview")
+plams.view(nanotube, show_unit_cell_edges=False)
 
 
 # Next, we create the platinum surface, and use the option `show_lattice_vectors=True` to add the lattice vectors onto the view.

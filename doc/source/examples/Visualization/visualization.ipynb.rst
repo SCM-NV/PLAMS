@@ -207,7 +207,7 @@ First, we set up and view the carbon nanotube. By using ``show_unit_cell_edges=F
    # Rotate from z-axis to x-axis (default in AMS)
    nanotube.rotate([[0, 0, 1], [0, 1, 0], [-1, 0, 0]], lattice=True)
 
-   plams.view(nanotube, show_unit_cell_edges=False, backend="amsview")
+   plams.view(nanotube, show_unit_cell_edges=False)
 
 .. figure:: visualization_files/visualization_22_0.png
 
