@@ -370,7 +370,7 @@ class ReactionEquation:
             strings = ["Number of supplied reactant charges should be %i " % (len(self._rformulas))]
             strings += ["not %i." % (len(reactant_charges))]
             raise Exception("".join(strings))
-        if len(product_charges != len(self._pformules)):
+        if len(product_charges) != len(self._pformulas):
             strings = ["Number of supplied product charges should be %i " % (len(self._pformulas))]
             strings += ["not %i." % (len(product_charges))]
             raise Exception("".join(strings))
@@ -413,7 +413,7 @@ class ReactionEquation:
         # block += [" + ".join(["%i %.1f"%(pcoeffs[i],self._pcharges[i]) for i in pindices])]
         # strings += [" => ".join(block)]
         reaction_charge = sum([-self.coeffs[i] * self._rcharges[i] for i in rindices])
-        reaction_charge -= sum([pcoeffs[i] * self._pcharges[i] for i in pindices])
+        reaction_charge += sum([pcoeffs[i] * self._pcharges[i] for i in pindices])
         strings += ["Charge = %.2f" % (reaction_charge)]
         return " | ".join(strings)
 
