@@ -36,6 +36,7 @@ except ImportError:
 
 if TYPE_CHECKING:
     from pandas import DataFrame
+    from scm.plams.interfaces.adfsuite.ams import TRead
 
 
 __all__ = ["JobAnalysis"]
@@ -57,7 +58,7 @@ class JobAnalysis:
         from_settings: bool = False
         expansion_depth: int = 0
 
-        def __post_init__(self):
+        def __post_init__(self) -> None:
             self.display_name = self.key if self.display_name is None else self.display_name
 
     _standard_fields = {
@@ -135,7 +136,7 @@ class JobAnalysis:
     @staticmethod
     def _mol_smiles_extractor(
         mol: Optional[Union[Molecule, Dict[str, Molecule], "ChemicalSystem", Dict[str, "ChemicalSystem"]]]
-    ):
+    ) -> Optional[str]:
         if isinstance(mol, dict):
             return ", ".join([f"{n}: {JobAnalysis._mol_smiles_extractor(m)}" for n, m in mol.items()])
         elif isinstance(mol, Molecule):
@@ -147,7 +148,7 @@ class JobAnalysis:
     @staticmethod
     def _mol_gyration_radius_extractor(
         mol: Optional[Union[Molecule, Dict[str, Molecule], "ChemicalSystem", Dict[str, "ChemicalSystem"]]]
-    ):
+    ) -> Optional[Union[float, str]]:
         if isinstance(mol, dict):
             return ", ".join([f"{n}: {JobAnalysis._mol_gyration_radius_extractor(m)}" for n, m in mol.items()])
         elif isinstance(mol, Molecule):
@@ -290,7 +291,7 @@ class JobAnalysis:
 
         if analysis.keys() and self._jobs:
 
-            def expand(data, expand_fields):
+            def expand(data: Dict[str, Any], expand_fields: Set[str]) -> Dict[str, List]:
                 expanded_data: Dict[str, list] = {col_name: [] for col_name in data.keys()}
                 for i in range(len(data[list(data.keys())[0]])):
                     job_data = {col_name: data[i] for col_name, data in data.items()}
@@ -325,7 +326,7 @@ class JobAnalysis:
 
         return analysis
 
-    def _get_field_analysis(self, key) -> List:
+    def _get_field_analysis(self, key: str) -> List:
         """
         Gets analysis data for field with a given key. This gives a list of data for the given field, with a value for each job.
 
@@ -337,7 +338,7 @@ class JobAnalysis:
 
         value_extractor = self._fields[key].value_extractor
 
-        def safe_value(job: Job):
+        def safe_value(job: Job) -> Any:
             try:
                 return value_extractor(job)
             except Exception as e:
@@ -392,13 +393,13 @@ class JobAnalysis:
         :return: string representation of the table
         """
 
-        def safe_format_value(v, vfmt):
+        def safe_format_value(v: Any, vfmt: str) -> str:
             try:
                 return format(v, vfmt)
             except (TypeError, ValueError, AttributeError):
                 return str(v)
 
-        def safe_format_values(f, vs):
+        def safe_format_values(f: str, vs: List) -> List[str]:
             vfmt = self._fields[f].fmt
             return [safe_format_value(v, vfmt) for v in vs]
 
@@ -525,7 +526,7 @@ class JobAnalysis:
         ordered_job_statuses = sorted(job_statuses, key=lambda x: x[1][0] if x[1] else (datetime.datetime.max, None))
 
         # Calculate known start and end time and job durations
-        def duration(start, end):
+        def duration(start: datetime.datetime, end: datetime.datetime) -> str:
             if not start or not end:
                 return "Unknown"
             dur = end - start
@@ -582,7 +583,7 @@ class JobAnalysis:
             num_positions = 20
             symbol_interval = interval / num_positions
 
-            def get_col_and_position(status_time):
+            def get_col_and_position(status_time: datetime.datetime) -> Tuple[int, int]:
                 col = int((status_time - start_time) // interval)
                 pos = int((status_time - intervals[col]) // symbol_interval)
                 if pos == num_positions:
@@ -677,7 +678,7 @@ class JobAnalysis:
             table = "\n".join([f"    {row}" for row in table.split("\n")])
             display(Markdown(table))
 
-    def _add_job(self, job: Job):
+    def _add_job(self, job: Job) -> None:
         """
         Add a job to this |JobAnalysis| instance.
 
@@ -731,7 +732,9 @@ class JobAnalysis:
         cpy._jobs.pop(path)
         return cpy
 
-    def _load_job(self, path: Union[str, os.PathLike], loaders: Optional[Sequence[Callable[[str], Job]]] = None):
+    def _load_job(
+        self, path: Union[str, os.PathLike], loaders: Optional[Sequence[Callable[[str], Job]]] = None
+    ) -> None:
         """
         Add job to this |JobAnalysis| instance by loading from a given path to the job folder.
         If no dill file is present in that location, or the dill unpickling fails, the loaders will be used to load the given job from the folder.
@@ -879,7 +882,7 @@ class JobAnalysis:
         sort_key = sort_key if sort_key else lambda data: tuple([str(v) for v in data.values()])
         key_set = set(field_keys) if field_keys else set(cpy.field_keys)
 
-        def key(ik):
+        def key(ik: Tuple[int, str]) -> Tuple[str, ...]:
             i, _ = ik
             return sort_key({k: v[i] for k, v in analysis.items() if k in key_set})
 
@@ -894,7 +897,7 @@ class JobAnalysis:
         display_name: Optional[str] = None,
         fmt: Optional[str] = None,
         expansion_depth: int = 0,
-    ):
+    ) -> None:
         """
         Add a new field to this |JobAnalysis| instance. This adds a column to the analysis data.
 
@@ -959,7 +962,7 @@ class JobAnalysis:
         display_name: Optional[str] = None,
         fmt: Optional[str] = None,
         expansion_depth: int = 0,
-    ):
+    ) -> None:
         """
         Set a field in this |JobAnalysis| instance. This adds or modifies a column in the analysis data.
 
@@ -1168,7 +1171,7 @@ class JobAnalysis:
         :return: copy of |JobAnalysis| with the fields reordered
         """
 
-        def key(field_key):
+        def key(field_key: str) -> int:
             try:
                 return order.index(field_key)
             except ValueError:
@@ -1201,7 +1204,7 @@ class JobAnalysis:
         cpy._fields = {k: cpy._fields[k] for k in sorted_keys}
         return cpy
 
-    def _remove_field(self, key: str):
+    def _remove_field(self, key: str) -> None:
         """
         Remove a field from this |JobAnalysis| instance. This removes a column from the analysis data.
 
@@ -1316,7 +1319,7 @@ class JobAnalysis:
         return self.filter_fields(lambda vals: any([not self._is_empty_value(v) for v in vals]))
 
     @staticmethod
-    def _is_empty_value(val) -> bool:
+    def _is_empty_value(val: Any) -> bool:
         """
         Check if a value is considered empty i.e. is ``None`` or has no value.
         """
@@ -1366,7 +1369,7 @@ class JobAnalysis:
         :return: copy of |JobAnalysis| with uniform fields removed
         """
 
-        def is_uniform(vals: List[Any]):
+        def is_uniform(vals: List[Any]) -> bool:
             """
             Check if a list of values is considered uniform
             """
@@ -1455,7 +1458,7 @@ class JobAnalysis:
             cpy._add_standard_field(key)
         return cpy
 
-    def _add_standard_field(self, key: "JobAnalysis.StandardField"):
+    def _add_standard_field(self, key: "JobAnalysis.StandardField") -> None:
         """
         Adds a standard field to this |JobAnalysis| instance.
 
@@ -1613,7 +1616,7 @@ class JobAnalysis:
         return cpy
 
     @staticmethod
-    def _read_rkf(job: Job, section: str, variable: str, file: str = "ams"):
+    def _read_rkf(job: Job, section: str, variable: str, file: str = "ams") -> Optional["TRead"]:
         if isinstance(job, AMSJob) and job.results is not None:
             return job.results.readrkf(section=section, variable=variable, file=file)
         else:
@@ -1715,7 +1718,7 @@ class JobAnalysis:
         :return: copy of |JobAnalysis| with the settings input fields added
         """
 
-        def predicate(key_tuple: Tuple[Hashable, ...]):
+        def predicate(key_tuple: Tuple[Hashable, ...]) -> bool:
             if len(key_tuple) == 0 or str(key_tuple[0]).lower() != "input":
                 return False
 
@@ -1868,7 +1871,7 @@ class JobAnalysis:
                 f"'{self.__class__.__name__}' object has no attribute or analysis field with key '{key}'"
             )
 
-    def __setattr__(self, key, value) -> None:
+    def __setattr__(self, key: str, value: Any) -> None:
         """
         Fallback to set analysis for given field.
 
@@ -1887,7 +1890,7 @@ class JobAnalysis:
         else:
             self[key] = value
 
-    def __delattr__(self, key) -> None:
+    def __delattr__(self, key: str) -> None:
         """
         Fallback to set analysis for given field.
 
@@ -1913,7 +1916,7 @@ class JobAnalysis:
                     f"'{self.__class__.__name__}' object has no attribute or analysis field with key '{key}'"
                 )
 
-    def __contains__(self, key) -> bool:
+    def __contains__(self, key: str) -> bool:
         """
         Check whether a field is part of the analysis
 
@@ -1928,7 +1931,7 @@ class JobAnalysis:
         """
         return key in self.field_keys
 
-    def __dir__(self):
+    def __dir__(self) -> List[str]:
         """
         Return standard attributes, plus dynamically added field keys which can be accessed via dot notation.
         """
