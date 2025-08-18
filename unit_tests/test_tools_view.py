@@ -214,6 +214,17 @@ class TestAmsViewXvfbBackend(TestAmsViewBackend):
 
     backend = _AmsViewXvfbBackend
 
+    def test_check_available(self, monkeypatch):
+        with patch("shutil.which") as mock_which, patch("subprocess.run") as mock_run:
+            mock_which.return_value = "foo/Xvfb"
+
+            def raise_filenotfounderror(*args, **kwargs):
+                raise FileNotFoundError("Cannot find xvfb")
+
+            mock_run.side_effect = raise_filenotfounderror
+            with pytest.raises(RuntimeError):
+                self.backend.check_available()
+
     def test_generate_image(self, water):
         pytest.skip("Skipping as Xvfb not installed")
 

@@ -76,6 +76,7 @@ def run_with_timeout(
     :param command: command to execute
     :param timeout: time to wait in seconds before killing the process, defaults to ``5``
     :param poll_interval: time to wait  in seconds before polling the process for completion, defaults to ``0.1``
+    :param env: environment variables to use when running process
 
     :raises FileNotFoundError: if the command is invalid
     :raises TimeoutError: if the process does not complete within the specified timeout

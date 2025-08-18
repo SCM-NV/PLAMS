@@ -612,8 +612,8 @@ class _AmsViewXvfbBackend(_AmsViewBackend):
 
     @classmethod
     def check_available(cls):
-        super().check_available()
         _XvfbManager.check_xvfb()
+        cls.run_command([os.path.expandvars("$AMSBIN/amsview"), "-h", "-batch"], ViewConfig())
 
     @classmethod
     def run_command(cls, command: List[str], config: ViewConfig):
@@ -624,7 +624,7 @@ class _AmsViewXvfbBackend(_AmsViewBackend):
         manager.start()
 
         with manager.session(env=env):
-            super().run_command(command, config)
+            run_with_timeout(command, timeout=config.timeout, env=env)
 
 
 class _XvfbManager:
