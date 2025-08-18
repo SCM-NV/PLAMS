@@ -100,5 +100,6 @@ def main():
         coeffs = reaction.balance()
         print("%8i %s" % (i, reaction))
 
+
 if __name__ == "__main__":
     main()
