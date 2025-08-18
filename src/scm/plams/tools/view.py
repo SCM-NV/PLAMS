@@ -896,7 +896,7 @@ class _AsePlotBackend(_ViewBackend):
         # Set options
         rotation = cls.get_view_rotation(system, config)
         radii = [0.31 if at.symbol == "H" else 0.5 for at in ase_atoms] if config.fixed_atom_size else None
-        show_unit_cell = 2 if config.show_unit_cell_edges else 0
+        show_unit_cell = 2 if config.show_unit_cell_edges or config.show_lattice_vectors else 0
 
         try:
             # Equivalent of plot_atoms from ASE, but gives us more flexibility
@@ -907,7 +907,7 @@ class _AsePlotBackend(_ViewBackend):
             plotter = Matplotlib(ase_atoms, ax, rotation=rotation, radii=radii, show_unit_cell=show_unit_cell)
             plotter.write()
 
-            # Reduce atom circle outer line width
+            # Reduce atom circle outer line width and unit cell thickness
             for patch in ax.patches:
                 if isinstance(patch, plt.Circle):
                     patch.set_linewidth(0.2)
@@ -954,6 +954,12 @@ class _AsePlotBackend(_ViewBackend):
                             head_length=0,
                             color=color,
                         )
+
+                # Remove unit cell if not required
+                if not config.show_unit_cell_edges:
+                    to_remove = [p for p in ax.patches if isinstance(p, patches.PathPatch)]
+                    for patch in to_remove:
+                        patch.remove()
 
             # Draw unit cell faces
             if config.show_unit_cell_faces:
