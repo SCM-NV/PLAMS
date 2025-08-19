@@ -84,7 +84,7 @@ def main():
 
     #######################################################################
     # Test 3
-    # Test equation balancing with charges molecules
+    # Test equation balancing with charged molecules
     #######################################################################
 
     print("Test 3.\n Balance an equation with charged molecules")
