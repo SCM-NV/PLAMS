@@ -1,8 +1,8 @@
 import numpy
 import pytest
 
-from scm.plams import ReactionEquation
-from scm.plams import from_smiles
+from scm.plams.tools.reaction import ReactionEquation
+from scm.plams.interfaces.molecule.rdkit import from_smiles
 
 
 class TestEquationBalancing:
