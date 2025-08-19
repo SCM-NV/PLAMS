@@ -75,30 +75,14 @@ def main():
     print("Starting loop over products..")
     nmols = len(reactants) + len(products)
     nreactants = len(reactants)
-    for iprod, product in enumerate(pformulas):
+    all_coeffs = []
+    for iprod, _ in enumerate(products):
         print("%8i %20s: " % (iprod, psmiles[iprod]), end="")
         min_coeffs = numpy.zeros(nmols)
         min_coeffs[nreactants + iprod] = 1
         coeffs = reaction.balance(min_coeffs)
+        all_coeffs.append(coeffs)
         print("%s" % (reaction))
-
-    #######################################################################
-    # Test 3
-    # Test equation balancing with charged molecules
-    #######################################################################
-
-    print("Test 3.\n Balance an equation with charged molecules")
-
-    for i in [0, 3]:
-        reactants = rformulas[i]
-        products = pformulas[i]
-        reaction = ReactionEquation(reactants, products)
-        rcharges = [1 if ir == 0 else 0 for ir, r in enumerate(reactants)]
-        pcharges = [1 if ip == 0 else 0 for ip, p in enumerate(products)]
-        reaction.set_charges(rcharges, pcharges)
-        # reaction.method = 'sympy' # If sympy is installed, this can be used
-        coeffs = reaction.balance()
-        print("%8i %s" % (i, reaction))
 
 
 if __name__ == "__main__":
