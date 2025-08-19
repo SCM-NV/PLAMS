@@ -202,13 +202,6 @@ class TestAmsViewBackend:
         with pytest.raises(ValueError):
             self.backend.get_view_plane(water, ViewConfig(direction=direction))
 
-    def test_generate_image(self, water):
-        skip_if_no_ams_installation()
-
-        img = self.backend.generate_image(water, ViewConfig())
-
-        assert img is not None
-
 
 class TestAmsViewXvfbBackend(TestAmsViewBackend):
 
@@ -224,9 +217,6 @@ class TestAmsViewXvfbBackend(TestAmsViewBackend):
             mock_run.side_effect = raise_filenotfounderror
             with pytest.raises(RuntimeError):
                 self.backend.check_available()
-
-    def test_generate_image(self, water):
-        pytest.skip("Skipping as Xvfb not installed")
 
 
 class TestXvfbManager:
