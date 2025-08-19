@@ -7,6 +7,16 @@ from scm.plams.interfaces.molecule.rdkit import from_smiles
 
 class TestEquationBalancing:
 
+    @pytest.fixture(autouse=True)
+    def skip_if_no_cbc_solver(self):
+        """
+        Check whether CBC solver is available for pyomo, and skip test with a warning if it is not available.
+        """
+        from pyomo.environ import SolverFactory
+
+        if not SolverFactory("cbc").available(exception_flag=False):
+            pytest.skip("Skipping test as cannot find CBC solver.")
+
     @pytest.fixture
     def reactions(self):
         """
