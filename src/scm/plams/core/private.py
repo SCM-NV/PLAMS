@@ -7,7 +7,7 @@ import time
 import warnings
 from contextlib import AbstractContextManager
 from os.path import join as opj
-from typing import Callable, Dict, NoReturn, List, Optional
+from typing import Callable, Dict, NoReturn, List, Optional, Sequence, Mapping
 
 __all__: List[str] = []
 
@@ -40,7 +40,14 @@ def sha256(string):
 
 
 def saferun(*args, **kwargs):
-    """A wrapper around :func:`subprocess.run` repeating the call ``config.saferun.repeat`` times with ``config.saferun.delay`` interval in case of :exc:`BlockingIOError` being raised (any other exception is not caught and directly passed above). All arguments (*args* and *kwargs*) are passed directly to :func:`~subprocess.run`. If all attempts fail, the last raised :exc:`BlockingIOError` is reraised."""
+    """
+    A wrapper around :func:`subprocess.run` repeating the call ``config.saferun.repeat`` times with ``config.saferun.delay``
+    interval in case of :exc:`BlockingIOError` being raised, (any other exception is not caught and directly passed above).
+    All arguments (*args* and *kwargs*) are passed directly to :func:`~subprocess.run`.
+    If all attempts fail, the last raised :exc:`BlockingIOError` is reraised.
+
+    This is useful for multi-threading/async run calls with I/O.
+    """
     from scm.plams.core.functions import get_config, log
 
     attempt = 0
@@ -55,6 +62,57 @@ def saferun(*args, **kwargs):
             last_error = e
             time.sleep(delay)
     raise last_error
+
+
+def run_with_timeout(
+    command: Sequence[str],
+    timeout: Optional[float] = 5,
+    poll_interval: float = 0.1,
+    env: Optional[Mapping[str, str]] = None,
+):
+    """
+    Execute a system call which kills the process if it errors or does not respond within the given time period.
+
+    :param command: command to execute
+    :param timeout: time to wait in seconds before killing the process, defaults to ``5``
+    :param poll_interval: time to wait  in seconds before polling the process for completion, defaults to ``0.1``
+    :param env: environment variables to use when running process
+
+    :raises FileNotFoundError: if the command is invalid
+    :raises TimeoutError: if the process does not complete within the specified timeout
+    :raises subprocess.CalledProcessError: if the process exits with a non-zero return code
+    """
+    result = {"return_code": None, "stdout": None, "stderr": None}
+    proc = subprocess.Popen(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        start_new_session=(os.name == "posix"),
+        creationflags=(subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0),  # type: ignore
+        env=env,
+    )
+
+    start = time.time()
+
+    while True:
+        ret = proc.poll()
+        now = time.time()
+
+        if ret is not None:
+            stdout_encoded, stderr_encoded = proc.communicate()
+            stdout = stdout_encoded.decode()
+            stderr = stderr_encoded.decode()
+            if proc.returncode != 0:
+                raise subprocess.CalledProcessError(
+                    returncode=proc.returncode, cmd=command, output=stdout, stderr=stderr
+                )
+            return result
+
+        if timeout and now - start > timeout:
+            proc.kill()
+            raise TimeoutError(f"Timeout of {timeout} seconds reached")
+
+        time.sleep(poll_interval)
 
 
 # ===========================================================================
