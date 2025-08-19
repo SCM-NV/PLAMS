@@ -1,6 +1,6 @@
 from typing import List, Optional, Tuple, Union, TYPE_CHECKING
-
 import numpy as np
+
 from scm.plams.core.errors import MissingOptionalPackageError
 from scm.plams.core.functions import requires_optional_package
 from scm.plams.interfaces.adfsuite.ams import AMSJob
