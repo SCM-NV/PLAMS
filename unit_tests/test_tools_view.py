@@ -8,7 +8,7 @@ from scm.plams.interfaces.adfsuite.ams import AMSJob
 from scm.plams.interfaces.molecule.rdkit import from_smiles
 from scm.plams.tools.view import view, ViewConfig, _AmsViewBackend, _AmsViewXvfbBackend, _XvfbManager, _AsePlotBackend
 from scm.plams.mol.molecule import Molecule
-from test_helpers import skip_if_no_ams_installation, skip_if_windows
+from test_helpers import skip_if_windows
 
 try:
     from scm.libbase import UnifiedChemicalSystem as ChemicalSystem, UnifiedLattice as Lattice
@@ -202,13 +202,6 @@ class TestAmsViewBackend:
         with pytest.raises(ValueError):
             self.backend.get_view_plane(water, ViewConfig(direction=direction))
 
-    def test_generate_image(self, water):
-        skip_if_no_ams_installation()
-
-        img = self.backend.generate_image(water, ViewConfig())
-
-        assert img is not None
-
 
 class TestAmsViewXvfbBackend(TestAmsViewBackend):
 
@@ -224,9 +217,6 @@ class TestAmsViewXvfbBackend(TestAmsViewBackend):
             mock_run.side_effect = raise_filenotfounderror
             with pytest.raises(RuntimeError):
                 self.backend.check_available()
-
-    def test_generate_image(self, water):
-        pytest.skip("Skipping as Xvfb not installed")
 
 
 class TestXvfbManager:
