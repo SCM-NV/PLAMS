@@ -8,7 +8,7 @@ from scm.plams.interfaces.adfsuite.ams import AMSJob
 from scm.plams.interfaces.molecule.rdkit import from_smiles
 from scm.plams.tools.view import view, ViewConfig, _AmsViewBackend, _AmsViewXvfbBackend, _XvfbManager, _AsePlotBackend
 from scm.plams.mol.molecule import Molecule
-from test_helpers import skip_if_no_ams_installation, skip_if_windows
+from test_helpers import skip_if_windows
 
 try:
     from scm.libbase import UnifiedChemicalSystem as ChemicalSystem, UnifiedLattice as Lattice
