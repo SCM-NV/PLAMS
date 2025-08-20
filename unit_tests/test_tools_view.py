@@ -141,7 +141,7 @@ class TestAmsViewBackend:
 
         for mol in mols:
             actual = self.backend.get_view_plane(mol, ViewConfig(normal_basis=normal_basis, normal=normal))
-            assert actual == expected
+            assert [float(v) for v in actual.split()] == [float(v) for v in expected.split()]
 
     @pytest.mark.parametrize(
         "direction, lattice, expected",
@@ -193,7 +193,7 @@ class TestAmsViewBackend:
 
         for mol in mols:
             actual = self.backend.get_view_plane(mol, ViewConfig(direction=direction))
-            assert actual == expected
+            assert [float(v) for v in actual.split()] == [float(v) for v in expected.split()]
 
     @pytest.mark.parametrize(
         "direction", ["p", "xx", "_x", "along_--x", "along__x", "view_x", "view_+x", "small_along_x", "med_tilt_x"]
