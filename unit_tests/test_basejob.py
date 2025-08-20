@@ -967,3 +967,81 @@ class TestMultiJob:
         assert inner_multi_job._full_name("some/rundir") == "some/rundir/multi_outer/multi_inner_job"
         assert job._full_name() == "multi_outer/multi_inner_job/dummy_job"
         assert job._full_name("some/rundir") == "some/rundir/multi_outer/multi_inner_job/dummy_job"
+
+    def test_delete_created_multijob(self, config):
+        # Given job
+        jobs = [DummySingleJob() for _ in range(3)]
+        multi_job = MultiJob(children=[j for j in jobs])
+
+        # When deleted
+        multi_job.delete()
+
+        # Then status set to deleted for parent and child jobs
+        assert multi_job.status == JobStatus.DELETED
+        assert all(j.status == JobStatus.DELETED for j in jobs)
+        assert multi_job.path is None
+        assert all(j.path is None for j in jobs)
+        assert multi_job.children == []
+        assert all(j.parent is None for j in jobs)
+        with pytest.raises(ResultsError):
+            _ = multi_job.results.grep_output("")
+        with pytest.raises(ResultsError):
+            _ = jobs[0].results.grep_output("")
+
+    def test_delete_running_multijob(self, config):
+        # Given job
+        jobs = [DummySingleJob() for _ in range(3)]
+        multi_job = MultiJob(children=[j for j in jobs])
+        multi_job.run()
+        path = multi_job.path
+
+        # When deleted while running
+        multi_job.delete()
+
+        # Then waits, job files removed and job path removed for parent and child jobs
+        assert multi_job.status == JobStatus.DELETED
+        assert all(j.status == JobStatus.DELETED for j in jobs)
+        assert multi_job.name not in config.default_jobmanager.names
+        assert multi_job not in config.default_jobmanager.jobs
+        assert not Path(path).exists()
+        assert multi_job.path is None
+        assert all(j.path is None for j in jobs)
+        assert multi_job.children == []
+        assert all(j.parent is None for j in jobs)
+        with pytest.raises(ResultsError):
+            _ = multi_job.results.grep_output("")
+        with pytest.raises(ResultsError):
+            _ = jobs[0].results.grep_output("")
+
+    def test_delete_running_nested_multijob(self, config):
+        # Given job
+        jobs = [DummySingleJob() for _ in range(3)]
+        multi_job = MultiJob(children=[j for j in jobs])
+        top_multi_job = MultiJob(children=[multi_job])
+        top_multi_job.run()
+        path = top_multi_job.path
+
+        # When deleted while running
+        top_multi_job.delete()
+
+        # Then waits, job files removed and job path removed for parent and child jobs
+        assert top_multi_job.status == JobStatus.DELETED
+        assert multi_job.status == JobStatus.DELETED
+        assert all(j.status == JobStatus.DELETED for j in jobs)
+        assert top_multi_job.name not in config.default_jobmanager.names
+        assert multi_job.name not in config.default_jobmanager.names
+        assert top_multi_job not in config.default_jobmanager.jobs
+        assert multi_job not in config.default_jobmanager.jobs
+        assert not Path(path).exists()
+        assert top_multi_job.path is None
+        assert multi_job.path is None
+        assert all(j.path is None for j in jobs)
+        assert top_multi_job.children == []
+        assert multi_job.children == []
+        assert all(j.parent is None for j in jobs)
+        with pytest.raises(ResultsError):
+            _ = top_multi_job.results.grep_output("")
+        with pytest.raises(ResultsError):
+            _ = multi_job.results.grep_output("")
+        with pytest.raises(ResultsError):
+            _ = jobs[0].results.grep_output("")

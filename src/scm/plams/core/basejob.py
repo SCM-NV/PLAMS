@@ -4,6 +4,7 @@ import stat
 import threading
 import datetime
 import time
+import shutil
 from os.path import join as opj
 from pathlib import Path
 from typing import TYPE_CHECKING, Dict, Generator, Iterable, List, Optional, Union, Tuple
@@ -344,12 +345,15 @@ class Job(ABC):
         if self.status != JobStatus.CREATED:
             self.results.wait()
 
-        # In case job.jobmanager is None, run() method was not called yet, so no JobManager knows about this job and no folder exists.
+        # if no job manager, run() method was not called yet, job is not registered and no folder exists
         if self.jobmanager is not None:
             self.jobmanager.remove_job(self)
 
         if self.parent is not None:
             self.parent.remove_child(self)
+
+        if self.path is not None:
+            shutil.rmtree(self.path)
 
         self.status = JobStatus.DELETED
         self.path = None
@@ -717,6 +721,7 @@ class MultiJob(Job):
                 rm = i
                 break
         if rm is not None:
+            self.children[rm].parent = None
             del self.children[rm]
 
     def _get_ready(self) -> None:
@@ -782,3 +787,13 @@ class MultiJob(Job):
         while self._active_children > 0:
             time.sleep(sleep_step)
         log("{}._execute() finished".format(self.name), 7)
+
+    def delete(self):
+        if self.status != JobStatus.CREATED:
+            self.results.wait()
+
+        for child in [c for c in self.children]:
+            child.delete()
+            self.remove_child(child)
+
+        super().delete()

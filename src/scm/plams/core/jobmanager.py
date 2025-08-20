@@ -196,10 +196,12 @@ class JobManager:
         setstate(job, path)
         return job
 
-    def remove_job(self, job):
         """
         Remove *job* from the job manager.
 
+    def remove_job(self, job: "Job"):
+        """
+        Remove *job* from the job manager.
         This removes its hash and resets the name count to the last remaining job with the same name.
         """
         with self._register_lock:
@@ -226,7 +228,6 @@ class JobManager:
                     self.remove_job(child)
                 for otherjob in job.other_jobs():
                     self.remove_job(otherjob)
-            shutil.rmtree(job.path)
 
     def _register(self, job: "Job"):
         """Register the *job*. Register job's name (rename if needed) and create the job folder.

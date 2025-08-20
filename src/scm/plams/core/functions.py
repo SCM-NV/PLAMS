@@ -400,10 +400,12 @@ def load_all(path, jobmanager=None):
 
 # ===========================================================================
 
+
 def delete_job(job: "Job"):
     """Remove *job* from its corresponding |JobManager| and delete the job folder from the disk. Mark *job* as 'deleted'."""
     # wrapper around the method, for backwards compatibility
     job.delete()
+
 
 # ===========================================================================
 
