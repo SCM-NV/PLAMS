@@ -59,6 +59,7 @@ analysis = [
     "natsort>=8.1.0",
     "h5py>=3.6.0",
     "ipython>=7.22.0",
+    "pyomo>=6.4.1",
     "pillow>=10.4.0"
 ]
 
