@@ -127,7 +127,7 @@ class SCMResults(Results):
             ret.add_atom(Atom(atnum=z, coords=crd, unit=unit))
         return ret
 
-    def _get_single_value(self, section: str, variable: str, output_unit: str, native_unit: str = "au") -> TRead:
+    def _get_single_value(self, section: str, variable: str, output_unit: str, native_unit: str = "au") -> "TRead":
         """_get_single_value(section, variable, output_unit, native_unit='au')
 
         A small method template for all the single number "get_something()" methods extracting data from main KF file. Returned value is converted from *native_unit* to *output_unit*.
