@@ -1,6 +1,6 @@
 from collections import OrderedDict
 from itertools import combinations
-from typing import Optional, Dict
+from typing import Optional, Dict, Tuple, TYPE_CHECKING, Sequence, List, Any, Union
 
 import numpy as np
 
@@ -9,13 +9,18 @@ from scm.plams.core.private import sha256
 from scm.plams.mol.molecule import Molecule
 from scm.plams.tools.units import Units
 
+if TYPE_CHECKING:
+    from scm.plams.mol.atom import Atom
+    from scm.plams.mol.bond import Bond
+    from networkx import Graph
+
 __all__ = ["label_atoms"]
 
 
 possible_flags = ["BO", "RS", "EZ", "DH", "CO", "H2"]
 
 
-def twist(v1, v2, v3, tolerance=None):
+def twist(v1, v2, v3, tolerance: Optional[float] = None) -> Tuple[int, Optional[int]]:
     """
     Given 3 vectors in 3D space measure their "chirality" with *tolerance*.
 
@@ -31,7 +36,7 @@ def twist(v1, v2, v3, tolerance=None):
     return int(np.sign(x)), None
 
 
-def bend(v1, v2, tolerance=None):
+def bend(v1, v2, tolerance: Optional[float] = None) -> int:
     """Check if two vectors in 3D space are parallel or perpendicular, with *tolerance* (in degrees).
 
     Returns 1 if *v1* and *v2* are collinear, 2 if they are perpendicular, 0 otherwise."""
@@ -46,7 +51,7 @@ def bend(v1, v2, tolerance=None):
     return 0
 
 
-def unique_atoms(atomlist):
+def unique_atoms(atomlist: Sequence["Atom"]) -> List["Atom"]:
     """Filter *atomlist* (list or |Molecule|) for atoms with unique ``IDname``."""
     d = {}
     for atom in atomlist:
@@ -56,14 +61,14 @@ def unique_atoms(atomlist):
     return [atom for atom in atomlist if d[atom.IDname] == 1]
 
 
-def initialize(molecule):
+def initialize(molecule: Molecule) -> None:
     """Initialize atom labeling algorithm by setting ``IDname`` and ``IDdone`` attributes for all atoms in *molecule*."""
     for at in molecule:
         at.IDname = at.symbol
         at.IDdone = False
 
 
-def clear(molecule):
+def clear(molecule: Molecule) -> None:
     """Remove ``IDname`` and ``IDdone`` attributes from all atoms in *molecule*."""
     for at in molecule:
         if hasattr(at, "IDname"):
@@ -72,7 +77,7 @@ def clear(molecule):
             del at.IDdone
 
 
-def iterate(molecule, flags):
+def iterate(molecule: Molecule, flags: Dict[str, Any]) -> bool:
     """Perform one iteration of atom labeling algorithm.
 
     First, mark all atoms that are unique and have only unique neighbors as "done". Then calculate new label for each atom that is not done. Return True if the number of different atom labels increased during this iteration.
@@ -94,7 +99,7 @@ def iterate(molecule, flags):
     return new_names > names  # True means this iteration increased the number of distinct names
 
 
-def new_name(atom, flags):
+def new_name(atom: "Atom", flags: Dict[str, Any]) -> str:
     """Compute new label for *atom*.
 
     The new label is based on the existing label of *atom*, labels of all its neighbors and (possibly) some additional conformational information. The labels of neighbors are not obtained directly by reading neighbor's ``IDname`` but rather by a process called "knocking". The *atom* knocks all its bonds. Each knocked bond returns an identifier describing the atom on the other end of the bond. The identifier is composed of knocked atom's ``IDname`` together with some additional information desribing the character of the bond and knocked atom's spatial environment. The exact behavior of this mechanism is adjusted by the contents of *flags* dictionary (see :func:`label_atoms` for details).
@@ -135,14 +140,14 @@ def new_name(atom, flags):
     return sha256("|".join([atom.IDname] + [i[0] for i in knocks] + more))
 
 
-def knock(A, bond, flags):
+def knock(A: "Atom", bond: "Bond", flags: Dict[str, Any]) -> Tuple[str, "Atom"]:
     """Atom *A* knocks one of its bonds.
 
     *bond* has to be a bond formed by atom *A*. The other end of this bond (atom S) returns its description, consisting of its ``IDname`` plus, possibly, some additional information. If *BO* flag is set, the description includes the bond order of *bond*. If *EZ* flag is set, the description includes additional bit of information whenever E/Z isomerism is possible. If *DH* flag is set, the description includes additional information for all dihedrals A-S-N-F such that A is a unique neighbor of S and F is a unique neighbor of N.
     """
 
     S = bond.other_end(A)
-    ret = S.IDname
+    ret: str = S.IDname
 
     if flags["BO"] and bond.order != 1:
         ret += "BO" + str(bond.order)
@@ -184,7 +189,7 @@ def knock(A, bond, flags):
     return (ret, S)
 
 
-def label_atoms(molecule, **kwargs):
+def label_atoms(molecule: Molecule, **kwargs: Any) -> Molecule:
     """Label atoms in *molecule*.
 
     Boolean keyword arguments:
@@ -210,7 +215,7 @@ def label_atoms(molecule, **kwargs):
     return molecule
 
 
-def molecule_name(molecule):
+def molecule_name(molecule: Molecule) -> str:
     """Compute the label of the whole *molecule* based on ``IDname`` attributes of all the atoms."""
     names = [atom.IDname for atom in molecule]
     names.sort()
@@ -218,7 +223,12 @@ def molecule_name(molecule):
 
 
 @add_to_class(Molecule)
-def label(self, level: int = 1, keep_labels: bool = False, flags: Optional[Dict[str, bool]] = None) -> str:
+def label(
+    self: Molecule,
+    level: Union[int, List[int], Tuple[int, ...]] = 1,
+    keep_labels: bool = False,
+    flags: Optional[Dict[str, Union[bool, float]]] = None,
+) -> Union[str, Tuple[str]]:
     """Compute the label of this molecule using chosen *level* of detail.
 
     Possible levels are:
@@ -272,7 +282,7 @@ def label(self, level: int = 1, keep_labels: bool = False, flags: Optional[Dict[
 
 
 @add_to_class(Molecule)
-def set_local_labels(self, niter=2, flags=None):
+def set_local_labels(self: Molecule, niter: int = 2, flags: Optional[Dict[str, Union[bool, float]]] = None) -> None:
     """
     Set atomic labels (IDnames) that are unique for local structures of a molecule
 
@@ -289,7 +299,7 @@ def set_local_labels(self, niter=2, flags=None):
 
 
 @requires_optional_package("networkx")
-def get_graph(mol, dic, level=1):
+def get_graph(mol: Molecule, dic: Dict[str, Any], level: int = 1) -> Optional["Graph"]:
     """
     Create a networkx graph for this molecule that can be used to compare (all info is in the edge.weight attribute)
     """
@@ -323,7 +333,7 @@ def get_graph(mol, dic, level=1):
 
 @add_to_class(Molecule)
 @requires_optional_package("networkx")
-def find_permutation(self, other, level=1):
+def find_permutation(self: Molecule, other: Molecule, level: int = 1) -> Optional[List[int]]:
     """
     Reorder atoms in this molecule to match the order in some *other* molecule. The reordering is applied only if the perfect match is found. Returned value is the applied permutation (as a list of integers) or ``None``, if no reordering was performed.
     """
@@ -366,7 +376,7 @@ def find_permutation(self, other, level=1):
 
 
 @add_to_class(Molecule)
-def reorder(self, other, level=1):
+def reorder(self: Molecule, other: Molecule, level: int = 1) -> Molecule:
     """
     Reorder atoms in this molecule to match the order in some *other* molecule. The reordering is applied only if the perfect match is found. Returned value is a new ``Molecule`` object, or ``None`` if no reordering was performed. See also :func:`~scm.plams.mol.identify.find_permutation`.
     """
