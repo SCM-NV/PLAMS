@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING, IO, Any
 
 from scm.plams.core.functions import add_to_class, requires_optional_package
 from scm.plams.core.settings import Settings
@@ -22,7 +22,7 @@ __all__ = ["toASE", "fromASE"]
 
 @add_to_class(Molecule)
 @requires_optional_package("ase")
-def readase(self, f, **other):
+def readase(self: Molecule, f: IO, **other: Any) -> None:
     """Read Molecule using ASE engine
 
     The ``read`` function of the |Molecule| class passes a file descriptor into here, so in this case you must specify the *format* to be read by ASE::
@@ -50,7 +50,7 @@ def readase(self, f, **other):
 
 
 @add_to_class(Molecule)
-def writease(self, f, **other):
+def writease(self: Molecule, f: IO, **other: Any) -> None:
     """Write molecular coordinates using ASE engine.
 
     The ``write`` function of the |Molecule| class passes a file descriptor into here, so in this case you must specify the *format* to be written by ASE.
