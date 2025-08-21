@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Optional, Tuple, TYPE_CHECKING, Any
+from typing import Optional, Tuple, TYPE_CHECKING, Any, Iterator
 
 from scm.plams.core.errors import MoleculeError
 from scm.plams.core.settings import Settings
@@ -38,11 +38,11 @@ class Bond:
         self.mol = mol
         self.properties = Settings(other)
 
-    def __str__(self):
+    def __str__(self) -> str:
         """Return a string representation of this bond."""
         return "({})--{:1.1f}--({})".format(str(self.atom1).strip(), self.order, str(self.atom2).strip())
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator["Atom"]:
         """Iterate over bonded atoms (``atom1`` first, then ``atom2``)."""
         yield self.atom1
         yield self.atom2

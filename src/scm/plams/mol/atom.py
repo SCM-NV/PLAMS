@@ -1,7 +1,7 @@
 import math
 
 import numpy as np
-from typing import Iterable, Union, List, Tuple, TYPE_CHECKING, Sequence, Optional, Dict
+from typing import Iterable, Union, List, Tuple, TYPE_CHECKING, Sequence, Optional, Dict, Iterator, Any
 
 
 from scm.plams.core.settings import Settings
@@ -71,7 +71,7 @@ class Atom:
         unit: str = "angstrom",
         bonds: Optional[List["Bond"]] = None,
         mol: Optional["Molecule"] = None,
-        **other,
+        **other: Any,
     ):
         if symbol is not None:
             self.symbol = str(symbol)
@@ -103,13 +103,13 @@ class Atom:
 
     def str(
         self,
-        symbol: Union[bool, str] = True,
+        symbol: Union[bool, str_type] = True,
         suffix: str = "",
         suffix_dict: Optional[Dict] = None,
         unit: str = "angstrom",
         space: int = 14,
         decimal: int = 6,
-    ) -> str:
+    ) -> str_type:
         """Return a string representation of this atom.
 
         Returned string is a single line (no newline characters) that always contains atomic coordinates (and maybe more). Each atomic coordinate is printed using *space* characters, with *decimal* characters reserved for decimal digits. Coordinates values are expressed in *unit*.
@@ -150,11 +150,11 @@ class Atom:
             symbol = self.symbol
         return ("{0:>10s} {1} {2} {3} " + suffix).format(symbol, *map(f, self.coords), **suffix_dict).rstrip()
 
-    def __str__(self):
+    def __str__(self) -> str_type:
         """Return a string representation of this atom. Simplified version of :meth:`str` to work as a magic method."""
         return self.str()
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator:
         """Iteration through atom yields coordinates. Thanks to that instances of |Atom| can be passed to any method requiring as an argument a point or a vector in 3D space."""
         return iter(self.coords)
 
