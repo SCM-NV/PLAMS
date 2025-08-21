@@ -3,6 +3,7 @@ import math
 import numpy as np
 from typing import Iterable, Union, List, Tuple, TYPE_CHECKING, Sequence, Optional, Dict
 
+
 from scm.plams.core.settings import Settings
 from scm.plams.tools.periodic_table import PT
 from scm.plams.tools.units import Units
@@ -12,6 +13,7 @@ __all__ = ["Atom"]
 if TYPE_CHECKING:
     from scm.plams.mol.bond import Bond
     from scm.plams.mol.molecule import Molecule
+    from _typeshed import ConvertibleToFloat
 
 str_type = str  # To avoid type-hinting issues with str() method
 
@@ -65,7 +67,7 @@ class Atom:
         self,
         atnum: int = 0,
         symbol: Optional[str] = None,
-        coords: Optional[Sequence[float]] = None,
+        coords: Optional[Sequence["ConvertibleToFloat"]] = None,
         unit: str = "angstrom",
         bonds: Optional[List["Bond"]] = None,
         mol: Optional["Molecule"] = None,
@@ -294,6 +296,6 @@ class Atom:
         matrix = np.array(matrix).reshape(3, 3)
         self.coords = tuple(np.dot(matrix, np.array(self.coords)))
 
-    def neighbors(self) -> List["Bond"]:
+    def neighbors(self) -> List["Atom"]:
         """Return a list of neighbors of this atom within the molecule. The list follows the same order as the ``bonds`` attribute."""
         return [b.other_end(self) for b in self.bonds]
