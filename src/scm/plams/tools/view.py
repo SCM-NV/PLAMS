@@ -99,7 +99,7 @@ class ViewConfig:
     :param picture_path: optional path for the location to save the generated image file, defaults to ``None``
     :param fixed_atom_size: use the same radius for all elements (except Hydrogen), defaults to ``True``
     :param show_atom_labels: display text label on each atom, defaults to ``False``
-    :param atom_label_type: property used for atom labels, defaults to ``AtomType``
+    :param atom_label_type: property used for atom labels, defaults to ``Element``
     :param atom_label_color: hexadecimal color code for atom labels, defaults to ``#000000`` i.e. black
     :param atom_label_size: scale atom labels by the given factor, to make them larger or smaller, defaults to ``1.0``
     :param show_regions: display translucent spheres on atoms according to their regions, defaults to ``False``
@@ -127,7 +127,7 @@ class ViewConfig:
     # Atom/molecule/bond etc. representation
     fixed_atom_size: bool = True
     show_atom_labels: bool = False
-    atom_label_type: Literal["AtomType", "Element", "Name"] = "AtomType"
+    atom_label_type: Literal["Element", "AtomType", "Name"] = "Element"
     atom_label_color: str = "#000000"
     atom_label_size: float = 1.0
     show_regions: bool = False
@@ -184,12 +184,12 @@ class ViewConfig:
         if not isinstance(self.show_atom_labels, bool):
             raise ValueError(f"show_atom_labels must be a boolean value, but was '{self.show_atom_labels}'")
         if not isinstance(self.atom_label_type, str) or self.atom_label_type not in [
-            "AtomType",
             "Element",
+            "AtomType",
             "Name",
         ]:
             raise ValueError(
-                f"atom_label_type must be one of: 'AtomType', 'Element', 'Name', but was '{self.atom_label_type}'"
+                f"atom_label_type must be one of: 'Element', 'AtomType', 'Name', but was '{self.atom_label_type}'"
             )
         if not isinstance(self.atom_label_color, str) or not bool(
             re.fullmatch(r"#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})", self.atom_label_color)
@@ -234,7 +234,7 @@ def view(
     direction: Optional[ViewDirections] = None,
     fixed_atom_size: Optional[bool] = None,
     show_atom_labels: Optional[bool] = None,
-    atom_label_type: Optional[Literal["AtomType", "Element", "Name"]] = None,
+    atom_label_type: Optional[Literal["Element", "AtomType", "Name"]] = None,
     show_regions: Optional[bool] = None,
     show_unit_cell_edges: Optional[bool] = None,
     show_lattice_vectors: Optional[bool] = None,

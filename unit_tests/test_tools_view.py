@@ -82,7 +82,7 @@ class TestAmsViewBackend:
                     atom_label_size=2,
                     show_regions=True,
                 ),
-                "foo.in -transparent -scmgeometry 800x400 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 1.000000 -atomlabel AtomType -labelcolor #FFFFFF -labelsize 2 -showunitcell thickness 0.05 -save bar.png -batch",
+                "foo.in -transparent -scmgeometry 800x400 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 1.000000 -atomlabel Element -labelcolor #FFFFFF -labelsize 2 -showunitcell thickness 0.05 -save bar.png -batch",
             ),
             (
                 ViewConfig(show_unit_cell_edges=True, unit_cell_edge_thickness=0.2),
