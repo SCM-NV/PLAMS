@@ -209,7 +209,7 @@ intersphinx_mapping = {"python3": ("http://docs.python.org/3.8", None)}
 
 autodoc_default_options = {"members": True, "private-members": True, "special-members": True}
 autodoc_member_order = "bysource"
-autodoc_typehints = "none"
+autodoc_typehints = "description"
 
 rst_epilog = """
 .. |init| replace:: :func:`~scm.plams.core.functions.init`

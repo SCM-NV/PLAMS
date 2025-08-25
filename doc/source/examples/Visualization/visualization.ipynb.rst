@@ -15,7 +15,7 @@ For example, below we create a molecule of caffeine from its SMILES string, and 
 
    import scm.plams as plams
 
-   caffeine = plams.from_smiles("CN1C=NC2=C1C(=O)N(C(=O)N2C)C")
+   caffeine = plams.from_smiles("CN1C=NC2=C1C(=O)N(C(=O)N2C)C", forcefield="uff")
    plams.view(caffeine)
 
 .. figure:: visualization_files/visualization_3_0.png
@@ -28,7 +28,9 @@ Examples of all these options are demonstrated below for beta-carotene.
 
 .. code:: ipython3
 
-   beta_carotene = plams.from_smiles("CC1CCC/C(C)=C1/C=C/C(C)=C/C=C/C(C)=C/C=C/C=C(C)/C=C/C=C(C)/C=C/C2=C(C)/CCCC2(C)C")
+   beta_carotene = plams.from_smiles(
+       "CC1CCC/C(C)=C1/C=C/C(C)=C/C=C/C(C)=C/C=C/C=C(C)/C=C/C=C(C)/C=C/C2=C(C)/CCCC2(C)C", forcefield="uff"
+   )
 
    plams.view(
        beta_carotene,
@@ -92,7 +94,7 @@ Illustrations of these are provided below. Further examples can be found in the 
 
 .. code:: ipython3
 
-   butane = plams.preoptimize(plams.from_smiles("CCCC"))
+   butane = plams.from_smiles("CCCC", forcefield="uff")
 
    images = [
        plams.view(butane, direction="along_pca1", width=400),
@@ -281,8 +283,8 @@ Efforts have been made to ensure the view options when using different backends 
 
    plams.view(
        caffeine,
-       width=400,
-       height=400,
+       width=350,
+       height=350,
        show_regions=True,
        backend="ase_plot",
        show_atom_labels=True,
@@ -294,8 +296,8 @@ Efforts have been made to ensure the view options when using different backends 
 
    plams.view(
        water_box,
-       width=400,
-       height=400,
+       width=350,
+       height=350,
        config=config,
        direction="tilt_z",
        show_lattice_vectors=True,

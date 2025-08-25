@@ -2768,7 +2768,7 @@ class AMSJob(SingleJob):
         If *watch* is set to ``True``, the contents of the AMS driver logfile will be forwarded line by line to the PLAMS logfile (and stdout), allowing for an easier monitoring of the running job.
         Not that the forwarding of the AMS driver logfile will make the call to this method block until the job's execution has finished, even when using a parallel |JobRunner|.
 
-        Other keyword arguments (*\*\*kwargs*) are stored in ``run`` branch of job's settings.
+        Other keyword arguments (*\\*\\*kwargs*) are stored in ``run`` branch of job's settings.
 
         Returned value is the |AMSResults| instance associated with this job.
         """
