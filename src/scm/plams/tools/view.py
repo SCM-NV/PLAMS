@@ -89,27 +89,27 @@ class ViewConfig:
     """
     Configuration for view settings
 
-    :ivar width: width of the image in pixels, defaults to ``800``
-    :ivar height: height of the image in pixels, defaults to ``400``
-    :ivar padding: padding around system in Angstrom, defaults to ``0.0`` (can be negative)
-    :ivar direction: direction to view system along, selected from a series of preset values, defaults to ``along_z``
-    :ivar normal: orientation of the normal to the view plane, takes precedence over direction when specified, defaults to ``None``
-    :ivar normal_basis: whether to use cartesian axes, ``xyz``, lattice vectors (where applicable), ``abc``, or principal component analysis vectors ``pca``, as the basis for the normal to the view plane, defaults to ``xyz``
-    :ivar dpi: resolution of any saved image in dots per inch, defaults to ``300``
-    :ivar picture_path: optional path for the location to save the generated image file, defaults to ``None``
-    :ivar fixed_atom_size: use the same radius for all elements (except Hydrogen), defaults to ``True``
-    :ivar show_atom_labels: display text label on each atom, defaults to ``False``
-    :ivar atom_label_type: property used for atom labels, defaults to ``AtomType``
-    :ivar atom_label_color: hexadecimal color code for atom labels, defaults to ``#000000`` i.e. black
-    :ivar atom_label_size: scale atom labels by the given factor, to make them larger or smaller, defaults to ``1.0``
-    :ivar show_regions: display translucent spheres on atoms according to their regions, defaults to ``False``
-    :ivar show_unit_cell_edges: display unit cell for periodic systems using semi-transparent edges, defaults to ``True``
-    :ivar unit_cell_edge_thickness: specify thickness of the displayed unit cell boundary, defaults to ``0.05``
-    :ivar show_unit_cell_faces: display unit cell for periodic systems using semi-transparent faces, defaults to ``False``
-    :ivar show_lattice_vectors: display the lattice vectors for periodic systems, defaults to ``False``
-    :ivar backend: program to use as a backend to generate images, defaults to ``auto`` i.e. any available program
-    :ivar timeout: kill visualization process after given time in seconds, defaults to ``10`` if window is not opened, otherwise no limit
-    :ivar open_window: open AMSview in a dedicated window if ``True``, otherwise render image offscreen, defaults to ``False``
+    :param width: width of the image in pixels, defaults to ``800``
+    :param height: height of the image in pixels, defaults to ``400``
+    :param padding: padding around system in Angstrom, defaults to ``0.0`` (can be negative)
+    :param direction: direction to view system along, selected from a series of preset values, defaults to ``along_z``
+    :param normal: orientation of the normal to the view plane, takes precedence over direction when specified, defaults to ``None``
+    :param normal_basis: whether to use cartesian axes, ``xyz``, lattice vectors (where applicable), ``abc``, or principal component analysis vectors ``pca``, as the basis for the normal to the view plane, defaults to ``xyz``
+    :param dpi: resolution of any saved image in dots per inch, defaults to ``300``
+    :param picture_path: optional path for the location to save the generated image file, defaults to ``None``
+    :param fixed_atom_size: use the same radius for all elements (except Hydrogen), defaults to ``True``
+    :param show_atom_labels: display text label on each atom, defaults to ``False``
+    :param atom_label_type: property used for atom labels, defaults to ``AtomType``
+    :param atom_label_color: hexadecimal color code for atom labels, defaults to ``#000000`` i.e. black
+    :param atom_label_size: scale atom labels by the given factor, to make them larger or smaller, defaults to ``1.0``
+    :param show_regions: display translucent spheres on atoms according to their regions, defaults to ``False``
+    :param show_unit_cell_edges: display unit cell for periodic systems using semi-transparent edges, defaults to ``True``
+    :param unit_cell_edge_thickness: specify thickness of the displayed unit cell boundary, defaults to ``0.05``
+    :param show_unit_cell_faces: display unit cell for periodic systems using semi-transparent faces, defaults to ``False``
+    :param show_lattice_vectors: display the lattice vectors for periodic systems, defaults to ``False``
+    :param backend: program to use as a backend to generate images, defaults to ``auto`` i.e. any available program
+    :param timeout: kill visualization process after given time in seconds, defaults to ``10`` if window is not opened, otherwise no limit
+    :param open_window: open AMSview in a dedicated window if ``True``, otherwise render image offscreen, defaults to ``False``
     """
 
     # Image/viewpoint
