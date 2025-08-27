@@ -2735,7 +2735,7 @@ class AMSResults(Results):
 
     # =========================================================================
 
-    def _access_rkf(self, func: Callable[[KFFile], T], file="ams") -> T:
+    def _access_rkf(self, func: Callable[[KFFile], T], file: str = "ams") -> T:
         """A skeleton method for accessing any of the ``.rkf`` files produced by AMS.
 
         The *file* argument should be the identifier of the file to read. It defaults to ``'ams'``. To access a file called ``something.rkf`` you need to call this function with ``file='something'``. If there exists only one engine results ``.rkf`` file, you can call this function with ``file='engine'`` to access this file.
