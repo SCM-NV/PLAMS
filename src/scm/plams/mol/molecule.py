@@ -186,7 +186,7 @@ class Molecule:
     ):
         self.atoms: List[Atom] = []
         self.bonds: List[Bond] = []
-        self.lattice: List[List[float]] = []
+        self.lattice: Sequence[Sequence[float]] = []
         self.properties = Settings()
 
         if filename is not None:

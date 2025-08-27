@@ -398,7 +398,7 @@ class Settings(dict):
 
         return s
 
-    def set_nested(self, key_tuple: Tuple[Hashable, ...], value: Optional[Any], suppress_missing: bool = False) -> None:
+    def set_nested(self, key_tuple: Iterable[Hashable], value: Optional[Any], suppress_missing: bool = False) -> None:
         """Set a nested value by, recursively, iterating through this instance using the keys in *key_tuple*.
 
         The get item method followed finally by set item is called recursively on this instance until all keys in key_tuple are exhausted.

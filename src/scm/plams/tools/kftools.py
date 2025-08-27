@@ -4,7 +4,7 @@ import struct
 import subprocess
 from bisect import bisect
 from collections import OrderedDict
-from typing import Dict, Set, Union, List, Sequence, Iterator, Optional, Any
+from typing import Dict, Set, Union, List, Sequence, Iterator, Optional, Any, Literal, overload
 
 import numpy as np
 from scm.plams.core.errors import FileError
@@ -334,6 +334,10 @@ class KFFile:
         self.tmpdata = OrderedDict()
         self.reader = KFReader(self.path) if os.path.isfile(self.path) else None
 
+    @overload
+    def read(self, section: str, variable: str, return_as_list: Literal[True]) -> Union[str, TMultiValue]: ...
+    @overload
+    def read(self, section: str, variable: str, return_as_list: bool = False) -> TRead: ...
     def read(self, section: str, variable: str, return_as_list: bool = False) -> TRead:
         """Extract and return data for a *variable* located in a *section*.
 

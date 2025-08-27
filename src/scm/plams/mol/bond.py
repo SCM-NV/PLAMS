@@ -30,7 +30,12 @@ class Bond:
     AR = 1.5
 
     def __init__(
-        self, atom1: "Atom" = None, atom2: "Atom" = None, order: int = 1, mol: Optional["Molecule"] = None, **other: Any
+        self,
+        atom1: "Atom" = None,
+        atom2: "Atom" = None,
+        order: float = 1,
+        mol: Optional["Molecule"] = None,
+        **other: Any,
     ):
         self.atom1 = atom1
         self.atom2 = atom2

@@ -1,6 +1,21 @@
 import os
 from os.path import join as opj
-from typing import Dict, List, Literal, Set, Tuple, Union, Optional, TYPE_CHECKING, Any
+from typing import (
+    Dict,
+    List,
+    Literal,
+    Set,
+    Tuple,
+    Union,
+    Optional,
+    TYPE_CHECKING,
+    Any,
+    Sequence,
+    Callable,
+    TypeVar,
+    Iterator,
+    Type,
+)
 import numpy as np
 
 from scm.plams.core.basejob import SingleJob
@@ -34,7 +49,11 @@ if TYPE_CHECKING:
     from scm.plams.core.jobrunner import JobRunner
     from scm.plams.core.jobmanager import JobManager
     from scm.plams.tools.kftools import TRead
+    from scm.plams.interfaces.adfsuite.forcefieldparams import ForceFieldPatch
     from ase import Atoms as AseAtoms
+    from watchdog.events import FileSystemEvent
+
+T = TypeVar("T")
 
 try:
     from watchdog.events import FileModifiedEvent, PatternMatchingEventHandler
@@ -43,7 +62,7 @@ try:
     _has_watchdog = True
 
     class AMSJobLogTailHandler(PatternMatchingEventHandler):
-        def __init__(self, job, jobmanager):
+        def __init__(self, job: "AMSJob", jobmanager: "JobManager"):
             super().__init__(
                 patterns=[os.path.join(jobmanager.workdir, f"{job.name}*", "ams.log")],
                 ignore_patterns=["*.rkf", "*.out"],
@@ -53,7 +72,7 @@ try:
             self._job = job
             self._seekto = 0
 
-        def on_any_event(self, event):
+        def on_any_event(self, event: "FileSystemEvent") -> None:
             if (
                 self._job.path is not None
                 and event.src_path == os.path.join(self._job.path, "ams.log")
@@ -71,7 +90,7 @@ try:
                 except FileNotFoundError:
                     self._seekto = 0
 
-        def trigger(self):
+        def trigger(self) -> None:
             if self._job.path is None:
                 return
             src_path = os.path.join(self._job.path, "ams.log")
@@ -87,9 +106,9 @@ __all__ = ["AMSJob", "AMSResults"]
 class AMSResults(Results):
     """A specialized |Results| subclass for accessing the results of |AMSJob|."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any):
         Results.__init__(self, *args, **kwargs)
-        self.rkfs = {}
+        self.rkfs: Dict[str, KFFile] = {}
 
     def collect(self) -> None:
         """Collect files present in the job folder. Use parent method from |Results|, then create an instance of |KFFile| for each ``.rkf`` file present in the job folder. Collect these files in ``rkfs`` dictionary, with keys being filenames without ``.rkf`` extension.
@@ -116,7 +135,7 @@ class AMSResults(Results):
         else:
             log("WARNING: Main KF file {} not present in {}".format(rkfname, self.job.path), 1)
 
-    def _copy_to(self, newresults):
+    def _copy_to(self, newresults: "AMSResults") -> None:
         super()._copy_to(newresults)
         newresults.rkfs = {}
         newresults.collect_rkfs()
@@ -493,9 +512,9 @@ class AMSResults(Results):
             value = main.read(history_section, f"{varname}({step})")
         return value
 
-    def _values_stored_as_blocks(self, main, varname: str, history_section: str):
+    def _values_stored_as_blocks(self, main: KFFile, varname: str, history_section: str) -> bool:
         """Determines wether the values of varname in a trajectory rkf file are stored in blocks"""
-        nentries = main.read(history_section, "nEntries")
+        nentries: int = main.read(history_section, "nEntries")
         as_block = False
         # This is extremely slow, because looping over main is very slow.
         # This is because the (sec,var) tuples are first stored in a set, then sorted, and only then yielded
@@ -536,7 +555,7 @@ class AMSResults(Results):
         return temperatures
 
     def get_band_structure(
-        self, bands=None, unit: str = "hartree", only_high_symmetry_points: bool = False
+        self, bands: Optional[Sequence[int]] = None, unit: str = "hartree", only_high_symmetry_points: bool = False
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, List[str], float]:
         """
         Extracts the electronic band structure from DFTB, BAND or QuantumEspresso calculations. The returned data can be plotted with ``plot_band_structure``.
@@ -570,11 +589,11 @@ class AMSResults(Results):
 
         read_labels = True
 
-        nBands = self.readrkf("band_curves", "nBands", file="engine")
+        nBands: int = self.readrkf("band_curves", "nBands", file="engine")
 
-        nEdges = self.readrkf("band_curves", "nEdges", file="engine")
+        nEdges: int = self.readrkf("band_curves", "nEdges", file="engine")
         try:
-            nSpin = self.readrkf("band_curves", "nSpin", file="engine")
+            nSpin: int = self.readrkf("band_curves", "nSpin", file="engine")
         except KeyError:
             nSpin = 1
 
@@ -592,7 +611,7 @@ class AMSResults(Results):
         x = []
 
         for i in range(nEdges):
-            my_x = self.readrkf("band_curves", f"Edge_{i+1}_xFor1DPlotting", file="engine")
+            my_x: List[float] = self.readrkf("band_curves", f"Edge_{i+1}_xFor1DPlotting", file="engine")
             my_x = np.array(my_x) + prevmaxx
             prevmaxx = np.max(my_x)
 
@@ -711,7 +730,7 @@ class AMSResults(Results):
         return energy, total_dos, dos_per_species, dos_per_atom
 
     def get_phonons_band_structure(
-        self, bands=None, unit: str = "hartree", only_high_symmetry_points: bool = False
+        self, bands: Optional[Sequence[int]] = None, unit: str = "hartree", only_high_symmetry_points: bool = False
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, List[str], float]:
         """
         Extracts the electronic band structure from DFTB, BAND or QuantumEspresso calculations. The returned data can be plotted with ``plot_phonons_band_structure``.
@@ -739,8 +758,8 @@ class AMSResults(Results):
 
         read_labels = True
 
-        nBands = self.readrkf("phonon_curves", "nBands", file="engine")
-        nEdges = self.readrkf("phonon_curves", "nEdges", file="engine")
+        nBands: int = self.readrkf("phonon_curves", "nBands", file="engine")
+        nEdges: int = self.readrkf("phonon_curves", "nEdges", file="engine")
 
         if bands is None:
             bands = np.arange(nBands)
@@ -872,7 +891,7 @@ class AMSResults(Results):
         The *engine* argument should be the identifier of the file you wish to read. To access a file called ``something.rkf`` you need to call this function with ``engine='something'``. The *engine* argument can be omitted if there's only one engine results file in the job folder.
         """
 
-        def properties(kf):
+        def properties(kf: KFFile) -> Dict[str, TRead]:
             if not "Properties" in kf:
                 return {}
             # There are two *kinds* of "Properties" sections:
@@ -882,10 +901,10 @@ class AMSResults(Results):
             ret = {}
             if ("Properties", "nEntries") in kf:
                 # This is a 'RKFileModule' properties section:
-                n = kf.read("Properties", "nEntries")
+                n: int = kf.read("Properties", "nEntries")
                 for i in range(1, n + 1):
-                    tp = kf.read("Properties", "Type({})".format(i)).strip()
-                    stp = kf.read("Properties", "Subtype({})".format(i)).strip()
+                    tp: str = kf.read("Properties", "Type({})".format(i)).strip()
+                    stp: str = kf.read("Properties", "Subtype({})".format(i)).strip()
                     val = kf.read("Properties", "Value({})".format(i))
                     key = stp if stp.endswith(tp) else ("{} {}".format(stp, tp) if stp else tp)
                     ret[key] = val
@@ -1004,12 +1023,12 @@ class AMSResults(Results):
         self,
         engine: Optional[str] = None,
         broadening_type: Literal["gaussian", "lorentzian"] = "gaussian",
-        broadening_width=40,
-        min_x=0,
-        max_x=4000,
-        x_spacing=0.5,
+        broadening_width: int = 40,
+        min_x: int = 0,
+        max_x: int = 4000,
+        x_spacing: float = 0.5,
         post_process: Optional[Literal["max_to_1"]] = None,
-    ):
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """Return the "frequency spectrum" (i.e. the frequencies broaden with intensity equal to 1). Units: frequencies are in cm-1, the intensities by the default are in mode counts units but post_process is equal to max_to_1 are in arbitrary units.
 
         The *engine* argument should be the identifier of the file you wish to read. To access a file called ``something.rkf`` you need to call this function with ``engine='something'``. The *engine* argument can be omitted if there's only one engine results file in the job folder.
@@ -1047,7 +1066,7 @@ class AMSResults(Results):
         The *engine* argument should be the identifier of the file you wish to read. To access a file called ``something.rkf`` you need to call this function with ``engine='something'``. The *engine* argument can be omitted if there's only one engine results file in the job folder.
         """
         normal_modes_list = []
-        num_normal_modes = self._process_engine_results(lambda x: x.read("Vibrations", "nNormalModes"), engine)
+        num_normal_modes: int = self._process_engine_results(lambda x: x.read("Vibrations", "nNormalModes"), engine)
         for i in range(num_normal_modes):
             n_mode = np.array(
                 self._process_engine_results(lambda x: x.read("Vibrations", f"NoWeightNormalMode({i+1})"), engine)
@@ -1150,10 +1169,10 @@ class AMSResults(Results):
         engine: Optional[str] = None,
         spectrum_type: Literal["ir", "raman"] = "ir",
         broadening_type: Literal["gaussian", "lorentzian"] = "gaussian",
-        broadening_width=40,
-        min_x=0,
-        max_x=4000,
-        x_spacing=0.5,
+        broadening_width: int = 40,
+        min_x: int = 0,
+        max_x: int = 4000,
+        x_spacing: float = 0.5,
         post_process: Optional[Literal["all_intensities_to_1", "max_to_1"]] = None,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """Return the IR/Raman spectrum. Units: frequencies are in cm-1, the intensities by the default are in km/mol units (kilometers/mol) for IR and Angstrom^4/amu for Raman but if post_process is all_intensities_to_1 the units are in modes counts otherwise if equal to max_to_1 are in arbitrary units.
@@ -1189,10 +1208,10 @@ class AMSResults(Results):
         self,
         engine: Optional[str] = None,
         broadening_type: Literal["gaussian", "lorentzian"] = "gaussian",
-        broadening_width=40,
-        min_x=0,
-        max_x=4000,
-        x_spacing=0.5,
+        broadening_width: int = 40,
+        min_x: int = 0,
+        max_x: int = 4000,
+        x_spacing: float = 0.5,
         post_process: Optional[Literal["all_intensities_to_1", "max_to_1"]] = None,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """Return the IR spectrum. Units: frequencies are in cm-1, the intensities by the default are in km/mol units (kilometers/mol) but if post_process is all_intensities_to_1 the units are in modes counts otherwise if equal to max_to_1 are in arbitrary units.
@@ -1216,10 +1235,10 @@ class AMSResults(Results):
         self,
         engine: Optional[str] = None,
         broadening_type: Literal["gaussian", "lorentzian"] = "gaussian",
-        broadening_width=40,
-        min_x=0,
-        max_x=4000,
-        x_spacing=0.5,
+        broadening_width: int = 40,
+        min_x: int = 0,
+        max_x: int = 4000,
+        x_spacing: float = 0.5,
         post_process: Optional[Literal["all_intensities_to_1", "max_to_1"]] = None,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """Return the Raman spectrum. Units: frequencies are in cm-1, the intensities by the default are in Angstrom^4/amu units but if post_process is all_intensities_to_1 the units are in modes counts otherwise if equal to max_to_1 are in arbitrary units.
@@ -1329,7 +1348,9 @@ class AMSResults(Results):
 
         return ret
 
-    def get_forcefield_params(self, engine: Optional[str] = None):
+    def get_forcefield_params(
+        self, engine: Optional[str] = None
+    ) -> Tuple[List[float], List[str], Optional["ForceFieldPatch"]]:
         """
         Read all force field data from a forcefield.rkf file into self
 
@@ -1349,26 +1370,26 @@ class AMSResults(Results):
         except:
             return ""
 
-    def get_poissonratio(self, engine: Optional[str] = None):
+    def get_poissonratio(self, engine: Optional[str] = None) -> float:
         return self._process_engine_results(lambda x: x.read("AMSResults", "PoissonRatio"), engine)
 
-    def get_youngmodulus(self, unit: str = "au", engine: Optional[str] = None):
+    def get_youngmodulus(self, unit: str = "au", engine: Optional[str] = None) -> float:
         return self._process_engine_results(
             lambda x: x.read("AMSResults", "YoungModulus"), engine
         ) * Units.conversion_ratio("au", unit)
 
-    def get_shearmodulus(self, unit: str = "au", engine: Optional[str] = None):
+    def get_shearmodulus(self, unit: str = "au", engine: Optional[str] = None) -> float:
         return self._process_engine_results(
             lambda x: x.read("AMSResults", "ShearModulus"), engine
         ) * Units.conversion_ratio("au", unit)
 
-    def get_bulkmodulus(self, unit: str = "au", engine: Optional[str] = None):
+    def get_bulkmodulus(self, unit: str = "au", engine: Optional[str] = None) -> float:
         return self._process_engine_results(
             lambda x: x.read("AMSResults", "BulkModulus"), engine
         ) * Units.conversion_ratio("au", unit)
 
     @requires_optional_package("natsort")
-    def get_pesscan_results(self, molecules: bool = True):
+    def get_pesscan_results(self, molecules: bool = True) -> Dict[str, Any]:
         """
         For PESScan jobs, this functions extracts information about the scan coordinates and energies.
 
@@ -1418,11 +1439,11 @@ class AMSResults(Results):
             else:
                 return [x]
 
-        nScanCoord = self.readrkf("PESScan", "nScanCoord")
+        nScanCoord: int = self.readrkf("PESScan", "nScanCoord")
 
         pes = tolist(self.readrkf("PESScan", "PES"))
 
-        origscancoords = tolist(self.get_history_property("ScanCoord", history_section="PESScan"))
+        origscancoords: List[str] = tolist(self.get_history_property("ScanCoord", history_section="PESScan"))
         # one scan coordinate may have several variables
         scancoords = [x.split("\n") for x in origscancoords]
         pescoords = tolist(self.readrkf("PESScan", "PESCoords"))
@@ -1490,7 +1511,7 @@ class AMSResults(Results):
 
         return ret
 
-    def get_neb_results(self, molecules: bool = True, unit: str = "au"):
+    def get_neb_results(self, molecules: bool = True, unit: str = "au") -> Dict[str, Any]:
         """
         Returns a dictionary with results from a NEB calculation.
 
@@ -1550,7 +1571,7 @@ class AMSResults(Results):
 
         return ret
 
-    def get_irc_results(self, molecules: bool = True, unit: str = "au"):
+    def get_irc_results(self, molecules: bool = True, unit: str = "au") -> Dict[str, Any]:
         """
         Returns a dictionary with results from an IRC calculation.
 
@@ -1654,10 +1675,10 @@ class AMSResults(Results):
 
         return reformed
 
-    def get_time_step(self, history_section: Literal["BinLog", "MDHistory"] = "MDHistory"):
+    def get_time_step(self, history_section: Literal["BinLog", "MDHistory"] = "MDHistory") -> Optional[int]:
         """Returns the time step between adjacent frames (NOT the TimeStep in the settings, but Timestep*SamplingFreq) in femtoseconds for MD simulation jobs"""
-        time1 = self.get_property_at_step(1, "Time", history_section=history_section)
-        time2 = self.get_property_at_step(2, "Time", history_section=history_section)
+        time1: int = self.get_property_at_step(1, "Time", history_section=history_section)
+        time2: int = self.get_property_at_step(2, "Time", history_section=history_section)
 
         if time1 is None or time2 is None:
             return None
@@ -1665,7 +1686,14 @@ class AMSResults(Results):
         time_step = time2 - time1
         return time_step
 
-    def _get_integer_start_end_every_max(self, start_fs, end_fs, every_fs, max_dt_fs, time_step=None):
+    def _get_integer_start_end_every_max(
+        self,
+        start_fs: float,
+        end_fs: Optional[float],
+        every_fs: Optional[float],
+        max_dt_fs: Optional[float],
+        time_step: Optional[int] = None,
+    ) -> Tuple[int, Optional[int], int, Optional[int]]:
         """converts from femtoseconds to integers"""
         if time_step is None:
             time_step = self.get_time_step()
@@ -1677,16 +1705,16 @@ class AMSResults(Results):
 
     def get_velocity_acf(
         self,
-        start_fs=0,
-        end_fs=None,
-        every_fs=None,
-        max_dt_fs=None,
-        atom_indices=None,
-        x=True,
-        y=True,
-        z=True,
-        normalize=False,
-    ):
+        start_fs: float = 0,
+        end_fs: Optional[float] = None,
+        every_fs: Optional[float] = None,
+        max_dt_fs: Optional[float] = None,
+        atom_indices: Optional[Sequence[int]] = None,
+        x: bool = True,
+        y: bool = True,
+        z: bool = True,
+        normalize: bool = False,
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Calculate the velocity autocorrelation function. Works only for trajectories with a constant number of atoms.
 
@@ -1719,9 +1747,9 @@ class AMSResults(Results):
         """
         from scm.plams.trajectories.analysis import autocorrelation
 
-        nEntries = self.readrkf("MDHistory", "nEntries")
+        nEntries: int = self.readrkf("MDHistory", "nEntries")
 
-        time_step = self.get_time_step()
+        time_step: int = self.get_time_step()
 
         start_step, end_step, every, max_dt = self._get_integer_start_end_every_max(
             start_fs, end_fs, every_fs, max_dt_fs
@@ -1757,7 +1785,7 @@ class AMSResults(Results):
 
         return times, vacf
 
-    def get_dipole_history(self, dipole_unit="e*bohr"):
+    def get_dipole_history(self, dipole_unit="e*bohr") -> np.ndarray:
         dipole_x = self.get_history_property(history_section="BinLog", varname="DipoleMoment_x")
         dipole_y = self.get_history_property(history_section="BinLog", varname="DipoleMoment_y")
         dipole_z = self.get_history_property(history_section="BinLog", varname="DipoleMoment_z")
@@ -1766,8 +1794,16 @@ class AMSResults(Results):
         return data
 
     def get_dipole_derivatives_acf(
-        self, start_fs=0, end_fs=None, every_fs=None, max_dt_fs=None, x=True, y=True, z=True, normalize=False
-    ):
+        self,
+        start_fs: float = 0,
+        end_fs: Optional[float] = None,
+        every_fs: Optional[float] = None,
+        max_dt_fs: Optional[float] = None,
+        x: bool = True,
+        y: bool = True,
+        z: bool = True,
+        normalize: bool = False,
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Calculate the velocity autocorrelation function. Works only for trajectories with a constant number of atoms.
 
@@ -1798,7 +1834,7 @@ class AMSResults(Results):
         from scm.plams.trajectories.analysis import autocorrelation
 
         # nEntries = self.readrkf('BinLog', 'nEntries')
-        time_step = self.get_time_step(history_section="BinLog")
+        time_step: int = self.get_time_step(history_section="BinLog")
 
         data = self.get_dipole_history()
 
@@ -1835,7 +1871,9 @@ class AMSResults(Results):
         return times, dipole_deriv_acf
 
     @requires_optional_package("scipy")
-    def get_diffusion_coefficient_from_velocity_acf(self, times=None, acf=None, n_dimensions=3):
+    def get_diffusion_coefficient_from_velocity_acf(
+        self, times: Optional[np.ndarray] = None, acf: Optional[np.ndarray] = None, n_dimensions: int = 3
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Diffusion coefficient by integration of the velocity autocorrelation function
 
@@ -1866,7 +1904,14 @@ class AMSResults(Results):
 
         return np.array(new_times), diffusion_coefficient
 
-    def get_power_spectrum(self, times=None, acf=None, max_dt_fs=None, max_freq=None, number_of_points=None):
+    def get_power_spectrum(
+        self,
+        times: Optional[np.ndarray] = None,
+        acf: Optional[np.ndarray] = None,
+        max_dt_fs: Optional[float] = None,
+        max_freq: Optional[float] = None,
+        number_of_points: Optional[int] = None,
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Calculates a power spectrum from the velocity autocorrelation function.
 
@@ -1900,7 +1945,7 @@ class AMSResults(Results):
         max_dt_fs: Optional[float] = None,
         max_freq: Optional[float] = 5000,
         number_of_points: Optional[int] = None,
-    ):
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Calculates a ir spectrum from the dipole moment autocorrelation function.
 
@@ -1929,7 +1974,16 @@ class AMSResults(Results):
 
     @staticmethod
     @requires_optional_package("scipy")
-    def _get_green_kubo_viscosity(pressuretensor, time_step, max_dt, volume, temperature, xy=True, yz=True, xz=True):
+    def _get_green_kubo_viscosity(
+        pressuretensor: np.ndarray,
+        time_step: float,
+        max_dt: float,
+        volume: float,
+        temperature: float,
+        xy: bool = True,
+        yz: bool = True,
+        xz: bool = True,
+    ) -> Tuple[np.ndarray, np.ndarray]:
         from scipy.integrate import cumtrapz
         from scm.plams.tools.units import Units
         from scm.plams.trajectories.analysis import autocorrelation
@@ -1961,8 +2015,16 @@ class AMSResults(Results):
 
     @requires_optional_package("scipy")
     def get_green_kubo_viscosity(
-        self, start_fs=0, end_fs=None, every_fs=None, max_dt_fs=None, xy=True, yz=True, xz=True, pressuretensor=None
-    ):
+        self,
+        start_fs: float = 0,
+        end_fs: Optional[float] = None,
+        every_fs: Optional[float] = None,
+        max_dt_fs: Optional[float] = None,
+        xy: bool = True,
+        yz: bool = True,
+        xz: bool = True,
+        pressuretensor: Optional[np.ndarray] = None,
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Calculates the viscosity using the Green-Kubo relation (integrating the off-diagonal pressure tensor autocorrelation function).
 
@@ -1995,7 +2057,7 @@ class AMSResults(Results):
         from scm.plams.tools.units import Units
         from scm.plams.trajectories.analysis import autocorrelation
 
-        time_step = self.get_time_step()
+        time_step: int = self.get_time_step()
         start_step, end_step, every, max_dt = self._get_integer_start_end_every_max(
             start_fs, end_fs, every_fs, max_dt_fs
         )
@@ -2042,12 +2104,12 @@ class AMSResults(Results):
         self,
         axis: str = "z",
         density_type: str = "mass",
-        start_fs=0,
-        end_fs=None,
-        every_fs=None,
-        bin_width=0.1,
-        atom_indices=None,
-    ):
+        start_fs: float = 0,
+        end_fs: Optional[float] = None,
+        every_fs: Optional[float] = None,
+        bin_width: float = 0.1,
+        atom_indices: Optional[Sequence[int]] = None,
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Calculates the density of atoms along a Cartesian coordinate axis.
 
@@ -2290,16 +2352,16 @@ class AMSResults(Results):
         class State:
             def __init__(
                 self,
-                landscape,
-                engfile,
-                energy,
-                mol,
-                count,
-                isTS,
-                reactantsID=None,
-                productsID=None,
-                prefactorsFromReactant=None,
-                prefactorsFromProduct=None,
+                landscape: "AMSResults.EnergyLandscape",
+                engfile: str,
+                energy: float,
+                mol: Molecule,
+                count: int,
+                isTS: bool,
+                reactantsID: Optional[int] = None,
+                productsID: Optional[int] = None,
+                prefactorsFromReactant: Optional[float] = None,
+                prefactorsFromProduct: Optional[float] = None,
             ):
                 self._landscape = landscape
                 self.engfile = engfile
@@ -2313,18 +2375,18 @@ class AMSResults(Results):
                 self.prefactorsFromProduct = prefactorsFromProduct
 
             @property
-            def id(self):
+            def id(self) -> int:
                 return self._landscape._states.index(self) + 1
 
             @property
-            def reactants(self):
+            def reactants(self) -> "AMSResults.EnergyLandscape.State":
                 return self._landscape._states[self.reactantsID - 1]
 
             @property
-            def products(self):
+            def products(self) -> "AMSResults.EnergyLandscape.State":
                 return self._landscape._states[self.productsID - 1]
 
-            def __str__(self):
+            def __str__(self) -> str:
                 if self.isTS:
                     lines = [
                         f"State {self.id}: {self.molecule.get_formula(False)} transition state @ {self.energy:.8f} Hartree (found {self.count} times"
@@ -2353,17 +2415,17 @@ class AMSResults(Results):
                 return "\n".join(lines)
 
         class Fragment:
-            def __init__(self, landscape, engfile, energy, mol):
+            def __init__(self, landscape: "AMSResults.EnergyLandscape", engfile: str, energy: float, mol: Molecule):
                 self._landscape = landscape
                 self.engfile = engfile
                 self.energy = energy
                 self.molecule = mol
 
             @property
-            def id(self):
+            def id(self) -> int:
                 return self._landscape._fragments.index(self) + 1
 
-            def __str__(self):
+            def __str__(self) -> str:
                 lines = [
                     f"Fragment {self.id}: {self.molecule.get_formula(False)} local minimum @ {self.energy:.8f} Hartree (results on {self.engfile})"
                 ]
@@ -2372,12 +2434,12 @@ class AMSResults(Results):
         class FragmentedState:
             def __init__(
                 self,
-                landscape,
-                energy,
-                composition,
-                connections=None,
-                adsorptionPrefactors=None,
-                desorptionPrefactors=None,
+                landscape: "AMSResults.EnergyLandscape",
+                energy: float,
+                composition: Sequence[int],
+                connections: Optional[Sequence[int]] = None,
+                adsorptionPrefactors: Optional[Sequence[float]] = None,
+                desorptionPrefactors: Optional[Sequence[float]] = None,
             ):
                 self._landscape = landscape
                 self.energy = energy
@@ -2387,14 +2449,14 @@ class AMSResults(Results):
                 self.desorptionPrefactors = desorptionPrefactors
 
             @property
-            def id(self):
+            def id(self) -> int:
                 return self._landscape._fstates.index(self) + 1
 
             @property
-            def fragments(self):
+            def fragments(self) -> List["AMSResults.EnergyLandscape.Fragment"]:
                 return [self._landscape._fragments[i] for i in self.composition]
 
-            def __str__(self):
+            def __str__(self) -> str:
                 formula = ""
                 for i, id in enumerate(self.composition):
                     formula += self._landscape._fragments[id].molecule.get_formula(False)
@@ -2416,10 +2478,10 @@ class AMSResults(Results):
                         ]
                 return "\n".join(lines)
 
-        def __init__(self, results):
-            self._states = []
-            self._fragments = []
-            self._fstates = []
+        def __init__(self, results: "AMSResults"):
+            self._states: List["AMSResults.EnergyLandscape.State"] = []
+            self._fragments: List["AMSResults.EnergyLandscape.Fragment"] = []
+            self._fstates: List["AMSResults.EnergyLandscape.FragmentedState"] = []
             if results is None:
                 return
 
@@ -2434,18 +2496,18 @@ class AMSResults(Results):
                 if not isinstance(sec[var], list):
                     sec[var] = [sec[var]]
 
-            nStates = sec["nStates"]
+            nStates: int = sec["nStates"]
 
             for iState in range(nStates):
-                energy = sec["energies"][iState]
+                energy: float = sec["energies"][iState]
                 resfile = os.path.splitext(sec["fileNames"].split("\0")[iState])[0]
                 mol = results.get_molecule("Molecule", file=resfile)
-                count = sec["counts"][iState]
+                count: int = sec["counts"][iState]
                 if not sec["isTS"][iState]:
                     self._states.append(AMSResults.EnergyLandscape.State(self, resfile, energy, mol, count, False))
                 else:
-                    reactantsID = sec["reactants"][iState] if sec["reactants"][iState] > 0 else None
-                    productsID = sec["products"][iState] if sec["products"][iState] > 0 else None
+                    reactantsID: int = sec["reactants"][iState] if sec["reactants"][iState] > 0 else None
+                    productsID: int = sec["products"][iState] if sec["products"][iState] > 0 else None
                     prefactorsFromReactant = (
                         sec["prefactorsFromReactant"][iState] if sec["products"][iState] > 0 else None
                     )
@@ -2505,22 +2567,22 @@ class AMSResults(Results):
                 )
 
         @property
-        def minima(self):
+        def minima(self) -> List["AMSResults.EnergyLandscape.State"]:
             return [s for s in self._states if not s.isTS]
 
         @property
-        def transition_states(self):
+        def transition_states(self) -> List["AMSResults.EnergyLandscape.State"]:
             return [s for s in self._states if s.isTS]
 
         @property
-        def fragments(self):
+        def fragments(self) -> List["AMSResults.EnergyLandscape.Fragment"]:
             return [f for f in self._fragments]
 
         @property
-        def fragmented_states(self):
+        def fragmented_states(self) -> List["AMSResults.EnergyLandscape.FragmentedState"]:
             return [fs for fs in self._fstates]
 
-        def __str__(self):
+        def __str__(self) -> str:
             lines = ["All stationary points:"]
             lines += ["======================"]
             for s in self._states:
@@ -2531,16 +2593,16 @@ class AMSResults(Results):
                 lines += [str(fs)]
             return "\n".join(lines)
 
-        def __getitem__(self, i):
+        def __getitem__(self, i: int) -> "AMSResults.EnergyLandscape.State":
             return self._states[i - 1]
 
-        def __iter__(self):
+        def __iter__(self) -> Iterator["AMSResults.EnergyLandscape.State"]:
             return iter(self._states)
 
-        def __len__(self):
+        def __len__(self) -> int:
             return len(self._states)
 
-    def get_energy_landscape(self):
+    def get_energy_landscape(self) -> "AMSResults.EnergyLandscape":
         """Returns the energy landscape obtained from a PESExploration job run by the AMS driver. The energy landscape is a set of stationary PES points (local minima and transition states).
 
         The returned object is of the type ``AMSResults.EnergyLandscape`` and offers convenient access to the states' energies, geometries as well as the information on which transition states connect which minima.
@@ -2562,7 +2624,7 @@ class AMSResults(Results):
 
     # =========================================================================
 
-    def _access_rkf(self, func, file="ams"):
+    def _access_rkf(self, func: Callable[[KFFile], T], file="ams") -> T:
         """A skeleton method for accessing any of the ``.rkf`` files produced by AMS.
 
         The *file* argument should be the identifier of the file to read. It defaults to ``'ams'``. To access a file called ``something.rkf`` you need to call this function with ``file='something'``. If there exists only one engine results ``.rkf`` file, you can call this function with ``file='engine'`` to access this file.
@@ -2593,7 +2655,7 @@ class AMSResults(Results):
         # Surrender:
         raise FileError("File {} not present in {}".format(filename, self.job.path))
 
-    def _process_engine_results(self, func, engine: Optional[str] = None):
+    def _process_engine_results(self, func: Callable[[KFFile], T], engine: Optional[str] = None) -> T:
         """A generic method skeleton for processing any engine results ``.rkf`` file. *func* should be a function that takes one argument (an instance of |KFFile|) and returns arbitrary data.
 
         The *engine* argument should be the identifier of the file you wish to read. To access a file called ``something.rkf`` you need to call this function with ``engine='something'``. The *engine* argument can be omitted if there's only one engine results file in the job folder.
@@ -2632,10 +2694,10 @@ class AMSJob(SingleJob):
     def __init__(
         self,
         molecule: Optional[Union[Molecule, Dict[str, Molecule], "ChemicalSystem", Dict[str, "ChemicalSystem"]]] = None,
-        *args,
-        **kwargs,
+        *args: Any,
+        **kwargs: Any,
     ):
-        def copy_mol(mol):
+        def copy_mol(mol: T) -> T:
             if isinstance(mol, Molecule):
                 return mol.copy()
             elif _has_scm_chemsys and isinstance(mol, ChemicalSystem):
@@ -2651,7 +2713,7 @@ class AMSJob(SingleJob):
         jobrunner: Optional["JobRunner"] = None,
         jobmanager: Optional["JobManager"] = None,
         watch: bool = False,
-        **kwargs,
+        **kwargs: Any,
     ) -> AMSResults:
         """Run the job using *jobmanager* and *jobrunner* (or defaults, if ``None``).
 
@@ -2857,7 +2919,7 @@ class AMSJob(SingleJob):
 
     # =========================================================================
 
-    def _serialize_input(self, special) -> str:
+    def _serialize_input(self, special: Dict[Type, Callable[[Any], str]]) -> str:
         """Transform the contents of ``settings.input`` branch into string with blocks, keys and values.
 
         First, the contents of ``settings.input`` are extended with entries returned by :meth:`_serialize_molecule`. Then the contents of ``settings.input.ams`` are used to generate AMS text input. Finally, every other (than ``ams``) entry in ``settings.input`` is used to generate engine specific input.
@@ -2865,14 +2927,14 @@ class AMSJob(SingleJob):
         Special values can be indicated with *special* argument, which should be a dictionary having types of objects as keys and functions translating these types to strings as values.
         """
 
-        def unspec(value) -> str:
+        def unspec(value: T) -> Union[T, str]:
             """Check if *value* is one of a special types and convert it to string if it is."""
             for spec_type in special:
                 if isinstance(value, spec_type):
                     return special[spec_type](value)
             return value
 
-        def serialize(key: str, value, indent: int, end: str = "End") -> str:
+        def serialize(key: str, value: Any, indent: int, end: str = "End") -> str:
             """Given a *key* and its corresponding *value* from the |Settings| instance produce a snippet of the input file representing this pair.
 
             If the value is a nested |Settings| instance, use recursive calls to build the snippet for the entire block. Indent the result with *indent* spaces.
@@ -3168,13 +3230,13 @@ class AMSJob(SingleJob):
         return None
 
     @staticmethod
-    def _atom_suffix(atom):
+    def _atom_suffix(atom: Atom) -> str:
         """Return the suffix of an atom. Combines both ``properties.suffix`` as well as the other properties in a format that is suitable for inclusion in the AMSuite input."""
 
         # Build key-value dictionary from properties
         keyval_dict = {}
 
-        def serialize(sett, prefix=""):
+        def serialize(sett: Settings, prefix: str = "") -> None:
             for key, val in sett.items():
                 if prefix == "" and key.lower() in ["suffix", "ghost", "name", "supercell", "rdkit"]:
                     # Special atomic properties that are handled by _atom_symbol() already (handled explicitly below).
@@ -3218,7 +3280,7 @@ class AMSJob(SingleJob):
         return ret.strip()
 
     @staticmethod
-    def _atom_symbol(atom):
+    def _atom_symbol(atom: Atom) -> str:
         """Return the atomic symbol of *atom*. Ensure proper formatting for AMSuite input taking into account ``ghost`` and ``name`` entries in ``properties`` of *atom*."""
         smb = atom.symbol
         if "ghost" in atom.properties and atom.properties.ghost:
@@ -3228,7 +3290,7 @@ class AMSJob(SingleJob):
         return smb
 
     @staticmethod
-    def _tuple2rkf(arg):
+    def _tuple2rkf(arg: Tuple[Union["AMSJob", "AMSResults"], str]) -> str:
         """Transform a pair ``(x, name)`` where ``x`` is an instance of |AMSJob| or |AMSResults| and ``name`` is a name of ``.rkf`` file (``ams`` or engine) to an absolute path to that ``.rkf`` file."""
         if len(arg) == 2 and isinstance(arg[1], str):
             if isinstance(arg[0], AMSJob):
@@ -3341,7 +3403,7 @@ class AMSJob(SingleJob):
         return job
 
     @classmethod
-    def from_input(cls, text_input: str, **kwargs) -> "AMSJob":
+    def from_input(cls, text_input: str, **kwargs: Any) -> "AMSJob":
         """
         Creates an AMSJob from AMS-style text input. This function requires that the SCM Python package is installed (if not, it will raise an ImportError).
 
@@ -3381,7 +3443,7 @@ class AMSJob(SingleJob):
         return cls(molecule=mol, settings=sett, **kwargs)
 
     @classmethod
-    def from_inputfile(cls, filename: str, heredoc_delimit: str = "eor", **kwargs) -> "AMSJob":
+    def from_inputfile(cls, filename: str, heredoc_delimit: str = "eor", **kwargs: Any) -> "AMSJob":
         """Construct an :class:`AMSJob` instance from an AMS inputfile or runfile.
 
         If a runscript is provide than this method will attempt to extract the input file based
@@ -3403,7 +3465,7 @@ class AMSJob(SingleJob):
         """
         from scm.plams.tools.units import Units
 
-        def get_list(s):
+        def get_list(s: Settings) -> List:
             if "_1" in s and not "_2" in s and isinstance(s._1, list):
                 return s._1
             else:
@@ -3515,8 +3577,8 @@ class AMSJob(SingleJob):
         return moldict
 
     @staticmethod
-    def _atom_suffix_to_settings(suffix) -> Settings:
-        def is_int(s):
+    def _atom_suffix_to_settings(suffix: str) -> Settings:
+        def is_int(s: str) -> bool:
             if "." in s:
                 return False
             try:
@@ -3524,7 +3586,7 @@ class AMSJob(SingleJob):
             except ValueError:
                 return False
 
-        def is_float(s):
+        def is_float(s: str) -> bool:
             try:
                 float(s)
                 return True
@@ -3583,7 +3645,7 @@ class AMSJob(SingleJob):
         return properties
 
     @staticmethod
-    def _add_region(atom: Atom, name: str):
+    def _add_region(atom: Atom, name: str) -> None:
         """
         Converts atom.properties.region to a set if it isn't already a set.
 
