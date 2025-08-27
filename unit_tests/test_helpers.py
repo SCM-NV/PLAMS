@@ -6,6 +6,7 @@ from importlib.util import find_spec
 from pathlib import Path
 import uuid
 from contextlib import contextmanager
+import sys
 
 from scm.plams.core.settings import (
     SafeRunSettings,
@@ -146,3 +147,11 @@ def skip_if_no_scm_libbase():
         import scm.libbase  # noqa F401
     except ImportError:
         pytest.skip("Skipping test as cannot find scm.libbase package.")
+
+
+def skip_if_windows():
+    """
+    Check whether the platform is windows and skip with a warning if so.
+    """
+    if sys.platform.startswith("win"):
+        pytest.skip("Skipping test as not relevant for Windows platform")

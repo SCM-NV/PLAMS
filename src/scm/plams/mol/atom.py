@@ -12,8 +12,8 @@ __all__ = ["Atom"]
 
 if TYPE_CHECKING:
     from scm.plams.mol.bond import Bond
-    from scm.plams.mol.molecule import Molecule
     from _typeshed import ConvertibleToFloat
+    import scm.plams.mol.molecule as molecule  # required to avoid Sphinx error in type hinting (due to add_to_class)
 
 str_type = str  # To avoid type-hinting issues with str() method
 
@@ -70,7 +70,7 @@ class Atom:
         coords: Optional[Sequence["ConvertibleToFloat"]] = None,
         unit: str = "angstrom",
         bonds: Optional[List["Bond"]] = None,
-        mol: Optional["Molecule"] = None,
+        mol: Optional["molecule.Molecule"] = None,
         **other: Any,
     ):
         if symbol is not None:

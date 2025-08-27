@@ -65,8 +65,9 @@ jobs:
           pip install ".[chem,ams,analysis,docs,examples,dev]"
 
       - name: Run Unit Tests
+        working-directory: unit_tests
         run: |
-          pytest unit_tests
+          pytest
 
   publish-package:
     runs-on: ubuntu-latest

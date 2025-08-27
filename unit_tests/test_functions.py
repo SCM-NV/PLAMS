@@ -27,7 +27,7 @@ from scm.plams.core.settings import Settings
 from scm.plams.core.errors import MissingOptionalPackageError
 from scm.plams.core.jobmanager import JobManager
 from scm.plams.core.threading_utils import ContextAwareThread
-from .test_helpers import assert_config_as_expected, get_mock_open_function, temp_file_path
+from test_helpers import assert_config_as_expected, get_mock_open_function, temp_file_path
 
 
 class TestInitAndFinish:

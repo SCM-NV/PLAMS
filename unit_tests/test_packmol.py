@@ -13,7 +13,7 @@ from scm.plams.interfaces.molecule.packmol import (
     guess_density,
     packmol_around,
 )
-from .test_helpers import skip_if_no_ams_installation
+from test_helpers import skip_if_no_ams_installation
 
 
 class TestPackmolStructure:
@@ -288,7 +288,7 @@ class TestPackMol:
     chloride = from_smiles("[Cl-]")
 
     unhappy_test_cases = [
-        UnhappyTestCase(molecules=water, expected_error="must specify either n_atoms, n_molecules or density"),
+        UnhappyTestCase(molecules=water, expected_error="Illegal combination of arguments"),
         UnhappyTestCase(
             molecules=water,
             n_atoms=300,
@@ -763,6 +763,25 @@ class TestPackMol:
             expected_mole_fractions=[0.96, 0.02, 0.02],
             expected_volume=8000,
             expected_density=0.3811881797008519,
+        ),
+        HappyTestCase(
+            molecules=[water],
+            box_bounds=[0, 0, 0, 10, 10, 10],
+            expected_n_atoms=102,
+            expected_n_molecules=[34],
+            expected_mole_fractions=[1.0],
+            expected_volume=1000,
+            expected_density=1.017117108681339,  # guessed density for water
+        ),
+        HappyTestCase(
+            molecules=[water, acetonitrile],
+            mole_fractions=[1.0, 3.0],
+            box_bounds=[0, 0, 0, 13, 13, 13],
+            expected_n_atoms=147,
+            expected_n_molecules=[7, 21],
+            expected_mole_fractions=[0.25, 0.75],
+            expected_volume=2197,
+            expected_density=0.7469019389358941,
         ),
     ]
 

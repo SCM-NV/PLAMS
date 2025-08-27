@@ -284,7 +284,7 @@ class Results(ApplyRestrict):
 
         The AWK script can be supplied in two ways: either by directly passing the contents of the script (should be a single string) as the *script* argument, or by providing the path (absolute or relative to *filename*) to a text file with an AWK script as the *progfile* argument. If *progfile* is not ``None``, *script* is ignored.
 
-        Other keyword arguments (*\*\*kwargs*) can be used to pass additional variables to AWK (see ``-v`` flag in AWK manual)
+        Other keyword arguments (*\\*\\*kwargs*) can be used to pass additional variables to AWK (see ``-v`` flag in AWK manual)
 
         Returned value is a list of lines (strings). See ``man awk`` for details.
         """

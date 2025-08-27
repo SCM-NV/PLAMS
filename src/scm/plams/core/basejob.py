@@ -171,7 +171,7 @@ class Job(ABC):
     def run(
         self, jobrunner: Optional["JobRunner"] = None, jobmanager: Optional["JobManager"] = None, **kwargs: Any
     ) -> Results:
-        """Run the job using *jobmanager* and *jobrunner* (or defaults, if ``None``). Other keyword arguments (*\*\*kwargs*) are stored in ``run`` branch of job's settings. Returned value is the |Results| instance associated with this job.
+        """Run the job using *jobmanager* and *jobrunner* (or defaults, if ``None``). Other keyword arguments (*\\*\\*kwargs*) are stored in ``run`` branch of job's settings. Returned value is the |Results| instance associated with this job.
 
         .. warning::
 

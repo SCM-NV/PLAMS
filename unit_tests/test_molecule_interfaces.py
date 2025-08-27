@@ -15,7 +15,7 @@ from scm.plams.interfaces.molecule.rdkit import (
     get_reaction_image,
 )
 from scm.plams.interfaces.molecule.packmol import packmol
-from .test_helpers import get_mock_find_spec, get_mock_open_function
+from test_helpers import get_mock_find_spec, get_mock_open_function
 
 
 @pytest.fixture

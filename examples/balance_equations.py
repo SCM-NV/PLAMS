@@ -75,11 +75,13 @@ def main():
     print("Starting loop over products..")
     nmols = len(reactants) + len(products)
     nreactants = len(reactants)
-    for iprod, product in enumerate(pformulas):
+    all_coeffs = []
+    for iprod, _ in enumerate(products):
         print("%8i %20s: " % (iprod, psmiles[iprod]), end="")
         min_coeffs = numpy.zeros(nmols)
         min_coeffs[nreactants + iprod] = 1
         coeffs = reaction.balance(min_coeffs)
+        all_coeffs.append(coeffs)
         print("%s" % (reaction))
 
 
