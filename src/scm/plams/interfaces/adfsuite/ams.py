@@ -49,21 +49,15 @@ except ImportError:
     _has_scm_chemsys = False
 
 if TYPE_CHECKING:
-<<<<<<< HEAD
     from scm.plams.core.jobrunner import JobRunner
     from scm.plams.core.jobmanager import JobManager
     from scm.plams.tools.kftools import TRead
     from scm.plams.interfaces.adfsuite.forcefieldparams import ForceFieldPatch
-=======
->>>>>>> trunk
     from ase import Atoms as AseAtoms
     from watchdog.events import FileSystemEvent
 
 T = TypeVar("T")
 
-    from scm.plams.core.jobmanager import JobManager
-    from scm.plams.core.jobrunner import JobRunner
-    from scm.plams.tools.kftools import TRead
 
 try:
     from watchdog.events import FileModifiedEvent, PatternMatchingEventHandler
