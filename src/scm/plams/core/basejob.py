@@ -797,3 +797,28 @@ class MultiJob(Job):
             self.remove_child(child)
 
         super().delete()
+
+    @classmethod
+    def apply_to_children(
+        cls,
+        job: Job,
+        func: Callable[[Job], None],
+        recursive = False
+    ) -> None:
+        """
+        Apply the function ``func`` to all children of a |MultiJob| (not the job itself).
+        This is a no-op if the job is a |SingleJob|.
+
+        :param job: job to check and apply the function to the children of
+        :param func: function to apply to all children of a |MultiJob|
+        :param recursive: if ``True`` (default), also recursively apply the function to the children of all children of |MultiJob|
+        """
+        if isinstance(job, MultiJob):
+            for child_job in job:
+                func(child_job)
+                if recursive:
+                    cls.apply_to_children(child_job, func, recursive)
+            for other_job in job.other_jobs():
+                func(other_job)
+                if recursive:
+                    cls.apply_to_children(other_job, func, recursive)

@@ -968,6 +968,41 @@ class TestMultiJob:
         assert job._full_name() == "multi_outer/multi_inner_job/dummy_job"
         assert job._full_name("some/rundir") == "some/rundir/multi_outer/multi_inner_job/dummy_job"
 
+    def test_apply_to_children(self):
+        def add_tag(j):
+            j.tag = True
+
+        # Given nested multi-jobs
+        job1 = DummySingleJob(name="dummy_job")
+        job2 = DummySingleJob(name="dummy_job")
+        inner_multi_job = MultiJob(children=[job1, job2], name="multi_inner_job")
+        multi_job = MultiJob(children=[inner_multi_job], name="multi_outer")
+
+        # When apply tagging function to non multi-job
+        MultiJob.apply_to_children(job1, add_tag)
+
+        # Then apply is a no-op
+        assert not hasattr(multi_job, "tag")
+        assert not hasattr(inner_multi_job, "tag")
+        assert not hasattr(job1, "tag")
+        assert not hasattr(job2, "tag")
+
+        # When apply tagging function to children
+        MultiJob.apply_to_children(multi_job, add_tag)
+
+        # Then applies to children non-recursively
+        assert not hasattr(multi_job, "tag")
+        assert hasattr(inner_multi_job, "tag")
+        assert not hasattr(job1, "tag")
+        assert not hasattr(job2, "tag")
+
+        # When apply tagging function recursively
+        MultiJob.apply_to_children(multi_job, add_tag, recursive=True)
+        assert not hasattr(multi_job, "tag")
+        assert hasattr(inner_multi_job, "tag")
+        assert hasattr(job1, "tag")
+        assert hasattr(job2, "tag")
+
     def test_delete_created_multijob(self, config):
         # Given job
         jobs = [DummySingleJob() for _ in range(3)]
