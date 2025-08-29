@@ -1861,9 +1861,7 @@ class Molecule:
                 rotated = True
 
         else:
-            raise MoleculeError(
-                f"align_lattice: unknown convention: {convention}. Possible values are 'AMS' or 'reax'"
-            )
+            raise MoleculeError(f"align_lattice: unknown convention: {convention}. Possible values are 'AMS' or 'reax'")
         return rotated
 
     def rotate_bond(self, bond, moving_atom, angle, unit="radian"):

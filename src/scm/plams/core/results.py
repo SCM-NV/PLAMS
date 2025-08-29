@@ -353,9 +353,7 @@ class Results(ApplyRestrict):
         try:
             output = self.job._filename("out")
         except AttributeError:
-            raise ResultsError(
-                f"Job {self.job.name} is not an instance of SingleJob, it does not have an output"
-            )
+            raise ResultsError(f"Job {self.job.name} is not an instance of SingleJob, it does not have an output")
         return self.get_file_chunk(output, begin, end, match, inc_begin, inc_end, process)
 
     def recreate_molecule(self):

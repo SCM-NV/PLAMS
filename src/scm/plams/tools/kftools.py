@@ -582,15 +582,10 @@ class KFHistory:
             self._init_shape(name)
         if name in self.blocked:
             return numpy.concatenate(
-                [
-                    numpy.atleast_1d(self.kf.read(self.section, f"{name}({i})"))
-                    for i in range(1, self.nblocks + 1)
-                ]
+                [numpy.atleast_1d(self.kf.read(self.section, f"{name}({i})")) for i in range(1, self.nblocks + 1)]
             )
         else:
-            return numpy.asarray(
-                [self.kf.read(self.section, f"{name}({i})") for i in range(1, self.nsteps + 1)]
-            )
+            return numpy.asarray([self.kf.read(self.section, f"{name}({i})") for i in range(1, self.nsteps + 1)])
 
     def iter(self, name: str) -> Iterator[TRead]:
         """Iterate over the values of history item *name*."""
