@@ -36,7 +36,7 @@ TRead = Union[TValue, Sequence[TMultiValue]]
 TWrite = Union[TValue, Sequence[TValue]]
 
 
-def _run_kftool(*args: Any, **kwargs: Any) -> subprocess.CompletedProcess[Any]:
+def _run_kftool(*args: Any, **kwargs: Any) -> "subprocess.CompletedProcess[Any]":
     startupinfo = None
     if os.name == "nt":
         # Prevent unwanted console windows from popping up on Windows
