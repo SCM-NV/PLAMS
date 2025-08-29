@@ -155,7 +155,7 @@ class KFReader:
                     ">": "big endian",
                 }
                 log(
-                    f"Format of {self.path} detected to {self.word} and {self.endian}",
+                    f"Format of {self.path} detected to {d[self.word]} and {d[self.endian]}",
                     7,
                 )
 
