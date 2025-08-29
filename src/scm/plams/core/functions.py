@@ -281,12 +281,15 @@ def init(
     cfg.slurm = _init_slurm() if "SLURM_JOB_ID" in os.environ else None
 
     if not quiet:
-        log("Running PLAMS located in {}".format(dirname(dirname(__file__))), 5)
-        log("Using Python {}.{}.{} located in {}".format(*sys.version_info[:3], sys.executable), 5)
+        log(f"Running PLAMS located in {dirname(dirname(__file__))}", 5)
+        log(
+            f"Using Python {sys.version_info[0]}.{sys.version_info[1]}.{sys.version_info[2]} located in {sys.executable}",
+            5,
+        )
         if defaults_file is not None:
-            log("PLAMS defaults were loaded from {}".format(defaults_file), 5)
+            log(f"PLAMS defaults were loaded from {defaults_file}", 5)
         log("PLAMS environment initialized", 5)
-        log("PLAMS working folder: {}".format(cfg.default_jobmanager.workdir), 1)
+        log(f"PLAMS working folder: {cfg.default_jobmanager.workdir}", 1)
 
     cfg.init = True
     cfg._explicit_init = True
@@ -611,13 +614,13 @@ def parse_heredoc(bash_input: str, heredoc_delimit: str = "eor") -> str:
 
     """
     # Find the start of the heredoc block
-    start_pattern = r"<<(-)?(\s+)?{}".format(heredoc_delimit)
+    start_pattern = rf"<<(-)?(\s+)?{heredoc_delimit}"
     start_heredoc = re.search(start_pattern, bash_input)
     if not start_heredoc:
         return bash_input
 
     # Find the end of the heredoc block
-    end_pattern = r"\n(\s+)?{}(\s+)?\n".format(heredoc_delimit)
+    end_pattern = rf"\n(\s+)?{heredoc_delimit}(\s+)?\n"
     end_heredoc = re.search(end_pattern, bash_input)
 
     # Prepare the slices

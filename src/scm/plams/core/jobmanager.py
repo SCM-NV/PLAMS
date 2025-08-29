@@ -73,7 +73,7 @@ class JobManager:
         elif os.path.isdir(path):
             self.path = os.path.abspath(path)
         else:
-            raise PlamsError("Invalid path: {}".format(path))
+            raise PlamsError(f"Invalid path: {path}")
 
         basename = os.path.normpath(folder) if folder else "plams_workdir"
         self.foldername = basename
@@ -168,7 +168,7 @@ class JobManager:
         if os.path.isfile(filename):
             filename = os.path.abspath(filename)
         else:
-            raise FileError("File {} not present".format(filename))
+            raise FileError(f"File {filename} not present")
         path = os.path.dirname(filename)
         with open(filename, "rb") as f:
 
@@ -219,7 +219,7 @@ class JobManager:
         """
         with self._register_lock:
 
-            log("Registering job {}".format(job.name), 7)
+            log(f"Registering job {job.name}", 7)
             job.jobmanager = self
 
             # get current directory for jobs and create it if required
@@ -233,7 +233,7 @@ class JobManager:
             # If the name ends with the counting suffix, e.g. ".002", remove it.
             # The suffix is just not part of a legitimate job name and users will have to live with it potentially changing.
             orgfname = job._full_name(rel_dir_for_jobs)
-            job.name = re.sub(r"(\.\d{%i})+$" % (self.settings.counter_len), "", job.name)
+            job.name = re.sub(rf"(\.\d{{{self.settings.counter_len}}})+$", "", job.name)
             fname = job._full_name(rel_dir_for_jobs)
             if fname in self.names:
                 self.names[fname] += 1
@@ -242,7 +242,7 @@ class JobManager:
             else:
                 self.names[fname] = 1
             if fname != orgfname:
-                log("Renaming job {} to {}".format(orgfname, fname), 3)
+                log(f"Renaming job {orgfname} to {fname}", 3)
 
             if job.path is None:
                 if job.parent:
@@ -253,7 +253,7 @@ class JobManager:
 
             self.jobs.append(job)
             job.status = JobStatus.REGISTERED
-            log("Job {} registered".format(job.name), 7)
+            log(f"Job {job.name} registered", 7)
 
     def _check_hash(self, job):
         """Calculate the hash of *job* and, if it is not ``None``, search previously run jobs for the same hash. If such a job is found, return it. Otherwise, return ``None``"""
@@ -262,7 +262,7 @@ class JobManager:
             with self._register_lock:
                 if h in self.hashes:
                     prev = self.hashes[h]
-                    log("Job {} previously run as {}, using old results".format(job.name, prev.name), 1)
+                    log(f"Job {job.name} previously run as {prev.name}, using old results", 1)
                     return prev
                 else:
                     self.hashes[h] = job

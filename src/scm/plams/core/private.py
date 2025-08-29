@@ -58,7 +58,7 @@ def saferun(*args, **kwargs):
             return subprocess.run(*args, **kwargs)
         except OSError as e:
             attempt += 1
-            log("subprocess.run({}) attempt {} failed with {}".format(args[0], attempt, e), 5)
+            log(f"subprocess.run({args[0]}) attempt {attempt} failed with {e}", 5)
             last_error = e
             time.sleep(delay)
     raise last_error

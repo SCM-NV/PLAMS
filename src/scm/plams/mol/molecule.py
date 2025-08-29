@@ -1102,9 +1102,7 @@ class Molecule:
             # diagonal supercell expansion
             if len(args) != len(self.lattice):
                 raise MoleculeError(
-                    "supercell: The lattice has {} vectors, but {} arguments were given".format(
-                        len(self.lattice), len(args)
-                    )
+                    f"supercell: The lattice has {len(self.lattice)} vectors, but {len(args)} arguments were given"
                 )
             supercell_lattice, cell_translations = diagonal_supercell(*args)
 
@@ -1159,7 +1157,7 @@ class Molecule:
         elif len(self.lattice) == 0:
             raise ValueError("Cannot calculate unit cell volume for a non-periodic molecule")
         else:
-            raise ValueError("len(self.lattice) = {}, should be <=3.".format(len(self.lattice)))
+            raise ValueError(f"len(self.lattice) = {len(self.lattice)}, should be <=3.")
 
     def cell_lengths(self, unit: str = "angstrom") -> List[float]:
         """Return the lengths of the lattice vector. Returns a list with the same length as self.lattice"""
@@ -1864,7 +1862,7 @@ class Molecule:
 
         else:
             raise MoleculeError(
-                "align_lattice: unknown convention: {}. Possible values are 'AMS' or 'reax'".format(convention)
+                f"align_lattice: unknown convention: {convention}. Possible values are 'AMS' or 'reax'"
             )
         return rotated
 
@@ -2376,7 +2374,7 @@ class Molecule:
                 if N is stay:
                     if atom is go:
                         continue
-                    raise MoleculeError("substitute: {} is a part of a cycle".format(msg))
+                    raise MoleculeError(f"substitute: {msg} is a part of a cycle")
                 if N not in delete:
                     delete.add(N)
                     dfs(N, stay, go, delete, msg)
@@ -2589,7 +2587,7 @@ class Molecule:
         if self.lattice:
             s += "  Lattice:\n"
             for vec in self.lattice:
-                s += "    {:16.10f} {:16.10f} {:16.10f}\n".format(*vec)
+                s += f"    {vec[0]:16.10f} {vec[1]:16.10f} {vec[2]:16.10f}\n"
         return s
 
     def __iter__(self):

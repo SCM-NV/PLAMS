@@ -82,7 +82,7 @@ def main():
             with open(input_file, "r", encoding="utf-8") as f:
                 inputscript += f.read()
         else:
-            print("Error: File {} not found".format(input_file))
+            print(f"Error: File {input_file} not found")
             sys.exit(1)
 
     # handle restart
@@ -108,7 +108,7 @@ def main():
                     n += 1
                     restart_backup = restartdir + ".res" + str(n)
                 os.rename(restartdir, restart_backup)
-                print("RESTART: Moving {} to {} and restarting from it".format(restartdir, restart_backup))
+                print(f"RESTART: Moving {restartdir} to {restart_backup} and restarting from it")
                 args.load.append(restart_backup)
         else:
             print("RESTART: The folder specified for restart does not exist. Ignoring -r flag.")
@@ -141,13 +141,13 @@ def main():
         tb = traceback.extract_tb(exc_tb)
         fname, lineno, fn, text = tb[-1]
         err_msg = "Execution interrupted by the following exception:\n"
-        err_msg += "{}: {}\n".format(exc_type.__name__, str(e))
-        err_msg += "File: {}\n".format(os.path.basename(fname))
-        err_msg += "Line {}: {}\n\n".format(lineno, text)
+        err_msg += f"{exc_type.__name__}: {str(e)}\n"
+        err_msg += f"File: {os.path.basename(fname)}\n"
+        err_msg += f"Line {lineno}: {text}\n\n"
         err_msg += "==============Full traceback========================"
         for fname, lineno, fn, text in tb:
-            err_msg += "\nFile: {}".format(os.path.basename(fname))
-            err_msg += "\nLine {}: {}".format(lineno, text)
+            err_msg += f"\nFile: {os.path.basename(fname)}"
+            err_msg += f"\nLine {lineno}: {text}"
             err_msg += "\n----------------------------------------------------"
         log(err_msg)
 
