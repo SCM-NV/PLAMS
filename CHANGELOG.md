@@ -10,7 +10,6 @@ For example, 2024.101 is the major release of 2024, and 2024.102 is the first bu
 This changelog is effective from the 2025 releases.
 
 ## [Unreleased]
-* New `BANDFragment` and updated `ADFFragment` recipes for automatic EDA calculations.
 
 ### Added
 * `AMSAnalysisJobs` now have Pisa support, accept multiple AMSJobs as input, and no longer overwrite user supplied input settings.
@@ -23,6 +22,8 @@ This changelog is effective from the 2025 releases.
 * `AMSResults.get_main_engine_name` returns the main engine name, useful for all the getters in `AMSResults`
 * `AMSResults.get_pvdos`, `AMSResults.get_reduced_masses` returns associated results
 * `AMSResults.get_normal_modes` now explicitly give the option to return the mass_weighted_hessian_eigenvectors
+* `BANDFragment` and updated `ADFFragment` recipes for automatic EDA calculations
+* `Job.delete` and `Job.rename` methods for deleting/renaming job files and directories
 
 ### Changed
 * `JobAnalysis` returns an updated copy on modification instead of performing the operation in-place
