@@ -8,7 +8,9 @@ import shutil
 import threading
 from os.path import join as opj
 from subprocess import PIPE
-from typing import List, Dict, TYPE_CHECKING, Optional, Callable, Union, TypeVar
+from typing import List, Dict, TYPE_CHECKING, Optional, Callable, Union, TypeVar, Tuple, Any
+from typing_extensions import ParamSpec, Concatenate
+from types import FrameType
 
 from scm.plams.core.errors import FileError, ResultsError
 from scm.plams.core.functions import get_config, log
@@ -19,11 +21,12 @@ if TYPE_CHECKING:
     from scm.plams.core.basejob import Job
 
 T = TypeVar("T")
+P = ParamSpec("P")
 
 __all__ = ["Results"]
 
 
-def _caller_name_and_arg(frame):
+def _caller_name_and_arg(frame: Optional[FrameType]) -> Tuple[Optional[str], Optional[Any]]:
     """Extract information about name and arguments of a function call from a *frame* object"""
     if frame is None:
         return None, None
@@ -40,7 +43,7 @@ def _caller_name_and_arg(frame):
     return caller_name, caller_arg
 
 
-def _privileged_access():
+def _privileged_access() -> bool:
     """Analyze contents of the current stack to find out if privileged access to the |Results| methods should be granted.
 
     Privileged access is granted to two |Job| methods: |postrun| and :meth:`~scm.plams.core.basejob.Job.check`, but only if they are called from :meth:`~scm.plams.core.basejob.Job._finalize` of the same |Job| instance.
@@ -55,14 +58,14 @@ def _privileged_access():
     return False
 
 
-def _restrict(func):
+def _restrict(func: Callable[Concatenate["Results", P], T]) -> Callable[Concatenate["Results", P], Optional[T]]:
     """Decorator that wraps methods of |Results| instances.
 
     Whenever decorated method is called, the status of associated job is checked. Depending on its value access to the method is granted, refused or the calling thread is forced to wait for the right :ref:`event<event-objects>` to be set.
     """
 
     @functools.wraps(func)
-    def guardian(self, *args, **kwargs):
+    def guardian(self: "Results", /, *args: P.args, **kwargs: P.kwargs) -> Optional[T]:
         if not self.job:
             raise ResultsError("Using Results not associated with any Job")
 
@@ -278,7 +281,7 @@ class Results(ApplyRestrict):
         txt = self.read_file(filename)
         return findall(regex, txt)
 
-    def awk_file(self, filename: str, script: str = "", progfile: Optional[str] = None, **kwargs) -> List[str]:
+    def awk_file(self, filename: str, script: str = "", progfile: Optional[str] = None, **kwargs: Any) -> List[str]:
         """awk_file(filename, script='', progfile=None, **kwargs)
         Execute an AWK script on a file given by *filename*.
 
@@ -300,7 +303,7 @@ class Results(ApplyRestrict):
             cmd += [script]
         return self._process_file(filename, cmd)
 
-    def awk_output(self, script: str = "", progfile: Optional[str] = None, **kwargs) -> List[str]:
+    def awk_output(self, script: str = "", progfile: Optional[str] = None, **kwargs: Any) -> List[str]:
         """awk_output(script='', progfile=None, **kwargs)
         Shortcut for :meth:`~Results.awk_file` on the output file."""
         try:
@@ -335,8 +338,8 @@ class Results(ApplyRestrict):
         match: int = 0,
         inc_begin: bool = False,
         inc_end: bool = False,
-        process: Optional[Callable] = None,
-    ):
+        process: Optional[Callable[[str], T]] = None,
+    ) -> Union[List[str], List[T]]:
         """get_file_chunk(filename, begin=None, end=None, match=0, inc_begin=False, inc_end=False, process=None)
 
         Extract a chunk of a text file given by *filename*, consisting of all the lines between a line containing *begin* and a line containing *end*.
@@ -346,10 +349,12 @@ class Results(ApplyRestrict):
         The returned value is a list of strings. *process* can be used to provide a function executed on each element of this list before returning it.
         """
         current_match = 0
-        ret = []
+        ret: List[str] = []
         switch = begin is None
 
-        append = lambda x: ret.append(x.rstrip("\n")) if (match in [0, current_match]) else None
+        def append(x: str) -> None:
+            if match in [0, current_match]:
+                ret.append(x.rstrip("\n"))
 
         with open(self[filename], "r") as f:
             for line in f:
@@ -376,8 +381,8 @@ class Results(ApplyRestrict):
         match: int = 0,
         inc_begin: bool = False,
         inc_end: bool = False,
-        process: Optional[Callable] = None,
-    ):
+        process: Optional[Callable[[str], T]] = None,
+    ) -> Union[List[str], List[T]]:
         """get_output_chunk(begin=None, end=None, match=0, inc_begin=False, inc_end=False, process=None)
         Shortcut for :meth:`~Results.get_file_chunk` on the output file."""
         try:
@@ -503,7 +508,7 @@ class Results(ApplyRestrict):
             process = saferun(command + [filename], cwd=self.job.path, stdout=PIPE)
             if process.returncode != 0:
                 return []
-            ret = process.stdout.decode().splitlines()
+            ret: List[str] = process.stdout.decode().splitlines()
             return ret
         else:
             raise FileError("File {} not present in {}".format(filename, self.job.path))
