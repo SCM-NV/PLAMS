@@ -147,7 +147,7 @@ def file_to_traj(outfile, trajfile):
     write(trajfile, atoms)
 
     if not os.path.exists(trajfile):
-        raise RuntimeError("Couldn't write {}".format(trajfile))
+        raise RuntimeError(f"Couldn't write {trajfile}")
 
     return trajfile
 
@@ -157,7 +157,7 @@ def _remove_or_raise(file, overwrite):
         if overwrite:
             os.remove(file)
         else:
-            raise RuntimeError("{} already exists, specify overwrite=True to overwrite".format(file))
+            raise RuntimeError(f"{file} already exists, specify overwrite=True to overwrite")
 
 
 def _write_engine_rkf(kffile, enginefile):
@@ -171,7 +171,7 @@ def _write_engine_rkf(kffile, enginefile):
             enginerkf[sec + "%" + k] = v
     enginerkf["General%program"] = "plams"
     nEntries = kf["History%nEntries"]
-    suffix = "({})".format(nEntries)
+    suffix = f"({nEntries})"
     if ("History", "Energy" + suffix) in kf:
         enginerkf["AMSResults%Energy"] = kf["History%Energy" + suffix]
     if ("History", "Gradients" + suffix) in kf:
@@ -186,7 +186,7 @@ def _postprocess_vasp_amsrkf(kffile, outcar):
     try:
         kf["EngineResults%nEntries"] = 1
         kf["EngineResults%Title(1)"] = "vasp"
-        kf["EngineResults%Description(1)"] = "Standalone VASP run. Data from {}".format(os.path.abspath(outcar))
+        kf["EngineResults%Description(1)"] = f"Standalone VASP run. Data from {os.path.abspath(outcar)}"
         kf["EngineResults%Files(1)"] = "vasp.rkf"
         kf["General%user input"] = "!VASP"
 
@@ -206,7 +206,7 @@ def _postprocess_vasp_amsrkf(kffile, outcar):
             userinput.append("  !EndINCAR")
         userinput.append("  EndInput")  # end of the Free block
         userinput.append("EndEngine")
-        userinput.append("Task {}".format(kf["General%task"]))
+        userinput.append(f"Task {kf['General%task']}")
         kf["General%user input"] = "\xFF".join(userinput)
 
     finally:
@@ -247,14 +247,14 @@ def vasp_output_to_ams(
         If task='moleculardynamics', which timestep (in fs) between frames to write
     """
     if not os.path.isdir(vasp_folder):
-        raise ValueError("Directory {} does not exist".format(vasp_folder))
+        raise ValueError(f"Directory {vasp_folder} does not exist")
 
     outcar = os.path.join(vasp_folder, "OUTCAR")
     if not os.path.exists(outcar):
         if os.path.exists(os.path.join(vasp_folder, "XDATCAR")):
             outcar = os.path.join(vasp_folder, "XDATCAR")
         else:
-            raise ValueError("File {} does not exist, should be an OUTCAR file.".format(outcar))
+            raise ValueError(f"File {outcar} does not exist, should be an OUTCAR file.")
 
     if wdir is None:
         wdir = os.path.join(os.path.dirname(outcar), "AMSJob")
@@ -292,9 +292,7 @@ def _postprocess_qe_amsrkf(kffile, qe_outfile):
     try:
         kf["EngineResults%nEntries"] = 1
         kf["EngineResults%Title(1)"] = "qe"
-        kf["EngineResults%Description(1)"] = "Standalone Quantum ESPRESSO run. Data from {}".format(
-            os.path.abspath(qe_outfile)
-        )
+        kf["EngineResults%Description(1)"] = f"Standalone Quantum ESPRESSO run. Data from {os.path.abspath(qe_outfile)}"
         kf["EngineResults%Files(1)"] = "qe.rkf"
 
         userinput = [
@@ -317,9 +315,7 @@ def _postprocess_gaussian_amsrkf(kffile, gaussian_outfile):
     try:
         kf["EngineResults%nEntries"] = 1
         kf["EngineResults%Title(1)"] = "gaussian"
-        kf["EngineResults%Description(1)"] = "Standalone Gaussian. Data from {}".format(
-            os.path.abspath(gaussian_outfile)
-        )
+        kf["EngineResults%Description(1)"] = f"Standalone Gaussian. Data from {os.path.abspath(gaussian_outfile)}"
         kf["EngineResults%Files(1)"] = "gaussian.rkf"
 
         userinput = ["!Gaussian", "Engine External", "  Input", "    Unknown Gaussian input", "  EndInput", "EndEngine"]

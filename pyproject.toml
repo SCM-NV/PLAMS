@@ -58,7 +58,9 @@ analysis = [
     "networkx>=2.7.1",
     "natsort>=8.1.0",
     "h5py>=3.6.0",
-    "ipython>=7.22.0"
+    "ipython>=7.22.0",
+    "pyomo>=6.4.1",
+    "pillow>=10.4.0"
 ]
 
 docs = [
@@ -87,6 +89,9 @@ Homepage = "https://www.scm.com/doc/plams/"
 Documentation = "https://www.scm.com/doc/plams/"
 GitHub = "https://github.com/SCM-NV/PLAMS/"
 Changelog = "https://github.com/SCM-NV/PLAMS/blob/trunk/CHANGELOG.md"
+
+[project.scripts]
+scm-plams = "scm.plams.scripts.plams:main"
 
 [build-system]
 requires = ["hatchling>=1.26", "hatch-vcs>=0.4.0", "setuptools-scm<9"]

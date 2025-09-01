@@ -274,27 +274,21 @@ class Units:
             return outs[quantity] / inps[quantity]
         else:
             if len(inps) == 0 and len(outs) == 0:
-                raise UnitsError("Unsupported units: '{}' and '{}'".format(inp, out))
+                raise UnitsError(f"Unsupported units: '{inp}' and '{out}'")
             if len(inps) > 0 and len(outs) > 0:
                 raise UnitsError(
-                    "Invalid unit conversion: '{}' is a unit of {} and '{}' is a unit of {}".format(
-                        inp, ", ".join(list(inps.keys())), out, ", ".join(list(outs.keys()))
-                    )
+                    f"Invalid unit conversion: '{inp}' is a unit of {', '.join(list(inps.keys()))} and '{out}' is a unit of {', '.join(list(outs.keys()))}"
                 )
             else:  # exactly one of (inps,outs) empty
                 invalid, nonempty = (out, inps) if len(inps) else (inp, outs)
                 if len(nonempty) == 1:
                     quantity = list(nonempty.keys())[0]
                     raise UnitsError(
-                        "Invalid unit conversion: {} is not supported. Supported units for {}: {}".format(
-                            invalid, quantity, ", ".join(list(cls.dicts[quantity].keys()))
-                        )
+                        f"Invalid unit conversion: {invalid} is not supported. Supported units for {quantity}: {', '.join(list(cls.dicts[quantity].keys()))}"
                     )
                 else:
                     raise UnitsError(
-                        "Invalid unit conversion: {} is not a supported unit for {}".format(
-                            invalid, ", ".join(list(nonempty.keys()))
-                        )
+                        f"Invalid unit conversion: {invalid} is not a supported unit for {', '.join(list(nonempty.keys()))}"
                     )
 
     @classmethod

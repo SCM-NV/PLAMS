@@ -72,7 +72,7 @@ class JobManager:
         elif os.path.isdir(path):
             self.path = os.path.abspath(path)
         else:
-            raise PlamsError("Invalid path: {}".format(path))
+            raise PlamsError(f"Invalid path: {path}")
 
         basename = os.path.normpath(folder) if folder else "plams_workdir"
         self.foldername = basename
@@ -167,7 +167,7 @@ class JobManager:
         if os.path.isfile(filename):
             filename = os.path.abspath(filename)
         else:
-            raise FileError("File {} not present".format(filename))
+            raise FileError(f"File {filename} not present")
         path = os.path.dirname(filename)
         with open(filename, "rb") as f:
 
@@ -252,7 +252,7 @@ class JobManager:
         :param job: job to remove
         """
         with self._register_lock:
-            log("Removing job {}".format(job.name), 7)
+            log(f"Removing job {job.name}", 7)
 
             if job in self.jobs:
                 self.jobs.remove(job)
@@ -274,7 +274,7 @@ class JobManager:
                 del self.hashes[h]
             MultiJob.apply_to_children(job, self.remove_job)
 
-            log("Job {} removed".format(job.name), 7)
+            log(f"Job {job.name} removed", 7)
 
     def _register(self, job: "Job", rel_dir_for_jobs: Optional[Path] = None, auto_rename: bool = True) -> None:
         """Register the *job*. Register job's name. Rename if needed and ``auto_rename=True``.
@@ -330,7 +330,7 @@ class JobManager:
                     )
                     # self.names[job_full_name_no_counter] = job_full_name_counter
                     if orig_job_full_name != job._full_name(rel_dir_for_jobs):
-                        log("Renaming job {} to {}".format(orig_job_full_name, job._full_name(rel_dir_for_jobs)), 3)
+                        log(f"Renaming job {orig_job_full_name} to {job._full_name(rel_dir_for_jobs)}", 3)
                 # alternatively do a strict check that the job with this suffix is not already registered
                 else:
                     counts_in_use = [c for n, c in self._job_full_name_map.values() if n == job_full_name_no_counter]
@@ -359,7 +359,7 @@ class JobManager:
             with self._register_lock:
                 if h in self.hashes:
                     prev = self.hashes[h]
-                    log("Job {} previously run as {}, using old results".format(job.name, prev.name), 1)
+                    log(f"Job {job.name} previously run as {prev.name}, using old results", 1)
                     return prev
                 else:
                     self.hashes[h] = job

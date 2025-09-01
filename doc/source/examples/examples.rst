@@ -31,6 +31,7 @@ Getting Started
    AMSSettingsInput/AMSSettingsInput
    He2DissociationCurve/He2DissociationCurve
    ManyJobsInParallel/ManyJobsInParallel
+   Visualization/Visualization
    Logging/Logging
    JobAnalysis/JobAnalysis
 

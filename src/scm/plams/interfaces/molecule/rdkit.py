@@ -12,6 +12,7 @@ from scm.plams.core.errors import PlamsError
 
 if TYPE_CHECKING:
     from rdkit import Mol as RDKitMol
+    import scm.plams.mol.molecule as molecule  # required to avoid Sphinx error in type hinting (due to add_to_class)
 
 __all__ = [
     "add_Hs",
@@ -393,13 +394,13 @@ def prop_from_rdmol(pl_obj, rd_obj):
 @overload
 def from_smiles(
     smiles: str, nconfs: Literal[1] = ..., name: Optional[str] = ..., forcefield: Optional[str] = ..., rms: float = ...
-) -> Molecule: ...
+) -> "molecule.Molecule": ...
 
 
 @overload
 def from_smiles(
     smiles: str, nconfs: int = ..., name: Optional[str] = ..., forcefield: Optional[str] = ..., rms: float = ...
-) -> List[Molecule]: ...
+) -> List["molecule.Molecule"]: ...
 
 
 @requires_optional_package("rdkit")

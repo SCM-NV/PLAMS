@@ -152,7 +152,7 @@ def cell_angles(lattice, unit="degree"):
 
     if ndim < 2:
         raise ValueError(
-            "Cannot calculate cell_angles for fewer than 2 lattice vectors. Tried with {} lattice vectors".format(ndim)
+            f"Cannot calculate cell_angles for fewer than 2 lattice vectors. Tried with {ndim} lattice vectors"
         )
 
     gamma = angle(lattice[0], lattice[1], result_unit=unit)

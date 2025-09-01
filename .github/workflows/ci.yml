@@ -48,11 +48,13 @@ jobs:
           pip install ".[chem,ams,analysis,dev]"
 
       - name: Run Unit Tests
+        working-directory: unit_tests
         run: |
-          coverage run --source='scm.plams' -m pytest unit_tests
+          coverage run --source='scm.plams' -m pytest
 
 #     ToDo: Bump the fail-under threshold over time until acceptable level is reached
       - name: Evaluate Coverage
+        working-directory: unit_tests
         run: |
           coverage report --omit="*/unit_tests/*" -i --fail-under=40
 

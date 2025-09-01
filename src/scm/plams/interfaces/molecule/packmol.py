@@ -537,8 +537,6 @@ def packmol(
     """
     # Input arguments allow for lots of combinations.
     # Let's try to check that the specified combination makes sense ...
-    if n_atoms is None and n_molecules is None and density is None:
-        raise ValueError("Illegal combination of arguments: must specify either n_atoms, n_molecules or density")
     if n_atoms is not None and box_bounds is not None and density is not None:
         raise ValueError("Illegal combination of arguments: n_atoms, box_bounds and density specified at the same time")
     # Detect the special case when 1 molecule is not specified e.g. the solvent for a few specified solute molecules
@@ -639,6 +637,17 @@ def packmol(
         mole_fractions = [1.0 / len(molecules)] * len(molecules)
     if any(x < 0 for x in mole_fractions):
         raise ValueError(f"All mole fractions must be >= 0. Mole fractions specified: {mole_fractions}")
+
+    if (
+        density is None
+        and n_atoms is None
+        and n_molecules is None
+        and mole_fractions is not None
+        and box_bounds is not None
+    ):
+        # "pack water in this box", "pack water around this slab", just relying on the guessed density.
+        # molecules is a list now
+        density = guess_density(molecules, mole_fractions)
 
     xs = np.array(mole_fractions)
     sum_xs = np.sum(xs)

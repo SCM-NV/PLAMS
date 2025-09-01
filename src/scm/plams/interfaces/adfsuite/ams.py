@@ -1,10 +1,12 @@
 import os
+import re
 from os.path import join as opj
-from typing import Dict, List, Literal, Set, Tuple, Union, Optional, TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Set, Tuple, Union
+
 import numpy as np
 
 from scm.plams.core.basejob import SingleJob
-from scm.plams.core.errors import FileError, JobError, PlamsError, PTError, ResultsError, MissingOptionalPackageError
+from scm.plams.core.errors import FileError, JobError, MissingOptionalPackageError, PlamsError, PTError, ResultsError
 from scm.plams.core.functions import get_config, log, parse_heredoc, requires_optional_package
 from scm.plams.core.private import sha256
 from scm.plams.core.results import Results
@@ -31,10 +33,11 @@ except ImportError:
     _has_scm_chemsys = False
 
 if TYPE_CHECKING:
-    from scm.plams.core.jobrunner import JobRunner
-    from scm.plams.core.jobmanager import JobManager
-    from scm.plams.tools.kftools import TRead
     from ase import Atoms as AseAtoms
+
+    from scm.plams.core.jobmanager import JobManager
+    from scm.plams.core.jobrunner import JobRunner
+    from scm.plams.tools.kftools import TRead
 
 try:
     from watchdog.events import FileModifiedEvent, PatternMatchingEventHandler
@@ -147,6 +150,40 @@ class AMSResults(Results):
         ret = list(self.rkfs.keys())
         ret.remove("ams")
         return ret
+
+    def get_main_engine_name(self) -> str:
+        """
+        Returns the main engine name.
+
+        For geometry optimizations, this means that it will return the engine.rkf file and not any of the GOStep*.rkf files.
+
+        For molecular dynamics, this means that it will return the last MDStep rkf.
+
+        Raises ValueError if it cannot determine a unique main engine file or if no engine file is present.
+        """
+        engine_names = self.engine_names()
+        original_task = str(self.job.get_task()).lower()
+
+        # if GO allows to save extra .rkf files
+        if original_task == "geometryoptimization":
+            engine_names = [x for x in engine_names if "GOStep" not in x]
+
+        # remove hybrid engine sub engines
+        engine_names = [x for x in engine_names if "hybrid-" not in x]
+
+        # if MD find most recent MDStep
+        if original_task == "moleculardynamics":
+            engine_names = sorted(
+                [x for x in engine_names if "term" not in x],
+                key=lambda x: int(m.group(1)) if (m := re.match(r"[a-zA-Z]*(\d+)", x)) else -1,
+            )
+            engine_names = [engine_names[-1]]
+
+        if len(engine_names) != 1:
+            raise ValueError(
+                f"Cannot get main engine name from {engine_names} for job in: {self.job.path} with {list(self.rkfs.keys())}"
+            )
+        return engine_names[0]
 
     def read_hybrid_term_rkf(self, section: str, variable: str, term: int, file: str = "engine") -> "TRead":
         """Reads a Hybrid-termX-subengine.rkf file.
@@ -1041,8 +1078,31 @@ class AMSResults(Results):
         forceConstants = np.array(forceConstants) if isinstance(forceConstants, list) else np.array([forceConstants])
         return forceConstants
 
-    def get_normal_modes(self, engine: Optional[str] = None) -> np.ndarray:
+    def get_pvdos(self, engine: Optional[str] = None):
+        """Return a numpy array of Partial Vibrational Spectra (PVDOS) with shape: (nNormalModes, nAtoms), with values [0,1].
+
+        The *engine* argument should be the identifier of the file you wish to read. To access a file called ``something.rkf`` you need to call this function with ``engine='something'``. The *engine* argument can be omitted if there's only one engine results file in the job folder.
+        """
+        pvdos = self._process_engine_results(lambda x: x.read("Vibrations", "PVDOS"), engine)
+        nNormalModes = self._process_engine_results(lambda x: x.read("Vibrations", "nNormalModes"), engine)
+        nAtoms = len(self.get_main_molecule())
+        pvdos = np.array(pvdos).reshape(nNormalModes, nAtoms)
+        return pvdos
+
+    def get_reduced_masses(self, engine: Optional[str] = None):
+        """Return a numpy array of reduced masses, expressed in amu units.
+        If mass_weighted_hessian_eigenvectors=True it returns the mass_weighted_hessian_eigenvectors.
+
+        The *engine* argument should be the identifier of the file you wish to read. To access a file called ``something.rkf`` you need to call this function with ``engine='something'``. The *engine* argument can be omitted if there's only one engine results file in the job folder.
+        """
+        reduced_masses = np.array(self._process_engine_results(lambda x: x.read("Vibrations", "ReducedMasses"), engine))
+        return reduced_masses
+
+    def get_normal_modes(
+        self, engine: Optional[str] = None, mass_weighted_hessian_eigenvectors: Optional[bool] = False
+    ):
         """Return a numpy array of normal modes with shape: (num_normal_modes, num_atoms, 3), expressed in dimensionless units.
+        If mass_weighted_hessian_eigenvectors=True it returns the mass_weighted_hessian_eigenvectors.
 
         The *engine* argument should be the identifier of the file you wish to read. To access a file called ``something.rkf`` you need to call this function with ``engine='something'``. The *engine* argument can be omitted if there's only one engine results file in the job folder.
         """
@@ -1053,7 +1113,15 @@ class AMSResults(Results):
                 self._process_engine_results(lambda x: x.read("Vibrations", f"NoWeightNormalMode({i+1})"), engine)
             ).reshape(-1, 3)
             normal_modes_list.append(n_mode)
-        return np.array(normal_modes_list).reshape(num_normal_modes, -1, 3)
+        normal_modes = np.array(normal_modes_list).reshape(num_normal_modes, -1, 3)
+        if mass_weighted_hessian_eigenvectors:
+            mol = self.get_main_molecule()
+            masses = np.array(mol.get_masses()).reshape(1, -1, 1)
+            reduced_masses = self.get_reduced_masses(engine=engine)
+            reduced_masses = reduced_masses.reshape(-1, 1, 1)
+            normal_modes_normalized = normal_modes * np.sqrt(masses) / np.sqrt(reduced_masses)
+            return normal_modes_normalized
+        return normal_modes
 
     def get_charges(self, engine: Optional[str] = None) -> np.ndarray:
         """Return the atomic charges, expressed in atomic units.
@@ -1145,10 +1213,21 @@ class AMSResults(Results):
             -1,
         )
 
-    def _get_ir_raman_spectrum(
+    def get_vcd_rotational_strength(self, engine: Optional[str] = None) -> np.ndarray:
+        """Return the vibrational rotational strengths in 10^(-44) esu^2 cm^2
+
+        The *engine* argument should be the identifier of the file you wish to read. To access a file called ``something.rkf`` you need to call this function with ``engine='something'``. The *engine* argument can be omitted if there's only one engine results file in the job folder.
+        """
+        return np.asarray(
+            self._process_engine_results(lambda x: x.read("Vibrations", "RotationalStrength"), engine)
+        ).reshape(
+            -1,
+        )
+
+    def _get_ir_vcd_raman_spectrum(
         self,
         engine: Optional[str] = None,
-        spectrum_type: Literal["ir", "raman"] = "ir",
+        spectrum_type: Literal["ir", "raman", "vcd"] = "ir",
         broadening_type: Literal["gaussian", "lorentzian"] = "gaussian",
         broadening_width=40,
         min_x=0,
@@ -1170,6 +1249,8 @@ class AMSResults(Results):
                 intensities = self.get_ir_intensities(engine=engine)
             elif spectrum_type == "raman":
                 intensities = self.get_raman_intensities(engine=engine)
+            elif spectrum_type == "vcd":
+                intensities = self.get_vcd_rotational_strength(engine=engine)
 
         x_data, y_data = broaden_results(
             centers=frequencies,
@@ -1199,7 +1280,7 @@ class AMSResults(Results):
 
         The *engine* argument should be the identifier of the file you wish to read. To access a file called ``something.rkf`` you need to call this function with ``engine='something'``. The *engine* argument can be omitted if there's only one engine results file in the job folder.
         """
-        data = self._get_ir_raman_spectrum(
+        data = self._get_ir_vcd_raman_spectrum(
             engine=engine,
             spectrum_type="ir",
             broadening_type=broadening_type,
@@ -1226,9 +1307,36 @@ class AMSResults(Results):
 
         The *engine* argument should be the identifier of the file you wish to read. To access a file called ``something.rkf`` you need to call this function with ``engine='something'``. The *engine* argument can be omitted if there's only one engine results file in the job folder.
         """
-        data = self._get_ir_raman_spectrum(
+        data = self._get_ir_vcd_raman_spectrum(
             engine=engine,
             spectrum_type="raman",
+            broadening_type=broadening_type,
+            broadening_width=broadening_width,
+            min_x=min_x,
+            max_x=max_x,
+            x_spacing=x_spacing,
+            post_process=post_process,
+        )
+
+        return data
+
+    def get_vcd_spectrum(
+        self,
+        engine: Optional[str] = None,
+        broadening_type: Literal["gaussian", "lorentzian"] = "gaussian",
+        broadening_width=40,
+        min_x=0,
+        max_x=4000,
+        x_spacing=0.5,
+        post_process: Optional[Literal["all_intensities_to_1", "max_to_1"]] = None,
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """Return the VCD spectrum in terms of rotatory strength. Units: frequencies are in cm-1, the intensities by the default are in 10^(-44) esu^2 cm^2 but if post_process is all_intensities_to_1 the units are in modes counts otherwise if equal to max_to_1 are in arbitrary units.
+
+        The *engine* argument should be the identifier of the file you wish to read. To access a file called ``something.rkf`` you need to call this function with ``engine='something'``. The *engine* argument can be omitted if there's only one engine results file in the job folder.
+        """
+        data = self._get_ir_vcd_raman_spectrum(
+            engine=engine,
+            spectrum_type="vcd",
             broadening_type=broadening_type,
             broadening_width=broadening_width,
             min_x=min_x,
@@ -1931,6 +2039,7 @@ class AMSResults(Results):
     @requires_optional_package("scipy")
     def _get_green_kubo_viscosity(pressuretensor, time_step, max_dt, volume, temperature, xy=True, yz=True, xz=True):
         from scipy.integrate import cumtrapz
+
         from scm.plams.tools.units import Units
         from scm.plams.trajectories.analysis import autocorrelation
 
@@ -1992,6 +2101,7 @@ class AMSResults(Results):
 
         """
         from scipy.integrate import cumtrapz
+
         from scm.plams.tools.units import Units
         from scm.plams.trajectories.analysis import autocorrelation
 
@@ -2658,7 +2768,7 @@ class AMSJob(SingleJob):
         If *watch* is set to ``True``, the contents of the AMS driver logfile will be forwarded line by line to the PLAMS logfile (and stdout), allowing for an easier monitoring of the running job.
         Not that the forwarding of the AMS driver logfile will make the call to this method block until the job's execution has finished, even when using a parallel |JobRunner|.
 
-        Other keyword arguments (*\*\*kwargs*) are stored in ``run`` branch of job's settings.
+        Other keyword arguments (*\\*\\*kwargs*) are stored in ``run`` branch of job's settings.
 
         Returned value is the |AMSResults| instance associated with this job.
         """

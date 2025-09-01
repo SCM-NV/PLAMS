@@ -370,7 +370,7 @@ class ReactionEquation:
             strings = ["Number of supplied reactant charges should be %i " % (len(self._rformulas))]
             strings += ["not %i." % (len(reactant_charges))]
             raise Exception("".join(strings))
-        if len(product_charges != len(self._pformules)):
+        if len(product_charges) != len(self._pformulas):
             strings = ["Number of supplied product charges should be %i " % (len(self._pformulas))]
             strings += ["not %i." % (len(product_charges))]
             raise Exception("".join(strings))
@@ -387,6 +387,9 @@ class ReactionEquation:
         """
         Write the balanced reaction
         """
+        if self.message == "Unsolved":
+            return "Equation not yet balanced"
+
         if self.coeffs is None:
             return "Inconsistent system: No solution"
 
@@ -413,9 +416,31 @@ class ReactionEquation:
         # block += [" + ".join(["%i %.1f"%(pcoeffs[i],self._pcharges[i]) for i in pindices])]
         # strings += [" => ".join(block)]
         reaction_charge = sum([-self.coeffs[i] * self._rcharges[i] for i in rindices])
-        reaction_charge -= sum([pcoeffs[i] * self._pcharges[i] for i in pindices])
+        reaction_charge += sum([pcoeffs[i] * self._pcharges[i] for i in pindices])
         strings += ["Charge = %.2f" % (reaction_charge)]
         return " | ".join(strings)
+
+    @property
+    def reaction_charge(self):
+        """
+        Write the balanced reaction
+        """
+        if self.message == "Unsolved":
+            return "Equation not yet balanced"
+
+        if self.coeffs is None:
+            return "Inconsistent system: No solution"
+
+        nmol = len(self._rformulas) + len(self._pformulas)
+        nreactants = len(self._rformulas)
+        indices = numpy.arange(nmol)[self.coeffs > 0]
+        rindices = indices[indices < nreactants]
+        pindices = indices[indices >= nreactants] - nreactants
+        pcoeffs = self.coeffs[nreactants:]
+
+        reaction_charge = sum([-self.coeffs[i] * self._rcharges[i] for i in rindices])
+        reaction_charge += sum([pcoeffs[i] * self._pcharges[i] for i in pindices])
+        return reaction_charge
 
     def matrix_as_string(self, mat=None, space=8):
         """
@@ -424,8 +449,8 @@ class ReactionEquation:
         if mat is None:
             mat = self.matrix
 
-        form = "%{}s".format(space)
-        form2 = "%{}.1e".format(space)
+        form = f"%{space}s"
+        form2 = f"%{space}.1e"
         lines = []
         for row in mat:
             strings = [form % (str(v)) if len(str(v)) <= space else form2 % (v) for v in row]
