@@ -7,7 +7,7 @@ import time
 import shutil
 from os.path import join as opj
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, Generator, Iterable, List, Optional, Union, Tuple
+from typing import TYPE_CHECKING, Dict, Generator, Iterable, List, Optional, Union, Tuple, Callable
 from abc import ABC, abstractmethod
 import traceback
 
@@ -258,6 +258,8 @@ class Job(ABC):
         log("{}.depend resolved".format(self.name), 7)
 
         jobmanager._register(self)
+        os.makedirs(self.path)
+        self.status = JobStatus.REGISTERED
 
         log("Starting {}.prerun()".format(self.name), 5)
         self.prerun()
@@ -335,12 +337,12 @@ class Job(ABC):
         self._log_status(1)
 
     @retry()
-    def delete(self):
+    def delete(self) -> None:
         """
-        Permanently delete the job directory and remove from the job manager.
+        Permanently delete the job directory and remove this job from the job manager.
         This allows the job name to be re-used.
 
-        Status is marked as deleted, and the results can no longer be accessed.
+        Job status is marked as deleted, and the results can no longer be accessed.
         """
         if self.status != JobStatus.CREATED:
             self.results.wait()
@@ -359,6 +361,52 @@ class Job(ABC):
         self.path = None
         self._log_status(5)
 
+    def rename(self, name: str) -> None:
+        """
+        Rename a job, renaming the job directory, associated file names and updating the registration in the job manager.
+        As usual, if a job with the same name is already registered, the job will have a unique integer postfix.
+        Note that this is just to rename the job directory itself - this will not move a job to a different parent directory.
+
+        :param name: new name for the job
+        """
+        if self.status != JobStatus.CREATED:
+            self.results.wait()
+
+        # if no job manager, run() method was not called yet, job is not registered and no folder exists
+        prev_name = self.name
+        if name == prev_name:
+            return
+
+        if self.jobmanager is not None:
+            prev_path = self.path
+
+            self.jobmanager.rename_job(self, name)
+
+            if self.path != prev_path:
+                # Move files and recollect to update files in result classes
+                shutil.move(prev_path, self.path)
+                self.results.collect()
+                MultiJob.apply_to_children(self, lambda j: j.results.collect(), recursive=True)
+
+                # Rename files for this job
+                # N.B. files includes child jobs for multi-jobs, so just replace files in this job directory
+                for prev_file in Path(self.path).iterdir():
+                    if prev_file.is_file() and not prev_file.name.endswith(".dill"):
+                        file = prev_file.with_name(prev_file.name.replace(prev_name, self.name))
+                        self.results.rename(prev_file.name, file.name)
+                    self.results.collect()
+
+                # Rewrite dill files if present (also for child jobs if applicable)
+                prev_dill_file = Path(self.path, prev_name + ".dill")
+                if prev_dill_file.exists():
+                    os.remove(prev_dill_file)
+                    self.pickle()
+                MultiJob.apply_to_children(self, lambda j: j.pickle() if Path(j.path, j.name + ".dill").exists() else None, recursive=True)
+
+        else:
+            self.name = name
+        log(f"JOB {prev_name} RENAMED to {self._full_name()}", level=3)
+
     def __getstate__(self):
         """Prepare this job instance for pickling.
 
@@ -369,7 +417,7 @@ class Job(ABC):
 
     def _log_status(self, level: int) -> None:
         """Log the status of this instance on a chosen log *level*. The message is uppercased to clearly stand out among other log entries."""
-        log("JOB {} {}".format(self._full_name(), self.status.upper()), level)
+        log(f"JOB {self._full_name()} {self.status.upper()}", level)
 
     def _full_name(self, rel_dir: Optional[Union[str, os.PathLike]] = None) -> str:
         """

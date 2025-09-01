@@ -717,6 +717,112 @@ sleep 0.0 && sed 's/input/output/g' plamsjob.in
         # Then jobs in other dirs unaffected
         assert len(config.default_jobmanager.names) == 0
 
+    def test_rename_created_job(self, config):
+        # Given job
+        id = uuid.uuid4()
+        name1 = f"to-be-renamed-{id}"
+        name2 = f"renamed-{id}"
+        job = DummySingleJob(name=name1)
+
+        # When renamed
+        job.rename(name2)
+
+        # Then name changed
+        assert job.status == JobStatus.CREATED
+        assert job.path is None
+        assert job.name == name2
+
+    def test_rename_running_job(self, config):
+        # Given job
+        id = uuid.uuid4()
+        name1 = f"to-be-renamed-{id}"
+        name2 = f"renamed-{id}"
+        job = DummySingleJob(name=name1, wait=0.5)
+        job.run()
+        path1 = job.path
+
+        # When renamed while running
+        job.rename(name2)
+        path2 = job.path
+
+        # Then waits, job files moved and renamed, re-registered in job manager
+        assert job.status == JobStatus.SUCCESSFUL
+        assert not Path(path1).exists()
+        assert Path(path2).exists()
+        assert Path(path2) == Path(path1).parent / name2
+        assert name1 not in config.default_jobmanager.names
+        assert name2 in config.default_jobmanager.names
+
+        # And results can be read
+        assert job.results.read_file("$JN.in")
+        assert job.results.read_file("$JN.out")
+        assert job.results.read_file("$JN.run")
+
+        # And job can be loaded from .dill file
+        loaded_job = DummySingleJob.load(str(Path(job.path) / f"{job.name}.dill"))
+        assert loaded_job.name == name2
+
+    def test_rename_job_with_same_name(self, config):
+        # Given two jobs
+        name1 = f"to-be-renamed-{uuid.uuid4()}"
+        name2 = f"renamed-{uuid.uuid4()}"
+        job1 = DummySingleJob(name=name1)
+        job2 = DummySingleJob(name=name2)
+        job1.run()
+        job2.run()
+        path1 = job1.path
+
+        # When job renamed with same name as itself
+        job1.rename(name1)
+
+        # Then job and files unchanged
+        assert job1.name == name1
+        assert job1.path == path1
+
+        # When job renamed with same name as another job
+        job1.rename(name2)
+        path2 = job1.path
+
+        # Then job files moved and renamed, re-registered in job manager
+        name3 = f"{name2}.002"
+        assert not Path(path1).exists()
+        assert Path(path2).exists()
+        assert Path(path2) == Path(path1).parent / name3
+        assert name1 not in config.default_jobmanager.names
+        assert name2 in config.default_jobmanager.names
+        assert config.default_jobmanager.names[name2] == 2
+
+    def test_rename_many_jobs_in_different_sub_dirs(self, config):
+        # Given jobs with same name in different sub dirs
+        name1 = f"name1-{uuid.uuid4()}"
+        name2 = f"name2-{uuid.uuid4()}"
+        name3 = f"name3-{uuid.uuid4()}"
+        with jobs_in_directory("dir1") as dir1:
+            jobs1 = [DummySingleJob(name=name1) for _ in range(3)]
+            for j in jobs1:
+                j.run()
+        with jobs_in_directory("dir2") as dir2:
+            jobs2 = [DummySingleJob(name=name2) for _ in range(3)]
+            for j in jobs2:
+                j.run()
+            with jobs_in_directory("dir3") as dir3:
+                jobs3 = [DummySingleJob(name=name3) for _ in range(3)]
+                for j in jobs3:
+                    j.run()
+        jobs = jobs1 + jobs2 + jobs3
+        for j in jobs:
+            j.results.wait()
+
+        # When jobs renamed
+        for i in range(3):
+            for j, n in enumerate([name1, name2, name3]):
+                jobs[i * 3 + j].rename(n)
+
+        # Then jobs remain in the same subdirectory but are renamed
+        for i, d in enumerate([dir1, dir2, dir3]):
+            for j, n in enumerate([name1, name2, name3]):
+                assert jobs[i * 3 + j].path.startswith(str(d / n))
+
 
 class TestMultiJob:
     """
@@ -1004,7 +1110,7 @@ class TestMultiJob:
         assert hasattr(job2, "tag")
 
     def test_delete_created_multijob(self, config):
-        # Given job
+        # Given multi job
         jobs = [DummySingleJob() for _ in range(3)]
         multi_job = MultiJob(children=[j for j in jobs])
 
@@ -1024,7 +1130,7 @@ class TestMultiJob:
             _ = jobs[0].results.grep_output("")
 
     def test_delete_running_multijob(self, config):
-        # Given job
+        # Given multi job
         jobs = [DummySingleJob() for _ in range(3)]
         multi_job = MultiJob(children=[j for j in jobs])
         multi_job.run()
@@ -1048,15 +1154,15 @@ class TestMultiJob:
         with pytest.raises(ResultsError):
             _ = jobs[0].results.grep_output("")
 
-    def test_delete_running_nested_multijob(self, config):
-        # Given job
+    def test_delete_nested_multijob(self, config):
+        # Given multi job
         jobs = [DummySingleJob() for _ in range(3)]
         multi_job = MultiJob(children=[j for j in jobs])
         top_multi_job = MultiJob(children=[multi_job])
         top_multi_job.run()
         path = top_multi_job.path
 
-        # When deleted while running
+        # When deleted
         top_multi_job.delete()
 
         # Then waits, job files removed and job path removed for parent and child jobs
@@ -1080,3 +1186,101 @@ class TestMultiJob:
             _ = multi_job.results.grep_output("")
         with pytest.raises(ResultsError):
             _ = jobs[0].results.grep_output("")
+
+    def test_rename_created_multijob(self, config):
+        # Given multi job
+        id = uuid.uuid4()
+        name1 = f"to-be-renamed-{id}"
+        name2 = f"renamed-{id}"
+        jobs = [DummySingleJob(name=name1) for _ in range(3)]
+        multi_job = MultiJob(children=[j for j in jobs], name=name1)
+
+        # When renamed
+        multi_job.rename(name2)
+        multi_job.children[0].rename(name2)
+
+        # Then name changed
+        assert multi_job.status == JobStatus.CREATED
+        assert multi_job.path is None
+        assert multi_job.name == name2
+        assert jobs[0].status == JobStatus.CREATED
+        assert jobs[0].path is None
+        assert jobs[0].name == name2
+
+    def test_rename_running_multijob(self, config):
+        # Given multi job
+        id = uuid.uuid4()
+        name1 = f"to-be-renamed-{id}"
+        name2 = f"renamed-{id}"
+        jobs = [DummySingleJob(name=name1, wait=0.2) for _ in range(3)]
+        multi_job = MultiJob(children=[j for j in jobs], name=name1)
+        multi_job.run()
+        path1 = multi_job.path
+
+        # When renamed while running
+        multi_job.rename(name2)
+        jobs[0].rename(name2)
+        path2 = multi_job.path
+
+        # Then waits, multi job files moved and renamed, re-registered in job manager
+        assert multi_job.status == JobStatus.SUCCESSFUL
+        assert not Path(path1).exists()
+        assert Path(path2).exists()
+        assert Path(path2) == Path(path1).parent / name2
+        assert name1 not in config.default_jobmanager.names
+        assert name2 in config.default_jobmanager.names
+
+        # And child jobs are also moved and renamed and re-registered in job manager
+        for i, job in enumerate(jobs):
+            assert Path(job.path).exists()
+            assert Path(job.path) == Path(path2) / job.name
+            assert f"{name1}/{name1}" not in config.default_jobmanager.names
+            if i == 0:
+                assert f"{name2}/{name2}" in config.default_jobmanager.names
+            assert f"{name2}/{name1}" in config.default_jobmanager.names
+
+            # And results can be read
+            assert job.results.read_file("$JN.in")
+            assert job.results.read_file("$JN.out")
+            assert job.results.read_file("$JN.run")
+
+    def test_rename_nested_multijob(self, config):
+        # Given multi job
+        id = uuid.uuid4()
+        name1 = f"top-to-be-renamed-{id}"
+        name2 = f"middle-to-be-renamed-{id}"
+        name3 = f"bottom-to-be-renamed-{id}"
+        name4 = f"top-renamed-{id}"
+        name5 = f"middle-renamed-{id}"
+        name6 = f"bottom-renamed-{id}"
+        jobs = [DummySingleJob(name=name3) for _ in range(3)]
+        multi_job = MultiJob(children=[j for j in jobs], name=name2)
+        top_multi_job = MultiJob(children=[multi_job], name=name1)
+        top_multi_job.run()
+        orig_path = top_multi_job.path
+
+        # When renamed
+        jobs[0].rename(name6)
+        top_multi_job.rename(name4)
+        multi_job.rename(name5)
+
+        # Then waits, multi job files moved and renamed, re-registered in job manager
+        assert not Path(orig_path).exists()
+        assert Path(top_multi_job.path) == Path(orig_path).parent / name4
+        assert Path(multi_job.path) == Path(orig_path).parent / name4 / name5
+        assert Path(jobs[0].path) == Path(orig_path).parent / name4 / name5 / name6
+        assert (Path(orig_path).parent / name4).exists()
+        assert (Path(orig_path).parent / name4 / name5).exists()
+        assert (Path(orig_path).parent / name4 / name5 / name6).exists()
+        assert name1 not in config.default_jobmanager.names
+        assert f"{name1}/{name2}" not in config.default_jobmanager.names
+        assert f"{name1}/{name2}/{name3}" not in config.default_jobmanager.names
+        assert name4 in config.default_jobmanager.names
+        assert f"{name4}/{name5}" in config.default_jobmanager.names
+        assert f"{name4}/{name5}/{name6}" in config.default_jobmanager.names
+
+        # And results can be read
+        for job in jobs:
+            assert job.results.read_file("$JN.in")
+            assert job.results.read_file("$JN.out")
+            assert job.results.read_file("$JN.run")
