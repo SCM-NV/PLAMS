@@ -134,7 +134,7 @@ class JobManager:
             )
         return self._job_logger
 
-    def load_job(self, filename: str) -> "Job":
+    def load_job(self, filename: str) -> Optional["Job"]:
         """Load previously saved job from *filename*.
 
         *Filename* should be a path to a ``.dill`` file in some job folder. A |Job| instance stored there is loaded and returned. All attributes of this instance removed before pickling are restored. That includes ``jobmanager``, ``path`` (the absolute path to the folder containing *filename* is used) and ``default_settings`` (a list containing only ``config.job``).
@@ -146,7 +146,7 @@ class JobManager:
         except ImportError:
             import pickle
 
-        def setstate(job, path, parent=None):
+        def setstate(job: "Job", path: str, parent: Optional["Job"] = None) -> None:
             job.parent = parent
             job.jobmanager = self
             job.default_settings = [config.job]
@@ -172,7 +172,7 @@ class JobManager:
         path = os.path.dirname(filename)
         with open(filename, "rb") as f:
 
-            def resolve_missing_attributes(j):
+            def resolve_missing_attributes(j: "Job") -> None:
                 # For backwards compatibility (before attributes added/converted to properties)
                 if not hasattr(j, "_status"):
                     j._status = j.__dict__["status"]
@@ -195,7 +195,7 @@ class JobManager:
         setstate(job, path)
         return job
 
-    def remove_job(self, job):
+    def remove_job(self, job: "Job") -> None:
         """Remove *job* from the job manager. Forget its hash."""
         with self._register_lock:
             if job in self.jobs:
@@ -211,7 +211,7 @@ class JobManager:
                     self.remove_job(otherjob)
             shutil.rmtree(job.path)
 
-    def _register(self, job: "Job"):
+    def _register(self, job: "Job") -> None:
         """Register the *job*. Register job's name (rename if needed) and create the job folder.
 
         If a job with the same name was already registered, *job* is renamed by appending consecutive integers. The number of digits in the appended number is defined by the ``counter_len`` value in ``settings``.
@@ -255,7 +255,7 @@ class JobManager:
             job.status = JobStatus.REGISTERED
             log("Job {} registered".format(job.name), 7)
 
-    def _check_hash(self, job):
+    def _check_hash(self, job: "Job") -> Optional["Job"]:
         """Calculate the hash of *job* and, if it is not ``None``, search previously run jobs for the same hash. If such a job is found, return it. Otherwise, return ``None``"""
         h = job.hash()
         if h is not None:
@@ -268,7 +268,7 @@ class JobManager:
                     self.hashes[h] = job
         return None
 
-    def _clean(self):
+    def _clean(self) -> None:
         """Clean all registered jobs according to the ``save`` parameter in their ``settings``. If ``remove_empty_directories`` is ``True``,  traverse the working directory and delete all empty subdirectories."""
         log("Cleaning job manager", 7)
 
