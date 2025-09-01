@@ -606,11 +606,11 @@ def plot_msd(job, start_time_fit_fs=None, ax=None):
     # the diffusion coefficient can also be calculated as fit_result.slope/6 (ang^2/fs)
     diffusion_coefficient = job.results.get_diffusion_coefficient(start_time_fit_fs=start_time_fit_fs)  # m^2/s
     ax.plot(time, msd, label="MSD")
-    ax.plot(fit_x, fit_y, label="Linear fit slope={:.5f} ang^2/fs".format(fit_result.slope))
+    ax.plot(fit_x, fit_y, label=f"Linear fit slope={fit_result.slope:.5f} ang^2/fs")
     ax.legend()
     ax.set_xlabel("Correlation time (fs)")
     ax.set_ylabel("Mean square displacement (ang^2)")
-    ax.set_title("MSD: Diffusion coefficient = {:.2e} m^2/s".format(diffusion_coefficient))
+    ax.set_title(f"MSD: Diffusion coefficient = {diffusion_coefficient:.2e} m^2/s")
 
     return ax
 

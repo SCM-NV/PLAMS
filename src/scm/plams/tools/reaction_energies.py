@@ -26,10 +26,10 @@ def get_stoichiometry(job_or_molecule_or_path, as_dict=True):
             except:
                 d = AMSJob.load_external(r).molecule.get_formula(as_dict=as_dict)
         else:
-            raise ValueError("The path {} does not exist.".format(r))
+            raise ValueError(f"The path {r} does not exist.")
 
     else:
-        raise TypeError("expected type AMSJob or dict but received {}".format(type(r)))
+        raise TypeError(f"expected type AMSJob or dict but received {type(r)}")
 
     return d
 
@@ -74,17 +74,13 @@ def balance_equation_new(reactants, products, normalization="r0", normalization_
             normalization_index = int(normalization.split("r")[1])
             if normalization_index >= num_reactants:
                 raise ValueError(
-                    "Reactant index {} specified, but max value allowed is {}".format(
-                        normalization_index, num_reactants - 1
-                    )
+                    f"Reactant index {normalization_index} specified, but max value allowed is {num_reactants - 1}"
                 )
         elif normalization.startswith("p"):
             normalization_index = int(normalization.split("p")[1])
             if normalization_index >= num_products:
                 raise ValueError(
-                    "Product index {} specified, but max value allowed is {}".format(
-                        normalization_index, num_products - 1
-                    )
+                    f"Product index {normalization_index} specified, but max value allowed is {num_products - 1}"
                 )
             normalization_index += num_reactants
         else:
@@ -188,17 +184,13 @@ def balance_equation(reactants, products, normalization="r0", normalization_valu
             normalization_index = int(normalization.split("r")[1])
             if normalization_index >= num_reactants:
                 raise ValueError(
-                    "Reactant index {} specified, but max value allowed is {}".format(
-                        normalization_index, num_reactants - 1
-                    )
+                    f"Reactant index {normalization_index} specified, but max value allowed is {num_reactants - 1}"
                 )
         elif normalization.startswith("p"):
             normalization_index = int(normalization.split("p")[1])
             if normalization_index >= num_products:
                 raise ValueError(
-                    "Product index {} specified, but max value allowed is {}".format(
-                        normalization_index, num_products - 1
-                    )
+                    f"Product index {normalization_index} specified, but max value allowed is {num_products - 1}"
                 )
             normalization_index += num_reactants
         else:
@@ -245,15 +237,11 @@ def balance_equation(reactants, products, normalization="r0", normalization_valu
             coeffs = np.linalg.solve(newmat, b)
         except Exception as e:
             raise RuntimeError(
-                "Something went wrong when solving the system of linear equations. Verify that the chemical equation can be balanced at all, and that it can be balanced uniquely except for multiplication by a constant. {}\nA={}\nb={}".format(
-                    e, newmat, b
-                )
+                f"Something went wrong when solving the system of linear equations. Verify that the chemical equation can be balanced at all, and that it can be balanced uniquely except for multiplication by a constant. {e}\nA={newmat}\nb={b}"
             )
     else:
         raise ValueError(
-            "The number of chemical elements must equal the number of molecules, or (the number of molecules-1). You have {} chemical elements: {}, and {} molecules".format(
-                len(elements), elements, num_reactants + num_products
-            )
+            f"The number of chemical elements must equal the number of molecules, or (the number of molecules-1). You have {len(elements)} chemical elements: {elements}, and {num_reactants + num_products} molecules"
         )
 
     coeffs = coeffs.ravel()
@@ -272,7 +260,7 @@ def balance_equation(reactants, products, normalization="r0", normalization_valu
 
     # double-check that the equation is balanced
     if abs(np.sum(mat @ coeffs.reshape(-1, 1))) > 1e-10:
-        raise RuntimeError("Stoichiometry double-check failed. mat = {}, coeffs = {}".format(mat, coeffs))
+        raise RuntimeError(f"Stoichiometry double-check failed. mat = {mat}, coeffs = {coeffs}")
 
     return list(coeffs[:num_reactants]), list(coeffs[num_reactants:])
 
