@@ -401,7 +401,9 @@ class Job(ABC):
                 if prev_dill_file.exists():
                     os.remove(prev_dill_file)
                     self.pickle()
-                MultiJob.apply_to_children(self, lambda j: j.pickle() if Path(j.path, j.name + ".dill").exists() else None, recursive=True)
+                MultiJob.apply_to_children(
+                    self, lambda j: j.pickle() if Path(j.path, j.name + ".dill").exists() else None, recursive=True
+                )
 
         else:
             self.name = name
@@ -847,12 +849,7 @@ class MultiJob(Job):
         super().delete()
 
     @classmethod
-    def apply_to_children(
-        cls,
-        job: Job,
-        func: Callable[[Job], None],
-        recursive = False
-    ) -> None:
+    def apply_to_children(cls, job: Job, func: Callable[[Job], None], recursive=False) -> None:
         """
         Apply the function ``func`` to all children of a |MultiJob| (not the job itself).
         This is a no-op if the job is a |SingleJob|.

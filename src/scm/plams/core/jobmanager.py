@@ -222,7 +222,9 @@ class JobManager:
                 else:
                     rel_dir = Path(job.path).parent.resolve().relative_to(self._workdir)
             except ValueError:
-                raise PlamsError(f"Cannot rename job '{job.name}' as it does not reside in the working directory of this job manager: '{self._workdir}'.")
+                raise PlamsError(
+                    f"Cannot rename job '{job.name}' as it does not reside in the working directory of this job manager: '{self._workdir}'."
+                )
 
             # deregister original job from the job manager then change the name and register it again
             self.remove_job(job)
@@ -234,6 +236,7 @@ class JobManager:
             def reregister_child_job(child_job: "Job"):
                 child_job.path = None
                 self._register(child_job, rel_dir_for_jobs=Path("."), auto_rename=False)
+
             MultiJob.apply_to_children(job, reregister_child_job, recursive=True)
 
             log(f"Job {orig_name} renamed to {job.name}", 7)
@@ -322,7 +325,9 @@ class JobManager:
                 if auto_rename:
                     self.names[job_full_name_no_counter] += 1
                     job_full_name_counter = self.names[job_full_name_no_counter]
-                    job.name = f"{re.sub(pattern, '', job.name)}.{str(job_full_name_counter).zfill(self.settings.counter_len)}"
+                    job.name = (
+                        f"{re.sub(pattern, '', job.name)}.{str(job_full_name_counter).zfill(self.settings.counter_len)}"
+                    )
                     # self.names[job_full_name_no_counter] = job_full_name_counter
                     if orig_job_full_name != job._full_name(rel_dir_for_jobs):
                         log("Renaming job {} to {}".format(orig_job_full_name, job._full_name(rel_dir_for_jobs)), 3)
