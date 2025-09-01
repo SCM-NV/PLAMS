@@ -13,8 +13,8 @@ import traceback
 
 from scm.plams.core.enums import JobStatus, JobStatusType
 from scm.plams.core.errors import FileError, JobError, PlamsError, ResultsError
-from scm.plams.core.functions import get_config, log, retry
-from scm.plams.core.private import sha256
+from scm.plams.core.functions import get_config, log
+from scm.plams.core.private import sha256, retry
 from scm.plams.core.results import Results
 from scm.plams.core.settings import Settings
 from scm.plams.mol.molecule import Molecule

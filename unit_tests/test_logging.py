@@ -705,7 +705,7 @@ class TestJobCSVFormatter:
                 )
                 assert (
                     read_row()
-                    == f"test_job_csv_formatter,test_job_csv_formatter,deleted,,,,,<timestamp> created -> <timestamp> started -> <timestamp> registered -> <timestamp> running -> <timestamp> finished -> <timestamp> successful -> <timestamp> deleted,,"
+                    == "test_job_csv_formatter,test_job_csv_formatter,deleted,,,,,<timestamp> created -> <timestamp> started -> <timestamp> registered -> <timestamp> running -> <timestamp> finished -> <timestamp> successful -> <timestamp> deleted,,"
                 )
 
             logger.close()

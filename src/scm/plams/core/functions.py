@@ -17,9 +17,7 @@ from contextlib import contextmanager
 
 from scm.plams.core.logging import get_logger
 from scm.plams.core.errors import FileError, MissingOptionalPackageError
-from scm.plams.core.private import retry
 from scm.plams.core.settings import Settings, ConfigSettings
-from scm.plams.core.enums import JobStatus
 
 if TYPE_CHECKING:
     from scm.plams.core.jobmanager import JobManager
