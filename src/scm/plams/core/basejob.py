@@ -256,7 +256,10 @@ class Job(ABC):
         log(f"{self.name}.depend resolved", 7)
 
         jobmanager._register(self)
+        if self.path is None:
+            raise JobError(f"Path for job {self.name} is not set")
         os.makedirs(self.path)
+
         self.status = JobStatus.REGISTERED
 
         log(f"Starting {self.name}.prerun()", 5)
