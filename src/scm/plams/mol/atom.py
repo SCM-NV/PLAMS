@@ -25,7 +25,7 @@ class Atom:
     *   ``coords`` -- tuple of length 3 storing spatial coordinates
     *   ``bonds`` -- list of bonds (see |Bond|) this atom is a part of
     *   ``mol`` -- |Molecule| this atom belongs to
-    *   ``properties`` -- |Settings| instance storing all other information about this atom (initially it is populated with *\*\*other*)
+    *   ``properties`` -- |Settings| instance storing all other information about this atom (initially it is populated with *\\*\\*other*)
 
     The above attributes can be accessed either directly or using one of the following properties:
 

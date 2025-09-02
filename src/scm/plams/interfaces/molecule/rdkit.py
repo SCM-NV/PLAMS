@@ -257,7 +257,7 @@ def to_smiles(plams_mol: Molecule, short_smiles: bool = True, **kwargs) -> str:
 
     :parameter plams_mol: A PLAMS |Molecule|
     :parameter bool short_smiles: whether or not to use some RDKit sanitization to get shorter smiles (e.g. for a water molecule, short_smiles=True -> "O", short_smiles=False -> [H]O[H])
-    :parameter \**kwargs: With 'kwargs' you can provide extra optional parameters to the rdkit.Chem method 'MolToSmiles'. See the rdkit documentation for more info.
+    :parameter kwargs: With 'kwargs' you can provide extra optional parameters to the rdkit.Chem method 'MolToSmiles'. See the rdkit documentation for more info.
 
     :return: the SMILES string
     """

@@ -1000,7 +1000,7 @@ class Molecule:
     def supercell(self, *args) -> "Molecule":
         """Return a new |Molecule| instance representing a supercell build by replicating this |Molecule| along its lattice vectors.
 
-        One should provide in input an integer matrix :math:`T_{i,j}` representing the supercell transformation (:math:`\\vec{a}_i' = \sum_j T_{i,j}\\vec{a}_j`). The size of the matrix should match the number of lattice vectors, i.e. 3x3 for 3D periodic systems, 2x2 for 2D periodic systems and one number for 1D periodic systems. The matrix can be provided in input as either a nested list or as a numpy matrix.
+        One should provide in input an integer matrix :math:`T_{i,j}` representing the supercell transformation (:math:`\\vec{a}_i' = \\sum_j T_{i,j}\\vec{a}_j`). The size of the matrix should match the number of lattice vectors, i.e. 3x3 for 3D periodic systems, 2x2 for 2D periodic systems and one number for 1D periodic systems. The matrix can be provided in input as either a nested list or as a numpy matrix.
 
         For a diagonal supercell expansion (i.e. :math:`T_{i \\neq j}=0`) one can provide in input n positive integers instead of a matrix, where n is number of lattice vectors in the molecule. e.g. This ``mol.supercell([[2,0],[0,2]])`` is equivalent to ``mol.supercell(2,2)``.
 
@@ -2338,7 +2338,7 @@ class Molecule:
 
         .. math::
 
-            \sum_{i \in mol, j\in lig} e^{-R_{ij}}
+            \\sum_{i \in mol, j\in lig} e^{-R_{ij}}
 
         A different cost function can be also supplied by the user, using one of the two remaining arguments: *cost_func_mol* or *cost_func_array*. *cost_func_mol* should be a function that takes two |Molecule| instances: this molecule (after removing unneeded atoms) and ligand in a particular orientation (also without unneeded atoms) and returns a single number (the lower the number, the better the fit). *cost_func_array* is analogous, but instead of |Molecule| instances it takes two numpy arrays (with dimensions: number of atoms x 3) with coordinates of this molecule and the ligand. If both are supplied, *cost_func_mol* takes precedence over *cost_func_array*.
 
@@ -3727,7 +3727,9 @@ class Molecule:
 
         return ret
 
-    def label(self, level: int = 1, keep_labels: bool = False, flags: Optional[Dict[str, bool]] = None) -> str:
+    def label(
+        self, level: int = 1, keep_labels: bool = False, flags: Optional[Dict[str_type, bool]] = None
+    ) -> str_type:
         """Compute the label of this molecule using chosen *level* of detail.
 
         Possible levels are:
