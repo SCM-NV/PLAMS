@@ -1,12 +1,9 @@
 from collections import OrderedDict
 from itertools import combinations
-from typing import Optional, Dict
-
 import numpy as np
 
-from scm.plams.core.functions import add_to_class, requires_optional_package
+from scm.plams.core.functions import requires_optional_package
 from scm.plams.core.private import sha256
-from scm.plams.mol.molecule import Molecule
 from scm.plams.tools.units import Units
 
 __all__ = ["label_atoms"]
