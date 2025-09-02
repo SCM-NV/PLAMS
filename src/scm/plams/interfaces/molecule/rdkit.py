@@ -4,7 +4,7 @@ import sys
 import copy
 from warnings import warn
 
-from scm.plams.core.functions import add_to_class, log, requires_optional_package
+from scm.plams.core.functions import log, requires_optional_package
 from scm.plams.mol.atom import Atom
 from scm.plams.mol.bond import Bond
 from scm.plams.mol.molecule import Molecule
@@ -12,7 +12,6 @@ from scm.plams.core.errors import PlamsError
 
 if TYPE_CHECKING:
     from rdkit import Mol as RDKitMol
-    import scm.plams.mol.molecule as molecule  # required to avoid Sphinx error in type hinting (due to add_to_class)
 
 __all__ = [
     "add_Hs",
@@ -394,13 +393,13 @@ def prop_from_rdmol(pl_obj, rd_obj):
 @overload
 def from_smiles(
     smiles: str, nconfs: Literal[1] = ..., name: Optional[str] = ..., forcefield: Optional[str] = ..., rms: float = ...
-) -> "molecule.Molecule": ...
+) -> Molecule: ...
 
 
 @overload
 def from_smiles(
     smiles: str, nconfs: int = ..., name: Optional[str] = ..., forcefield: Optional[str] = ..., rms: float = ...
-) -> List["molecule.Molecule"]: ...
+) -> List[Molecule]: ...
 
 
 @requires_optional_package("rdkit")
@@ -1264,38 +1263,6 @@ def yield_coords(rdmol, id=-1):
     for atom in rdmol.GetAtoms():
         pos = conf.GetAtomPosition(atom.GetIdx())
         yield (pos.x, pos.y, pos.z)
-
-
-@add_to_class(Molecule)
-def assign_chirality(self):
-    """
-    Assigns stereo-info to PLAMS molecule by invoking RDKIT
-    """
-    rd_mol = to_rdmol(self, assignChirality=True)
-    pl_mol = from_rdmol(rd_mol)
-
-    # Add R/S info to self
-    for iat, pl_atom in enumerate(pl_mol.atoms):
-        # Check for R/S information
-        if pl_atom.properties.rdkit.stereo:
-            self.atoms[iat].properties.rdkit.stereo = pl_atom.properties.rdkit.stereo
-
-    # Add cis/trans information to self
-    for ibond, pl_bond in enumerate(pl_mol.bonds):
-        if pl_bond.properties.rdkit.stereo:
-            self.bonds[ibond] = pl_bond.properties.rdkit.stereo
-
-
-@add_to_class(Molecule)
-@requires_optional_package("rdkit")
-def get_chirality(self):
-    """
-    Returns the chirality of the atoms
-    """
-    from rdkit import Chem
-
-    rd_mol = to_rdmol(self, assignChirality=True)
-    return Chem.FindMolChiralCenters(rd_mol, force=True, includeUnassigned=True)
 
 
 @requires_optional_package("rdkit")
