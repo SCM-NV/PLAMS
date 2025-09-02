@@ -1,4 +1,5 @@
 import os
+import sys
 import re
 import threading
 from os.path import join as opj
@@ -346,6 +347,10 @@ class JobManager:
                     job.path = opj(job.parent.path, job.name)
                 else:
                     job.path = opj(dir_for_jobs, job.name)
+                if sys.platform.startswith("win") and len(job.path) >= 260:
+                    win_long_file_prefix = "\\\\?\\"
+                    if not job.path.startswith(win_long_file_prefix):
+                        job.path = f"{win_long_file_prefix}{job.path}"
 
             self.jobs.append(job)
             self._job_full_name_map[job] = (job_full_name_no_counter, job_full_name_counter)
