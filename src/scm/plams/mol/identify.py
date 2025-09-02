@@ -20,7 +20,9 @@ __all__ = ["label_atoms"]
 possible_flags = ["BO", "RS", "EZ", "DH", "CO", "H2"]
 
 
-def twist(v1, v2, v3, tolerance: Optional[float] = None) -> Tuple[int, Optional[int]]:
+def twist(
+    v1: np.ndarray, v2: np.ndarray, v3: np.ndarray, tolerance: Optional[float] = None
+) -> Tuple[int, Optional[int]]:
     """
     Given 3 vectors in 3D space measure their "chirality" with *tolerance*.
 
@@ -36,7 +38,7 @@ def twist(v1, v2, v3, tolerance: Optional[float] = None) -> Tuple[int, Optional[
     return int(np.sign(x)), None
 
 
-def bend(v1, v2, tolerance: Optional[float] = None) -> int:
+def bend(v1: np.ndarray, v2: np.ndarray, tolerance: Optional[float] = None) -> int:
     """Check if two vectors in 3D space are parallel or perpendicular, with *tolerance* (in degrees).
 
     Returns 1 if *v1* and *v2* are collinear, 2 if they are perpendicular, 0 otherwise."""
@@ -117,7 +119,7 @@ def new_name(atom: "Atom", flags: Dict[str, Any]) -> str:
         more.append("RS" + str(twist(v1, v2, v3, flags.get("twist_tol"))))
 
     if flags["CO"] and len(knocks) >= 4:
-        d: OrderedDict = OrderedDict()
+        d: OrderedDict[str, List[Atom]] = OrderedDict()
         for label, at in knocks:
             if label not in d:
                 d[label] = []

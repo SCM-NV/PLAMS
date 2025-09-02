@@ -1098,7 +1098,7 @@ class AMSResults(Results):
         forceConstants = np.array(forceConstants) if isinstance(forceConstants, list) else np.array([forceConstants])
         return forceConstants
 
-    def get_pvdos(self, engine: Optional[str] = None):
+    def get_pvdos(self, engine: Optional[str] = None) -> np.ndarray:
         """Return a numpy array of Partial Vibrational Spectra (PVDOS) with shape: (nNormalModes, nAtoms), with values [0,1].
 
         The *engine* argument should be the identifier of the file you wish to read. To access a file called ``something.rkf`` you need to call this function with ``engine='something'``. The *engine* argument can be omitted if there's only one engine results file in the job folder.
@@ -1109,7 +1109,7 @@ class AMSResults(Results):
         pvdos = np.array(pvdos).reshape(nNormalModes, nAtoms)
         return pvdos
 
-    def get_reduced_masses(self, engine: Optional[str] = None):
+    def get_reduced_masses(self, engine: Optional[str] = None) -> np.ndarray:
         """Return a numpy array of reduced masses, expressed in amu units.
         If mass_weighted_hessian_eigenvectors=True it returns the mass_weighted_hessian_eigenvectors.
 
@@ -1120,7 +1120,7 @@ class AMSResults(Results):
 
     def get_normal_modes(
         self, engine: Optional[str] = None, mass_weighted_hessian_eigenvectors: Optional[bool] = False
-    ):
+    ) -> np.ndarray:
         """Return a numpy array of normal modes with shape: (num_normal_modes, num_atoms, 3), expressed in dimensionless units.
         If mass_weighted_hessian_eigenvectors=True it returns the mass_weighted_hessian_eigenvectors.
 
@@ -1344,10 +1344,10 @@ class AMSResults(Results):
         self,
         engine: Optional[str] = None,
         broadening_type: Literal["gaussian", "lorentzian"] = "gaussian",
-        broadening_width=40,
-        min_x=0,
-        max_x=4000,
-        x_spacing=0.5,
+        broadening_width: int = 40,
+        min_x: int = 0,
+        max_x: int = 4000,
+        x_spacing: float = 0.5,
         post_process: Optional[Literal["all_intensities_to_1", "max_to_1"]] = None,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """Return the VCD spectrum in terms of rotatory strength. Units: frequencies are in cm-1, the intensities by the default are in 10^(-44) esu^2 cm^2 but if post_process is all_intensities_to_1 the units are in modes counts otherwise if equal to max_to_1 are in arbitrary units.
@@ -1542,7 +1542,7 @@ class AMSResults(Results):
 
         from natsort import natsorted
 
-        def tolist(x):
+        def tolist(x: Any) -> List:
             if isinstance(x, list):
                 return x
             else:
@@ -1651,7 +1651,7 @@ class AMSResults(Results):
 
         """
 
-        def tolist(x):
+        def tolist(x: Any) -> List:
             if isinstance(x, list):
                 return x
             else:
@@ -1718,7 +1718,7 @@ class AMSResults(Results):
         """
         from itertools import compress
 
-        def tolist(x):
+        def tolist(x: Any) -> List:
             if isinstance(x, list):
                 return x
             else:
@@ -1894,7 +1894,7 @@ class AMSResults(Results):
 
         return times, vacf
 
-    def get_dipole_history(self, dipole_unit="e*bohr") -> np.ndarray:
+    def get_dipole_history(self, dipole_unit: str = "e*bohr") -> np.ndarray:
         dipole_x = self.get_history_property(history_section="BinLog", varname="DipoleMoment_x")
         dipole_y = self.get_history_property(history_section="BinLog", varname="DipoleMoment_y")
         dipole_z = self.get_history_property(history_section="BinLog", varname="DipoleMoment_z")

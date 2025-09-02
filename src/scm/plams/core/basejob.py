@@ -396,7 +396,7 @@ class SingleJob(Job):
 
     _filenames = {"inp": "$JN.in", "run": "$JN.run", "out": "$JN.out", "err": "$JN.err"}
 
-    def __init__(self, molecule: Optional[Molecule] = None, **kwargs):
+    def __init__(self, molecule: Optional[Molecule] = None, **kwargs: Any):
         Job.__init__(self, **kwargs)
         self.molecule = molecule.copy() if isinstance(molecule, Molecule) else molecule
 
@@ -666,7 +666,7 @@ class MultiJob(Job):
     Private attributes ``_active_children`` and ``_lock`` are essential for proper parallel execution. Please do not modify them.
     """
 
-    def __init__(self, children: Optional[List[Job]] = None, childrunner: Optional["JobRunner"] = None, **kwargs):
+    def __init__(self, children: Optional[List[Job]] = None, childrunner: Optional["JobRunner"] = None, **kwargs: Any):
         Job.__init__(self, **kwargs)
         self.children: List[Job] = [] if children is None else children
         self.childrunner = childrunner

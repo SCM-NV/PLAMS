@@ -3,7 +3,7 @@ import logging
 import os
 import sys
 from io import StringIO
-from typing import Any, Type, Dict, Literal, Optional, overload
+from typing import Any, Type, Dict, Literal, Optional, overload, NoReturn
 import threading
 from abc import ABC, abstractmethod
 
@@ -33,7 +33,7 @@ class LogManager:
 
     _loggers: Dict[str, "Logger"] = {}
 
-    def __new__(cls, *args, **kwargs):
+    def __new__(cls, *args: Any, **kwargs: Any) -> NoReturn:
         raise TypeError("LoggerManager cannot be directly instantiated.")
 
     @classmethod

@@ -476,7 +476,7 @@ class Settings(dict):
 
         """
 
-        def iter_block(bk: Iterable):
+        def iter_block(bk: Iterable) -> Iterable[Tuple[Hashable, Any]]:
             return bk.items() if isinstance(bk, Settings) else enumerate(bk)
 
         block_keys = list(self.block_keys(flatten_list, include_empty))

@@ -77,7 +77,7 @@ def run_with_timeout(
     timeout: Optional[float] = 5,
     poll_interval: float = 0.1,
     env: Optional[Mapping[str, str]] = None,
-):
+) -> None:
     """
     Execute a system call which kills the process if it errors or does not respond within the given time period.
 
@@ -217,12 +217,12 @@ def parse_action(action: str) -> Callable[[Exception], None]:
 # ===========================================================================
 
 
-def retry(sleep: float = 0.1, maxtries: int = 10):
+def retry(sleep: float = 0.1, maxtries: int = 10) -> Callable[[Callable[P, T]], Callable[P, T]]:
     # wrapper for sleep-retrying a function call. use with `@retry()`
     from time import sleep as _sleep
 
-    def wrap1(f):
-        def wrap2(*a: Any, __count: int = 0, **kw: Any):
+    def wrap1(f: Callable[P, T]) -> Callable[P, T]:
+        def wrap2(*a: Any, __count: int = 0, **kw: Any) -> T:
             try:
                 return f(*a, **kw)
             except Exception as e:

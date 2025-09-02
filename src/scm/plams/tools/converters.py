@@ -1,7 +1,7 @@
 import os
 import re
 import tempfile
-from typing import Optional, Tuple, TYPE_CHECKING, List
+from typing import Optional, Tuple, TYPE_CHECKING, List, Sequence
 
 from scm.plams.interfaces.molecule.ase import toASE
 from scm.plams.mol.molecule import Molecule
@@ -473,7 +473,14 @@ def rkf_to_ase_atoms(rkf_file: str, get_results: bool = True) -> List["Atoms"]:
     bohr2angstrom = Units.convert(1.0, "bohr", "angstrom")
     hartree2eV = Units.convert(1.0, "hartree", "eV")
 
-    def get_ase_atoms(elements, crd, cell, energy, gradients, stress) -> "Atoms":
+    def get_ase_atoms(
+        elements: Sequence[str],
+        crd: Sequence[Sequence[float]],
+        cell: Optional[Sequence[Sequence[float]]],
+        energy: float,
+        gradients: Sequence[Sequence[float]],
+        stress: Sequence[float],
+    ) -> "Atoms":
 
         pbc = None
         if cell is not None:
