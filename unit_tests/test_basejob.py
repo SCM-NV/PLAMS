@@ -1189,7 +1189,7 @@ class TestMultiJob:
 
     def test_rename_created_multijob(self, config):
         # Given multi job
-        id = uuid.uuid4()
+        id = str(uuid.uuid4())[:8]
         name1 = f"to-be-renamed-{id}"
         name2 = f"renamed-{id}"
         jobs = [DummySingleJob(name=name1) for _ in range(3)]
@@ -1209,7 +1209,7 @@ class TestMultiJob:
 
     def test_rename_running_multijob(self, config):
         # Given multi job
-        id = uuid.uuid4()
+        id = str(uuid.uuid4())[:8]
         name1 = f"to-be-renamed-{id}"
         name2 = f"renamed-{id}"
         jobs = [DummySingleJob(name=name1, wait=0.2) for _ in range(3)]
@@ -1246,7 +1246,7 @@ class TestMultiJob:
 
     def test_rename_nested_multijob(self, config):
         # Given multi job
-        id = uuid.uuid4()
+        id = str(uuid.uuid4())[:8]
         name1 = f"top-to-be-renamed-{id}"
         name2 = f"middle-to-be-renamed-{id}"
         name3 = f"bottom-to-be-renamed-{id}"
