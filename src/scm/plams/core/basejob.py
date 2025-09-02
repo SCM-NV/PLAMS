@@ -4,16 +4,17 @@ import stat
 import threading
 import datetime
 import time
+import shutil
 from os.path import join as opj
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, Generator, Iterable, List, Optional, Union, Tuple
+from typing import TYPE_CHECKING, Dict, Generator, Iterable, List, Optional, Union, Tuple, Callable
 from abc import ABC, abstractmethod
 import traceback
 
 from scm.plams.core.enums import JobStatus, JobStatusType
 from scm.plams.core.errors import FileError, JobError, PlamsError, ResultsError
 from scm.plams.core.functions import get_config, log
-from scm.plams.core.private import sha256
+from scm.plams.core.private import sha256, retry
 from scm.plams.core.results import Results
 from scm.plams.core.settings import Settings
 from scm.plams.mol.molecule import Molecule
@@ -255,6 +256,11 @@ class Job(ABC):
         log(f"{self.name}.depend resolved", 7)
 
         jobmanager._register(self)
+        if self.path is None:
+            raise JobError(f"Path for job {self.name} is not set")
+        os.makedirs(self.path)
+
+        self.status = JobStatus.REGISTERED
 
         log(f"Starting {self.name}.prerun()", 5)
         self.prerun()
@@ -330,6 +336,79 @@ class Job(ABC):
 
         log(f"{self.name}._finalize() finished", 7)
         self._log_status(1)
+
+    @retry()
+    def delete(self) -> None:
+        """
+        Permanently delete the job directory and remove this job from the job manager.
+        This allows the job name to be re-used.
+
+        Job status is marked as deleted, and the results can no longer be accessed.
+        """
+        if self.status != JobStatus.CREATED:
+            self.results.wait()
+
+        # if no job manager, run() method was not called yet, job is not registered and no folder exists
+        if self.jobmanager is not None:
+            self.jobmanager.remove_job(self)
+
+        if self.parent is not None:
+            self.parent.remove_child(self)
+
+        if self.path is not None:
+            shutil.rmtree(self.path)
+
+        self.status = JobStatus.DELETED
+        self.path = None
+        self._log_status(5)
+
+    def rename(self, name: str) -> None:
+        """
+        Rename a job, renaming the job directory, associated file names and updating the registration in the job manager.
+        As usual, if a job with the same name is already registered, the job will have a unique integer postfix.
+        Note that this is just to rename the job directory itself - this will not move a job to a different parent directory.
+
+        :param name: new name for the job
+        """
+        if self.status != JobStatus.CREATED:
+            self.results.wait()
+
+        # if no job manager, run() method was not called yet, job is not registered and no folder exists
+        prev_name = self.name
+        if name == prev_name:
+            return
+
+        if self.jobmanager is not None:
+            prev_path = self.path
+
+            self.jobmanager.rename_job(self, name)
+
+            if self.path != prev_path:
+                # Move files and recollect to update files in result classes
+                shutil.move(prev_path, self.path)
+                self.results.collect()
+                MultiJob.apply_to_children(self, lambda j: j.results.collect(), recursive=True)
+
+                # Rename files for this job
+                # N.B. files includes child jobs for multi-jobs, so just replace files in this job directory
+                for prev_file in Path(self.path).iterdir():
+                    if prev_file.is_file() and not prev_file.name.endswith(".dill"):
+                        file = prev_file.with_name(prev_file.name.replace(prev_name, self.name))
+                        self.results.rename(prev_file.name, file.name)
+                    self.results.collect()
+
+                # Rewrite dill files if present (also for child jobs if applicable)
+                prev_dill_file = Path(self.path, prev_name + ".dill")
+                if prev_dill_file.exists():
+                    os.remove(prev_dill_file)
+                    self.pickle()
+                MultiJob.apply_to_children(
+                    self, lambda j: j.pickle() if Path(j.path, j.name + ".dill").exists() else None, recursive=True
+                )
+
+        else:
+            self.name = name
+        log(f"JOB {prev_name} RENAMED to {self._full_name()}", level=3)
 
     def __getstate__(self):
         """Prepare this job instance for pickling.
@@ -693,6 +772,7 @@ class MultiJob(Job):
                 rm = i
                 break
         if rm is not None:
+            self.children[rm].parent = None
             del self.children[rm]
 
     def _get_ready(self) -> None:
@@ -758,3 +838,33 @@ class MultiJob(Job):
         while self._active_children > 0:
             time.sleep(sleep_step)
         log(f"{self.name}._execute() finished", 7)
+
+    def delete(self) -> None:
+        if self.status != JobStatus.CREATED:
+            self.results.wait()
+
+        for child in [c for c in self.children]:
+            child.delete()
+            self.remove_child(child)
+
+        super().delete()
+
+    @classmethod
+    def apply_to_children(cls, job: Job, func: Callable[[Job], None], recursive=False) -> None:
+        """
+        Apply the function ``func`` to all children of a |MultiJob| (not the job itself).
+        This is a no-op if the job is a |SingleJob|.
+
+        :param job: job to check and apply the function to the children of
+        :param func: function to apply to all children of a |MultiJob|
+        :param recursive: if ``True`` (default), also recursively apply the function to the children of all children of |MultiJob|
+        """
+        if isinstance(job, MultiJob):
+            for child_job in job:
+                func(child_job)
+                if recursive:
+                    cls.apply_to_children(child_job, func, recursive)
+            for other_job in job.other_jobs():
+                func(other_job)
+                if recursive:
+                    cls.apply_to_children(other_job, func, recursive)
