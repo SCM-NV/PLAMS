@@ -3,7 +3,7 @@
 
 # ## Initial Imports
 
-from scm.plams import Settings, ADFFragmentResults, Molecule, log, ADFFragmentJob, add_to_class, init
+from scm.plams import Settings, ADFFragmentResults, Molecule, log, ADFFragmentJob, init
 
 # this line is not required in AMS2025+
 init()
@@ -13,9 +13,8 @@ init()
 # Add helper results extraction method.
 
 
-@add_to_class(ADFFragmentResults)
-def get_transfer_integrals(self):
-    return self.job.full.results.read_rkf_section("TransferIntegrals", file="adf")
+def get_transfer_integrals(results):
+    return results.job.full.results.read_rkf_section("TransferIntegrals", file="adf")
 
 
 # ## Configure Settings
@@ -59,6 +58,6 @@ results = job.run()
 
 # TI is a dictionary with the whole TransferIntegrals section from adf.rkf
 print("== Results ==")
-TI = results.get_transfer_integrals()
+TI = get_transfer_integrals(results)
 for key, value in sorted(TI.items()):
     print("{:<28}: {:>12.6f}".format(key, value))
