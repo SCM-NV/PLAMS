@@ -1,13 +1,11 @@
 import os
 import re
-import shutil
 import threading
 from os.path import join as opj
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional, List, Dict
+from typing import TYPE_CHECKING, Optional, List, Dict, Tuple
 
 from scm.plams.core.basejob import MultiJob
-from scm.plams.core.enums import JobStatus
 from scm.plams.core.errors import FileError, PlamsError
 from scm.plams.core.functions import get_logger, log, config, _get_dir_for_jobs
 from scm.plams.core.logging import Logger
@@ -59,6 +57,7 @@ class JobManager:
         self.settings = settings
         self.jobs: List[Job] = []
         self.names: Dict[str, int] = {}
+        self._job_full_name_map: Dict[Job, Tuple[str, int]] = {}
         self.hashes: Dict[str, Job] = {}
 
         self._register_lock = threading.RLock()
@@ -73,7 +72,7 @@ class JobManager:
         elif os.path.isdir(path):
             self.path = os.path.abspath(path)
         else:
-            raise PlamsError("Invalid path: {}".format(path))
+            raise PlamsError(f"Invalid path: {path}")
 
         basename = os.path.normpath(folder) if folder else "plams_workdir"
         self.foldername = basename
@@ -168,7 +167,7 @@ class JobManager:
         if os.path.isfile(filename):
             filename = os.path.abspath(filename)
         else:
-            raise FileError("File {} not present".format(filename))
+            raise FileError(f"File {filename} not present")
         path = os.path.dirname(filename)
         with open(filename, "rb") as f:
 
@@ -195,65 +194,163 @@ class JobManager:
         setstate(job, path)
         return job
 
-    def remove_job(self, job: "Job") -> None:
-        """Remove *job* from the job manager. Forget its hash."""
+    def rename_job(self, job: "Job", name: str) -> None:
+        """
+        Rename the job in the job manager, de-registering the old name and re-registering it under the new name.
+
+        .. note::
+            The job manager is not responsible for moving the job files and directories
+
+        :param job: job to rename
+        :param name: new name for the job
+        """
         with self._register_lock:
+            if name == job.name:
+                return
+
+            log(f"Renaming job {job.name} to {name}", 7)
+
+            if job.jobmanager is not self:
+                raise PlamsError(f"Cannot rename job '{job.name}' as it does not belong to this job manager")
+
+            orig_name = job.name
+
+            # renaming a job always preserves the parent directory it was run in, so determine this
+            try:
+                if job.parent is not None:
+                    rel_dir = Path(".")
+                else:
+                    rel_dir = Path(job.path).parent.resolve().relative_to(self._workdir)
+            except ValueError:
+                raise PlamsError(
+                    f"Cannot rename job '{job.name}' as it does not reside in the working directory of this job manager: '{self._workdir}'."
+                )
+
+            # deregister original job from the job manager then change the name and register it again
+            self.remove_job(job)
+            job.name = name
+            job.path = None
+            self._register(job, rel_dir)
+
+            # child jobs have been removed, so re-register these to update the paths
+            def reregister_child_job(child_job: "Job"):
+                child_job.path = None
+                self._register(child_job, rel_dir_for_jobs=Path("."), auto_rename=False)
+
+            MultiJob.apply_to_children(job, reregister_child_job, recursive=True)
+
+            log(f"Job {orig_name} renamed to {job.name}", 7)
+
+    def remove_job(self, job: "Job") -> None:
+        """
+        Remove *job* from the job manager.
+        This removes its hash and resets the name count to the last remaining job with the same name.
+
+        .. note::
+            The job manager is not responsible for removing the job files and directories
+
+        :param job: job to remove
+        """
+        with self._register_lock:
+            log(f"Removing job {job.name}", 7)
+
             if job in self.jobs:
                 self.jobs.remove(job)
                 job.jobmanager = None
+            if job in self._job_full_name_map:
+                name, cnt = self._job_full_name_map.pop(job)
+                if name in self.names:
+                    if cnt == self.names[name]:
+                        if cnt == 1:
+                            self.names.pop(name)
+                        else:
+                            remaining = [c for n, c in self._job_full_name_map.values() if n == name]
+                            if remaining:
+                                self.names[name] = max(remaining)
+                            else:
+                                self.names.pop(name)
             h = job.hash()
             if h in self.hashes and self.hashes[h] == job:
                 del self.hashes[h]
-            if isinstance(job, MultiJob):
-                for child in job:
-                    self.remove_job(child)
-                for otherjob in job.other_jobs():
-                    self.remove_job(otherjob)
-            shutil.rmtree(job.path)
+            MultiJob.apply_to_children(job, self.remove_job)
 
-    def _register(self, job: "Job") -> None:
-        """Register the *job*. Register job's name (rename if needed) and create the job folder.
+            log(f"Job {job.name} removed", 7)
 
-        If a job with the same name was already registered, *job* is renamed by appending consecutive integers. The number of digits in the appended number is defined by the ``counter_len`` value in ``settings``.
+    def _register(self, job: "Job", rel_dir_for_jobs: Optional[Path] = None, auto_rename: bool = True) -> None:
+        """Register the *job*. Register job's name. Rename if needed and ``auto_rename=True``.
+
+        If a job with the same name was already registered, *job* is renamed by appending consecutive integers.
+        The number of digits in the appended number is defined by the ``counter_len`` value in ``settings``.
         Note that jobs whose name already contains a counting suffix, e.g. ``myjob.002`` will have the suffix stripped as the very first step.
+
+        If a relative directory for the jobs is provided, jobs will be registered in this directory, relative to the job manager working directory.
+        Otherwise, the value from :func:`~scm.plams.core.functions._get_dir_for_jobs` will be used.
+        An exception is for registering a child of a |MultiJob|, when the parent directory is always used.
+
+        If a job with the same name in the same directory is already registered and ``auto_rename=False``, raises a ``PlamsError``.
+
+        .. note::
+            The job manager is not responsible for creating the job files and directories
+
+        :param job: job to register
+        :param rel_dir_for_jobs: relative directory to the job manager working directory, in which to register jobs
+        :param auto_rename: whether to automatically rename job if a job with the same name already exists
         """
         with self._register_lock:
 
-            log("Registering job {}".format(job.name), 7)
+            log(f"Registering job {job.name}", 7)
             job.jobmanager = self
 
-            # get current directory for jobs and create it if required
+            # get current directory for jobs
             # this directory should be used unless job is within a multi-job (as then the parent job directory should be used)
-            dir_for_jobs = self.current_dir_for_jobs
-            rel_dir_for_jobs: Optional[Path] = dir_for_jobs.relative_to(self.workdir)
-            rel_dir_for_jobs = rel_dir_for_jobs if rel_dir_for_jobs != Path(".") else None
-            if rel_dir_for_jobs and not job.parent:
-                os.makedirs(dir_for_jobs, exist_ok=True)
-
-            # If the name ends with the counting suffix, e.g. ".002", remove it.
-            # The suffix is just not part of a legitimate job name and users will have to live with it potentially changing.
-            orgfname = job._full_name(rel_dir_for_jobs)
-            job.name = re.sub(r"(\.\d{%i})+$" % (self.settings.counter_len), "", job.name)
-            fname = job._full_name(rel_dir_for_jobs)
-            if fname in self.names:
-                self.names[fname] += 1
-                job.name += "." + str(self.names[fname]).zfill(self.settings.counter_len)
-                fname = job._full_name(rel_dir_for_jobs)
+            if rel_dir_for_jobs:
+                dir_for_jobs = (self._workdir / rel_dir_for_jobs).resolve()
             else:
-                self.names[fname] = 1
-            if fname != orgfname:
-                log("Renaming job {} to {}".format(orgfname, fname), 3)
+                dir_for_jobs = self.current_dir_for_jobs
+                rel_dir_for_jobs = dir_for_jobs.relative_to(self.workdir)
+            rel_dir_for_jobs = rel_dir_for_jobs if rel_dir_for_jobs != Path(".") else None
+
+            # check the name of the current job for collisions with existing jobs, and rename if required
+            orig_job_full_name = job._full_name(rel_dir_for_jobs)
+            pattern = rf"(?:\.(\d{{{self.settings.counter_len}}}))+?$"
+            match = re.search(pattern, job.name)
+            job_full_name_counter = int(match.group(1)) if match else 1
+            job_full_name_no_counter = re.sub(pattern, "", job._full_name(rel_dir_for_jobs))
+
+            # if the name is not yet registered there are no collisions
+            if job_full_name_no_counter not in self.names:
+                self.names[job_full_name_no_counter] = job_full_name_counter
+            else:
+                # otherwise rename the job with an incrementing counter suffix
+                if auto_rename:
+                    self.names[job_full_name_no_counter] += 1
+                    job_full_name_counter = self.names[job_full_name_no_counter]
+                    job.name = (
+                        f"{re.sub(pattern, '', job.name)}.{str(job_full_name_counter).zfill(self.settings.counter_len)}"
+                    )
+                    # self.names[job_full_name_no_counter] = job_full_name_counter
+                    if orig_job_full_name != job._full_name(rel_dir_for_jobs):
+                        log(f"Renaming job {orig_job_full_name} to {job._full_name(rel_dir_for_jobs)}", 3)
+                # alternatively do a strict check that the job with this suffix is not already registered
+                else:
+                    counts_in_use = [c for n, c in self._job_full_name_map.values() if n == job_full_name_no_counter]
+                    if job_full_name_counter not in counts_in_use:
+                        max_count_in_use = max(counts_in_use) if counts_in_use else 1
+                        if job_full_name_counter > max_count_in_use:
+                            self.names[job_full_name_no_counter] = job_full_name_counter
+                    else:
+                        raise PlamsError(f"Job {job.name} already registered and cannot automatically be renamed", 1)
 
             if job.path is None:
                 if job.parent:
                     job.path = opj(job.parent.path, job.name)
                 else:
                     job.path = opj(dir_for_jobs, job.name)
-            os.mkdir(job.path)
 
             self.jobs.append(job)
-            job.status = JobStatus.REGISTERED
-            log("Job {} registered".format(job.name), 7)
+            self._job_full_name_map[job] = (job_full_name_no_counter, job_full_name_counter)
+
+            log(f"Job {job.name} registered", 7)
 
     def _check_hash(self, job: "Job") -> Optional["Job"]:
         """Calculate the hash of *job* and, if it is not ``None``, search previously run jobs for the same hash. If such a job is found, return it. Otherwise, return ``None``"""
@@ -262,7 +359,7 @@ class JobManager:
             with self._register_lock:
                 if h in self.hashes:
                     prev = self.hashes[h]
-                    log("Job {} previously run as {}, using old results".format(job.name, prev.name), 1)
+                    log(f"Job {job.name} previously run as {prev.name}, using old results", 1)
                     return prev
                 else:
                     self.hashes[h] = job

@@ -1,3 +1,5 @@
+import shutil
+
 import pytest
 import os
 import uuid
@@ -190,7 +192,8 @@ class TestJobManager:
 
         os.rmdir(job_manager.workdir)
 
-    def test_register(self):
+    @pytest.mark.parametrize("auto_rename", [True, False])
+    def test_register(self, auto_rename):
         # Given job manager
         folder = str(uuid.uuid4())
         job_manager = JobManager(settings=JobManagerSettings(), folder=folder)
@@ -201,13 +204,30 @@ class TestJobManager:
         job2 = DummySingleJob(name=base_name)
         job3 = DummySingleJob(name=base_name)
         job4 = DummySingleJob(name=base_name)
-        jobs = [job1, job2, job3, job4]
-        job_manager._register(job1)
-        job_manager._register(job2)
+        job5 = DummySingleJob(name=base_name)
+        job6 = DummySingleJob(name=f"{base_name}.002")
+        job7 = DummySingleJob(name=f"{base_name}.005")
+        job8 = DummySingleJob(name=f"{base_name}.010")
+        job9 = DummySingleJob(name=f"{base_name}.008")
+        job10 = DummySingleJob(name=f"{base_name}.020")
+        jobs = [job1, job2, job3, job4, job5, job6, job7, job8, job9, job10]
+        job_manager._register(job1, auto_rename=auto_rename)
+        if auto_rename:
+            job_manager._register(job2, auto_rename=auto_rename)
+        else:
+            with pytest.raises(PlamsError):
+                job_manager._register(job2, auto_rename=auto_rename)
         with jobs_in_directory("foo"):
-            job_manager._register(job3)
+            job_manager._register(job3, auto_rename=auto_rename)
             with jobs_in_directory("bar"):
-                job_manager._register(job4)
+                job_manager._register(job4, auto_rename=auto_rename)
+        job_manager._register(job5, rel_dir_for_jobs=Path("fizz"), auto_rename=auto_rename)
+        job_manager._register(job6, auto_rename=auto_rename)
+        job_manager._register(job7, auto_rename=auto_rename)
+        job_manager._register(job8, auto_rename=auto_rename)
+        job_manager._register(job9, auto_rename=auto_rename)
+        with jobs_in_directory("foo"):
+            job_manager._register(job10, auto_rename=auto_rename)
 
         # Then jobs registered as expected
         def verify_job_registration(job, expected_name, expected_subdir=None):
@@ -220,19 +240,44 @@ class TestJobManager:
                 assert Path(job.path) == Path(job_manager.workdir, expected_subdir, expected_name)
             else:
                 assert Path(job.path) == Path(job_manager.workdir, expected_name)
-            # Verify job status is registered
-            assert job.status == "registered"
 
-        verify_job_registration(job1, base_name)
-        verify_job_registration(job2, f"{base_name}.002")
-        verify_job_registration(job3, base_name, expected_subdir="foo")
-        verify_job_registration(job4, base_name, expected_subdir="foo/bar")
-        assert job_manager.jobs == jobs
-        assert job_manager.names == {
-            "foo/bar/test_jobreg": 1,
-            "foo/test_jobreg": 1,
-            "test_jobreg": 2,
-        }
+        if auto_rename:
+            verify_job_registration(job1, base_name)
+            verify_job_registration(job2, f"{base_name}.002")
+            verify_job_registration(job3, base_name, expected_subdir="foo")
+            verify_job_registration(job4, base_name, expected_subdir="foo/bar")
+            verify_job_registration(job5, base_name, expected_subdir="fizz")
+            verify_job_registration(job6, f"{base_name}.003")
+            verify_job_registration(job7, f"{base_name}.004")
+            verify_job_registration(job8, f"{base_name}.005")
+            verify_job_registration(job9, f"{base_name}.006")
+            verify_job_registration(job10, f"{base_name}.002", expected_subdir="foo")
+
+            assert job_manager.jobs == jobs
+            assert job_manager.names == {
+                "fizz/test_jobreg": 1,
+                "foo/bar/test_jobreg": 1,
+                "foo/test_jobreg": 2,
+                "test_jobreg": 6,
+            }
+        else:
+            verify_job_registration(job1, base_name)
+            verify_job_registration(job3, base_name, expected_subdir="foo")
+            verify_job_registration(job4, base_name, expected_subdir="foo/bar")
+            verify_job_registration(job5, base_name, expected_subdir="fizz")
+            verify_job_registration(job6, f"{base_name}.002")
+            verify_job_registration(job7, f"{base_name}.005")
+            verify_job_registration(job8, f"{base_name}.010")
+            verify_job_registration(job9, f"{base_name}.008")
+            verify_job_registration(job10, f"{base_name}.020", expected_subdir="foo")
+
+            assert job_manager.jobs == [jobs[0]] + jobs[2:]
+            assert job_manager.names == {
+                "fizz/test_jobreg": 1,
+                "foo/bar/test_jobreg": 1,
+                "foo/test_jobreg": 20,
+                "test_jobreg": 10,
+            }
 
         job_manager._clean()
         if os.path.exists(job_manager.workdir):
@@ -273,6 +318,7 @@ class TestJobManager:
             with jobs_in_directory("bar"):
                 job_manager._register(job4)
         for job in jobs:
+            os.makedirs(job.path)
             job.pickle()
 
         # When load jobs
@@ -291,9 +337,54 @@ class TestJobManager:
         # When remove jobs
         for job in jobs:
             job_manager.remove_job(job)
+            shutil.rmtree(job.path)
 
         # Then jobs removed from job manager
         assert job_manager.jobs == []
+
+        job_manager._clean()
+        if os.path.exists(job_manager.workdir):
+            os.rmdir(job_manager.workdir)
+
+    def test_rename(self):
+        # Given job manager
+        folder = str(uuid.uuid4())
+        job_manager = JobManager(settings=JobManagerSettings(), folder=folder)
+
+        # When register jobs then rename them
+        orig_name = "test_rename"
+        name = "renamed"
+        job1 = DummySingleJob(name=orig_name)
+        job2 = DummySingleJob(name=orig_name)
+        job3 = DummySingleJob(name=orig_name)
+        jobs = [job1, job2, job3]
+        job_manager._register(job1)
+        job_manager._register(job2)
+        job_manager._register(job3, rel_dir_for_jobs=Path("foo"))
+        for job in jobs:
+            job_manager.rename_job(job, name)
+
+        # Then original jobs removed from the job manager and re-registered with new name, in the same directory
+        def verify_job_registration(job, expected_name, expected_subdir=None):
+            # Verify job manager set on job
+            assert job.jobmanager == job_manager
+            # Verify job name has postfix if duplicate run
+            assert job.name == expected_name
+            # Verify job path in workdir/subdir/job
+            if expected_subdir:
+                assert Path(job.path) == Path(job_manager.workdir, expected_subdir, expected_name)
+            else:
+                assert Path(job.path) == Path(job_manager.workdir, expected_name)
+
+        verify_job_registration(job1, name)
+        verify_job_registration(job2, f"{name}.002")
+        verify_job_registration(job3, name, expected_subdir="foo")
+
+        assert job_manager.jobs == jobs
+        assert job_manager.names == {
+            "renamed": 2,
+            "foo/renamed": 1,
+        }
 
         job_manager._clean()
         if os.path.exists(job_manager.workdir):

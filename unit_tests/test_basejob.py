@@ -561,6 +561,268 @@ sleep 0.0 && sed 's/input/output/g' plamsjob.in
         assert job._full_name() == "dummy_job"
         assert job._full_name("some/rundir") == "some/rundir/dummy_job"
 
+    def test_delete_created_job(self, config):
+        # Given job
+        job = DummySingleJob()
+
+        # When deleted
+        job.delete()
+
+        # Then status set to deleted
+        assert job.status == JobStatus.DELETED
+        assert job.path is None
+        with pytest.raises(ResultsError):
+            _ = job.results.grep_output("")
+
+    def test_delete_running_job(self, config):
+        # Given job
+        job = DummySingleJob(wait=0.5)
+        job.run()
+        path = job.path
+
+        # When deleted while running
+        job.delete()
+
+        # Then waits, job files removed and job path removed
+        assert job.status == JobStatus.DELETED
+        assert job.name not in config.default_jobmanager.names
+        assert job not in config.default_jobmanager.jobs
+        assert not Path(path).exists()
+        assert job.path is None
+        with pytest.raises(ResultsError):
+            _ = job.results.grep_output("")
+
+    def test_delete_job_then_rerun_with_same_name(self, config):
+        # Given job
+        name = f"to-be-deleted-{uuid.uuid4()}"
+        job1 = DummySingleJob(name=name)
+        job1.run()
+        path1 = job1.path
+
+        # When deleted
+        job1.delete()
+
+        # Then can rerun job with the same name, and results cannot be accessed from first job
+        job2 = DummySingleJob(name=name)
+        job2.run()
+
+        assert job1.name == job2.name
+        assert job1.path is None
+        with pytest.raises(ResultsError):
+            job1.results.grep_output("")
+        assert job2.path == path1
+        assert job2.results.grep_output("")
+
+    def test_delete_many_jobs_then_rerun_with_same_name(self, config):
+        # Given jobs with same name
+        name = f"to-be-deleted-{uuid.uuid4()}"
+        jobs = [DummySingleJob(name=name) for _ in range(10)]
+        for job in jobs:
+            job.run()
+        for job in jobs:
+            job.results.wait()
+        path = jobs[0].path
+
+        # When jobs which are not the final job are deleted
+        jobs[0].delete()
+        jobs[4].delete()
+        jobs[7].delete()
+
+        # Then next job follows on from last job
+        jobs.append(DummySingleJob(name=name))
+        jobs[-1].run().wait()
+        assert int(jobs[-1].name[-3:]) == 11
+
+        # When last jobs are deleted
+        jobs[-2].delete()
+        jobs[-1].delete()
+
+        # Then next job follows on from highest remaining job
+        jobs.append(DummySingleJob(name=name))
+        jobs[-1].run().wait()
+        assert int(jobs[-1].name[-3:]) == 10
+
+        # When all other jobs are deleted
+        jobs[1].delete()
+        jobs[2].delete()
+        jobs[3].delete()
+        jobs[5].delete()
+        jobs[-1].delete()
+        jobs[6].delete()
+        jobs[8].delete()
+
+        # Then count is fully reset and next job has the base name
+        jobs.append(DummySingleJob(name=name))
+        jobs[-1].run().wait()
+        last_job = jobs.pop()
+        assert last_job.name == name
+        assert last_job.results.grep_output("")
+        assert jobs[0].path is None
+        with pytest.raises(ResultsError):
+            jobs[0].results.grep_output("")
+        assert all(job.status == JobStatus.DELETED for job in jobs)
+        assert len(list(Path(path).parent.glob(f"{name}*"))) == 1
+
+    def test_delete_many_jobs_with_same_name_in_different_sub_dirs(self, config):
+        # Given jobs with same name in different sub dirs
+        name = f"to-be-deleted-{uuid.uuid4()}"
+        with jobs_in_directory("dir1") as dir1:
+            jobs1 = [DummySingleJob(name=name) for _ in range(5)]
+            for j in jobs1:
+                j.run()
+        with jobs_in_directory("dir2") as dir2:
+            jobs2 = [DummySingleJob(name=name) for _ in range(5)]
+            for j in jobs2:
+                j.run()
+            with jobs_in_directory("dir3") as dir3:
+                jobs3 = [DummySingleJob(name=name) for _ in range(5)]
+                for j in jobs3:
+                    j.run()
+        for j in jobs1 + jobs2 + jobs3:
+            j.results.wait()
+
+        # When jobs deleted from a subdir
+        for job in jobs2[::-1]:
+            job.delete()
+
+        # Then jobs in other dirs unaffected
+        assert len(config.default_jobmanager.names) == 2
+        assert all(job.status == JobStatus.SUCCESSFUL for job in jobs1)
+        assert all(job.status == JobStatus.DELETED for job in jobs2)
+        assert all(job.status == JobStatus.SUCCESSFUL for job in jobs3)
+        with pytest.raises(ResultsError):
+            jobs2[0].results.grep_output("")
+        assert jobs1[0].results.grep_output("")
+        assert jobs3[0].results.grep_output("")
+        assert len(list(dir2.glob(f"{name}*"))) == 0
+        assert len(list(dir1.glob(f"{name}*"))) == 5
+        assert len(list(dir3.glob(f"{name}*"))) == 5
+
+        # When jobs deleted from a subdir
+        for job in jobs1:
+            job.delete()
+
+        # Then jobs in other dirs unaffected
+        assert len(config.default_jobmanager.names) == 1
+        assert all(job.status == JobStatus.DELETED for job in jobs1)
+        assert all(job.status == JobStatus.SUCCESSFUL for job in jobs3)
+
+        # When jobs deleted from a subdir
+        jobs3[1].delete()
+        jobs3[3].delete()
+        jobs3[4].delete()
+        jobs3[2].delete()
+        jobs3[0].delete()
+
+        # Then jobs in other dirs unaffected
+        assert len(config.default_jobmanager.names) == 0
+
+    def test_rename_created_job(self, config):
+        # Given job
+        id = uuid.uuid4()
+        name1 = f"to-be-renamed-{id}"
+        name2 = f"renamed-{id}"
+        job = DummySingleJob(name=name1)
+
+        # When renamed
+        job.rename(name2)
+
+        # Then name changed
+        assert job.status == JobStatus.CREATED
+        assert job.path is None
+        assert job.name == name2
+
+    def test_rename_running_job(self, config):
+        # Given job
+        id = uuid.uuid4()
+        name1 = f"to-be-renamed-{id}"
+        name2 = f"renamed-{id}"
+        job = DummySingleJob(name=name1, wait=0.5)
+        job.run()
+        path1 = job.path
+
+        # When renamed while running
+        job.rename(name2)
+        path2 = job.path
+
+        # Then waits, job files moved and renamed, re-registered in job manager
+        assert job.status == JobStatus.SUCCESSFUL
+        assert not Path(path1).exists()
+        assert Path(path2).exists()
+        assert Path(path2) == Path(path1).parent / name2
+        assert name1 not in config.default_jobmanager.names
+        assert name2 in config.default_jobmanager.names
+
+        # And results can be read
+        assert job.results.read_file("$JN.in")
+        assert job.results.read_file("$JN.out")
+        assert job.results.read_file("$JN.run")
+
+        # And job can be loaded from .dill file
+        loaded_job = DummySingleJob.load(str(Path(job.path) / f"{job.name}.dill"))
+        assert loaded_job.name == name2
+
+    def test_rename_job_with_same_name(self, config):
+        # Given two jobs
+        name1 = f"to-be-renamed-{uuid.uuid4()}"
+        name2 = f"renamed-{uuid.uuid4()}"
+        job1 = DummySingleJob(name=name1)
+        job2 = DummySingleJob(name=name2)
+        job1.run()
+        job2.run()
+        path1 = job1.path
+
+        # When job renamed with same name as itself
+        job1.rename(name1)
+
+        # Then job and files unchanged
+        assert job1.name == name1
+        assert job1.path == path1
+
+        # When job renamed with same name as another job
+        job1.rename(name2)
+        path2 = job1.path
+
+        # Then job files moved and renamed, re-registered in job manager
+        name3 = f"{name2}.002"
+        assert not Path(path1).exists()
+        assert Path(path2).exists()
+        assert Path(path2) == Path(path1).parent / name3
+        assert name1 not in config.default_jobmanager.names
+        assert name2 in config.default_jobmanager.names
+        assert config.default_jobmanager.names[name2] == 2
+
+    def test_rename_many_jobs_in_different_sub_dirs(self, config):
+        # Given jobs with same name in different sub dirs
+        name1 = f"name1-{uuid.uuid4()}"
+        name2 = f"name2-{uuid.uuid4()}"
+        name3 = f"name3-{uuid.uuid4()}"
+        with jobs_in_directory("dir1") as dir1:
+            jobs1 = [DummySingleJob(name=name1) for _ in range(3)]
+            for j in jobs1:
+                j.run()
+        with jobs_in_directory("dir2") as dir2:
+            jobs2 = [DummySingleJob(name=name2) for _ in range(3)]
+            for j in jobs2:
+                j.run()
+            with jobs_in_directory("dir3") as dir3:
+                jobs3 = [DummySingleJob(name=name3) for _ in range(3)]
+                for j in jobs3:
+                    j.run()
+        jobs = jobs1 + jobs2 + jobs3
+        for j in jobs:
+            j.results.wait()
+
+        # When jobs renamed
+        for i in range(3):
+            for j, n in enumerate([name1, name2, name3]):
+                jobs[i * 3 + j].rename(n)
+
+        # Then jobs remain in the same subdirectory but are renamed
+        for i, d in enumerate([dir1, dir2, dir3]):
+            for j, n in enumerate([name1, name2, name3]):
+                assert jobs[i * 3 + j].path.startswith(str(d / n))
+
 
 class TestMultiJob:
     """
@@ -811,3 +1073,214 @@ class TestMultiJob:
         assert inner_multi_job._full_name("some/rundir") == "some/rundir/multi_outer/multi_inner_job"
         assert job._full_name() == "multi_outer/multi_inner_job/dummy_job"
         assert job._full_name("some/rundir") == "some/rundir/multi_outer/multi_inner_job/dummy_job"
+
+    def test_apply_to_children(self):
+        def add_tag(j):
+            j.tag = True
+
+        # Given nested multi-jobs
+        job1 = DummySingleJob(name="dummy_job")
+        job2 = DummySingleJob(name="dummy_job")
+        inner_multi_job = MultiJob(children=[job1, job2], name="multi_inner_job")
+        multi_job = MultiJob(children=[inner_multi_job], name="multi_outer")
+
+        # When apply tagging function to non multi-job
+        MultiJob.apply_to_children(job1, add_tag)
+
+        # Then apply is a no-op
+        assert not hasattr(multi_job, "tag")
+        assert not hasattr(inner_multi_job, "tag")
+        assert not hasattr(job1, "tag")
+        assert not hasattr(job2, "tag")
+
+        # When apply tagging function to children
+        MultiJob.apply_to_children(multi_job, add_tag)
+
+        # Then applies to children non-recursively
+        assert not hasattr(multi_job, "tag")
+        assert hasattr(inner_multi_job, "tag")
+        assert not hasattr(job1, "tag")
+        assert not hasattr(job2, "tag")
+
+        # When apply tagging function recursively
+        MultiJob.apply_to_children(multi_job, add_tag, recursive=True)
+        assert not hasattr(multi_job, "tag")
+        assert hasattr(inner_multi_job, "tag")
+        assert hasattr(job1, "tag")
+        assert hasattr(job2, "tag")
+
+    def test_delete_created_multijob(self, config):
+        # Given multi job
+        jobs = [DummySingleJob() for _ in range(3)]
+        multi_job = MultiJob(children=[j for j in jobs])
+
+        # When deleted
+        multi_job.delete()
+
+        # Then status set to deleted for parent and child jobs
+        assert multi_job.status == JobStatus.DELETED
+        assert all(j.status == JobStatus.DELETED for j in jobs)
+        assert multi_job.path is None
+        assert all(j.path is None for j in jobs)
+        assert multi_job.children == []
+        assert all(j.parent is None for j in jobs)
+        with pytest.raises(ResultsError):
+            _ = multi_job.results.grep_output("")
+        with pytest.raises(ResultsError):
+            _ = jobs[0].results.grep_output("")
+
+    def test_delete_running_multijob(self, config):
+        # Given multi job
+        jobs = [DummySingleJob() for _ in range(3)]
+        multi_job = MultiJob(children=[j for j in jobs])
+        multi_job.run()
+        path = multi_job.path
+
+        # When deleted while running
+        multi_job.delete()
+
+        # Then waits, job files removed and job path removed for parent and child jobs
+        assert multi_job.status == JobStatus.DELETED
+        assert all(j.status == JobStatus.DELETED for j in jobs)
+        assert multi_job.name not in config.default_jobmanager.names
+        assert multi_job not in config.default_jobmanager.jobs
+        assert not Path(path).exists()
+        assert multi_job.path is None
+        assert all(j.path is None for j in jobs)
+        assert multi_job.children == []
+        assert all(j.parent is None for j in jobs)
+        with pytest.raises(ResultsError):
+            _ = multi_job.results.grep_output("")
+        with pytest.raises(ResultsError):
+            _ = jobs[0].results.grep_output("")
+
+    def test_delete_nested_multijob(self, config):
+        # Given multi job
+        jobs = [DummySingleJob() for _ in range(3)]
+        multi_job = MultiJob(children=[j for j in jobs])
+        top_multi_job = MultiJob(children=[multi_job])
+        top_multi_job.run()
+        path = top_multi_job.path
+
+        # When deleted
+        top_multi_job.delete()
+
+        # Then waits, job files removed and job path removed for parent and child jobs
+        assert top_multi_job.status == JobStatus.DELETED
+        assert multi_job.status == JobStatus.DELETED
+        assert all(j.status == JobStatus.DELETED for j in jobs)
+        assert top_multi_job.name not in config.default_jobmanager.names
+        assert multi_job.name not in config.default_jobmanager.names
+        assert top_multi_job not in config.default_jobmanager.jobs
+        assert multi_job not in config.default_jobmanager.jobs
+        assert not Path(path).exists()
+        assert top_multi_job.path is None
+        assert multi_job.path is None
+        assert all(j.path is None for j in jobs)
+        assert top_multi_job.children == []
+        assert multi_job.children == []
+        assert all(j.parent is None for j in jobs)
+        with pytest.raises(ResultsError):
+            _ = top_multi_job.results.grep_output("")
+        with pytest.raises(ResultsError):
+            _ = multi_job.results.grep_output("")
+        with pytest.raises(ResultsError):
+            _ = jobs[0].results.grep_output("")
+
+    def test_rename_created_multijob(self, config):
+        # Given multi job
+        id = uuid.uuid4()
+        name1 = f"to-be-renamed-{id}"
+        name2 = f"renamed-{id}"
+        jobs = [DummySingleJob(name=name1) for _ in range(3)]
+        multi_job = MultiJob(children=[j for j in jobs], name=name1)
+
+        # When renamed
+        multi_job.rename(name2)
+        multi_job.children[0].rename(name2)
+
+        # Then name changed
+        assert multi_job.status == JobStatus.CREATED
+        assert multi_job.path is None
+        assert multi_job.name == name2
+        assert jobs[0].status == JobStatus.CREATED
+        assert jobs[0].path is None
+        assert jobs[0].name == name2
+
+    def test_rename_running_multijob(self, config):
+        # Given multi job
+        id = uuid.uuid4()
+        name1 = f"to-be-renamed-{id}"
+        name2 = f"renamed-{id}"
+        jobs = [DummySingleJob(name=name1, wait=0.2) for _ in range(3)]
+        multi_job = MultiJob(children=[j for j in jobs], name=name1)
+        multi_job.run()
+        path1 = multi_job.path
+
+        # When renamed while running
+        multi_job.rename(name2)
+        jobs[0].rename(name2)
+        path2 = multi_job.path
+
+        # Then waits, multi job files moved and renamed, re-registered in job manager
+        assert multi_job.status == JobStatus.SUCCESSFUL
+        assert not Path(path1).exists()
+        assert Path(path2).exists()
+        assert Path(path2) == Path(path1).parent / name2
+        assert name1 not in config.default_jobmanager.names
+        assert name2 in config.default_jobmanager.names
+
+        # And child jobs are also moved and renamed and re-registered in job manager
+        for i, job in enumerate(jobs):
+            assert Path(job.path).exists()
+            assert Path(job.path) == Path(path2) / job.name
+            assert f"{name1}/{name1}" not in config.default_jobmanager.names
+            if i == 0:
+                assert f"{name2}/{name2}" in config.default_jobmanager.names
+            assert f"{name2}/{name1}" in config.default_jobmanager.names
+
+            # And results can be read
+            assert job.results.read_file("$JN.in")
+            assert job.results.read_file("$JN.out")
+            assert job.results.read_file("$JN.run")
+
+    def test_rename_nested_multijob(self, config):
+        # Given multi job
+        id = uuid.uuid4()
+        name1 = f"top-to-be-renamed-{id}"
+        name2 = f"middle-to-be-renamed-{id}"
+        name3 = f"bottom-to-be-renamed-{id}"
+        name4 = f"top-renamed-{id}"
+        name5 = f"middle-renamed-{id}"
+        name6 = f"bottom-renamed-{id}"
+        jobs = [DummySingleJob(name=name3) for _ in range(3)]
+        multi_job = MultiJob(children=[j for j in jobs], name=name2)
+        top_multi_job = MultiJob(children=[multi_job], name=name1)
+        top_multi_job.run()
+        orig_path = top_multi_job.path
+
+        # When renamed
+        jobs[0].rename(name6)
+        top_multi_job.rename(name4)
+        multi_job.rename(name5)
+
+        # Then waits, multi job files moved and renamed, re-registered in job manager
+        assert not Path(orig_path).exists()
+        assert Path(top_multi_job.path) == Path(orig_path).parent / name4
+        assert Path(multi_job.path) == Path(orig_path).parent / name4 / name5
+        assert Path(jobs[0].path) == Path(orig_path).parent / name4 / name5 / name6
+        assert (Path(orig_path).parent / name4).exists()
+        assert (Path(orig_path).parent / name4 / name5).exists()
+        assert (Path(orig_path).parent / name4 / name5 / name6).exists()
+        assert name1 not in config.default_jobmanager.names
+        assert f"{name1}/{name2}" not in config.default_jobmanager.names
+        assert f"{name1}/{name2}/{name3}" not in config.default_jobmanager.names
+        assert name4 in config.default_jobmanager.names
+        assert f"{name4}/{name5}" in config.default_jobmanager.names
+        assert f"{name4}/{name5}/{name6}" in config.default_jobmanager.names
+
+        # And results can be read
+        for job in jobs:
+            assert job.results.read_file("$JN.in")
+            assert job.results.read_file("$JN.out")
+            assert job.results.read_file("$JN.run")

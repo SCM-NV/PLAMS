@@ -76,9 +76,7 @@ def _restrict(func: Callable[Concatenate["Results", P], T]) -> Callable[Concaten
         elif self.job.status == JobStatus.PREVIEW:
             if cfg.ignore_failure:
                 log(
-                    "WARNING: Trying to obtain results of job {} run in a preview mode. Returned value is None".format(
-                        self.job.name
-                    ),
+                    f"WARNING: Trying to obtain results of job {self.job.name} run in a preview mode. Returned value is None",
                     3,
                 )
                 return None
@@ -105,16 +103,14 @@ def _restrict(func: Callable[Concatenate["Results", P], T]) -> Callable[Concaten
                     return func(self, *args, **kwargs)
 
             if cfg.ignore_failure:
-                log("WARNING: Trying to obtain results of crashed or failed job {}".format(self.job.name), 3)
+                log(f"WARNING: Trying to obtain results of crashed or failed job {self.job.name}", 3)
                 try:
                     ret = func(self, *args, **kwargs)
                 except:
-                    log("Obtaining results of {} failed. Returned value is None".format(self.job.name), 3)
+                    log(f"Obtaining results of {self.job.name} failed. Returned value is None", 3)
                     return None
                 log(
-                    "Obtaining results of {} successful. However, no guarantee that they make sense".format(
-                        self.job.name
-                    ),
+                    f"Obtaining results of {self.job.name} successful. However, no guarantee that they make sense",
                     3,
                 )
                 return ret
@@ -122,7 +118,7 @@ def _restrict(func: Callable[Concatenate["Results", P], T]) -> Callable[Concaten
                 raise ResultsError("Using Results associated with crashed or failed job")
 
         elif self.job.status in [JobStatus.CREATED, JobStatus.STARTED, JobStatus.REGISTERED, JobStatus.RUNNING]:
-            log("Waiting for job {} to finish".format(self.job.name), 1)
+            log(f"Waiting for job {self.job.name} to finish", 1)
             if _privileged_access():
                 self.finished.wait()
             else:
@@ -132,7 +128,7 @@ def _restrict(func: Callable[Concatenate["Results", P], T]) -> Callable[Concaten
         elif self.job.status == JobStatus.FINISHED:
             if _privileged_access():
                 return func(self, *args, **kwargs)
-            log("Waiting for job {} to finish".format(self.job.name), 1)
+            log(f"Waiting for job {self.job.name} to finish", 1)
             self.done.wait()
             return func(self, *args, **kwargs)
 
@@ -245,12 +241,10 @@ class Results(ApplyRestrict):
             output = self.job._filename("out")
         except AttributeError:
             raise ResultsError(
-                "Job {} does not seem to be an instance of SingleJob, it does not have _filenames dictionary".format(
-                    self.job.name
-                )
+                f"Job {self.job.name} does not seem to be an instance of SingleJob, it does not have _filenames dictionary"
             )
         except KeyError:
-            raise ResultsError("Job {} does not have an output".format(self.job.name))
+            raise ResultsError(f"Job {self.job.name} does not have an output")
         return self.grep_file(output, pattern, options)
 
     def read_file(self, filename: str) -> str:
@@ -293,12 +287,12 @@ class Results(ApplyRestrict):
         """
         cmd = ["awk"]
         for k, v in kwargs.items():
-            cmd += ["-v", "{}={}".format(k, v)]
+            cmd += ["-v", f"{k}={v}"]
         if progfile:
             if os.path.isfile(progfile):
                 cmd += ["-f", progfile]
             else:
-                raise FileError("File {} not present".format(progfile))
+                raise FileError(f"File {progfile} not present")
         else:
             cmd += [script]
         return self._process_file(filename, cmd)
@@ -310,12 +304,10 @@ class Results(ApplyRestrict):
             output = self.job._filename("out")
         except AttributeError:
             raise ResultsError(
-                "Job {} does not seem to be an instance of SingleJob, it does not have _filenames dictionary".format(
-                    self.job.name
-                )
+                f"Job {self.job.name} does not seem to be an instance of SingleJob, it does not have _filenames dictionary"
             )
         except KeyError:
-            raise ResultsError("Job {} does not have an output".format(self.job.name))
+            raise ResultsError(f"Job {self.job.name} does not have an output")
         return self.awk_file(output, script, progfile, **kwargs)
 
     def rename(self, old: str, new: str) -> None:
@@ -328,7 +320,7 @@ class Results(ApplyRestrict):
             os.rename(opj(self.job.path, old), opj(self.job.path, new))
             self.files[self.files.index(old)] = new
         else:
-            raise FileError("File {} not present in {}".format(old, self.job.path))
+            raise FileError(f"File {old} not present in {self.job.path}")
 
     def get_file_chunk(
         self,
@@ -388,9 +380,7 @@ class Results(ApplyRestrict):
         try:
             output = self.job._filename("out")
         except AttributeError:
-            raise ResultsError(
-                "Job {} is not an instance of SingleJob, it does not have an output".format(self.job.name)
-            )
+            raise ResultsError(f"Job {self.job.name} is not an instance of SingleJob, it does not have an output")
         return self.get_file_chunk(output, begin, end, match, inc_begin, inc_end, process)
 
     def recreate_molecule(self) -> None:
@@ -445,7 +435,7 @@ class Results(ApplyRestrict):
                     log("Deleting file " + f, 5)
 
         else:
-            log("WARNING: {} is not a valid keep/save argument".format(arg), 3)
+            log(f"WARNING: {arg} is not a valid keep/save argument", 3)
         self.refresh()
 
     def _copy_to(self, newresults: "Results") -> None:
@@ -492,7 +482,7 @@ class Results(ApplyRestrict):
         if name in self.files:
             return opj(self.job.path, name)
         else:
-            raise FileError("File {} not present in {}".format(name, self.job.path))
+            raise FileError(f"File {name} not present in {self.job.path}")
 
     def __contains__(self, name: str) -> bool:
         """Magic method to enable the Python ``in`` operator notation for checking if a filename with a particular name is present."""
@@ -511,4 +501,4 @@ class Results(ApplyRestrict):
             ret: List[str] = process.stdout.decode().splitlines()
             return ret
         else:
-            raise FileError("File {} not present in {}".format(filename, self.job.path))
+            raise FileError(f"File {filename} not present in {self.job.path}")

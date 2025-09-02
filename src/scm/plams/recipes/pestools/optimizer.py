@@ -92,7 +92,7 @@ class Optimizer:
         else:
             molecules, energies, resultlist = self._perform_tasks_using_pipe(molecules, engine_settings, name)
         remaining_energies = [en for en in energies if not en is None]
-        log("%s out of %s optimizations succeeded" % (len(remaining_energies), len(energies)))
+        log(f"{len(remaining_energies)} out of {len(energies)} optimizations succeeded")
         return molecules, energies
 
     def compute_energies(self, molecules, engine_settings=None, name="sp"):
@@ -112,7 +112,7 @@ class Optimizer:
                 molecules, engine_settings, name, "SinglePoint"
             )
         remaining_energies = [en for en in energies if not en is None]
-        log("%s out of %s single point calculations succeeded" % (len(remaining_energies), len(energies)))
+        log(f"{len(remaining_energies)} out of {len(energies)} single point calculations succeeded")
         return molecules, energies
 
     def _perform_tasks_separately(self, molecules, engine_settings=None, name="go", task="GeometryOptimization"):
@@ -125,7 +125,7 @@ class Optimizer:
         elif task == "SinglePoint":
             settings = self.get_sp_settings()
         else:
-            raise PlamsError("Task not implemented: %s" % (task))
+            raise PlamsError(f"Task not implemented: {task}")
 
         # Add the engine settings
         if engine_settings is None:
@@ -152,7 +152,7 @@ class Optimizer:
 
         # Run jobs
         for i, mol in enumerate(molecules):
-            job = AMSJob(name="%s%i" % (name, i), molecule=mol, settings=settings)
+            job = AMSJob(name=f"{name}{i}", molecule=mol, settings=settings)
             resultlist.append(job.run(jobrunner=self.jobrunner))
 
         # Read results
@@ -229,7 +229,7 @@ class Optimizer:
         # Run the tasks
         molecule_list = []
         for i, mol in enumerate(molecules):
-            molecule_list.append(("%s%i" % (name, i), mol.copy(), kwargs))
+            molecule_list.append((f"{name}{i}", mol.copy(), kwargs))
         # with AMSWorkerPool(settings, jobrunner=self.jobrunner) as job_pool :
         # maxjobs = self.jobrunner.maxjobs if self.jobrunner.parallel else 0
         # job_pool = AMSWorkerPool(settings, jobrunner=self.jobrunner)
@@ -246,7 +246,7 @@ class Optimizer:
             elif task == "SinglePoint":
                 resultlist = job_pool.SinglePoints(molecule_list, watch=self.watch)
             else:
-                raise PlamsError("Task not implemented: %s" % (task))
+                raise PlamsError(f"Task not implemented: {task}")
         except Exception:
             keepdir = True
         finally:
@@ -269,7 +269,7 @@ class Optimizer:
                 jobname = r.name
             if msg is not None:
                 # print ('Error: ',i,msg)
-                errfile.write("%-10s: %s\n" % (jobname, msg))
+                errfile.write(f"{jobname:<10}: {msg}\n")
                 optimized_geometries.append(None)
                 energies.append(None)
                 continue

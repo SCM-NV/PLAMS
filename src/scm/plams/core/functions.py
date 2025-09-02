@@ -18,9 +18,7 @@ from contextlib import contextmanager
 
 from scm.plams.core.logging import get_logger
 from scm.plams.core.errors import FileError, MissingOptionalPackageError
-from scm.plams.core.private import retry
 from scm.plams.core.settings import Settings, ConfigSettings
-from scm.plams.core.enums import JobStatus
 
 if TYPE_CHECKING:
     from scm.plams.core.jobmanager import JobManager
@@ -287,12 +285,15 @@ def init(
     cfg.slurm = _init_slurm() if "SLURM_JOB_ID" in os.environ else None
 
     if not quiet:
-        log("Running PLAMS located in {}".format(dirname(dirname(__file__))), 5)
-        log("Using Python {}.{}.{} located in {}".format(*sys.version_info[:3], sys.executable), 5)
+        log(f"Running PLAMS located in {dirname(dirname(__file__))}", 5)
+        log(
+            f"Using Python {sys.version_info[0]}.{sys.version_info[1]}.{sys.version_info[2]} located in {sys.executable}",
+            5,
+        )
         if defaults_file is not None:
-            log("PLAMS defaults were loaded from {}".format(defaults_file), 5)
+            log(f"PLAMS defaults were loaded from {defaults_file}", 5)
         log("PLAMS environment initialized", 5)
-        log("PLAMS working folder: {}".format(cfg.default_jobmanager.workdir), 1)
+        log(f"PLAMS working folder: {cfg.default_jobmanager.workdir}", 1)
 
     cfg.init = True
     cfg._explicit_init = True
@@ -407,22 +408,10 @@ def load_all(path: str, jobmanager: Optional["JobManager"] = None) -> JobDict:
 # ===========================================================================
 
 
-@retry()
 def delete_job(job: "Job") -> None:
     """Remove *job* from its corresponding |JobManager| and delete the job folder from the disk. Mark *job* as 'deleted'."""
-
-    if job.status != JobStatus.CREATED:
-        job.results.wait()
-
-    # In case job.jobmanager is None, run() method was not called yet, so no JobManager knows about this job and no folder exists.
-    if job.jobmanager is not None:
-        job.jobmanager.remove_job(job)
-
-    if job.parent is not None:
-        job.parent.remove_child(job)
-
-    job.status = JobStatus.DELETED
-    job._log_status(5)
+    # wrapper around the method, for backwards compatibility
+    job.delete()
 
 
 # ===========================================================================
@@ -619,13 +608,13 @@ def parse_heredoc(bash_input: str, heredoc_delimit: str = "eor") -> str:
 
     """
     # Find the start of the heredoc block
-    start_pattern = r"<<(-)?(\s+)?{}".format(heredoc_delimit)
+    start_pattern = rf"<<(-)?(\s+)?{heredoc_delimit}"
     start_heredoc = re.search(start_pattern, bash_input)
     if not start_heredoc:
         return bash_input
 
     # Find the end of the heredoc block
-    end_pattern = r"\n(\s+)?{}(\s+)?\n".format(heredoc_delimit)
+    end_pattern = rf"\n(\s+)?{heredoc_delimit}(\s+)?\n"
     end_heredoc = re.search(end_pattern, bash_input)
 
     # Prepare the slices

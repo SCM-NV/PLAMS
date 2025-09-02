@@ -70,7 +70,7 @@ class KFReader:
         if os.path.isfile(path):
             self.path = os.path.abspath(path)
         else:
-            raise FileError("File {} not present".format(path))
+            raise FileError(f"File {path} not present")
 
         self._blocksize = blocksize
         self.endian = "<"  # endian: '<' = little, '>' = big
@@ -91,11 +91,11 @@ class KFReader:
         try:
             tmp = self._sections[section]  # type: ignore
         except KeyError:
-            raise KeyError("Section {} not present in {}".format(section, self.path))
+            raise KeyError(f"Section {section} not present in {self.path}")
         try:
             vtype, vlb, vstart, vlen = tmp[variable]
         except KeyError:
-            raise KeyError("Variable {} not present in section {} of {}".format(variable, section, self.path))
+            raise KeyError(f"Variable {variable} not present in section {section} of {self.path}")
 
         ret: Union[List[Union[int, bool, float]], bytes] = []
         first = True
@@ -145,7 +145,7 @@ class KFReader:
 
         blocksize = struct.unpack(b"i", b[28:32])[0]
         self._blocksize = 4096 if blocksize == 538976288 else blocksize
-        log("Block size of {} detected as {}".format(self.path, self._blocksize), 7)
+        log(f"Block size of {self.path} detected as {self._blocksize}", 7)
 
         one = b[80:84]
 
@@ -156,9 +156,7 @@ class KFReader:
             one = b[96:104]
         else:
             log(
-                "WARNING: Unable to autodetect integer size and endian of {}. Using defaults (4 bytes and little endian)".format(
-                    self.path
-                ),
+                f"WARNING: Unable to autodetect integer size and endian of {self.path}. Using defaults (4 bytes and little endian)",
                 3,
             )
             return
@@ -173,7 +171,7 @@ class KFReader:
                     ">": "big endian",
                 }
                 log(
-                    ("Format of {0} detected to {" + self.word + "} and {" + self.endian + "}").format(self.path, **d),
+                    f"Format of {self.path} detected to {d[self.word]} and {d[self.endian]}",
                     7,
                 )
 
@@ -416,7 +414,7 @@ class KFFile:
             for section in self.tmpdata:
                 for variable in self.tmpdata[section]:
                     val = self.tmpdata[section][variable]
-                    txt += "{}\n{}\n{}\n".format(section, variable, KFFile._str(val))
+                    txt += f"{section}\n{variable}\n{KFFile._str(val)}\n"
                     newvars.append(section + "%" + variable)
             self.tmpdata = OrderedDict()
 
@@ -463,9 +461,7 @@ class KFFile:
                 ret[var] = self.read(sec, var)
         if len(ret) == 0:
             log(
-                "WARNING: Section '{}' not present in {} or present, but empty. Returning empty dictionary".format(
-                    section, self.path
-                ),
+                f"WARNING: Section '{section}' not present in {self.path} or present, but empty. Returning empty dictionary",
                 1,
             )
         return ret
@@ -612,15 +608,10 @@ class KFHistory:
             self._init_shape(name)
         if name in self.blocked:
             return numpy.concatenate(
-                [
-                    numpy.atleast_1d(self.kf.read(self.section, "{}({})".format(name, i)))
-                    for i in range(1, self.nblocks + 1)
-                ]
+                [numpy.atleast_1d(self.kf.read(self.section, f"{name}({i})")) for i in range(1, self.nblocks + 1)]
             )
         else:
-            return numpy.asarray(
-                [self.kf.read(self.section, "{}({})".format(name, i)) for i in range(1, self.nsteps + 1)]
-            )
+            return numpy.asarray([self.kf.read(self.section, f"{name}({i})") for i in range(1, self.nsteps + 1)])
 
     def iter(self, name: str) -> Iterator[TRead]:
         """Iterate over the values of history item *name*."""
@@ -628,7 +619,7 @@ class KFHistory:
             self._init_shape(name)
         if name in self.blocked:
             for i in range(1, self.nblocks + 1):
-                block = self.kf.read(self.section, "{}({})".format(name, i))
+                block = self.kf.read(self.section, f"{name}({i})")
                 try:
                     yield from block
                 except TypeError:
@@ -636,7 +627,7 @@ class KFHistory:
                     yield block
         else:
             for i in range(1, self.nsteps + 1):
-                yield self.kf.read(self.section, "{}({})".format(name, i))
+                yield self.kf.read(self.section, f"{name}({i})")
 
     def iter_optional(self, name: str, default: Optional[TRead] = None) -> Iterator[Optional[TRead]]:
         """Iterate over the values of history item *name*, returning *default* if the item is not present."""

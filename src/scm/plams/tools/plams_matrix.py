@@ -111,8 +111,8 @@ class PLAMSMatrix(numpy.ndarray):
         """
         Print a numpy matrix in nice format
         """
-        form = "%{}s".format(space)
-        form2 = "%{}.1e".format(space)
+        form = f"%{space}s"
+        form2 = f"%{space}.1e"
         lines = []
         for row in self:
             strings = [form % (str(v)) if len(str(v)) <= space else form2 % (v) for v in row]

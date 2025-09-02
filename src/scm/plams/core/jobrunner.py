@@ -201,7 +201,7 @@ class JobRunner(metaclass=_MetaRunner):
         .. note::
             This method is used automatically during |run| and should never be explicitly called in your script.
         """
-        log("Executing {}".format(runscript), 5)
+        log(f"Executing {runscript}", 5)
         command = ["./" + runscript] if os.name == "posix" else ["sh", runscript]
         if out is not None:
             with open(opj(workdir, err), "w") as e, open(opj(workdir, out), "w") as o:
@@ -209,7 +209,7 @@ class JobRunner(metaclass=_MetaRunner):
         else:
             with open(opj(workdir, err), "w") as e:
                 process = saferun(command, cwd=workdir, stderr=e)
-        log("Execution of {} finished with returncode {}".format(runscript, process.returncode), 5)
+        log(f"Execution of {runscript} finished with returncode {process.returncode}", 5)
         return process.returncode
 
     @_in_limited_thread
@@ -353,7 +353,7 @@ class GridRunner(JobRunner):
             try:
                 saferun([self.settings.commands.submit, "--version"], stdout=DEVNULL, stderr=DEVNULL)
             except OSError:
-                raise PlamsError("GridRunner: {} command not found".format(self.settings.commands.submit))
+                raise PlamsError(f"GridRunner: {self.settings.commands.submit} command not found")
         else:
             raise PlamsError(
                 "GridRunner: invalid 'grid' argument. 'grid' should be either a Settings instance (see documentations for details) or a string occurring in GridRunner.config or 'auto' for autodetection"
@@ -422,16 +422,16 @@ class GridRunner(JobRunner):
                 cmd += " -" + k + " " + str(v)
         cmd += " " + opj(workdir, runscript)
 
-        log("Submitting {} with command {}".format(runscript, cmd), 5)
+        log(f"Submitting {runscript} with command {cmd}", 5)
         process = saferun(cmd.split(" "), stdout=PIPE, stderr=PIPE)
         subout = process.stdout.decode()
-        log("Output of {} submit command: {}".format(runscript, subout), 5)
+        log(f"Output of {runscript} submit command: {subout}", 5)
 
         jobid = s.commands.getid(subout)
         if jobid is None:
-            log("Submitting of {} failed. Stderr of submit command:\n{}".format(runscript, process.stderr.decode()), 1)
+            log(f"Submitting of {runscript} failed. Stderr of submit command:\n{process.stderr.decode()}", 1)
             return 1
-        log("{} submitted successfully as job {}".format(runscript, jobid), 3)
+        log(f"{runscript} submitted successfully as job {jobid}", 3)
 
         event = threading.Event()
         with self._active_lock:
@@ -439,7 +439,7 @@ class GridRunner(JobRunner):
         self._check_queue()
         event.wait()
 
-        log("Execution of {} finished".format(runscript), 5)
+        log(f"Execution of {runscript} finished", 5)
         return 0
 
     @_in_thread
@@ -480,6 +480,6 @@ class GridRunner(JobRunner):
             except OSError:
                 continue
             if process.returncode == 0:
-                log("Grid type autodetected as '{}'".format(grid), 5)
+                log(f"Grid type autodetected as '{grid}'", 5)
                 return GridRunner.config[grid]
         raise PlamsError("GridRunner: Failed to autodetect grid type")
