@@ -839,7 +839,7 @@ class MultiJob(Job):
             time.sleep(sleep_step)
         log(f"{self.name}._execute() finished", 7)
 
-    def delete(self):
+    def delete(self) -> None:
         if self.status != JobStatus.CREATED:
             self.results.wait()
 
