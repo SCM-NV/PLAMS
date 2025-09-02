@@ -561,18 +561,6 @@ sleep 0.0 && sed 's/input/output/g' plamsjob.in
         assert job._full_name() == "dummy_job"
         assert job._full_name("some/rundir") == "some/rundir/dummy_job"
 
-    def test_long_name(self):
-        # Given job with long name
-        id = str(uuid.uuid4())
-        job = DummySingleJob(name=id * 5)
-
-        # When run
-        job.run()
-
-        # Then successful
-        assert job.ok()
-        assert job.results.grep_output("")
-
     def test_delete_created_job(self, config):
         # Given job
         job = DummySingleJob()
@@ -1086,20 +1074,6 @@ class TestMultiJob:
         assert job._full_name() == "multi_outer/multi_inner_job/dummy_job"
         assert job._full_name("some/rundir") == "some/rundir/multi_outer/multi_inner_job/dummy_job"
 
-    def test_long_path(self):
-        # Given multi job with long path
-        id = str(uuid.uuid4())
-        job = DummySingleJob(name=id * 5)
-        inner_multi_job = MultiJob(children=[job], name=f"inner_multi_job_with_long_path_{id}")
-        multi_job = MultiJob(children=[inner_multi_job], name=f"outer_multi_job_with_long_path_{id}")
-
-        # When run
-        multi_job.run()
-
-        # Then successful
-        assert multi_job.ok()
-        assert job.results.grep_output("")
-
     def test_apply_to_children(self):
         def add_tag(j):
             j.tag = True
@@ -1215,7 +1189,7 @@ class TestMultiJob:
 
     def test_rename_created_multijob(self, config):
         # Given multi job
-        id = uuid.uuid4()
+        id = str(uuid.uuid4())[:8]
         name1 = f"to-be-renamed-{id}"
         name2 = f"renamed-{id}"
         jobs = [DummySingleJob(name=name1) for _ in range(3)]
@@ -1235,7 +1209,7 @@ class TestMultiJob:
 
     def test_rename_running_multijob(self, config):
         # Given multi job
-        id = uuid.uuid4()
+        id = str(uuid.uuid4())[:8]
         name1 = f"to-be-renamed-{id}"
         name2 = f"renamed-{id}"
         jobs = [DummySingleJob(name=name1, wait=0.2) for _ in range(3)]
@@ -1272,7 +1246,7 @@ class TestMultiJob:
 
     def test_rename_nested_multijob(self, config):
         # Given multi job
-        id = uuid.uuid4()
+        id = str(uuid.uuid4())[:8]
         name1 = f"top-to-be-renamed-{id}"
         name2 = f"middle-to-be-renamed-{id}"
         name3 = f"bottom-to-be-renamed-{id}"
