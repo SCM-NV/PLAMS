@@ -1339,7 +1339,7 @@ class Molecule:
         floor = math.floor
         func_invert = {ceil: floor, floor: ceil}
 
-        def dfs(atom: Atom, func: Callable[[_SupportsFloatOrIndex], int]) -> None:
+        def dfs(atom: Atom, func: Callable[["_SupportsFloatOrIndex"], int]) -> None:
             """Depth-first search algorithm for integer-ifying the bond orders."""
             for b2 in atom.bonds:
                 if b2._visited:
