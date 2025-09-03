@@ -113,6 +113,7 @@ def run_with_timeout(
                 raise subprocess.CalledProcessError(
                     returncode=proc.returncode, cmd=command, output=stdout, stderr=stderr
                 )
+            return
 
         if timeout and now - start > timeout:
             proc.kill()
