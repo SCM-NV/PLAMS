@@ -233,7 +233,7 @@ class JobManager:
             self._register(job, rel_dir)
 
             # child jobs have been removed, so re-register these to update the paths
-            def reregister_child_job(child_job: "Job"):
+            def reregister_child_job(child_job: "Job") -> None:
                 child_job.path = None
                 self._register(child_job, rel_dir_for_jobs=Path("."), auto_rename=False)
 
