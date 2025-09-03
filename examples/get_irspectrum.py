@@ -49,7 +49,7 @@ def main():
     # Write the analysis plots
     plots = anresults.get_all_plots()
     for xy in plots:
-        xy.write("%s" % (xy.section + ".txt"))
+        xy.write(f"{xy.section}.txt")
 
 
 if __name__ == "__main__":

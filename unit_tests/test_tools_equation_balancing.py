@@ -158,7 +158,7 @@ class TestEquationBalancing:
             reaction = ReactionEquation(reactants, products)
             # reaction.method = 'sympy' # If sympy is installed, this can be used
             coeffs = reaction.balance()
-            print("%8i %s" % (i, reaction))
+            print(f"{i:8d} {reaction}")
             assert (coeffs == numpy.array(reaction_mols["coeffs"])).all()
 
     def test_large_molecule_space(self, molecules):
@@ -177,11 +177,11 @@ class TestEquationBalancing:
         nmols = len(reactants) + len(products)
         nreactants = len(reactants)
         for iprod, _ in enumerate(products):
-            print("%8i %20s: " % (iprod, molecules["products"][iprod]), end="")
+            print(f"{iprod:8d} {molecules['products'][iprod]:20s}: ", end="")
             min_coeffs = numpy.zeros(nmols)
             min_coeffs[nreactants + iprod] = 1
             coeffs = reaction.balance(min_coeffs)
-            print("%s" % (reaction))
+            print(f"{reaction}")
             assert (coeffs == numpy.array(molecules["coeffs"])[iprod]).all()
 
     def test_charged_molecules(self, reactions):
@@ -199,7 +199,7 @@ class TestEquationBalancing:
             reaction.set_charges(rcharges, pcharges)
             # reaction.method = 'sympy' # If sympy is installed, this can be used
             coeffs = reaction.balance()
-            print("%8i %s" % (i, reaction))
+            print(f"{i:8d} {reaction}")
 
             assert (coeffs == numpy.array(result)).all()
 

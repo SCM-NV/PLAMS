@@ -700,7 +700,7 @@ def plot_work_function(
         ax.text(
             x0 + 0.98 * (x1 - x0),
             (Vvacuum[1] + Efermi) / 2,
-            "WF=" + "%.1f" % WF[1] + " eV",
+            f"WF={WF[1]:.1f} eV",
             fontsize=11,
             color="black",
             horizontalalignment="right",
@@ -726,7 +726,7 @@ def plot_work_function(
             ec="black",
         )
         ax.text(
-            x0 + 0.02 * (x1 - x0), (Vvacuum[0] + Efermi) / 2, "WF=" + "%.1f" % WF[0] + " eV", fontsize=11, color="black"
+            x0 + 0.02 * (x1 - x0), (Vvacuum[0] + Efermi) / 2, f"WF={WF[0]:.1f} eV", fontsize=11, color="black"
         )
         ax.arrow(
             x0 + 1.0 * (x1 - x0),
@@ -741,7 +741,7 @@ def plot_work_function(
         ax.text(
             x0 + 0.98 * (x1 - x0),
             (Vvacuum[1] + Efermi) / 2,
-            "WF=" + "%.1f" % WF[1] + " eV",
+            f"WF={WF[1]:.1f} eV",
             fontsize=11,
             color="black",
             horizontalalignment="right",
