@@ -725,9 +725,7 @@ def plot_work_function(
             fc="black",
             ec="black",
         )
-        ax.text(
-            x0 + 0.02 * (x1 - x0), (Vvacuum[0] + Efermi) / 2, f"WF={WF[0]:.1f} eV", fontsize=11, color="black"
-        )
+        ax.text(x0 + 0.02 * (x1 - x0), (Vvacuum[0] + Efermi) / 2, f"WF={WF[0]:.1f} eV", fontsize=11, color="black")
         ax.arrow(
             x0 + 1.0 * (x1 - x0),
             Efermi,
