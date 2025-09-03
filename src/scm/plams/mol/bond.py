@@ -19,7 +19,7 @@ class Bond:
     *   ``atom1`` and ``atom2`` -- two instances of |Atom| that form this bond
     *   ``order`` -- order of the bond. It is either an integer number or the floating point value stored in ``Bond.AR``, indicating an aromatic bond
     *   ``mol`` -- |Molecule| this bond belongs to
-    *   ``properties`` -- |Settings| instance storing all other  information about this bond (initially it is populated with *\*\*other*)
+    *   ``properties`` -- |Settings| instance storing all other  information about this bond (initially it is populated with *\\*\\*other*)
 
     .. note::
 

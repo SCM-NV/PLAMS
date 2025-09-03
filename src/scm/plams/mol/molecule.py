@@ -1070,7 +1070,7 @@ class Molecule:
     def supercell(self, *args: Any) -> "Molecule":
         """Return a new |Molecule| instance representing a supercell build by replicating this |Molecule| along its lattice vectors.
 
-        One should provide in input an integer matrix :math:`T_{i,j}` representing the supercell transformation (:math:`\\vec{a}_i' = \sum_j T_{i,j}\\vec{a}_j`). The size of the matrix should match the number of lattice vectors, i.e. 3x3 for 3D periodic systems, 2x2 for 2D periodic systems and one number for 1D periodic systems. The matrix can be provided in input as either a nested list or as a numpy matrix.
+        One should provide in input an integer matrix :math:`T_{i,j}` representing the supercell transformation (:math:`\\vec{a}_i' = \\sum_j T_{i,j}\\vec{a}_j`). The size of the matrix should match the number of lattice vectors, i.e. 3x3 for 3D periodic systems, 2x2 for 2D periodic systems and one number for 1D periodic systems. The matrix can be provided in input as either a nested list or as a numpy matrix.
 
         For a diagonal supercell expansion (i.e. :math:`T_{i \\neq j}=0`) one can provide in input n positive integers instead of a matrix, where n is number of lattice vectors in the molecule. e.g. This ``mol.supercell([[2,0],[0,2]])`` is equivalent to ``mol.supercell(2,2)``.
 
@@ -2463,7 +2463,7 @@ class Molecule:
 
         .. math::
 
-            \sum_{i \in mol, j\in lig} e^{-R_{ij}}
+            \\sum_{i \in mol, j\in lig} e^{-R_{ij}}
 
         A different cost function can be also supplied by the user, using one of the two remaining arguments: *cost_func_mol* or *cost_func_array*. *cost_func_mol* should be a function that takes two |Molecule| instances: this molecule (after removing unneeded atoms) and ligand in a particular orientation (also without unneeded atoms) and returns a single number (the lower the number, the better the fit). *cost_func_array* is analogous, but instead of |Molecule| instances it takes two numpy arrays (with dimensions: number of atoms x 3) with coordinates of this molecule and the ligand. If both are supplied, *cost_func_mol* takes precedence over *cost_func_array*.
 
@@ -3282,6 +3282,54 @@ class Molecule:
         pdb.set_connections(connections)
         pdb.write(f)
 
+    @requires_optional_package("ase")
+    def readase(self, f: IO, **other: Any) -> None:
+        """Read Molecule using ASE engine
+
+        The ``read`` function of the |Molecule| class passes a file descriptor into here, so in this case you must specify the *format* to be read by ASE::
+
+            mol = Molecule('file.cif', inputformat='ase', format='cif')
+
+        The ASE Atoms object then gets converted to a PLAMS Molecule and returned.
+        All *other* options are passed to ``ASE.io.read()``.
+        See https://wiki.fysik.dtu.dk/ase/ase/io/io.html on how to use it.
+
+        .. note::
+
+            The nomenclature of PLAMS and ASE is incompatible for reading multiple geometries, make sure that you only read single geometries with ASE! Reading multiple geometries is not supported, each geometry needs to be read individually.
+
+        """
+        from ase import io
+        from scm.plams.interfaces.molecule.ase import fromASE
+
+        ase_mol = io.read(f, **other)
+        mol = fromASE(ase_mol)
+        # update self with the molecule read without overwriting e.g. settings
+        self += mol
+        # lattice does not survive soft update
+        self.lattice = mol.lattice
+        return
+
+    @requires_optional_package("ase")
+    def writease(self, f: IO, **other: Any) -> None:
+        """Write molecular coordinates using ASE engine.
+
+        The ``write`` function of the |Molecule| class passes a file descriptor into here, so in this case you must specify the *format* to be written by ASE.
+        All *other* options are passed to ``ASE.io.write()``.
+        See https://wiki.fysik.dtu.dk/ase/ase/io/io.html on how to use it.
+
+        These two write the same content to the respective files::
+
+            molecule.write('filename.anyextension', outputformat='ase', format='gen')
+            molecule.writease('filename.anyextension', format='gen')
+
+        """
+        from scm.plams.interfaces.molecule.ase import toASE
+
+        ase_mol = toASE(self)
+        ase_mol.write(f, **other)
+        return
+
     def hydrogen_to_deuterium(self) -> None:
         """
         Modifies the current molecule so that all hydrogen atoms get mass 2.014 by modifying the atom.properties.mass
@@ -3495,8 +3543,15 @@ class Molecule:
         "pdb": readpdb,
         "rkf": readrkf,
         "coskf": readcoskf,
+        "ase": readase,
     }
-    _writeformat: Dict[str_type, Callable] = {"xyz": writexyz, "mol": writemol, "mol2": writemol2, "pdb": writepdb}
+    _writeformat: Dict[str_type, Callable] = {
+        "xyz": writexyz,
+        "mol": writemol,
+        "mol2": writemol2,
+        "pdb": writepdb,
+        "ase": writease,
+    }
     if input_parser_available:
         _readformat["in"] = readin
         _writeformat["in"] = writein
@@ -3678,6 +3733,37 @@ class Molecule:
             plot_molecule(self, ax=ax[1], keep_axis=True)
             print(f"Root mean square deviation: {rmsd_value:0.3} Ang")
 
+    def assign_chirality(self) -> None:
+        """
+        Assigns stereo-info to PLAMS molecule by invoking RDKIT
+        """
+        from scm.plams.interfaces.molecule.rdkit import to_rdmol, from_rdmol
+
+        rd_mol = to_rdmol(self, assignChirality=True)
+        pl_mol = from_rdmol(rd_mol)
+
+        # Add R/S info to self
+        for iat, pl_atom in enumerate(pl_mol.atoms):
+            # Check for R/S information
+            if pl_atom.properties.rdkit.stereo:
+                self.atoms[iat].properties.rdkit.stereo = pl_atom.properties.rdkit.stereo
+
+        # Add cis/trans information to self
+        for ibond, pl_bond in enumerate(pl_mol.bonds):
+            if pl_bond.properties.rdkit.stereo:
+                self.bonds[ibond] = pl_bond.properties.rdkit.stereo
+
+    @requires_optional_package("rdkit")
+    def get_chirality(self) -> List[Tuple[int, str_type]]:
+        """
+        Returns the chirality of the atoms
+        """
+        from rdkit import Chem
+        from scm.plams.interfaces.molecule.rdkit import to_rdmol
+
+        rd_mol = to_rdmol(self, assignChirality=True)
+        return Chem.FindMolChiralCenters(rd_mol, force=True, includeUnassigned=True)
+
     @property
     def numbers(self) -> "np.ndarray":
         """Return an array of all atomic numbers in the Molecule. Can also be used to set all numbers at once."""
@@ -3820,3 +3906,126 @@ class Molecule:
                             )
 
         return ret
+
+    def label(
+        self,
+        level: Union[int, List[int], Tuple[int, ...]] = 1,
+        keep_labels: bool = False,
+        flags: Optional[Dict[str_type, Union[bool, float]]] = None,
+    ) -> Union[str_type, Tuple[str_type]]:
+        """Compute the label of this molecule using chosen *level* of detail.
+
+        Possible levels are:
+
+        *   **0**: does not perform any atom labeling, returns empirical formula (see :meth:`~scm.plams.mol.molecule.Molecule.get_formula`)
+        *   **1**: only direct connectivity is considered, without bond orders (in other words, treats all the bonds as single bonds)
+        *   **2**: use connectivity and bond orders
+        *   **3**: use connectivity, bond orders and some spatial information to distinguish R/S and E/Z isomers
+        *   **4**: use all above, plus more spatial information to distinguish different rotamers and different types of coordination complexes
+
+        If you need more precise control of what is taken into account while computing the label (or adjust the tolerance for geometrical operations) you can use the *flags* argument. It should be a dictionary of parameters recognized by :func:`~scm.plams.mol.identify.label_atoms`. Each of two letter boolean flags has to be present in *flags*. If you use *flags*, *level* is ignored.
+
+        The *level* argument can also be a tuple of integers. In that case the labeling algorithm is run multiple times and the returned value is a tuple (with the same length as *level*) containing labels calculated with given levels of detail.
+
+        This function, by default, erases ``IDname`` attributes of all atoms at the end. You can change this behavior with *keep_labels* argument.
+
+        If the molecule does not contain bonds, :meth:`~scm.plams.mol.molecule.Molecule.guess_bonds` is used to determine them.
+        """
+        from scm.plams.mol.identify import possible_flags, clear, label_atoms, molecule_name
+
+        if isinstance(level, (tuple, list)):
+            return tuple(self.label(i) for i in level)
+
+        if flags is None:
+            if level == 0:
+                return self.get_formula()
+
+            flags = {i: False for i in possible_flags}
+            if level >= 2:
+                flags["BO"] = True
+            if level >= 3:
+                flags["RS"] = True
+                flags["EZ"] = True
+            if level >= 4:
+                flags["DH"] = True
+                flags["CO"] = True
+
+        if len(self.bonds) == 0:
+            self.guess_bonds()
+
+        clear(self)
+        label_atoms(self, **flags)
+        ret = molecule_name(self)
+        if not keep_labels:
+            clear(self)
+        return ret
+
+    def set_local_labels(self, niter: int = 2, flags: Optional[Dict[str_type, Union[bool, float]]] = None) -> None:
+        """
+        Set atomic labels (IDnames) that are unique for local structures of a molecule
+
+        * ``niter`` -- The number of iterations in the atom labeling scheme
+
+        The idea of this method is that the number of iterations can be specified.
+        If kept low (default niter), local structures over different molecules will have the same label.
+        """
+        from scm.plams.mol.identify import possible_flags, initialize, iterate
+
+        if flags is None:
+            flags = {i: False for i in possible_flags}
+        initialize(self)
+        for i in range(niter):
+            iterate(self, flags)
+
+    @requires_optional_package("networkx")
+    def find_permutation(self, other: "Molecule", level: int = 1) -> Optional[List[int]]:
+        """
+        Reorder atoms in this molecule to match the order in some *other* molecule. The reordering is applied only if the perfect match is found. Returned value is the applied permutation (as a list of integers) or ``None``, if no reordering was performed.
+        """
+        import networkx
+        from scm.plams.mol.identify import get_graph
+
+        # Get bonds and unique atomIDs if needed
+        if len(self.bonds) == 0:
+            self.guess_bonds()
+        if not hasattr(self.atoms[0], "IDname"):
+            self.label(level=1, keep_labels=True)
+
+        # Link atom IDs to integers
+        dic: Dict[str, int] = {}
+        for at in self.atoms:
+            if not at.IDname in dic.keys():
+                dic[at.IDname] = max([v for v in dic.values()]) + 1 if len(dic) > 0 else 1
+
+        # Create the graphs
+        graph = get_graph(self, dic, level=1)
+        graph2 = get_graph(other, dic, level=1)
+        if graph2 is None:
+            return None
+
+        # Match
+        GM = networkx.isomorphism.GraphMatcher(
+            graph, graph2, edge_match=networkx.isomorphism.categorical_edge_match("weight", 1)
+        )
+        isomorphic = GM.is_isomorphic()
+        if not isomorphic:
+            return None
+
+        # Invert the solution dictionary, to be able to reorder the first graph
+        dic = {}
+        for k, v in GM.mapping.items():
+            dic[v] = k
+        keys = sorted([key for key in dic.keys()])
+        indices = [dic[key] for key in keys]
+
+        return indices
+
+    def reorder(self, other: "Molecule", level: int = 1) -> Optional["Molecule"]:
+        """
+        Reorder atoms in this molecule to match the order in some *other* molecule. The reordering is applied only if the perfect match is found. Returned value is a new ``Molecule`` object, or ``None`` if no reordering was performed. See also :func:`~scm.plams.mol.identify.find_permutation`.
+        """
+        indices = self.find_permutation(other, level=level)
+        if indices is None:
+            return None
+        mol = self.get_fragment(indices)
+        return mol

@@ -482,8 +482,17 @@ def add_to_class(classname: Type) -> Callable:
     The added method is accessible also from subclasses of *classname* so ``@add_to_class(Results)`` in the above example will work too.
 
     If *classname* is |Results| or any of its subclasses, the added method will be wrapped with the thread safety guard (see |parallel|).
+
+    .. deprecated:: 2026.101
+        The decorator ``add_to_class`` will be removed in a future release. Use a standalone function or a subclass instead.
     """
     from scm.plams.core.results import ApplyRestrict, _restrict
+    import warnings
+
+    warnings.warn(
+        "Decorator 'add_to_class' is deprecated and will be removed in a future release. Please use a standalone function or a subclass instead.",
+        DeprecationWarning,
+    )
 
     def decorator(func: Callable) -> None:
         if isinstance(classname, ApplyRestrict):

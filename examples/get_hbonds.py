@@ -44,7 +44,7 @@ def main():
     heavy_atoms = [i for i, at in enumerate(mol.atoms) if not at.symbol == "H"]
     hydrogens = [i for i, at in enumerate(mol.atoms) if at.symbol == "H"]
     values = []
-    print("%8s %8s %s" % ("Step", "Atom", "Neighbors"))
+    print(f"{'Step':>8s} {'Atom':>8s} {'Neighbors'}")
     for istep in range(nsteps):
         crd, cell = rkf.read_frame(istep, molecule=mol)
         # Create neighborlists
@@ -55,7 +55,7 @@ def main():
             atomlists = (heavy_atoms, hydrogens)
             atoms, hs = pdb.find_neighbours_using_cubes(iat, d_indices, boxlist, atomlists)
             hbonds = pdb.get_hbonds(iat, atoms, hs)
-            print("%8i %8i %s" % (istep, iat, str(hbonds)))
+            print(f"{istep:8d} {iat:8d} {str(hbonds)}")
             values.append(len(hbonds))
 
     # Compute the histogram
@@ -65,7 +65,7 @@ def main():
     # Write to output
     outfile = open("hist.txt", "w")
     for x, y in zip(xvalues, yvalues):
-        outfile.write("%20.10f %20.10f\n" % (x, y / nsteps))
+        outfile.write(f"{x:20.10f} {y / nsteps:20.10f}\n")
     outfile.close()
 
 

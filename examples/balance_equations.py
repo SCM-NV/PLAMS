@@ -45,7 +45,7 @@ def main():
         reaction = ReactionEquation(reactants, products)
         # reaction.method = 'sympy' # If sympy is installed, this can be used
         coeffs = reaction.balance()
-        print("%8i %s" % (i, reaction))
+        print(f"{i:8d} {reaction}")
 
     #######################################################################
     # Test 2
@@ -77,12 +77,12 @@ def main():
     nreactants = len(reactants)
     all_coeffs = []
     for iprod, _ in enumerate(products):
-        print("%8i %20s: " % (iprod, psmiles[iprod]), end="")
+        print(f"{iprod:8d} {psmiles[iprod]:20s}: ", end="")
         min_coeffs = numpy.zeros(nmols)
         min_coeffs[nreactants + iprod] = 1
         coeffs = reaction.balance(min_coeffs)
         all_coeffs.append(coeffs)
-        print("%s" % (reaction))
+        print(f"{reaction}")
 
 
 if __name__ == "__main__":

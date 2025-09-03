@@ -19,7 +19,7 @@ import copy
 from warnings import warn
 from collections import OrderedDict
 
-from scm.plams.core.functions import add_to_class, log, requires_optional_package
+from scm.plams.core.functions import log, requires_optional_package
 from scm.plams.mol.atom import Atom
 from scm.plams.mol.bond import Bond
 from scm.plams.mol.molecule import Molecule
@@ -33,7 +33,6 @@ if TYPE_CHECKING:
     from rdkit.Chem.AllChem import ChemicalReaction as RDKitReaction
     from rdkit.Chem import Draw
     from PIL import Image
-    import scm.plams.mol.molecule as molecule  # required to avoid Sphinx error in type hinting (due to add_to_class)
 
 __all__ = [
     "add_Hs",
@@ -279,7 +278,7 @@ def to_smiles(plams_mol: Molecule, short_smiles: bool = True, **kwargs: Any) -> 
 
     :parameter plams_mol: A PLAMS |Molecule|
     :parameter bool short_smiles: whether or not to use some RDKit sanitization to get shorter smiles (e.g. for a water molecule, short_smiles=True -> "O", short_smiles=False -> [H]O[H])
-    :parameter \**kwargs: With 'kwargs' you can provide extra optional parameters to the rdkit.Chem method 'MolToSmiles'. See the rdkit documentation for more info.
+    :parameter kwargs: With 'kwargs' you can provide extra optional parameters to the rdkit.Chem method 'MolToSmiles'. See the rdkit documentation for more info.
 
     :return: the SMILES string
     """
@@ -421,15 +420,19 @@ def prop_from_rdmol(pl_obj: Union[Molecule, Atom, Bond], rd_obj: Union["RDKitMol
 @overload
 def from_smiles(
     smiles: str, nconfs: Literal[1] = ..., name: Optional[str] = ..., forcefield: Optional[str] = ..., rms: float = ...
-) -> "molecule.Molecule": ...
+) -> Molecule: ...
+
+
 @overload
 def from_smiles(
     smiles: str, nconfs: int = ..., name: Optional[str] = ..., forcefield: Optional[str] = ..., rms: float = ...
-) -> Union["molecule.Molecule", List["molecule.Molecule"]]: ...
+) -> Union[Molecule, List[Molecule]]: ...
+
+
 @requires_optional_package("rdkit")
 def from_smiles(
     smiles: str, nconfs: int = 1, name: Optional[str] = None, forcefield: Optional[str] = None, rms: float = 0.1
-) -> Union["molecule.Molecule", List["molecule.Molecule"]]:
+) -> Union[Molecule, List[Molecule]]:
     """
     Generates PLAMS molecule(s) from a smiles strings.
 
@@ -456,15 +459,15 @@ def from_smiles(
 @overload
 def from_smarts(
     smarts: str, nconfs: Literal[1] = ..., name: Optional[str] = ..., forcefield: Optional[str] = ..., rms: float = ...
-) -> "molecule.Molecule": ...
+) -> Molecule: ...
 @overload
 def from_smarts(
     smarts: str, nconfs: int = ..., name: Optional[str] = ..., forcefield: Optional[str] = ..., rms: float = ...
-) -> Union["molecule.Molecule", List["molecule.Molecule"]]: ...
+) -> Union[Molecule, List[Molecule]]: ...
 @requires_optional_package("rdkit")
 def from_smarts(
     smarts: str, nconfs: int = 1, name: Optional[str] = None, forcefield: Optional[str] = None, rms: float = 0.1
-) -> Union["molecule.Molecule", List["molecule.Molecule"]]:
+) -> Union[Molecule, List[Molecule]]:
     """
     Generates PLAMS molecule(s) from a smarts strings.
     This allows for example to define hydrogens explicitly.
@@ -1478,42 +1481,9 @@ def yield_coords(rdmol: "RDKitMol", id: int = -1) -> Generator[Tuple[float, floa
         yield (pos.x, pos.y, pos.z)
 
 
-@add_to_class(Molecule)
-def assign_chirality(self: Molecule) -> None:
-    """
-    Assigns stereo-info to PLAMS molecule by invoking RDKIT
-    """
-    rd_mol = to_rdmol(self, assignChirality=True)
-    pl_mol = from_rdmol(rd_mol)
-
-    # Add R/S info to self
-    for iat, pl_atom in enumerate(pl_mol.atoms):
-        # Check for R/S information
-        if pl_atom.properties.rdkit.stereo:
-            self.atoms[iat].properties.rdkit.stereo = pl_atom.properties.rdkit.stereo
-
-    # Add cis/trans information to self
-    for ibond, pl_bond in enumerate(pl_mol.bonds):
-        if pl_bond.properties.rdkit.stereo:
-            self.bonds[ibond] = pl_bond.properties.rdkit.stereo
-
-
-@add_to_class(Molecule)
-@requires_optional_package("rdkit")
-def get_chirality(self: Molecule) -> List[Tuple[int, str]]:
-    """
-    Returns the chirality of the atoms
-    """
-    from rdkit import Chem
-
-    rd_mol = to_rdmol(self, assignChirality=True)
-    return Chem.FindMolChiralCenters(rd_mol, force=True, includeUnassigned=True)
-
-
 @overload
 @requires_optional_package("rdkit")
 def canonicalize_mol(mol: Molecule, inplace: Literal[True], **kwargs: Any) -> None: ...
-@overload
 @requires_optional_package("rdkit")
 def canonicalize_mol(mol: Molecule, inplace: Literal[False] = False, **kwargs: Any) -> Molecule: ...
 @requires_optional_package("rdkit")
