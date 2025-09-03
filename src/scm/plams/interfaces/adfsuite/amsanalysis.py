@@ -29,7 +29,7 @@ class AMSAnalysisPlot:
 
     * ``x``       -- A list of lists containing the values in each of the multiple x-axes
     * ``y``       -- A list containing the values along the y-axis
-    * ``y_sigma`` -- A list containing the standard deviation of the values onthe y-axis
+    * ``y_sigma`` -- A list containing the standard deviation of the values on the y-axis
     * ``name``    -- The name of the plot
 
     The most important method is the write method, which returns a string containing all the plot info,
@@ -45,10 +45,10 @@ class AMSAnalysisPlot:
         self.x_units: List[str] = []
         self.x_names: List[str] = []
 
-        self.y = None
-        self.y_units = None
-        self.y_name = None
-        self.y_sigma = None  # standard deviation for y_values
+        self.y: Optional[List[float]] = None
+        self.y_units: Optional[str] = None
+        self.y_name: Optional[str] = None
+        self.y_sigma: Optional[List[float]] = None
 
         self.properties: Optional[Dict] = None
         self.name: Optional[str] = None
@@ -66,14 +66,14 @@ class AMSAnalysisPlot:
         for i in xnums:
             xkey = f"x({i})-axis"
             self.x.append(kf.read(sec, xkey))
-            x_name: int = kf.read(sec, f"{xkey}(label)")
+            x_name: str = kf.read(sec, f"{xkey}(label)")
             self.x_names.append(convert_to_unicode(x_name))
             self.x_units.append(convert_to_unicode(kf.read(sec, f"{xkey}(units)")))
 
         # Read the y-values
         ykey = "y-axis"
-        y_name: str = kf.read(sec, f"{ykey}(label)")
-        self.y: str = kf.read(sec, ykey)
+        y_name = kf.read(sec, f"{ykey}(label)")
+        self.y = kf.read(sec, ykey)
         self.y_name = convert_to_unicode(y_name)
         self.y_units = convert_to_unicode(kf.read(sec, f"{ykey}(units)"))
 
