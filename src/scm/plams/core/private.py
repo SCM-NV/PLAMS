@@ -90,7 +90,6 @@ def run_with_timeout(
     :raises TimeoutError: if the process does not complete within the specified timeout
     :raises subprocess.CalledProcessError: if the process exits with a non-zero return code
     """
-    result = {"return_code": None, "stdout": None, "stderr": None}
     proc = subprocess.Popen(
         command,
         stdout=subprocess.PIPE,
@@ -114,7 +113,6 @@ def run_with_timeout(
                 raise subprocess.CalledProcessError(
                     returncode=proc.returncode, cmd=command, output=stdout, stderr=stderr
                 )
-            return result
 
         if timeout and now - start > timeout:
             proc.kill()
