@@ -6,7 +6,7 @@ Initial Imports
 
 .. code:: ipython3
 
-   from scm.plams import AMSResults, Units, add_to_class, Settings, read_molecules, AMSJob, init
+   from scm.plams import AMSResults, Units, Settings, read_molecules, AMSJob, init
 
    # this line is not required in AMS2025+
    init()
@@ -22,7 +22,6 @@ Set up a couple of useful functions for extracting results.
 
 .. code:: ipython3
 
-   @add_to_class(AMSResults)
    def get_excitations(results):
        """Returns excitation energies (in eV) and oscillator strengths (in Debye)."""
        if results.job.ok():
@@ -37,11 +36,10 @@ Set up a couple of useful functions for extracting results.
 
 .. code:: ipython3
 
-   @add_to_class(AMSResults)
    def has_good_excitations(results, min_energy, max_energy, oscillator_str_threshold=1e-4):
        """Returns True if there is at least one excitation with non-vanishing oscillator strength
        in the energy range [min_energy, max_energy]. Unit for min_energy and max energy: eV."""
-       exci_energies, oscillator_str = results.get_excitations()
+       exci_energies, oscillator_str = get_excitations(results)
        for e, o in zip(exci_energies, oscillator_str):
            if min_energy < e < max_energy and o > oscillator_str_threshold:
                return True
@@ -115,26 +113,23 @@ Perform an initial prescreen of all molecules with DFTB.
 
    for name, mol in molecules.items():
        dftb_job = AMSJob(name="DFTB_" + name, molecule=mol, settings=go_sett + dftb_sett)
-       dftb_job.run()
+       dftb_results = dftb_job.run()
 
-       if dftb_job.results.has_good_excitations(1, 6):
-           promising_molecules[name] = dftb_job.results.get_main_molecule()
+       if has_good_excitations(dftb_results, 1, 6):
+           promising_molecules[name] = dftb_results.get_main_molecule()
 
 ::
 
-   [10.02|15:15:10] JOB DFTB_H2O STARTED
-   [10.02|15:15:10] JOB DFTB_H2O RUNNING
-   [10.02|15:15:12] JOB DFTB_H2O FINISHED
-   [10.02|15:15:12] JOB DFTB_H2O SUCCESSFUL
-   [10.02|15:15:12] JOB DFTB_NH3 STARTED
-   [10.02|15:15:12] JOB DFTB_NH3 RUNNING
-   [10.02|15:15:21] WARNING: Job DFTB_NH3 finished with nonzero return code
-   [10.02|15:15:21] JOB DFTB_NH3 CRASHED
-   [10.02|15:15:21] Error message for job DFTB_NH3 was:
-       Atoms 3 and 4 are extremely close (<0.001 Bohr). Input error? If this was intended, set the System%AllowCloseAtoms option to True.
-   [10.02|15:15:21] JOB DFTB_S2Cl2 STARTED
-   [10.02|15:15:21] JOB DFTB_S2Cl2 RUNNING
-   [10.02|15:15:22] JOB DFTB_S2Cl2 FINISHED
+   [02.09|15:36:29] JOB DFTB_H2O STARTED
+   [02.09|15:36:29] JOB DFTB_H2O RUNNING
+   [02.09|15:36:30] JOB DFTB_H2O FINISHED
+   [02.09|15:36:30] JOB DFTB_H2O SUCCESSFUL
+   [02.09|15:36:30] JOB DFTB_NH3 STARTED
+   [02.09|15:36:30] JOB DFTB_NH3 RUNNING
+   [02.09|15:36:31] JOB DFTB_NH3 FINISHED
+   [02.09|15:36:31] JOB DFTB_NH3 SUCCESSFUL
+   [02.09|15:36:31] JOB DFTB_S2Cl2 STARTED
+   [02.09|15:36:31] JOB DFTB_S2Cl2 RUNNING
    ... (PLAMS log lines truncated) ...
 
 .. code:: ipython3
@@ -159,26 +154,26 @@ For each of the molecules identified in the prescreen, run a further calculation
        optimized_mol = adf_go_job.results.get_main_molecule()
 
        adf_exci_job = AMSJob(name="ADF_exci_" + name, molecule=optimized_mol, settings=sp_sett + adf_exci_sett)
-       adf_exci_job.run()
+       adf_exci_results = adf_exci_job.run()
 
-       if adf_exci_job.results.has_good_excitations(2, 4):
+       if has_good_excitations(adf_exci_results, 2, 4):
            print(f"Molecule {name} has excitation(s) satysfying our criteria!")
            print(optimized_mol)
-           exci_energies, oscillator_str = adf_exci_job.results.get_excitations()
+           exci_energies, oscillator_str = get_excitations(adf_exci_results)
            print("Excitation energy [eV], oscillator strength:")
            for e, o in zip(exci_energies, oscillator_str):
                print(f"{e:8.4f}, {o:8.4f}")
 
 ::
 
-   [10.02|15:15:26] JOB ADF_GO_S2Cl2 STARTED
-   [10.02|15:15:26] JOB ADF_GO_S2Cl2 RUNNING
-   [10.02|15:15:37] JOB ADF_GO_S2Cl2 FINISHED
-   [10.02|15:15:37] JOB ADF_GO_S2Cl2 SUCCESSFUL
-   [10.02|15:15:37] JOB ADF_exci_S2Cl2 STARTED
-   [10.02|15:15:37] JOB ADF_exci_S2Cl2 RUNNING
-   [10.02|15:15:47] JOB ADF_exci_S2Cl2 FINISHED
-   [10.02|15:15:47] JOB ADF_exci_S2Cl2 SUCCESSFUL
+   [02.09|15:36:34] JOB ADF_GO_S2Cl2 STARTED
+   [02.09|15:36:34] JOB ADF_GO_S2Cl2 RUNNING
+   [02.09|15:36:41] JOB ADF_GO_S2Cl2 FINISHED
+   [02.09|15:36:41] JOB ADF_GO_S2Cl2 SUCCESSFUL
+   [02.09|15:36:41] JOB ADF_exci_S2Cl2 STARTED
+   [02.09|15:36:41] JOB ADF_exci_S2Cl2 RUNNING
+   [02.09|15:36:47] JOB ADF_exci_S2Cl2 FINISHED
+   [02.09|15:36:47] JOB ADF_exci_S2Cl2 SUCCESSFUL
    Molecule S2Cl2 has excitation(s) satysfying our criteria!
      Atoms: 
        1         S      -0.658306      -0.316643       0.909151
@@ -197,6 +192,6 @@ For each of the molecules identified in the prescreen, run a further calculation
      4.9414,   0.0105
      5.3188,   0.0036
      5.3272,   0.0721
-   [10.02|15:15:47] JOB ADF_GO_CSCl2 STARTED
-   [10.02|15:15:47] JOB ADF_GO_CSCl2 RUNNING
+   [02.09|15:36:47] JOB ADF_GO_CSCl2 STARTED
+   [02.09|15:36:47] JOB ADF_GO_CSCl2 RUNNING
    ... (PLAMS log lines truncated) ...

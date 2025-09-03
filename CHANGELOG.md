@@ -34,6 +34,9 @@ This changelog is effective from the 2025 releases.
 * Method to guess density in `packmol_around` changed to resolve large underestimations in molecular volumes
 * Regression in `GridRunner` which caused some SLURM and PBS commands to silently fail and jobs to be incorrectly awaited
 
+### Deprecated
+* `add_to_class` decorator is deprecated in favor of using standalone functions or subclasses
+
 ## 2025.103
 
 ### Fixed

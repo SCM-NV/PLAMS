@@ -11,7 +11,7 @@ __all__ = ["Atom"]
 
 if TYPE_CHECKING:
     from scm.plams.mol.bond import Bond
-    import scm.plams.mol.molecule as molecule  # required to avoid Sphinx error in type hinting (due to add_to_class)
+    from scm.plams.mol.molecule import Molecule
 
 str_type = str  # To avoid type-hinting issues with str() method
 
@@ -25,7 +25,7 @@ class Atom:
     *   ``coords`` -- tuple of length 3 storing spatial coordinates
     *   ``bonds`` -- list of bonds (see |Bond|) this atom is a part of
     *   ``mol`` -- |Molecule| this atom belongs to
-    *   ``properties`` -- |Settings| instance storing all other information about this atom (initially it is populated with *\*\*other*)
+    *   ``properties`` -- |Settings| instance storing all other information about this atom (initially it is populated with *\\*\\*other*)
 
     The above attributes can be accessed either directly or using one of the following properties:
 
@@ -68,7 +68,7 @@ class Atom:
         coords: Optional[Sequence[float]] = None,
         unit: str = "angstrom",
         bonds: Optional[List["Bond"]] = None,
-        mol: Optional["molecule.Molecule"] = None,
+        mol: Optional["Molecule"] = None,
         **other,
     ):
         if symbol is not None:

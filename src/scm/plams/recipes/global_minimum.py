@@ -108,7 +108,6 @@ def global_minimum_scan_plams(mol, bond_tuple, job_type, **kwarg):
     """
     Optimize the molecule (A PLAMS |Job|) with 3 different values for the given dihedral angle and find the lowest energy conformer.
     The matching PLAMS |Results| object must have access to the |get_energy()| and |get_main_molecule()| functions.
-    If required, functions can be added manually to a class with the |add_to_class()| function.
 
     :param |Molecule| mol: The input molecule
     :param tuple bond_tuple: A 2-tuple containing the atomic indices of valid bonds
