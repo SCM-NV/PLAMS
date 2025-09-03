@@ -1484,6 +1484,7 @@ def yield_coords(rdmol: "RDKitMol", id: int = -1) -> Generator[Tuple[float, floa
 @overload
 @requires_optional_package("rdkit")
 def canonicalize_mol(mol: Molecule, inplace: Literal[True], **kwargs: Any) -> None: ...
+@overload
 @requires_optional_package("rdkit")
 def canonicalize_mol(mol: Molecule, inplace: Literal[False] = False, **kwargs: Any) -> Molecule: ...
 @requires_optional_package("rdkit")
