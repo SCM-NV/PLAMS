@@ -929,7 +929,7 @@ class AMSResults(Results):
         The *engine* argument should be the identifier of the file you wish to read. To access a file called ``something.rkf`` you need to call this function with ``engine='something'``. The *engine* argument can be omitted if there's only one engine results file in the job folder.
         """
 
-        def properties(kf: KFFile) -> Dict[str, TRead]:
+        def properties(kf: KFFile) -> Dict[str, "TRead"]:
             if not "Properties" in kf:
                 return {}
             # There are two *kinds* of "Properties" sections:
