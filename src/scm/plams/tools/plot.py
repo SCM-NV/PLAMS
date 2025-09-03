@@ -1,4 +1,4 @@
-from typing import List, Optional, Tuple, Union, TYPE_CHECKING, Dict, Any
+from typing import List, Optional, Tuple, Union, TYPE_CHECKING, Dict, Any, Literal
 import numpy as np
 
 from scm.plams.core.errors import MissingOptionalPackageError
@@ -33,7 +33,7 @@ def plot_band_structure(
     y_spin_down: Optional[np.ndarray] = None,
     labels: Optional[List[str]] = None,
     fermi_energy: Optional[float] = None,
-    zero: Optional[Union[str, float]] = None,
+    zero: Optional[Union[Literal["fermi", "vbm", "vbmax", "cbm", "cbmin"], float]] = None,
     ax: Optional["plt.Axes"] = None,
 ) -> "plt.Axes":
     """
@@ -57,7 +57,7 @@ def plot_band_structure(
     fermi_energy: float
         Returned by AMSResults.get_band_structure(). Should have the same unit as ``y``.
 
-    zero: None or float or one of 'fermi', 'vbmax', 'cbmin'
+    zero: None or float or one of 'fermi', 'vbm', 'vbmax', 'cbm', 'cbmin'
         Shift the curves so that y=0 is at the specified value. If None, no shift is performed. 'fermi', 'vbmax', and 'cbmin' require that the ``fermi_energy`` is not None. Note: 'vbmax' and 'cbmin' calculate the zero as the highest (lowest) eigenvalue smaller (greater) than or equal to ``fermi_energy``. This is NOT necessarily equal to the valence band maximum or conduction band minimum as calculated by the compute engine.
 
     Additional parameters:
@@ -68,20 +68,24 @@ def plot_band_structure(
     import matplotlib.pyplot as plt
 
     if zero is None:
-        zero = 0
+        zero_value = 0.0
     elif zero == "fermi":
         assert fermi_energy is not None
-        zero = fermi_energy
+        zero_value = fermi_energy
     elif zero in ["vbm", "vbmax"]:
         assert fermi_energy is not None
-        zero = y_spin_up[y_spin_up <= fermi_energy].max()
+        zero_value = y_spin_up[y_spin_up <= fermi_energy].max()
         if y_spin_down is not None:
-            zero = max(zero, y_spin_down[y_spin_down <= fermi_energy].max())
-    elif zero in ["cbm", "cbmax"]:
+            zero_value = max(zero_value, y_spin_down[y_spin_down <= fermi_energy].max())
+    elif zero in ["cbm", "cbmin"]:
         assert fermi_energy is not None
-        zero = y_spin_up[y_spin_up >= fermi_energy].min()
+        zero_value = y_spin_up[y_spin_up >= fermi_energy].min()
         if y_spin_down is not None:
-            zero = min(zero, y_spin_down[y_spin_down <= fermi_energy].min())
+            zero_value = min(zero_value, y_spin_down[y_spin_down <= fermi_energy].min())
+    else:
+        raise ValueError(
+            f"When specified, zero must be a float or one of: 'fermi', 'vbm', 'vbmax', 'cbm', 'cbmin'; but was '{zero}'"
+        )
 
     labels = labels or []
 
@@ -98,9 +102,9 @@ def plot_band_structure(
     if ax is None:
         _, ax = plt.subplots()
 
-    ax.plot(x, y_spin_up - zero, "-")
+    ax.plot(x, y_spin_up - zero_value, "-")
     if y_spin_down is not None:
-        ax.plot(x, y_spin_down - zero, "--")
+        ax.plot(x, y_spin_down - zero_value, "--")
 
     tick_x: List[float] = []
     tick_labels: List[str] = []
@@ -121,7 +125,7 @@ def plot_band_structure(
         ax.axvline(xx)
 
     if fermi_energy is not None:
-        ax.axhline(fermi_energy - zero, linestyle="--")
+        ax.axhline(fermi_energy - zero_value, linestyle="--")
 
     ax.set_xticks(ticks=tick_x, labels=tick_labels)
 

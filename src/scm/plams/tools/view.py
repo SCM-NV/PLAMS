@@ -610,7 +610,7 @@ class _AmsViewBackend(_ViewBackend):
             img = PilImage.open(img_path)
             img_width, img_height = img.size
             aspect_ratio = img_width / img_height
-            img = img.resize(
+            resized_img = img.resize(
                 (config.width, int(np.ceil(config.width / aspect_ratio))),
                 resample=PilImage.Resampling.LANCZOS,
                 reducing_gap=3.0,
@@ -622,7 +622,7 @@ class _AmsViewBackend(_ViewBackend):
             if not config.picture_path:
                 os.remove(img_path)
 
-        return img
+        return resized_img
 
 
 class _AmsViewXvfbBackend(_AmsViewBackend):
@@ -1023,20 +1023,20 @@ class _AsePlotBackend(_ViewBackend):
                         # Patches are not necessarily in the same order as the atoms
                         # so using the centre of the patch we find the correct atom
                         # not super efficient, but probably not using regions on very large systems...
-                        x, y = patch.get_center()
+                        x, y = patch.center
                         d_sq = (plotter.positions[:, 0] - x) ** 2 + (plotter.positions[:, 1] - y) ** 2
                         atom_idx = np.argmin(d_sq)
                         if d_sq[atom_idx] < 1e-6:  # arbitrary tolerance
                             atom_regions = regions[atom_idx]
                             for region in atom_regions:
                                 if region in region_cmap:
-                                    color = region_cmap[region]
+                                    region_color = region_cmap[region]
                                 else:
-                                    color = cmap.colors[color_counter]
-                                    region_cmap[region] = color
+                                    region_color = cmap.colors[color_counter]
+                                    region_cmap[region] = region_color
                                     color_counter += 1
                                 region_patch = patches.Circle(
-                                    patch.get_center(), patch.radius * 1.5, alpha=0.2, color=color, linewidth=0
+                                    (x, y), patch.radius * 1.5, alpha=0.2, color=region_color, linewidth=0
                                 )
                                 ax.add_patch(region_patch)
 
@@ -1076,7 +1076,7 @@ class _AsePlotBackend(_ViewBackend):
             img = PilImage.open(img_path)
             img_width, img_height = img.size
             aspect_ratio = img_width / img_height
-            img = img.resize(
+            resized_img = img.resize(
                 (config.width, int(np.ceil(config.width / aspect_ratio))),
                 resample=PilImage.Resampling.LANCZOS,
                 reducing_gap=3.0,
@@ -1086,7 +1086,7 @@ class _AsePlotBackend(_ViewBackend):
             if not config.picture_path:
                 os.remove(img_path)
 
-        return img
+        return resized_img
 
     @classmethod
     def get_view_rotation(cls, system: Union[Molecule, "ChemicalSystem"], config: ViewConfig) -> str:
