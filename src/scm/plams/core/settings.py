@@ -256,7 +256,7 @@ class Settings(dict):
         lowkey = key.lower()
         for k in self:
             try:
-                if k.lower() == lowkey:
+                if k.lower() == lowkey:  # type: ignore
                     return k
             except (AttributeError, TypeError):
                 pass
@@ -482,7 +482,7 @@ class Settings(dict):
         block_keys = list(self.block_keys(flatten_list, include_empty))
         for bk in block_keys:
             yield bk
-            for k, v in iter_block(self.get_nested(bk)):
+            for k, v in iter_block(self.get_nested(bk)):  # type: ignore
                 # Maintain ordering by skipping branch keys here
                 fk = bk + (k,)
                 if (include_empty or v) and fk not in block_keys:
