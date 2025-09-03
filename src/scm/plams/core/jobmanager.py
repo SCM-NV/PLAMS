@@ -307,7 +307,7 @@ class JobManager:
                 dir_for_jobs = (self._workdir / rel_dir_for_jobs).resolve()
             else:
                 dir_for_jobs = self.current_dir_for_jobs
-                rel_dir_for_jobs = dir_for_jobs.relative_to(self.workdir)
+                rel_dir_for_jobs = dir_for_jobs.relative_to(Path(self.workdir))
             rel_dir_for_jobs = rel_dir_for_jobs if rel_dir_for_jobs != Path(".") else None
 
             # check the name of the current job for collisions with existing jobs, and rename if required
