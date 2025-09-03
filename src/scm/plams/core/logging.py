@@ -3,7 +3,8 @@ import logging
 import os
 import sys
 from io import StringIO
-from typing import Any, Type, Dict, Literal, Optional, overload, NoReturn
+from typing import Any, Type, Dict, Literal, Optional, overload, ClassVar
+from typing_extensions import Self
 import threading
 from abc import ABC, abstractmethod
 
@@ -27,14 +28,16 @@ def get_logger(name: str, fmt: Optional[Literal["txt", "csv"]] = None) -> "Logge
 
 class LogManager:
     """
-    Manages PLAMS logger instances.
-    The manager should not be instantiated directly, but loggers accessed through the ``get_logger`` method.
+    Singleton class which manages PLAMS logger instances.
     """
 
+    _instance: ClassVar[Optional[Self]] = None
     _loggers: Dict[str, "Logger"] = {}
 
-    def __new__(cls, *args: Any, **kwargs: Any) -> NoReturn:
-        raise TypeError("LoggerManager cannot be directly instantiated.")
+    def __new__(cls: Type[Self], *args: Any, **kwargs: Any) -> Self:
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
 
     @classmethod
     def get_logger(cls, name: str, fmt: Optional[Literal["txt", "csv"]] = None) -> "Logger":
