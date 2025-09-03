@@ -64,18 +64,18 @@ class AMSAnalysisPlot:
         xnums = sorted([int(k.split("(")[1].split(")")[0]) for k in xkeys])
         xnums = sorted([xnum for xnum in set(xnums)])
         for i in xnums:
-            xkey = "x(%i)-axis" % (i)
+            xkey = f"x({i})-axis"
             self.x.append(kf.read(sec, xkey))
-            x_name: int = kf.read(sec, "%s(label)" % (xkey))
+            x_name: int = kf.read(sec, f"{xkey}(label)")
             self.x_names.append(convert_to_unicode(x_name))
-            self.x_units.append(convert_to_unicode(kf.read(sec, "%s(units)" % (xkey))))
+            self.x_units.append(convert_to_unicode(kf.read(sec, f"{xkey}(units)")))
 
         # Read the y-values
         ykey = "y-axis"
-        y_name: str = kf.read(sec, "%s(label)" % (ykey))
+        y_name: str = kf.read(sec, f"{ykey}(label)")
         self.y: str = kf.read(sec, ykey)
         self.y_name = convert_to_unicode(y_name)
-        self.y_units = convert_to_unicode(kf.read(sec, "%s(units)" % (ykey)))
+        self.y_units = convert_to_unicode(kf.read(sec, f"{ykey}(units)"))
 
         self.y_sigma = kf.read(sec, "sigma")
 
@@ -92,7 +92,7 @@ class AMSAnalysisPlot:
         while 1:
             counter += 1
             try:
-                propname = kf.read(sec, "Property(%i)" % (counter)).strip()
+                propname = kf.read(sec, f"Property({counter})").strip()
             except:
                 break
             properties[propname] = kf.read(sec, propname)
@@ -119,15 +119,15 @@ class AMSAnalysisPlot:
         parts = []
         properties = self.properties if self.properties is not None else {}
         for propname, prop in properties.items():
-            parts.append("%-30s %s\n" % (propname, prop))
+            parts.append(f"{propname:<30} {prop}\n")
 
         # Place the string with the column names
         x_name = ""
         for xname, xunit in zip(self.x_names, self.x_units):
-            x_str = "%s(%s)" % (xname, xunit)
-            x_name += "%30s " % (x_str)
-        y_name = "%s(%s)" % (self.y_name, self.y_units)
-        parts.append("%s %30s %30s\n" % (x_name, y_name, "sigma"))
+            x_str = f"{xname}({xunit})"
+            x_name += f"{x_str:>30} "
+        y_name = f"{self.y_name}({self.y_units})"
+        parts.append(f"{x_name} {y_name:>30} {'sigma':>30}\n")
 
         # Determine the number of values per axis
         ndims = len(self.x)
@@ -138,7 +138,7 @@ class AMSAnalysisPlot:
         for i, values in enumerate(zip(*value_lists)):
             v_str = ""
             for v in values:
-                v_str += "%30.10e " % (v)
+                v_str += f"{v:30.10e} "
             v_str += "\n"
             if (i + 1) % axis_length == 0:
                 v_str += "\n"
@@ -158,7 +158,7 @@ class AMSAnalysisPlot:
 
         # Find the correct section in the KF file
         sections = kf.sections()
-        matches = [s for s in sections if s.lower() == section.lower() + "(%i)" % (i)]
+        matches = [s for s in sections if s.lower() == f"{section.lower()}({i})"]
         if len(matches) == 0:
             print("Sections: ", list(sections))
             raise PlamsError(
@@ -229,7 +229,7 @@ class AMSAnalysisResults(SCMResults):
         """
         plots = self.get_all_plots()
         for xy in plots:
-            xy.write("%s" % (xy.section + ".dat"))
+            xy.write(f"{xy.section}.dat")
 
     def get_D(self, i: int = 1) -> Tuple[Optional[float], Optional[str]]:
         """returns a 2-tuple (D, D_units) from the AutoCorrelation(i) section on the .kf file."""
@@ -240,7 +240,7 @@ class AMSAnalysisResults(SCMResults):
             return None, None
         section = sections[i - 1]
         plot = self.get_xy(section.split("(")[0], i)
-        if not "DiffusionCoefficient" in plot.properties.keys():
+        if not plot.properties or "DiffusionCoefficient" not in plot.properties.keys():
             return None, None
 
         D = plot.properties["DiffusionCoefficient"]
