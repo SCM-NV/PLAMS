@@ -63,7 +63,7 @@ class EnergyExtractor(BasePropertyExtractor):
 
 def canonicalize_string(possible_string: T) -> T:
     try:
-        return possible_string.lower().strip()
+        return possible_string.lower().strip()  # type: ignore
     except (AttributeError, TypeError):
         return possible_string
 
@@ -165,7 +165,7 @@ class AMSCalculator(Calculator):
     # counters are a dict as a class variable. This is to support deepcopying/multiple instances with the same name
     _counter: Dict[str, int] = {}
 
-    def __new__(
+    def __new__(  # type: ignore
         cls: Type[TSelf],
         settings: Settings,
         name: str = "",
@@ -179,9 +179,9 @@ class AMSCalculator(Calculator):
             if amsworker:
                 obj = object.__new__(AMSPipeCalculator)
             else:
-                obj = object.__new__(AMSJobCalculator)
+                obj = object.__new__(AMSJobCalculator)  # type: ignore
         else:
-            obj = object.__new__(cls)
+            obj = object.__new__(cls)  # type: ignore
         return obj
 
     def __init__(
@@ -234,7 +234,7 @@ class AMSCalculator(Calculator):
         self._counter[self.name] = value
 
     @property
-    def implemented_properties(self) -> List[str]:
+    def implemented_properties(self) -> List[str]:  # type: ignore
         """Returns the list of properties that this calculator has implemented"""
         return [extractor.name for extractor in self.extractors if extractor.check_settings(self.settings)]
 
@@ -333,6 +333,7 @@ class AMSCalculator(Calculator):
     def amsresults(self) -> Optional["AMSResults"]:
         if hasattr(self, "prev_ams_results"):
             return self.prev_ams_results
+        return None
 
 
 class AMSPipeCalculator(AMSCalculator):
@@ -376,7 +377,7 @@ class AMSPipeCalculator(AMSCalculator):
         """The AMSWorker instance is not copied, but instead, all the copies use the same worker"""
         memo[id(self.worker)] = self.worker
         try:
-            this_method = self.__deepcopy__
+            this_method = self.__deepcopy__  # type: ignore
             self.__deepcopy__ = None  # type: ignore
             copy = deepcopy(self, memo)
             self.__deepcopy__ = this_method  # type: ignore
