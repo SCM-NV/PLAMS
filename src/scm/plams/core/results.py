@@ -132,6 +132,8 @@ def _restrict(func: Callable[Concatenate["Results", P], T]) -> Callable[Concaten
             self.done.wait()
             return func(self, *args, **kwargs)
 
+        return None
+
     return guardian
 
 

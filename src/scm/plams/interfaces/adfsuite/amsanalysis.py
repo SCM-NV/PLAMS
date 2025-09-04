@@ -180,7 +180,7 @@ class AMSAnalysisResults(SCMResults):
     def get_molecule(self, *args: Any, **kwargs: Any) -> NoReturn:
         raise PlamsError("AMSAnalysisResults does not support the get_molecule() method.")
 
-    def get_sections(self) -> KeysView[Hashable]:
+    def get_sections(self) -> KeysView[str]:
         """
         Read the sections available to make xy plots
         """

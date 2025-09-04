@@ -47,15 +47,15 @@ if TYPE_CHECKING:
 P = ParamSpec("P")
 K = ParamSpecKwargs
 T = TypeVar("T")
-
+J = TypeVar("J", bound="Job")
 
 __all__ = ["SingleJob", "MultiJob"]
 
 
-def _fail_on_exception(func: Callable[Concatenate["Job", P], T]) -> Callable[Concatenate["Job", P], Optional[T]]:
+def _fail_on_exception(func: Callable[Concatenate[J, P], T]) -> Callable[Concatenate[J, P], Optional[T]]:
     """Decorator to wrap a job method and mark the job as failed on any exception."""
 
-    def wrapper(self: "Job", /, *args: P.args, **kwargs: P.kwargs) -> Optional[T]:
+    def wrapper(self: J, /, *args: P.args, **kwargs: P.kwargs) -> Optional[T]:
         try:
             return func(self, *args, **kwargs)
         except Exception as ex:
@@ -69,6 +69,7 @@ def _fail_on_exception(func: Callable[Concatenate["Job", P], T]) -> Callable[Con
                 self.parent._notify()  # type: ignore
             # Store the exception message to be accessed from get_errormsg
             self._error_msg = traceback.format_exc()
+        return None
 
     return wrapper
 
@@ -397,10 +398,11 @@ class Job(ABC):
         if name == prev_name:
             return
 
-        if self.jobmanager is not None:
+        if self.path is not None:
             prev_path = self.path
 
-            self.jobmanager.rename_job(self, name)
+            if self.jobmanager is not None:
+                self.jobmanager.rename_job(self, name)
 
             if self.path != prev_path:
                 # Move files and recollect to update files in result classes
@@ -422,7 +424,9 @@ class Job(ABC):
                     os.remove(prev_dill_file)
                     self.pickle()
                 MultiJob.apply_to_children(
-                    self, lambda j: j.pickle() if Path(j.path, j.name + ".dill").exists() else None, recursive=True
+                    self,
+                    lambda j: j.pickle() if j.path and Path(j.path, j.name + ".dill").exists() else None,
+                    recursive=True,
                 )
 
         else:
@@ -637,8 +641,8 @@ class SingleJob(Job):
         if jobmanager:
             job = jobmanager.load_job(path)
         else:
-            with open(path, "rb") as f:
-                job = pickle.load(f)
+            with open(path, "rb") as f_dill:
+                job = pickle.load(f_dill)
                 # For backwards compatibility (before attributes added/converted to properties)
                 if not hasattr(job, "_status"):
                     job._status = job.__dict__["status"]
@@ -869,7 +873,7 @@ class MultiJob(Job):
         super().delete()
 
     @classmethod
-    def apply_to_children(cls, job: Job, func: Callable[[Job], None], recursive=False) -> None:
+    def apply_to_children(cls, job: Job, func: Callable[[Job], None], recursive: bool = False) -> None:
         """
         Apply the function ``func`` to all children of a |MultiJob| (not the job itself).
         This is a no-op if the job is a |SingleJob|.

@@ -224,9 +224,7 @@ def balance_equation(
 
     stoich_r, elements_r = get_stoichiometries_and_elements(reactants)
     stoich_p, elements_p = get_stoichiometries_and_elements(products)
-    elements = elements_r
-    elements.update(elements_p)  # hopefully not necessary
-    elements = list(elements)
+    elements = list(elements_r | elements_p)
     num_reactants = len(stoich_r)
     num_products = len(stoich_p)
 

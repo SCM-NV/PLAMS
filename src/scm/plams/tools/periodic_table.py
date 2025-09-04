@@ -1,5 +1,5 @@
 from scm.plams.core.errors import PTError
-from typing import List, Union, Optional, NoReturn
+from typing import List, Union, Optional, NoReturn, Literal, overload
 import numpy
 
 __all__ = ["PeriodicTable", "PT"]
@@ -218,6 +218,15 @@ class PeriodicTable:
         """Set the number of connectors of *element* to *value*."""
         cls.data[cls.get_atomic_number(element)][3] = value
 
+    @classmethod
+    @overload
+    def _get_property(cls, arg: Union[str, int], prop: Literal[1, 2]) -> float: ...
+    @classmethod
+    @overload
+    def _get_property(cls, arg: Union[str, int], prop: Literal[3, 4, 5]) -> int: ...
+    @classmethod
+    @overload
+    def _get_property(cls, arg: Union[str, int], prop: Literal[6, 7]) -> Optional[float]: ...
     @classmethod
     def _get_property(cls, arg: Union[str, int], prop: int) -> Union[str, float, int, None]:
         """Get property of element described by either symbol or atomic number. Skeleton method for :meth:`get_radius`, :meth:`get_mass` and  :meth:`get_connectors`."""

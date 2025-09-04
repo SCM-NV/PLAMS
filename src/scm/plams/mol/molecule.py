@@ -2463,7 +2463,7 @@ class Molecule:
 
         .. math::
 
-            \\sum_{i \in mol, j\in lig} e^{-R_{ij}}
+            \\sum_{i \\in mol, j\\in lig} e^{-R_{ij}}
 
         A different cost function can be also supplied by the user, using one of the two remaining arguments: *cost_func_mol* or *cost_func_array*. *cost_func_mol* should be a function that takes two |Molecule| instances: this molecule (after removing unneeded atoms) and ligand in a particular orientation (also without unneeded atoms) and returns a single number (the lower the number, the better the fit). *cost_func_array* is analogous, but instead of |Molecule| instances it takes two numpy arrays (with dimensions: number of atoms x 3) with coordinates of this molecule and the ligand. If both are supplied, *cost_func_mol* takes precedence over *cost_func_array*.
 
