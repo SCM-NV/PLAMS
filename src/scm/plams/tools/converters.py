@@ -30,7 +30,7 @@ __all__ = [
 @requires_optional_package("ase")
 def traj_to_rkf(
     trajfile: str, rkftrajectoryfile: str, task: Optional[str] = None, timestep: float = 0.25
-) -> Tuple["ndarray", Optional["Cell"]]:
+) -> Tuple[Optional["ndarray"], Optional["Cell"]]:
     """
     Convert ase .traj file to .rkf file. NOTE: The order of atoms (or the number of atoms) cannot change between frames!
 
@@ -473,16 +473,18 @@ def rkf_to_ase_atoms(rkf_file: str, get_results: bool = True) -> List["Atoms"]:
         elements: Sequence[str],
         crd: Sequence[Sequence[float]],
         cell: Optional[Sequence[Sequence[float]]],
-        energy: float,
-        gradients: Sequence[Sequence[float]],
-        stress: Sequence[float],
+        energy: Optional[float],
+        gradients: Optional[Sequence[Sequence[float]]],
+        stress: Optional[Sequence[float]],
     ) -> "Atoms":
 
         pbc = None
         if cell is not None:
-            cell = np.array(cell).reshape(-1, 3)
-            pbc = ["T"] * len(cell) + ["F"] * (3 - len(cell))
-        atoms = Atoms(symbols=elements, positions=np.array(crd).reshape(-1, 3), cell=cell, pbc=pbc)
+            cell_arr = np.array(cell).reshape(-1, 3)
+            pbc = ["T"] * len(cell_arr) + ["F"] * (3 - len(cell_arr))
+        else:
+            cell_arr = None
+        atoms = Atoms(symbols=elements, positions=np.array(crd).reshape(-1, 3), cell=cell_arr, pbc=pbc)
         if get_results:
             calculator = SinglePointCalculator(atoms)
             atoms.set_calculator(calculator)
@@ -495,9 +497,16 @@ def rkf_to_ase_atoms(rkf_file: str, get_results: bool = True) -> List["Atoms"]:
             if stress:
                 n = len(stress)
                 if n == 9:
-                    stress = np.array(stress).reshape(3, 3) * hartree2eV / bohr2angstrom**3
+                    stress_matrix = np.array(stress).reshape(3, 3) * hartree2eV / bohr2angstrom**3
                     atoms.calc.results["stress"] = np.array(
-                        [stress[0][0], stress[1][1], stress[2][2], stress[1][2], stress[0][2], stress[0][1]]
+                        [
+                            stress_matrix[0][0],
+                            stress_matrix[1][1],
+                            stress_matrix[2][2],
+                            stress_matrix[1][2],
+                            stress_matrix[0][2],
+                            stress_matrix[0][1],
+                        ]
                     )
 
         return atoms
