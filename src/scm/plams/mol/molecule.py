@@ -186,7 +186,7 @@ class Molecule:
     ):
         self.atoms: List[Atom] = []
         self.bonds: List[Bond] = []
-        self.lattice: Sequence[Sequence[float]] = []
+        self.lattice: List[List[float]] = []
         self.properties = Settings()
 
         if filename is not None:
@@ -785,6 +785,7 @@ class Molecule:
                             if dfs(oe, 1 - par):
                                 b.order = 1 + par
                                 return True
+                    return None
 
                 for at in atom_list:
                     at.arom = len(list(filter(Bond.is_aromatic, at.bonds)))
@@ -1204,7 +1205,7 @@ class Molecule:
             newmol.translate(sum(i * np.array(vec) for i, vec in zip(index, self.lattice)))
             ret += newmol
 
-        ret.lattice = supercell_lattice
+        ret.lattice = [list(v) for v in supercell_lattice]
         return ret
 
     def unit_cell_volume(self, unit: str = "angstrom") -> float:
@@ -1638,7 +1639,7 @@ class Molecule:
             """
             bond = None
             for bond in ret.bonds:
-                indices = [i - 1 for i in ret.index(bond)]
+                indices = [i - 1 for i in ret.index(bond)]  # type: ignore
                 if iat1 in indices and iat2 in indices:
                     break
             if bond is None:
@@ -2183,14 +2184,12 @@ class Molecule:
             # for inorganic systems the order is strictly alphabetic
             return "".join(string_for_sym(sym, occ) for sym in sorted(occ))
 
-    def get_inertia_matrix(
-        self, length_unit: Optional[str] = "angstrom", mass_unit: Optional[str] = "amu"
-    ) -> np.ndarray:
+    def get_inertia_matrix(self, length_unit: str = "angstrom", mass_unit: str = "amu") -> np.ndarray:
         """Get the moments of inertia matrix.
 
         Args:
-            length_unit (str, optional): unit for distance. Defaults to 'angstrom'.
-            mass_unit (str, optional): unit for mass. Defaults to 'amu'.
+            length_unit str: unit for distance. Defaults to 'angstrom'.
+            mass_unit str: unit for mass. Defaults to 'amu'.
 
         Returns:
             np.ndarray: 3x3 matrix with the inertia matrix
@@ -3934,7 +3933,7 @@ class Molecule:
         from scm.plams.mol.identify import possible_flags, clear, label_atoms, molecule_name
 
         if isinstance(level, (tuple, list)):
-            return tuple(self.label(i) for i in level)
+            return tuple(self.label(i) for i in level)  # type: ignore
 
         if flags is None:
             if level == 0:
