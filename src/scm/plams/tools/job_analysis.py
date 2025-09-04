@@ -393,8 +393,10 @@ class JobAnalysis:
         :return: string representation of the table
         """
 
-        def safe_format_value(v: Any, vfmt: str) -> str:
+        def safe_format_value(v: Any, vfmt: Optional[str]) -> str:
             try:
+                if vfmt is None:
+                    return str(v)
                 return format(v, vfmt)
             except (TypeError, ValueError, AttributeError):
                 return str(v)
