@@ -21,9 +21,7 @@ from typing import (
     TypeVar,
     TYPE_CHECKING,
     NoReturn,
-    Literal,
     Mapping,
-    overload,
     Sequence,
     Set,
     IO,
@@ -150,8 +148,8 @@ class AMSWorkerResults:
         self._input_molecule = molecule
         self.error = error
         self._results = results
-        self._main_molecule = None
-        self._main_ase_atoms = None
+        self._main_molecule: Optional["Molecule"] = None
+        self._main_ase_atoms: Optional["ASEAtoms"] = None
 
     @property
     def name(self) -> str:
@@ -228,7 +226,7 @@ class AMSWorkerResults:
 
     def get_shearmodulus(self, unit: str = "au") -> float:
         et = self.get_elastictensor()
-        if et.shape != (6, 6):
+        if et is None or et.shape != (6, 6):
             raise ResultsError("Elastic moduli can only be calculated for bulk systems.")
         sm = (
             (et[0, 0] + et[1, 1] + et[2, 2]) - (et[0, 1] + et[0, 2] + et[1, 2]) + 3 * (et[3, 3] + et[4, 4] + et[5, 5])
@@ -237,7 +235,7 @@ class AMSWorkerResults:
 
     def get_bulkmodulus(self, unit: str = "au") -> float:
         et = self.get_elastictensor()
-        if et.shape != (6, 6):
+        if et is None or et.shape != (6, 6):
             raise ResultsError("Elastic moduli can only be calculated for bulk systems.")
         bm = np.sum(et[0:3, 0:3]) / 9
         return bm * Units.conversion_ratio("au", unit)
@@ -473,8 +471,8 @@ class AMSWorker:
         # They will be overwritten when we actually start things up, but we do
         # not want them to be undefined for now, just in case of errors ...
         self.proc = None
-        self.callpipe = None
-        self.replypipe = None
+        self.callpipe: Optional[IO[bytes]] = None
+        self.replypipe: Optional[IO[bytes]] = None
 
         self.restart_cache: Set[str] = set()
         self.restart_cache_deleted: Set[str] = set()
@@ -955,29 +953,29 @@ class AMSWorker:
                 results = self._call("Optimize", args)
                 # For now, add the optimization results to the results object
                 # This way they are separated on the AMS side, but not yet on the Python side
-                if len(results) > 1:
+                if results is not None and len(results) > 1:
                     results[0]["results"].update(results[1]["optimizationResults"])
             else:
                 results = self._call("Solve", args)
 
-            results = self._unflatten_arrays(results[0]["results"])
-            results = AMSWorkerResults(name, molecule, results)
+            results = self._unflatten_arrays(results[0]["results"])  # type: ignore
+            results = AMSWorkerResults(name, molecule, results)  # type: ignore
 
             if self.use_restart_cache:
                 self.restart_cache.add(name)
                 weakref.finalize(results, self._delete_from_restart_cache, name)
 
-            return results
+            return results  # type: ignore
 
         except AMSPipeRuntimeError as exc:
-            return AMSWorkerResults(name, molecule, None, exc)
+            return AMSWorkerResults(name, molecule, {}, exc)
         except AMSWorkerError as exc:
             # Something went wrong. Our worker process might also be down.
             # Let's reset everything to be safe ...
             exc.stdout, exc.stderr = self.stop()
             self._start_subprocess()
             # ... and return an AMSWorkerResults object indicating our failure.
-            return AMSWorkerResults(name, molecule, None, exc)
+            return AMSWorkerResults(name, molecule, {}, exc)
 
     def _prepare_system(self, molecule: "Molecule") -> None:
         # This is a good opportunity to let the worker process know about all the results we no longer need ...
@@ -1138,9 +1136,10 @@ class AMSWorker:
             _states = self._call("RunMD", args)
 
             states: List[AMSWorkerMDState] = []
-            for state in _states:
-                state = self._unflatten_arrays(state["state"])
-                states.append(AMSWorkerMDState(name, state))
+            if _states is not None:
+                for state in _states:
+                    state = self._unflatten_arrays(state["state"])
+                    states.append(AMSWorkerMDState(name, state))
 
             return states
 
@@ -1189,10 +1188,10 @@ class AMSWorker:
 
             state = self._call("GenerateVelocities", args)
 
-            state = self._unflatten_arrays(state[0]["state"])
-            state = AMSWorkerMDState(name, state)
+            state = self._unflatten_arrays(state[0]["state"])  # type: ignore
+            state = AMSWorkerMDState(name, state)  # type: ignore
 
-            return state
+            return state  # type: ignore
 
         except AMSWorkerError as exc:
             # Something went wrong. Our worker process might also be down.
@@ -1242,7 +1241,7 @@ class AMSWorker:
             reply = self._call(
                 "ParseInput", {"programName": program_name, "textInput": text_input, "stringLeafs": string_leafs}
             )
-            json_input = reply[0]["parsedInput"]["jsonInput"]
+            json_input = reply[0]["parsedInput"]["jsonInput"]  # type: ignore
             return json_input
         except AMSWorkerError as exc:
             # This failed badly, also the worker is likely down. Let's grab some info, restart it ...
@@ -1275,10 +1274,6 @@ class AMSWorker:
         else:
             raise EOFError("Message truncated to " + str(len(buf)))
 
-    @overload
-    def _call(self, method: Literal["Set", "Exit"], args: Dict[str, Any] = {}) -> None: ...
-    @overload
-    def _call(self, method: str, args: Dict[str, Any] = {}) -> List: ...
     def _call(self, method: str, args: Dict[str, Any] = {}) -> Optional[List]:
         import ubjson
         from scm.amspipe import AMSPipeError
@@ -1299,9 +1294,10 @@ class AMSWorker:
         results: List = []
         while True:
             try:
-                msgbuf = self._read_exactly(self.replypipe, 4)
+                # ToDo: verify behaviour with None replypipe
+                msgbuf = self._read_exactly(self.replypipe, 4)  # type: ignore
                 msglen = struct.unpack("=i", msgbuf)[0]
-                msgbuf = self._read_exactly(self.replypipe, msglen)
+                msgbuf = self._read_exactly(self.replypipe, msglen)  # type: ignore
             except EOFError as exc:
                 raise AMSWorkerError("Error while trying to read a reply") from exc
 
@@ -1354,18 +1350,16 @@ class AMSWorkerPool:
         workerdir_prefix: str = "awp",
         keep_crashed_workerdir: bool = False,
     ):
-        self.workers: List[Optional[AMSWorker]] = num_workers * [None]
+        workers: List[Optional[AMSWorker]] = [None for _ in range(num_workers)]
         if num_workers == 1:
             # Do all the work in the main thread
-            AMSWorkerPool._spawn_worker(
-                self.workers, settings, 0, workerdir_root, workerdir_prefix, keep_crashed_workerdir
-            )
+            AMSWorkerPool._spawn_worker(workers, settings, 0, workerdir_root, workerdir_prefix, keep_crashed_workerdir)
         else:
             # Spawn all workers from separate threads to overlap the ams.exe startup latency
             threads = [
                 ContextAwareThread(
                     target=AMSWorkerPool._spawn_worker,
-                    args=(self.workers, settings, i, workerdir_root, workerdir_prefix, keep_crashed_workerdir),
+                    args=(workers, settings, i, workerdir_root, workerdir_prefix, keep_crashed_workerdir),
                 )
                 for i in range(num_workers)
             ]
@@ -1373,8 +1367,9 @@ class AMSWorkerPool:
                 t.start()
             for t in threads:
                 t.join()
-            if None in self.workers:
-                raise AMSWorkerError("Some AMSWorkers in the pool failed to start")
+        if None in workers:
+            raise AMSWorkerError("Some AMSWorkers in the pool failed to start")
+        self.workers: List[AMSWorker] = [w for w in workers if w is not None]
 
     @staticmethod
     def _spawn_worker(
@@ -1428,7 +1423,7 @@ class AMSWorkerPool:
 
         if len(self.workers) == 1:  # Do all the work in the main thread
 
-            results = []
+            results: List[Optional[AMSWorkerResults]] = []
             for name, mol, settings in items:
                 results.append(self.workers[0]._solve_from_settings(name, mol, settings))
                 if watch and progress_data is not None:
@@ -1436,7 +1431,7 @@ class AMSWorkerPool:
 
         else:  # Build a queue of things to do and spawn threads that grab from the queue in parallel
 
-            results: List[Optional[AMSWorkerResults]] = [None] * len(items)
+            results = [None for _ in range(len(items))]
             q: queue.Queue = queue.Queue()
 
             threads = [
