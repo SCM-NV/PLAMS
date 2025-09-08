@@ -636,9 +636,9 @@ class AMSResults(Results):
             nSpin = 1
 
         if bands is None:
-            bands = np.arange(nBands)
+            bands = np.arange(nBands).tolist()
 
-        spindown_bands = bands
+        spindown_bands = np.array(bands)
         if nSpin == 2:
             spindown_bands = np.array(bands) + nBands
 
@@ -649,8 +649,8 @@ class AMSResults(Results):
         x = []
 
         for i in range(nEdges):
-            my_x: List[float] = self.readrkf("band_curves", f"Edge_{i+1}_xFor1DPlotting", file="engine")
-            my_x = np.array(my_x) + prevmaxx
+            my_x = np.array(self.readrkf("band_curves", f"Edge_{i+1}_xFor1DPlotting", file="engine"))
+            my_x += prevmaxx
             prevmaxx = np.max(my_x)
 
             if read_labels:
@@ -800,7 +800,7 @@ class AMSResults(Results):
         nEdges: int = self.readrkf("phonon_curves", "nEdges", file="engine")
 
         if bands is None:
-            bands = np.arange(nBands)
+            bands = np.arange(nBands).tolist()
 
         x = []
         y = []
@@ -808,8 +808,8 @@ class AMSResults(Results):
 
         prevmaxx = 0
         for i in range(nEdges):
-            my_x = self.readrkf("phonon_curves", f"Edge_{i+1}_xFor1DPlotting", file="engine")
-            my_x = np.array(my_x) + prevmaxx
+            my_x = np.array(self.readrkf("phonon_curves", f"Edge_{i+1}_xFor1DPlotting", file="engine"))
+            my_x += prevmaxx
             prevmaxx = np.max(my_x)
 
             if read_labels:
@@ -1555,8 +1555,8 @@ class AMSResults(Results):
         origscancoords: List[str] = tolist(self.get_history_property("ScanCoord", history_section="PESScan"))
         # one scan coordinate may have several variables
         scancoords = [x.split("\n") for x in origscancoords]
-        pescoords = tolist(self.readrkf("PESScan", "PESCoords"))
-        pescoords = np.array(pescoords).reshape(-1, sum(len(x) for x in scancoords))
+        pescoords = np.array(tolist(self.readrkf("PESScan", "PESCoords")))
+        pescoords = pescoords.reshape(-1, sum(len(x) for x in scancoords))
         pescoords = np.transpose(pescoords)
         units: List[List[str]] = []
         for i in range(nScanCoord):
@@ -1668,8 +1668,10 @@ class AMSResults(Results):
         ret["ReactionEnergy"] = self.readrkf("NEB", "ReactionEnergy") * conversion_ratio
         history_dim = tolist(self.readrkf("NEB", "historyIndex@dim"))  # nimages, randombign
         history_dim.reverse()  # randombign, nimages
-        history_indices_matrix = tolist(self.readrkf("NEB", "historyIndex"))  # this matrix is padded with -1 values
-        history_indices_matrix = np.array(history_indices_matrix).reshape(history_dim)
+        history_indices_matrix = np.array(
+            tolist(self.readrkf("NEB", "historyIndex"))
+        )  # this matrix is padded with -1 values
+        history_indices_matrix = history_indices_matrix.reshape(history_dim)
         history_indices = np.max(history_indices_matrix, axis=0, keepdims=False).tolist()
         if any(x == -1 for x in history_indices):
             raise ValueError("Found -1 in the 'converged' part of historyIndex. This should not happen!")
@@ -1784,13 +1786,13 @@ class AMSResults(Results):
 
         return reformed
 
-    def get_time_step(self, history_section: Literal["BinLog", "MDHistory"] = "MDHistory") -> Optional[int]:
+    def get_time_step(self, history_section: Literal["BinLog", "MDHistory"] = "MDHistory") -> int:
         """Returns the time step between adjacent frames (NOT the TimeStep in the settings, but Timestep*SamplingFreq) in femtoseconds for MD simulation jobs"""
-        time1: int = self.get_property_at_step(1, "Time", history_section=history_section)
-        time2: int = self.get_property_at_step(2, "Time", history_section=history_section)
+        time1 = self.get_property_at_step(1, "Time", history_section=history_section)
+        time2 = self.get_property_at_step(2, "Time", history_section=history_section)
 
         if time1 is None or time2 is None:
-            return None
+            raise PlamsError(f"Cannot determine time step from 'Time' variable of history section '{history_section}'")
 
         time_step = time2 - time1
         return time_step
@@ -1858,7 +1860,7 @@ class AMSResults(Results):
 
         nEntries: int = self.readrkf("MDHistory", "nEntries")
 
-        time_step: int = self.get_time_step()
+        time_step = self.get_time_step()
 
         start_step, end_step, every, max_dt = self._get_integer_start_end_every_max(
             start_fs, end_fs, every_fs, max_dt_fs
@@ -2172,12 +2174,13 @@ class AMSResults(Results):
         start_step, end_step, every, max_dt = self._get_integer_start_end_every_max(
             start_fs, end_fs, every_fs, max_dt_fs
         )
-        data = pressuretensor
-        if data is None:
-            data = self.get_history_property("PressureTensor", "MDHistory")
-            data = [
-                x for x in data if x is not None
-            ]  # None might appear in currently running trajectories if the job was loaded with load_external
+        if pressuretensor is None:
+            rkf_pressuretensor = self.get_history_property("PressureTensor", "MDHistory") or []
+            data = np.array(
+                [x for x in rkf_pressuretensor if x is not None]
+            )  # None might appear in currently running trajectories if the job was loaded with load_external
+        else:
+            data = pressuretensor
         data = np.array(data)[start_step:end_step:every]
 
         components = []
@@ -2490,12 +2493,12 @@ class AMSResults(Results):
                 return self._landscape._states.index(self) + 1
 
             @property
-            def reactants(self) -> "AMSResults.EnergyLandscape.State":
-                return self._landscape._states[self.reactantsID - 1]
+            def reactants(self) -> Optional["AMSResults.EnergyLandscape.State"]:
+                return self._landscape._states[self.reactantsID - 1] if self.reactantsID is not None else None
 
             @property
-            def products(self) -> "AMSResults.EnergyLandscape.State":
-                return self._landscape._states[self.productsID - 1]
+            def products(self) -> Optional["AMSResults.EnergyLandscape.State"]:
+                return self._landscape._states[self.productsID - 1] if self.productsID is not None else None
 
             def __str__(self) -> str:
                 if self.isTS:
@@ -2576,17 +2579,19 @@ class AMSResults(Results):
                 lines = [
                     f"FragmentedState {self.id}: {formula} local minimum @ {self.energy:.8f} Hartree (fragments {[i+1 for i in self.composition]})"
                 ]
-                for i, iState in enumerate(self.connections):
-                    lines += [f"  +- {self._landscape._states[iState]}"]
+                if self.connections is not None:
+                    for i, iState in enumerate(self.connections):
+                        lines += [f"  +- {self._landscape._states[iState]}"]
 
-                    if i == len(self.connections) - 1:
-                        lines += [
-                            f"     Prefactors: {self.adsorptionPrefactors[i]:.3E}:{self.desorptionPrefactors[i]:.3E}"
-                        ]
-                    else:
-                        lines += [
-                            f"  |  Prefactors: {self.adsorptionPrefactors[i]:.3E}:{self.desorptionPrefactors[i]:.3E}"
-                        ]
+                        if self.adsorptionPrefactors is not None and self.desorptionPrefactors is not None:
+                            if i == len(self.connections) - 1:
+                                lines += [
+                                    f"     Prefactors: {self.adsorptionPrefactors[i]:.3E}:{self.desorptionPrefactors[i]:.3E}"
+                                ]
+                            else:
+                                lines += [
+                                    f"  |  Prefactors: {self.adsorptionPrefactors[i]:.3E}:{self.desorptionPrefactors[i]:.3E}"
+                                ]
                 return "\n".join(lines)
 
         def __init__(self, results: "AMSResults"):
@@ -2617,8 +2622,8 @@ class AMSResults(Results):
                 if not sec["isTS"][iState]:
                     self._states.append(AMSResults.EnergyLandscape.State(self, resfile, energy, mol, count, False))
                 else:
-                    reactantsID: int = sec["reactants"][iState] if sec["reactants"][iState] > 0 else None
-                    productsID: int = sec["products"][iState] if sec["products"][iState] > 0 else None
+                    reactantsID = sec["reactants"][iState] if sec["reactants"][iState] > 0 else None
+                    productsID = sec["products"][iState] if sec["products"][iState] > 0 else None
                     prefactorsFromReactant = (
                         sec["prefactorsFromReactant"][iState] if sec["products"][iState] > 0 else None
                     )
@@ -2816,7 +2821,10 @@ class AMSJob(SingleJob):
             else:
                 return mol
 
-        molecule = {k: copy_mol(m) for k, m in molecule.items()} if isinstance(molecule, dict) else copy_mol(molecule)
+        if molecule is not None:
+            molecule = (
+                {k: copy_mol(m) for k, m in molecule.items()} if isinstance(molecule, dict) else copy_mol(molecule)
+            )
         super().__init__(molecule, *args, **kwargs)
 
     def run(

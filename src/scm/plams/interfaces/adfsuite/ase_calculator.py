@@ -291,9 +291,10 @@ class AMSCalculator(Calculator):
 
     def results_from_ams_results(self, ams_results: "AMSResults", job_settings: Settings) -> None:
         """Populates the self.results dictionary by having extractors act on an AMSResults object."""
-        for extractor in self.extractors:
-            if extractor.check_settings(job_settings):
-                self.results[extractor.name] = extractor.extract(ams_results, self.atoms)
+        if self.atoms:
+            for extractor in self.extractors:
+                if extractor.check_settings(job_settings):
+                    self.results[extractor.name] = extractor.extract(ams_results, self.atoms)
 
     def _get_ams_results(self, molecule: "Molecule", properties: List[str]) -> "AMSResults":
         raise NotImplementedError("Subclasses of AMSCalculator should implement this")
@@ -312,7 +313,7 @@ class AMSCalculator(Calculator):
         else:
             # this is what AMSWorker.stop() would return if it was already stopped previously
             self.worker = None
-            return (None, None)
+            return None, None
 
     def clean_exit(self) -> None:
         """Function called by ASEPipeWorker to tell the Calculator to stop and clean up"""

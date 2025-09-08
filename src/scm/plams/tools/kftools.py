@@ -105,7 +105,7 @@ class KFReader:
                     ret = self._get_data(self._read_block(f, i), vtype)[vstart - 1 :]
                     first = False
                 else:
-                    ret += self._get_data(self._read_block(f, i), vtype)
+                    ret += self._get_data(self._read_block(f, i), vtype)  # type: ignore
                 if len(ret) >= vlen:
                     ret = ret[:vlen]
                     if isinstance(ret, bytes):
@@ -209,9 +209,9 @@ class KFReader:
         s: int
         b: int
         i, d, s, b = self._parse(datablock[:hlen], [(4, self.word)])[0]
-        contents = self._parse(datablock[hlen:], zip((i, d, s, b), (self.word, "d", "s", self.word)))
-        if contents:
-            contents = contents[0]  # there won't be more than one chunk of data in any data block
+        parsed_contents = self._parse(datablock[hlen:], zip((i, d, s, b), (self.word, "d", "s", self.word)))
+        if parsed_contents:
+            contents = parsed_contents[0]  # there won't be more than one chunk of data in any data block
             if vtype == 1:
                 return list(contents[:i])
             elif vtype == 2:
@@ -399,7 +399,7 @@ class KFFile:
             self.tmpdata[section] = OrderedDict()
 
         if trick_value:
-            self.tmpdata[section][variable] = trick_value
+            self.tmpdata[section][variable] = trick_value  # type: ignore
         else:
             self.tmpdata[section][variable] = value
 
@@ -593,12 +593,12 @@ class KFHistory:
     def __init__(self, kf: KFReader, section: str):
         self.kf = kf
         self.section = section
-        self.nsteps: int = kf.read(section, "nEntries")
+        self.nsteps: int = kf.read(section, "nEntries")  # type: ignore
         self.shapes: Dict[str, Tuple[int, ...]] = {}
-        self.blocked = set()
+        self.blocked: Set[str] = set()
 
         if (section, "nBlocks") in kf:
-            self.nblocks: int = kf.read(section, "nBlocks")
+            self.nblocks: int = kf.read(section, "nBlocks")  # type: ignore
         else:
             self.nblocks = 0
 
@@ -621,7 +621,7 @@ class KFHistory:
             for i in range(1, self.nblocks + 1):
                 block = self.kf.read(self.section, f"{name}({i})")
                 try:
-                    yield from block
+                    yield from block  # type: ignore
                 except TypeError:
                     # one-element blocks are not iterable (KFReader returns them as scalars)
                     yield block
@@ -640,13 +640,13 @@ class KFHistory:
     def _init_shape(self, name: str) -> None:
         shapevar = name + "(dim)"
         if (self.section, shapevar) in self.kf:
-            shape: Union[List[int], int] = self.kf.read(self.section, shapevar)
+            shape: Union[List[int], int] = self.kf.read(self.section, shapevar)  # type: ignore
             try:
                 # shape is a list (variable "name" is at least rank-2)
-                self.shapes[name] = tuple(shape)
+                self.shapes[name] = tuple(shape)  # type: ignore
             except TypeError:
                 # shape is a scalar (variable "name" is a scalar or rank-1)
-                self.shapes[name] = (shape,)
+                self.shapes[name] = (shape,)  # type: ignore
             perAtomVar = name + "(perAtom)"
             if self.nblocks and (self.section, perAtomVar) in self.kf:
                 perAtom = self.kf.read(self.section, perAtomVar)
