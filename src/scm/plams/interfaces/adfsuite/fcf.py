@@ -1,5 +1,8 @@
 from scm.plams.core.errors import PlamsError
-from scm.plams.interfaces.adfsuite.scmjob import SCMJob, SCMResults
+from scm.plams.interfaces.adfsuite.scmjob import SCMJob, SCMResults, TSCMJobPath
+
+from typing import Optional, Any
+
 
 __all__ = ["FCFJob", "FCFResults"]
 
@@ -8,7 +11,7 @@ class FCFResults(SCMResults):
     _kfext = ".t61"
     _rename_map = {"TAPE61": "$JN" + _kfext}
 
-    def get_molecule(self, *args, **kwargs):
+    def get_molecule(self, *args: Any, **kwargs: Any) -> None:
         raise PlamsError("FCFResults do not support get_molecule() method. You can get molecules from job1 or job2")
 
 
@@ -25,16 +28,21 @@ class FCFJob(SCMJob):
     _command = "fcf"
     _top = ["states", "state1", "state2"]
 
-    def __init__(self, inputjob1=None, inputjob2=None, **kwargs):
+    def __init__(
+        self,
+        inputjob1: Optional[TSCMJobPath] = None,
+        inputjob2: Optional[TSCMJobPath] = None,
+        **kwargs: Any,
+    ):
         SCMJob.__init__(self, **kwargs)
         self.inputjob1 = inputjob1
         self.inputjob2 = inputjob2
 
-    def _serialize_mol(self):
+    def _serialize_mol(self) -> None:
         self.settings.input.state1 = self.inputjob1
         self.settings.input.state2 = self.inputjob2
 
-    def _remove_mol(self):
+    def _remove_mol(self) -> None:
         if "state1" in self.settings.input:
             del self.settings.input.state1
         if "state2" in self.settings.input:

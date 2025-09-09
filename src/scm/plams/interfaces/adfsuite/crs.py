@@ -2,13 +2,17 @@ import inspect
 import os
 import subprocess
 from itertools import cycle
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, TYPE_CHECKING, Set, Union, Any, Tuple
 
 import numpy as np
 
 from scm.plams.interfaces.adfsuite.scmjob import SCMJob, SCMResults
 from scm.plams.tools.units import Units
 from scm.plams.core.functions import log
+
+if TYPE_CHECKING:
+    import pandas as pd
+    from matplotlib.figure import Figure
 
 __all__ = ["CRSResults", "CRSJob"]
 
@@ -33,7 +37,7 @@ class CRSResults(SCMResults):
 
     def get_energy(self, energy_type: str = "deltag", compound_idx: int = 0, unit: str = "kcal/mol") -> float:
         """Returns the solute solvation energy from an Activity Coefficients calculation."""
-        E = self.readkf(self.section, energy_type)[compound_idx]
+        E: float = self.readkf(self.section, energy_type)[compound_idx]
         return Units.convert(E, "kcal/mol", unit)
 
     def get_activity_coefficient(self, compound_idx: int = 0) -> float:
@@ -84,7 +88,7 @@ class CRSResults(SCMResults):
         except KeyError:
             return self._get_array_dict("PURESIGMAPOTENTIAL", *args, unit=unit, as_df=as_df)
 
-    def get_prop_names(self, section=None) -> list:
+    def get_prop_names(self, section: Optional[str] = None) -> Set[str]:
         r"""Read the section of the .crskf file and return a list of the properties that were calculated.  The section argument can be supplied to look at previously-calculated results.  If no section name is supplied, the function defaults to using the most recent property that was calculated."""
         if section is None:
             section = self.section
@@ -93,7 +97,7 @@ class CRSResults(SCMResults):
         except KeyError:
             raise KeyError("Cannot find section name: " + str(section))
 
-    def get_results(self, section=None) -> dict:
+    def get_results(self, section: Optional[str] = None) -> dict:
         r"""Read the section from the most recent calculation type and return the result as a dictionary."""
         if section is None:
             section = self.section
@@ -116,7 +120,7 @@ class CRSResults(SCMResults):
         except:
             nstruct = ncomp
 
-        np_dict = {"section": section}
+        np_dict: Dict[str, Any] = {"section": section}
         np_dict["ncomp"] = ncomp
         chunk_length = 160
         for prop in props:
@@ -145,7 +149,7 @@ class CRSResults(SCMResults):
         setattr(self, "_prop_dict", np_dict)
         return np_dict
 
-    def get_multispecies_dist(self):
+    def get_multispecies_dist(self) -> List[Dict[str, List[float]]]:
         """
         This function returns multispecies distribution for each (compound,structure) pair.  The format is a list
         with indices corresponding to compound indices.  Each item in the list is a dictionary with a structure name : list pair, where the structure name corresponds to a structure the compound can be exist as and the list is the distribution of that compound in that structure over the number of points (mole fractions, temperatures, pressures).
@@ -158,9 +162,9 @@ class CRSResults(SCMResults):
         else:
             nPhase = 1
 
-        ncomp = self.readkf(self.section, "ncomp")
+        ncomp: int = self.readkf(self.section, "ncomp")
         struct_names = res["struct names"]
-        num_points = self.readkf(self.section, "nitems")
+        num_points: int = self.readkf(self.section, "nitems")
         valid_structs: List[List[str]] = [[] for _ in range(ncomp)]
         comp_dist = res["comp distribution"].flatten()
         for i in range(len(struct_names)):
@@ -179,7 +183,7 @@ class CRSResults(SCMResults):
 
         return compositions
 
-    def get_structure_energy(self, as_df: bool = False):
+    def get_structure_energy(self, as_df: bool = False) -> Tuple[Optional[Dict], Optional[Dict]]:
         """
         Retrieve the energy information for each structure in multispecies.
         If OUTPUT_ENERGY_COMPONENTS is set to True in the input file, this function returns:
@@ -295,7 +299,7 @@ class CRSResults(SCMResults):
         plot_fig: bool = True,
         x_label: Optional[str] = None,
         y_label: Optional[str] = None,
-    ):
+    ) -> "Figure":
         """Plot, show and return a series of COSMO-RS results as a matplotlib Figure instance.
 
         Accepts the output of, *e.g.*, :meth:`CRSResults.get_sigma_profile`:
@@ -317,7 +321,7 @@ class CRSResults(SCMResults):
 
         """  # noqa
 
-        def get_x_axis(array, x_axis):
+        def get_x_axis(array: np.ndarray, x_axis: Optional[Union[str, np.ndarray]]) -> np.ndarray:
             """Find and return the index and its name."""
             if x_axis is None:
                 return np.arange(array.shape[1])
@@ -452,12 +456,12 @@ class CRSResults(SCMResults):
     def _construct_array_dict(self, section: str, subsection: str, unit: str = "kcal/mol") -> dict:
         """Construct dictionary containing all values in *section*/*subsection*."""
         # Use filenames as keys
-        _filenames = self.readkf(section, "filename").split()
+        _filenames: Union[List[str], str] = self.readkf(section, "filename").split()
         filenames = [_filenames] if not isinstance(_filenames, list) else _filenames
 
         # Grab the keys and the number of items per key
         keys = [os.path.basename(key) for key in filenames] + ["Total"]
-        nitems = self.readkf(section, "nitems")
+        nitems: int = self.readkf(section, "nitems")
 
         # Use sigma profiles/potentials as values
         ratio = Units.conversion_ratio("kcal/mol", unit)
@@ -472,7 +476,7 @@ class CRSResults(SCMResults):
         return ret
 
     @staticmethod
-    def _dict_to_df(array_dict: dict, section: str, x_axis: str):
+    def _dict_to_df(array_dict: dict, section: str, x_axis: str) -> "pd.DataFrame":
         """Attempt to convert a dictionary into a DataFrame."""
         try:
             import pandas as pd
@@ -493,7 +497,7 @@ class CRSJob(SCMJob):
     _result_type = CRSResults
     _subblock_end = "end"
 
-    def __init__(self, **kwargs) -> None:
+    def __init__(self, **kwargs: Any) -> None:
         """Initialize a :class:`CRSJob` instance."""
         super().__init__(**kwargs)
         self.settings.ignore_molecule = True

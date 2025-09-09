@@ -3,7 +3,8 @@ import logging
 import os
 import sys
 from io import StringIO
-from typing import Any, Type, Dict, Literal, Optional, overload
+from typing import Any, Type, Dict, Literal, Optional, overload, ClassVar
+from typing_extensions import Self
 import threading
 from abc import ABC, abstractmethod
 
@@ -27,14 +28,16 @@ def get_logger(name: str, fmt: Optional[Literal["txt", "csv"]] = None) -> "Logge
 
 class LogManager:
     """
-    Manages PLAMS logger instances.
-    The manager should not be instantiated directly, but loggers accessed through the ``get_logger`` method.
+    Singleton class which manages PLAMS logger instances.
     """
 
+    _instance: ClassVar[Optional[Self]] = None
     _loggers: Dict[str, "Logger"] = {}
 
-    def __new__(cls, *args, **kwargs):
-        raise TypeError("LoggerManager cannot be directly instantiated.")
+    def __new__(cls: Type[Self], *args: Any, **kwargs: Any) -> Self:
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
 
     @classmethod
     def get_logger(cls, name: str, fmt: Optional[Literal["txt", "csv"]] = None) -> "Logger":
@@ -76,8 +79,8 @@ class Logger(ABC):
         stdout_level: int = 0,
         logfile_level: int = 0,
         logfile_path: Optional[str] = None,
-        *args,
-        **kwargs,
+        *args: Any,
+        **kwargs: Any,
     ) -> None:
         """
         Configure logging to stdout and the logfile, and its formatting.
@@ -90,7 +93,7 @@ class Logger(ABC):
         """
         pass
 
-    def _configure_stdout_handler(self, level: int):
+    def _configure_stdout_handler(self, level: int) -> None:
         """
         Configure the stdout handler, initializing and adjusting the level if required
         """
@@ -105,7 +108,7 @@ class Logger(ABC):
         if level != 28 - self._stdout_handler.level:
             self._stdout_handler.setLevel(28 - level)
 
-    def _configure_file_handler(self, level: int, logfile_path: Optional[str]):
+    def _configure_file_handler(self, level: int, logfile_path: Optional[str]) -> None:
         """
         Configure the file handler, setting the logfile and adjusting the level if required
         """
@@ -286,7 +289,7 @@ class CSVFormatter(logging.Formatter):
         return self._write_headers
 
     @write_headers.setter
-    def write_headers(self, value: bool):
+    def write_headers(self, value: bool) -> None:
         self._write_headers = value
 
     def format(self, record: logging.LogRecord) -> str:
@@ -324,7 +327,7 @@ class CSVFormatter(logging.Formatter):
         csv_writer.writerow(log_record)
         return row.getvalue().strip()
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> bool:
         if type(other) is not type(self):
             return False
         return (
@@ -351,7 +354,7 @@ class CSVLogger(Logger):
         include_level: bool = False,
         include_name: bool = False,
         csv_formatter: Type[CSVFormatter] = CSVFormatter,
-    ):
+    ) -> None:
         """
         Configure logging to stdout and the logfile, and its formatting.
 

@@ -1,4 +1,5 @@
-from typing import Optional
+from typing import Optional, TypeVar, Callable
+from typing_extensions import ParamSpec
 import functools
 import os
 import subprocess
@@ -6,8 +7,11 @@ import re
 
 from scm.plams.interfaces.adfsuite.errors import AMSBINEnvVarNotSetError, AMSExecutionError, AMSVersionError
 
+T = TypeVar("T")
+P = ParamSpec("P")
 
-def requires_ams(minimum_version: Optional[str] = None):
+
+def requires_ams(minimum_version: Optional[str] = None) -> Callable[[Callable[P, T]], Callable[P, T]]:
     """
     Ensures the AMS executable is available, with the required version constraints, before running a function.
     Otherwise, raises an :class:`~scm.plams.interfaces.adfsuite.errors.AMSError`.
@@ -15,9 +19,9 @@ def requires_ams(minimum_version: Optional[str] = None):
     :param minimum_version: minimum version of AMS required to run the function.
     """
 
-    def decorator(func):
+    def decorator(func: Callable[P, T]) -> Callable[P, T]:
         @functools.wraps(func)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
             amsbin = os.environ.get("AMSBIN")
             if not amsbin:
                 raise AMSBINEnvVarNotSetError()

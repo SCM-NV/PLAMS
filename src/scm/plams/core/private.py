@@ -7,12 +7,19 @@ import time
 import warnings
 from contextlib import AbstractContextManager
 from os.path import join as opj
-from typing import Callable, Dict, NoReturn, List, Optional, Sequence, Mapping
+
+from typing import Callable, Dict, NoReturn, List, Optional, TypeVar, Union, Any, Type, Sequence, Mapping
+from typing_extensions import ParamSpec
+from types import TracebackType
+
 
 __all__: List[str] = []
 
+T = TypeVar("T")
+P = ParamSpec("P")
 
-def smart_copy(obj, owncopy=[], without=[]):
+
+def smart_copy(obj: T, owncopy: List[str] = [], without: List[str] = []) -> T:
     """Return a copy of *obj*. Attributes of *obj* listed in *without* are ignored. Attributes listed in *owncopy* are copied by calling their own ``copy()`` methods. All other attributes are copied using :func:`copy.deepcopy`."""
 
     ret = obj.__class__()
@@ -27,7 +34,7 @@ def smart_copy(obj, owncopy=[], without=[]):
 # ===========================================================================
 
 
-def sha256(string):
+def sha256(string: Union[str, bytes]) -> str:
     """A small utility wrapper around :ref:`hashlib.sha256<hash-algorithms>`."""
     if not isinstance(string, bytes):
         string = str(string).encode()
@@ -39,7 +46,7 @@ def sha256(string):
 # ===========================================================================
 
 
-def saferun(*args, **kwargs):
+def saferun(*args: Any, **kwargs: Any) -> "subprocess.CompletedProcess[Any]":
     """
     A wrapper around :func:`subprocess.run` repeating the call ``config.saferun.repeat`` times with ``config.saferun.delay``
     interval in case of :exc:`BlockingIOError` being raised, (any other exception is not caught and directly passed above).
@@ -48,6 +55,7 @@ def saferun(*args, **kwargs):
 
     This is useful for multi-threading/async run calls with I/O.
     """
+
     from scm.plams.core.functions import get_config, log
 
     attempt = 0
@@ -69,7 +77,7 @@ def run_with_timeout(
     timeout: Optional[float] = 5,
     poll_interval: float = 0.1,
     env: Optional[Mapping[str, str]] = None,
-):
+) -> None:
     """
     Execute a system call which kills the process if it errors or does not respond within the given time period.
 
@@ -82,7 +90,6 @@ def run_with_timeout(
     :raises TimeoutError: if the process does not complete within the specified timeout
     :raises subprocess.CalledProcessError: if the process exits with a non-zero return code
     """
-    result = {"return_code": None, "stdout": None, "stderr": None}
     proc = subprocess.Popen(
         command,
         stdout=subprocess.PIPE,
@@ -106,7 +113,7 @@ def run_with_timeout(
                 raise subprocess.CalledProcessError(
                     returncode=proc.returncode, cmd=command, output=stdout, stderr=stderr
                 )
-            return result
+            return
 
         if timeout and now - start > timeout:
             proc.kill()
@@ -160,7 +167,12 @@ class UpdateSysPath(AbstractContextManager):
         if self.path is not None:
             sys.path.append(self.path)
 
-    def __exit__(self, exc_type, exc_value, traceback) -> None:
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_value: Optional[BaseException],
+        traceback: Optional[TracebackType],
+    ) -> None:
         """If not ``None``, remove :attr:`UpdateSyspath.path` from :data:`sys.path`."""
         if self.path is not None:
             try:
@@ -204,23 +216,19 @@ def parse_action(action: str) -> Callable[[Exception], None]:
 # ===========================================================================
 
 
-def retry(sleep=0.1, maxtries=10):
+def retry(sleep: float = 0.1, maxtries: int = 10) -> Callable[[Callable[P, T]], Callable[P, T]]:
     # wrapper for sleep-retrying a function call. use with `@retry()`
     from time import sleep as _sleep
 
-    def wrap1(f):
-        def wrap2(*a, __count=0, **kw):
+    def wrap1(f: Callable[P, T]) -> Callable[P, T]:
+        def wrap2(*a: Any, __count: int = 0, **kw: Any) -> T:
             try:
                 return f(*a, **kw)
             except Exception as e:
                 if __count > maxtries:
-                    raise e from None  # ignores stack trace
+                    raise e from None  # ignore stack trace
                 _sleep(sleep)
-                wrap2(
-                    *a,
-                    __count=__count + 1,
-                    **kw,
-                )
+                return wrap2(*a, __count=__count + 1, **kw)
 
         return wrap2
 

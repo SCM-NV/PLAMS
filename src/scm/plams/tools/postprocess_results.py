@@ -1,16 +1,18 @@
 import numpy as np
 from typing import Union, Literal, Tuple, Optional
 
+ArrayOrFloat = Union[np.ndarray, float]
 
-def _gaussian(x, A, x0, sigma):
+
+def _gaussian(x: np.ndarray, A: ArrayOrFloat, x0: ArrayOrFloat, sigma: ArrayOrFloat) -> np.ndarray:
     return A * np.exp(-((x - x0) ** 2) / (2 * sigma**2))
 
 
-def _lorentzian(x, A, x0, sigma):
+def _lorentzian(x: np.ndarray, A: ArrayOrFloat, x0: ArrayOrFloat, sigma: ArrayOrFloat) -> np.ndarray:
     return (A / np.pi) * (0.5 * sigma) / ((x - x0) ** 2 + (0.5 * sigma) ** 2)
 
 
-def _generate_broadening_widths(x_data, broadening_width: Union[float, np.ndarray], centers):
+def _generate_broadening_widths(x_data: np.ndarray, broadening_width: ArrayOrFloat, centers: np.ndarray) -> np.ndarray:
     if not isinstance(broadening_width, np.ndarray):
         sigmas = x_data * 0 + broadening_width
     else:

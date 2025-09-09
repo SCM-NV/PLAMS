@@ -1,4 +1,4 @@
-from typing import Dict, List, Literal, Union
+from typing import Dict, List, Literal, Sequence, Optional
 
 import numpy as np
 
@@ -10,8 +10,8 @@ def format_in_table(
     data: Dict[str, List],
     max_col_width: int = -1,
     max_rows: int = 30,
-    fmt: Union[Literal["markdown", "html", "rst"]] = "markdown",
-    monospace=False,
+    fmt: Literal["markdown", "html", "rst"] = "markdown",
+    monospace: bool = False,
 ) -> str:
     """
     Create a table from a dictionary of data, with the keys as column headers and the values as rows.
@@ -51,7 +51,7 @@ def format_in_table(
     """
     elip = "..."
 
-    def truncate(s, max_len):
+    def truncate(s: object, max_len: int) -> str:
         s = str(s)
         return f"{s[:max_len]}{elip}" if 0 < max_len < len(s) else s
 
@@ -80,40 +80,46 @@ def format_in_table(
     ]
 
     # Prepare the table
-    table_rows = []
+    table_rows: List[str] = []
+
+    def format_cell(row: Optional[Sequence], i: int, skip: bool) -> str:
+        if skip or (row is None):
+            cell = elip[: col_widths[i]]
+        else:
+            cell = str(row[i])
+        return cell.ljust(col_widths[i])
+
     if fmt == "html":
 
-        def make_html_row(row=None, skip=False):
-            return f"<tr>{''.join(f'<td>{(str(row[i]) if not skip else elip[:col_widths[i]]).ljust(col_widths[i])}</td>' for i in range(len(keys)))}</tr>"
+        def make_html_row(row: Optional[Sequence] = None, skip: bool = False) -> str:
+            return f"<tr>{''.join(f'<td>{format_cell(row, i, skip)}</td>' for i in range(len(keys)))}</tr>"
 
         table_rows = [
             '<div style="max-width: 100%; overflow-x: auto;">',
             f'<table border="1" style="border-collapse: collapse; width: auto; {("font-family: monospace; " if monospace else "")}">',
         ]
-        header_row = f"<thead><tr>{''.join(f'<th>{truncated_header[i].ljust(col_widths[i])}' for i in range(len(keys)))}</th></tr></thead>"
+        header_row = f"<thead><tr>{''.join(f'<th>{format_cell(truncated_header, i, False)}' for i in range(len(keys)))}</th></tr></thead>"
 
         separator = "<tbody>"
 
         make_row = make_html_row
     elif fmt == "rst":
 
-        def make_rst_row(row=None, skip=False):
-            row = f"| {' | '.join(f'{(str(row[i]) if not skip else elip[:col_widths[i]]).ljust(col_widths[i])}' for i in range(len(keys)))} |"
+        def make_rst_row(row: Optional[Sequence] = None, skip: bool = False) -> str:
+            row = f"| {' | '.join(f'{format_cell(row, i, skip)}' for i in range(len(keys)))} |"
             sep = f"+{'+'.join(['-' * (w + 2) for w in col_widths])}+"
             return f"{row}\n{sep}"
 
         header_row = f"+{'+'.join(['-' * (w + 2) for w in col_widths])}+\n"
-        header_row += (
-            f"| {' | '.join(f'{(str(truncated_header[i])).ljust(col_widths[i])}' for i in range(len(keys)))} |"
-        )
+        header_row += f"| {' | '.join(f'{format_cell(truncated_header, i, False)}' for i in range(len(keys)))} |"
 
         separator = f"+{'+'.join(['=' * (w + 2) for w in col_widths])}+"
 
         make_row = make_rst_row
     else:
 
-        def make_md_row(row=None, skip=False):
-            return f"| {' | '.join(f'{(str(row[i]) if not skip else elip[:col_widths[i]]).ljust(col_widths[i])}' for i in range(len(keys)))} |"
+        def make_md_row(row: Optional[Sequence] = None, skip: bool = False) -> str:
+            return f"| {' | '.join(f'{format_cell(row, i, skip)}' for i in range(len(keys)))} |"
 
         if monospace:
             table_rows.append("<pre>")

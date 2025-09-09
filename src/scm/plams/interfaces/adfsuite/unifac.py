@@ -3,7 +3,7 @@ import stat
 from collections.abc import Iterable
 from itertools import chain
 from os.path import join as opj
-from typing import List, Optional, Union
+from typing import List, Optional, Union, Any
 
 from scm.plams.core.basejob import SingleJob
 from scm.plams.core.errors import FileError, JobError, MissingOptionalPackageError
@@ -18,7 +18,7 @@ __all__ = ["UnifacJob", "UnifacResults"]
 class UnifacResults(CRSResults):
     """A :class:`.CRSResults` subclass assigned to :class:`UnifacJob`."""
 
-    def recreate_molecule(self, geometry=-1) -> Molecule:
+    def recreate_molecule(self, geometry: int = -1) -> Molecule:
         """Reconstruct and return list with all input molecules.
 
         Molecules are extracted from the SMILES string(s) in the .run file.
@@ -145,8 +145,8 @@ class UnifacJob(SingleJob):
 
     _result_type = UnifacResults
 
-    def __init__(self, **kwargs) -> None:
-        super().__init__(**kwargs)
+    def __init__(self, molecule: Molecule, **kwargs: Any) -> None:
+        super().__init__(molecule, **kwargs)
 
         # If supplied, convert self.molecule into a SMILES string
         if self.molecule:

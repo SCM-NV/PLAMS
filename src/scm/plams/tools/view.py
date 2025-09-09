@@ -1,7 +1,22 @@
 import os
 import re
 import subprocess
-from typing import Optional, Tuple, Union, TYPE_CHECKING, Literal, Sequence, List, Dict, Generator
+from typing import (
+    Optional,
+    Tuple,
+    Union,
+    TYPE_CHECKING,
+    Literal,
+    Sequence,
+    List,
+    Dict,
+    Generator,
+    Any,
+    TypeVar,
+    Type,
+    ClassVar,
+)
+from typing_extensions import Self
 
 import numpy as np
 from dataclasses import dataclass, replace
@@ -30,6 +45,8 @@ except ImportError:
 
 if TYPE_CHECKING:
     from PIL import Image as PilImage
+
+TBackend = TypeVar("TBackend", bound="_ViewBackend")
 
 __all__ = ["ViewConfig", "view"]
 
@@ -143,11 +160,11 @@ class ViewConfig:
     timeout: Optional[int] = None
     open_window: bool = False
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.timeout is None:
             self.timeout = 10 if not self.open_window else None
 
-    def validate(self):
+    def validate(self) -> None:
         """
         Check if config values are valid for AMSview
 
@@ -299,7 +316,7 @@ def view(
     # On first call check which backends are available
     if not hasattr(view, "_backends"):
 
-        def check_backend_available(b):
+        def check_backend_available(b: TBackend) -> Tuple[TBackend, bool, Optional[Exception]]:
             try:
                 b.check_available()
                 return b, True, None
@@ -347,7 +364,7 @@ class _ViewBackend(ABC):
 
     @classmethod
     @abstractmethod
-    def check_available(cls):
+    def check_available(cls) -> None:
         """
         Check whether this backend is available on the current system, otherwise raise an error
         """
@@ -490,7 +507,7 @@ class _AmsViewBackend(_ViewBackend):
 
     @classmethod
     @requires_ams(minimum_version="2025.204")
-    def check_available(cls):
+    def check_available(cls) -> None:
         canary_call = [os.path.expandvars("$AMSBIN/amsview"), "-h", "-batch"]
         try:
             subprocess.run(canary_call, capture_output=True, check=True, text=True)
@@ -550,7 +567,7 @@ class _AmsViewBackend(_ViewBackend):
         return command
 
     @classmethod
-    def run_command(cls, command: List[str], config: ViewConfig):
+    def run_command(cls, command: List[str], config: ViewConfig) -> None:
         """
         Execute command
         """
@@ -593,7 +610,7 @@ class _AmsViewBackend(_ViewBackend):
             img = PilImage.open(img_path)
             img_width, img_height = img.size
             aspect_ratio = img_width / img_height
-            img = img.resize(
+            resized_img = img.resize(
                 (config.width, int(np.ceil(config.width / aspect_ratio))),
                 resample=PilImage.Resampling.LANCZOS,
                 reducing_gap=3.0,
@@ -605,18 +622,18 @@ class _AmsViewBackend(_ViewBackend):
             if not config.picture_path:
                 os.remove(img_path)
 
-        return img
+        return resized_img
 
 
 class _AmsViewXvfbBackend(_AmsViewBackend):
 
     @classmethod
-    def check_available(cls):
+    def check_available(cls) -> None:
         _XvfbManager.check_xvfb()
         cls.run_command([os.path.expandvars("$AMSBIN/amsview"), "-h", "-batch"], ViewConfig())
 
     @classmethod
-    def run_command(cls, command: List[str], config: ViewConfig):
+    def run_command(cls, command: List[str], config: ViewConfig) -> None:
         env = os.environ.copy()
         env["SCM_OPENGL_SOFTWARE"] = "1"
 
@@ -642,12 +659,12 @@ class _XvfbManager:
     See: https://github.com/ponty/PyVirtualDisplay for inspiration
     """
 
-    _instance = None
-    _initialized = False
-    _lock = Lock()
-    xvfb = "Xvfb"
+    _instance: ClassVar[Optional[Self]] = None
+    _initialized: bool = False
+    _lock: ClassVar[Lock] = Lock()
+    xvfb: ClassVar[str] = "Xvfb"
 
-    def __new__(cls, *args, **kwargs):
+    def __new__(cls: Type[Self], *args: Any, **kwargs: Any) -> Self:
         with cls._lock:
             if cls._instance is None:
                 cls._instance = super().__new__(cls)
@@ -655,10 +672,10 @@ class _XvfbManager:
 
     def __init__(
         self,
-        size=(1024, 768),
-        color_depth=24,
-        startup_timeout=30,
-        startup_retries=3,
+        size: Tuple[int, int] = (1024, 768),
+        color_depth: int = 24,
+        startup_timeout: int = 30,
+        startup_retries: int = 3,
     ):
         if self._initialized:
             return
@@ -668,16 +685,16 @@ class _XvfbManager:
         self._startup_timeout = startup_timeout
         self._startup_retries = startup_retries
         self._started = False
-        self._read_file_descriptor = None
-        self._write_file_descriptor = None
-        self._proc = None
+        self._read_file_descriptor: Optional[int] = None
+        self._write_file_descriptor: Optional[int] = None
+        self._proc: Optional[subprocess.Popen] = None
         self._stdout = None
         self._stderr = None
-        self.display_number = None
+        self.display_number: Optional[int] = None
         self._initialized = True
 
     @classmethod
-    def check_xvfb(cls):
+    def check_xvfb(cls) -> None:
         """
         Check if Xvfb is installed and runnable
         """
@@ -693,7 +710,7 @@ class _XvfbManager:
         except (subprocess.CalledProcessError, FileNotFoundError) as ex:
             raise RuntimeError(f"Could not successfully run 'Xvfb -help'. Error was: {ex}")
 
-    def start(self):
+    def start(self) -> None:
         """
         Starts display. If already started this is a no-op.
         """
@@ -738,7 +755,7 @@ class _XvfbManager:
             self._started = True
             log("Xvfb started", 3)
 
-    def _await_display_number(self):
+    def _await_display_number(self) -> None:
         """
         Wait for display number to be written to the file descriptor.
         """
@@ -770,7 +787,7 @@ class _XvfbManager:
 
         self.display_number = int(buffer.decode("ascii", errors="replace"))
 
-    def _kill(self):
+    def _kill(self) -> None:
         """
         Kill Xvfb subprocess if it is running
         """
@@ -839,7 +856,7 @@ class _XvfbManager:
             env["DISPLAY"] = self.display
             yield env
 
-    def stop(self):
+    def stop(self) -> None:
         """
         Stops display. If not started this is a no-op.
         This is automatically registered to fire ``atexit``, when display is started.
@@ -851,7 +868,7 @@ class _XvfbManager:
         self._stop()
         log("Xvfb stopped.", 3)
 
-    def _stop(self):
+    def _stop(self) -> None:
         """
         Stops display without logging. If not started this is a no-op.
         This is automatically registered to fire ``atexit``, when display is started.
@@ -870,7 +887,7 @@ class _AsePlotBackend(_ViewBackend):
     @requires_optional_package("ase")
     @requires_optional_package("matplotlib")
     @requires_optional_package("scipy")
-    def check_available(cls):
+    def check_available(cls) -> None:
         return
 
     @classmethod
@@ -1006,20 +1023,20 @@ class _AsePlotBackend(_ViewBackend):
                         # Patches are not necessarily in the same order as the atoms
                         # so using the centre of the patch we find the correct atom
                         # not super efficient, but probably not using regions on very large systems...
-                        x, y = patch.get_center()
+                        x, y = patch.center
                         d_sq = (plotter.positions[:, 0] - x) ** 2 + (plotter.positions[:, 1] - y) ** 2
                         atom_idx = np.argmin(d_sq)
                         if d_sq[atom_idx] < 1e-6:  # arbitrary tolerance
                             atom_regions = regions[atom_idx]
                             for region in atom_regions:
                                 if region in region_cmap:
-                                    color = region_cmap[region]
+                                    region_color = region_cmap[region]
                                 else:
-                                    color = cmap.colors[color_counter]
-                                    region_cmap[region] = color
+                                    region_color = cmap.colors[color_counter]
+                                    region_cmap[region] = region_color
                                     color_counter += 1
                                 region_patch = patches.Circle(
-                                    patch.get_center(), patch.radius * 1.5, alpha=0.2, color=color, linewidth=0
+                                    (x, y), patch.radius * 1.5, alpha=0.2, color=region_color, linewidth=0
                                 )
                                 ax.add_patch(region_patch)
 
@@ -1059,7 +1076,7 @@ class _AsePlotBackend(_ViewBackend):
             img = PilImage.open(img_path)
             img_width, img_height = img.size
             aspect_ratio = img_width / img_height
-            img = img.resize(
+            resized_img = img.resize(
                 (config.width, int(np.ceil(config.width / aspect_ratio))),
                 resample=PilImage.Resampling.LANCZOS,
                 reducing_gap=3.0,
@@ -1069,7 +1086,7 @@ class _AsePlotBackend(_ViewBackend):
             if not config.picture_path:
                 os.remove(img_path)
 
-        return img
+        return resized_img
 
     @classmethod
     def get_view_rotation(cls, system: Union[Molecule, "ChemicalSystem"], config: ViewConfig) -> str:

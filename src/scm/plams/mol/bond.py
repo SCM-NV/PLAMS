@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Optional, Tuple, TYPE_CHECKING
+from typing import Optional, Tuple, TYPE_CHECKING, Any, Iterator
 
 from scm.plams.core.errors import MoleculeError
 from scm.plams.core.settings import Settings
@@ -8,6 +8,7 @@ __all__ = ["Bond"]
 
 if TYPE_CHECKING:
     from scm.plams.mol.atom import Atom
+    from scm.plams.mol.molecule import Molecule
 
 
 class Bond:
@@ -28,18 +29,25 @@ class Bond:
 
     AR = 1.5
 
-    def __init__(self, atom1=None, atom2=None, order=1, mol=None, **other):
+    def __init__(
+        self,
+        atom1: "Atom" = None,
+        atom2: "Atom" = None,
+        order: float = 1,
+        mol: Optional["Molecule"] = None,
+        **other: Any,
+    ):
         self.atom1 = atom1
         self.atom2 = atom2
         self.order = order
         self.mol = mol
         self.properties = Settings(other)
 
-    def __str__(self):
+    def __str__(self) -> str:
         """Return a string representation of this bond."""
         return "({})--{:1.1f}--({})".format(str(self.atom1).strip(), self.order, str(self.atom2).strip())
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator["Atom"]:
         """Iterate over bonded atoms (``atom1`` first, then ``atom2``)."""
         yield self.atom1
         yield self.atom2
@@ -89,7 +97,7 @@ class Bond:
             trans_v = (1 - length / self.length(unit)) * bond_v
             moving_atom.translate(trans_v)
 
-    def rotate(self, moving_atom: "Atom", angle: float, unit: str = "radian"):
+    def rotate(self, moving_atom: "Atom", angle: float, unit: str = "radian") -> None:
         """Rotate part of the molecule containing *moving_atom* along axis defined by this bond by an *angle* expressed in *unit*.
 
         Calling this method makes sense only if this bond is a part of a |Molecule|. *moving_atom* should be one of the atoms that form this bond and it indicates which part of the molecule is rotated. A positive value of *angle* denotes counterclockwise rotation (when looking along the bond, from the stationary part of the molecule).

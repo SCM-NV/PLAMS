@@ -5,14 +5,35 @@ from scm.plams.core.settings import Settings
 from scm.plams.interfaces.adfsuite.ams import AMSJob
 from scm.plams.interfaces.adfsuite.amsworker import AMSWorker
 from scm.plams.mol.molecule import Molecule
-from typing import Optional
+from typing import Optional, Union, Sequence, overload, List
 
 __all__ = ["preoptimize", "refine_density", "refine_lattice", "shakemd"]
 
 
+# ToDo: remove type ignore once mypy_path is enabled
+@overload
 def preoptimize(
-    molecule: Molecule, model: str = "UFF", settings: Settings = None, nproc: int = 1, maxiterations: int = 100
-):
+    molecule: Molecule,
+    model: str = "UFF",
+    settings: Optional[Settings] = None,
+    nproc: int = 1,
+    maxiterations: int = 100,
+) -> Molecule: ...
+@overload
+def preoptimize(  # type: ignore
+    molecule: Sequence[Molecule],
+    model: str = "UFF",
+    settings: Optional[Settings] = None,
+    nproc: int = 1,
+    maxiterations: int = 100,
+) -> List[Molecule]: ...
+def preoptimize(
+    molecule: Union[Molecule, Sequence[Molecule]],
+    model: str = "UFF",
+    settings: Optional[Settings] = None,
+    nproc: int = 1,
+    maxiterations: int = 100,
+) -> Union[Molecule, List[Molecule]]:
     """
     Returns an optimized Molecule (or list of optimized molecules)
 
@@ -110,12 +131,12 @@ def shakemd(
 def refine_density(
     molecule: Molecule,
     density: float,
-    step_size=50,
+    step_size: int = 50,
     model: str = "UFF",
-    settings: Settings = None,
+    settings: Optional[Settings] = None,
     nproc: int = 1,
     maxiterations: int = 100,
-):
+) -> Molecule:
     """
 
     Performs a series of geometry optimizations with densities approaching
@@ -179,14 +200,14 @@ def refine_density(
 
 def refine_lattice(
     molecule: Molecule,
-    lattice,
-    n_points=None,
-    max_strain=0.15,
+    lattice: List[List[float]],
+    n_points: Optional[int] = None,
+    max_strain: float = 0.15,
     model: str = "UFF",
-    settings: Settings = None,
+    settings: Optional[Settings] = None,
     nproc: int = 1,
     maxiterations: int = 10,
-):
+) -> Optional[Molecule]:
     """
 
     Returns a ``Molecule`` for which the lattice of the ``molecule`` is
@@ -232,7 +253,7 @@ def refine_lattice(
         len(lattice) >= 1 and len(lattice) <= 3
     ), f"{len(lattice)} lattice vectors given but must be between 1 and 3. Lattice: {lattice}"
 
-    def lattice2str(latt):
+    def lattice2str(latt: List[List[float]]) -> str:
         return "\n".join(" ".join(str(j) for j in i) for i in latt)
 
     if n_points is None:
@@ -270,7 +291,7 @@ def refine_lattice(
     return final_molecule
 
 
-def _ensure_init():
+def _ensure_init() -> bool:
     if get_config().init:
         called_plams_init = False
     else:
@@ -283,7 +304,7 @@ def _ensure_init():
     return called_plams_init
 
 
-def model_to_settings(model: str):
+def model_to_settings(model: str) -> Settings:
     """
     Returns Settings
     """
@@ -308,7 +329,7 @@ def model_to_settings(model: str):
     return settings
 
 
-def _get_quick_settings(model, settings, nproc):
+def _get_quick_settings(model: str, settings: Settings, nproc: int) -> Settings:
     if settings is None:
         my_settings = model_to_settings(model)
     else:

@@ -5,6 +5,13 @@ to be pased as input to an AMSJob.
 This class can do that.
 """
 
+from typing import Optional, Tuple, Sequence, List
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from scm.plams.tools.kftools import KFFile
+
 __all__ = ["ForceFieldPatch", "forcefield_params_from_kf"]
 
 
@@ -13,26 +20,26 @@ class ForceFieldPatch:
     Class representing an Amber format force field patch file, as created by AMS
     """
 
-    def __init__(self, text=None):
+    def __init__(self, text: Optional[str] = None):
         """
         Creates an instance of the class ForceFieldPatch
         """
         # Set all instance variables
         self.comment = ""
 
-        self.types = []
-        self.bondtypes = []
-        self.angletypes = []
-        self.dihedraltypes = []
-        self.impropertypes = []
-        self.ljtypes = []
+        self.types: List[str] = []
+        self.bondtypes: List[List[str]] = []
+        self.angletypes: List[List[str]] = []
+        self.dihedraltypes: List[List[str]] = []
+        self.impropertypes: List[List[str]] = []
+        self.ljtypes: List[str] = []
 
-        self.typelines = []
-        self.bondlines = []
-        self.anglelines = []
-        self.dihedrallines = []
-        self.improperlines = []
-        self.ljlines = []
+        self.typelines: List[str] = []
+        self.bondlines: List[str] = []
+        self.anglelines: List[str] = []
+        self.dihedrallines: List[str] = []
+        self.improperlines: List[str] = []
+        self.ljlines: List[str] = []
 
         # Read the sections, and set the parameters
         if text is not None:
@@ -45,7 +52,7 @@ class ForceFieldPatch:
             self._set_impropers(lines)
             self._set_ljparams(lines)
 
-    def get_text(self):
+    def get_text(self) -> str:
         """
         Create the full patch text
         """
@@ -68,7 +75,7 @@ class ForceFieldPatch:
         block += "\nEND\n"
         return block
 
-    def copy(self):
+    def copy(self) -> "ForceFieldPatch":
         """
         Returns a copy of self
         """
@@ -91,7 +98,7 @@ class ForceFieldPatch:
 
         return ret
 
-    def clear(self):
+    def clear(self) -> None:
         """
         Empty self
         """
@@ -103,19 +110,19 @@ class ForceFieldPatch:
         self._set_impropers([])
         self._set_ljparams([])
 
-    def __len__(self):
+    def __len__(self) -> int:
         """
         Returns the size of the patch
         """
         return len(self.types)
 
-    def __str__(self):
+    def __str__(self) -> str:
         """
         Returns the patch as text
         """
         return self.get_text()
 
-    def __add__(self, other):
+    def __add__(self, other: "ForceFieldPatch") -> "ForceFieldPatch":
         """
         Combine two patch files
         """
@@ -145,30 +152,30 @@ class ForceFieldPatch:
 
         return ret
 
-    def read_from_kf(self, kf):
+    def read_from_kf(self, kf: "KFFile") -> None:
         """
         Read patch infor from kf
         """
         if len(self) > 0:
             self.clear()
-        npatches = kf.read("AMSResults", "Config.nPatches")
+        npatches: int = kf.read("AMSResults", "Config.nPatches")
         patch = ForceFieldPatch()
         if npatches > 0:
-            patchtext = kf.read("AMSResults", "Config.FFPatch(1)")
+            patchtext: str = kf.read("AMSResults", "Config.FFPatch(1)")
             patch += ForceFieldPatch(patchtext)
 
         for key in vars(patch):
             if "type" in key or "lines" in key or "comment" in key:
                 self.__dict__[key] = patch.__dict__[key]
 
-    def write_to_kf(self, kf):
+    def write_to_kf(self, kf: "KFFile") -> None:
         """
         Write the patch info to KF
         """
         kf.write("AMSResults", "Config.nPatches", 1)
         kf.write("AMSResults", "Config.FFPatch(1)", str(self))
 
-    def _set_types(self, lines):
+    def _set_types(self, lines: Sequence[str]) -> None:
         """
         Read the atom types
         """
@@ -183,7 +190,7 @@ class ForceFieldPatch:
         self.types = types
         self.typelines = typelines
 
-    def _set_bonds(self, lines):
+    def _set_bonds(self, lines: Sequence[str]) -> None:
         """
         Set the bond parameters from the list of lines
         """
@@ -191,7 +198,7 @@ class ForceFieldPatch:
         self.bondtypes = b
         self.bondlines = blines
 
-    def _set_angles(self, lines):
+    def _set_angles(self, lines: Sequence[str]) -> None:
         """
         Set the angle parameters from list of lines
         """
@@ -199,7 +206,7 @@ class ForceFieldPatch:
         self.angletypes = a
         self.anglelines = alines
 
-    def _set_dihedrals(self, lines):
+    def _set_dihedrals(self, lines: Sequence[str]) -> None:
         """
         Set the dihedral parameters from list of lines
         """
@@ -207,7 +214,7 @@ class ForceFieldPatch:
         self.dihedraltypes = d
         self.dihedrallines = dlines
 
-    def _set_impropers(self, lines):
+    def _set_impropers(self, lines: Sequence[str]) -> None:
         """
         Set improper parameters from list of lines
         """
@@ -215,7 +222,7 @@ class ForceFieldPatch:
         self.impropertypes = imp
         self.improperlines = implines
 
-    def _set_ljparams(self, lines):
+    def _set_ljparams(self, lines: Sequence[str]) -> None:
         """
         Set the Lennard-Jones paramters from list of lines
         """
@@ -224,7 +231,7 @@ class ForceFieldPatch:
         self.ljlines = ljlines
 
     @staticmethod
-    def _read_atoms(lines, nats=2, improper=False):
+    def _read_atoms(lines: Sequence[str], nats: int = 2, improper: bool = False) -> Tuple[List[List[str]], List[str]]:
         """
         Read the atoms from the patch lines for bond, angle, dihedral parameters
 
@@ -234,8 +241,8 @@ class ForceFieldPatch:
         positions = [2 + (i * step) for i in range(nats)]
         intervals = [((i * step), (i * step) + step - 1) for i in range(nats)]
 
-        atomlist = []
-        line_list = []
+        atomlist: List[List[str]] = []
+        line_list: List[str] = []
         for line in lines[1:]:
             if len(line) - 1 < max(positions):
                 continue
@@ -259,13 +266,13 @@ class ForceFieldPatch:
         return atomlist, line_list
 
     @staticmethod
-    def _read_LJtypes(lines):
+    def _read_LJtypes(lines: Sequence[str]) -> Tuple[List[str], List[str]]:
         """
         Read the LJ info from the patch file lines
         """
         start = False
-        ljtypes = []
-        ljlines = []
+        ljtypes: List[str] = []
+        ljlines: List[str] = []
         for line in lines[1:]:
             if "MOD4      RE" in line:
                 start = True
@@ -281,13 +288,13 @@ class ForceFieldPatch:
         return ljtypes, ljlines
 
 
-def forcefield_params_from_kf(kf):
+def forcefield_params_from_kf(kf: "KFFile") -> Tuple[List[float], List[str], Optional[ForceFieldPatch]]:
     """
     Read the parameters from kf
     """
-    charges = kf.read("AMSResults", "Charges")
-    alltypes = kf.read("AMSResults", "AtomTyping.atomTypes").split("\x00")
-    indices = kf.read("AMSResults", "AtomTyping.atomIndexToType")
+    charges: List[float] = kf.read("AMSResults", "Charges", return_as_list=True)
+    alltypes: List[str] = kf.read("AMSResults", "AtomTyping.atomTypes").split("\x00")
+    indices: List[int] = kf.read("AMSResults", "AtomTyping.atomIndexToType", return_as_list=True)
     types = [alltypes[i - 1] for i in indices]
 
     # Read the force field patch

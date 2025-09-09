@@ -10,7 +10,23 @@ import tempfile
 import threading
 import time
 import weakref
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import (
+    Any,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+    Union,
+    Callable,
+    TypeVar,
+    TYPE_CHECKING,
+    NoReturn,
+    Mapping,
+    Sequence,
+    Set,
+    IO,
+)
+from typing_extensions import Concatenate, ParamSpec
 
 import numpy as np
 from scm.plams.core.errors import JobError, PlamsError, ResultsError
@@ -23,6 +39,18 @@ from scm.plams.interfaces.molecule.ase import toASE
 from scm.plams.tools.units import Units
 from scm.plams.core.threading_utils import ContextAwareThread
 
+if TYPE_CHECKING:
+    from scm.plams.mol.molecule import Molecule
+    from ase import Atoms as ASEAtoms
+    from scm.amspipe import AMSPipeError
+    import psutil
+
+T = TypeVar("T")
+TSelf = TypeVar("TSelf", bound="AMSWorker")
+TPool = TypeVar("TPool", bound="AMSWorkerPool")
+TWorkerResult = TypeVar("TWorkerResult", "AMSWorkerResults", "AMSWorkerMDState")
+P = ParamSpec("P")
+
 TMPDIR = os.environ["SCM_TMPDIR"] if "SCM_TMPDIR" in os.environ else None
 
 if os.name == "nt":
@@ -32,7 +60,7 @@ if os.name == "nt":
 
     kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)  # type: ignore
 
-    def CheckHandle(result, func, arguments):
+    def CheckHandle(result: Optional[int], func: Any, arguments: Any) -> Optional[int]:
         if result == ctypes.wintypes.HANDLE(-1).value:
             raise ctypes.WinError(ctypes.get_last_error())  # type: ignore
         else:
@@ -49,7 +77,7 @@ if os.name == "nt":
     PIPE_WAIT = 0x00000000
     ERROR_PIPE_CONNECTED = 535
 
-    def CheckConnect(result, func, arguments):
+    def CheckConnect(result: Optional[int], func: Any, arguments: Any) -> Optional[int]:
         if result == 0:
             error = ctypes.get_last_error()  # type: ignore
             if error != ERROR_PIPE_CONNECTED:
@@ -72,14 +100,14 @@ spawn_lock = threading.Lock()
 __all__ = ["AMSWorker", "AMSWorkerResults", "AMSWorkerError", "AMSWorkerPool"]
 
 
-def _restrict(func):
+def _restrict(func: Callable[Concatenate[TWorkerResult, P], T]) -> Callable[Concatenate[TWorkerResult, P], Optional[T]]:
     """Decorator that wraps methods of |AMSWorkerResults| instances.
 
     This is used to replicate the behaviour of the full |AMSResults| object: Access to the values in an |AMSWorkerResults| instance will first check if the calculation leading to the results finish correctly and raise a |ResultsError| error exception if this is not the case. This behaviour can be modified with the ``config.ignore_failure`` setting.
     """
 
     @functools.wraps(func)
-    def guardian(self, *args, **kwargs):
+    def guardian(self: TWorkerResult, /, *args: P.args, **kwargs: P.kwargs) -> Optional[T]:
         if self.ok():
             return func(self, *args, **kwargs)
         else:
@@ -109,16 +137,22 @@ class AMSWorkerResults:
         AMSWorkerResults is *not* a subclass of |Results| or |AMSResults|. It does however implement some commonly used methods of the |AMSResults| class, so that results calculated by |AMSJob| and |AMSWorker| can be accessed in a uniform way.
     """
 
-    def __init__(self, name, molecule, results, error=None):
+    def __init__(
+        self,
+        name: str,
+        molecule: "Molecule",
+        results: Dict[str, Any],
+        error: Optional[Union["AMSPipeError", "AMSWorkerError"]] = None,
+    ):
         self._name = name
         self._input_molecule = molecule
         self.error = error
         self._results = results
-        self._main_molecule = None
-        self._main_ase_atoms = None
+        self._main_molecule: Optional["Molecule"] = None
+        self._main_ase_atoms: Optional["ASEAtoms"] = None
 
     @property
-    def name(self):
+    def name(self) -> str:
         """The name of a calculation.
 
         That is the name that was passed into the |AMSWorker| method when this |AMSWorkerResults| object was created. I can not be changed after the |AMSWorkerResults| instance has been created.
@@ -126,17 +160,17 @@ class AMSWorkerResults:
         return self._name
 
     @name.setter
-    def name(self, _):
+    def name(self, _: str) -> NoReturn:
         raise ResultsError("The name attribute of AMSWorkerResults may not be changed.")
 
-    def ok(self):
+    def ok(self) -> bool:
         """Check if the calculation was successful. If not, the ``error`` attribute contains a corresponding exception.
 
         Users should check if the calculation was successful before using the other methods of the |AMSWorkerResults| instance, as using them might raise a |ResultsError| exception otherwise.
         """
         return self.error is None
 
-    def get_errormsg(self):
+    def get_errormsg(self) -> Optional[str]:
         """Attempts to retreive a human readable error message from a crashed job. Returns ``None`` for jobs without errors."""
         if self.ok():
             return None
@@ -151,12 +185,12 @@ class AMSWorkerResults:
                 return "Could not determine error message. Please check the error.stdout and error.stderr manually."
 
     @_restrict
-    def get_energy(self, unit="au"):
+    def get_energy(self, unit: str = "au") -> float:
         """Return the total energy, expressed in *unit*."""
         return self._results["energy"] * Units.conversion_ratio("au", unit)
 
     @_restrict
-    def get_gradients(self, energy_unit="au", dist_unit="au"):
+    def get_gradients(self, energy_unit: str = "au", dist_unit: str = "au") -> np.ndarray:
         """Return the nuclear gradients of the total energy, expressed in *energy_unit* / *dist_unit*."""
         return (
             self._results["gradients"]
@@ -165,63 +199,63 @@ class AMSWorkerResults:
         )
 
     @_restrict
-    def get_stresstensor(self):
+    def get_stresstensor(self) -> np.ndarray:
         """Return the clamped-ion stress tensor, expressed in atomic units."""
         return self._results["stressTensor"]
 
     @_restrict
-    def get_hessian(self):
+    def get_hessian(self) -> np.ndarray:
         """Return the Hessian matrix, i.e. the second derivative of the total energy with respect to the nuclear coordinates, expressed in atomic units."""
         return self._results["hessian"]
 
     @_restrict
-    def get_elastictensor(self):
+    def get_elastictensor(self) -> np.ndarray:
         """Return the elastic tensor, expressed in atomic units."""
         return self._results["elasticTensor"]
 
-    def get_poissonratio(self):
+    def get_poissonratio(self) -> float:
         bm = self.get_bulkmodulus()
         sm = self.get_shearmodulus()
         return (3 * bm - 2 * sm) / (6 * bm + 2 * sm)
 
-    def get_youngmodulus(self, unit="au"):
+    def get_youngmodulus(self, unit: str = "au") -> float:
         bm = self.get_bulkmodulus()
         sm = self.get_shearmodulus()
         ym = (9 * bm * sm) / (3 * bm + sm)
         return ym * Units.conversion_ratio("au", unit)
 
-    def get_shearmodulus(self, unit="au"):
+    def get_shearmodulus(self, unit: str = "au") -> float:
         et = self.get_elastictensor()
-        if et.shape != (6, 6):
+        if et is None or et.shape != (6, 6):
             raise ResultsError("Elastic moduli can only be calculated for bulk systems.")
         sm = (
             (et[0, 0] + et[1, 1] + et[2, 2]) - (et[0, 1] + et[0, 2] + et[1, 2]) + 3 * (et[3, 3] + et[4, 4] + et[5, 5])
         ) / 15
         return sm * Units.conversion_ratio("au", unit)
 
-    def get_bulkmodulus(self, unit="au"):
+    def get_bulkmodulus(self, unit: str = "au") -> float:
         et = self.get_elastictensor()
-        if et.shape != (6, 6):
+        if et is None or et.shape != (6, 6):
             raise ResultsError("Elastic moduli can only be calculated for bulk systems.")
         bm = np.sum(et[0:3, 0:3]) / 9
         return bm * Units.conversion_ratio("au", unit)
 
     @_restrict
-    def get_charges(self):
+    def get_charges(self) -> np.ndarray:
         """Return the atomic charges, expressed in atomic units."""
         return self._results["charges"]
 
     @_restrict
-    def get_dipolemoment(self):
+    def get_dipolemoment(self) -> np.ndarray:
         """Return the electric dipole moment, expressed in atomic units."""
         return self._results["dipoleMoment"]
 
     @_restrict
-    def get_dipolegradients(self):
+    def get_dipolegradients(self) -> np.ndarray:
         """Return the nuclear gradients of the electric dipole moment, expressed in atomic units. This is a (3*numAtoms x 3) matrix."""
         return self._results["dipoleGradients"]
 
-    def get_input_molecule(self):
+    def get_input_molecule(self) -> "Molecule":
         """Return a |Molecule| instance with the coordinates passed into the |AMSWorker|.
 
         Note that this method may also be used if the calculation producing this |AMSWorkerResults| object has failed, i.e. :meth:`ok` is ``False``.
@@ -229,7 +263,7 @@ class AMSWorkerResults:
         return self._input_molecule
 
     @_restrict
-    def get_main_molecule(self):
+    def get_main_molecule(self) -> "Molecule":
         """Return a |Molecule| instance with the final coordinates."""
         if self._main_molecule is None:
             if self._results is not None and "xyzAtoms" in self._results:
@@ -246,7 +280,7 @@ class AMSWorkerResults:
 
     @_restrict
     @requires_optional_package("ase")
-    def get_main_ase_atoms(self):
+    def get_main_ase_atoms(self) -> "ASEAtoms":
         """Return an ASE Atoms instance with the final coordinates."""
         from ase import Atoms
 
@@ -278,13 +312,13 @@ class AMSWorkerResults:
 class AMSWorkerMDState:
     """A specialized class encapsulating the MD states from calls to an |AMSWorker|."""
 
-    def __init__(self, name, state, error=None):
+    def __init__(self, name: str, state: Dict[str, Any], error: Optional[str] = None):
         self._name = name
         self.error = error
         self._state = state
 
     @property
-    def name(self):
+    def name(self) -> str:
         """The name of a calculation.
 
         That is the name that was passed into the |AMSWorker| method when this |AMSWorkerResults| object was created. I can not be changed after the |AMSWorkerResults| instance has been created.
@@ -292,17 +326,17 @@ class AMSWorkerMDState:
         return self._name
 
     @name.setter
-    def name(self, _):
+    def name(self, _: str) -> NoReturn:
         raise ResultsError("The name attribute of AMSWorkerResults may not be changed.")
 
-    def ok(self):
+    def ok(self) -> bool:
         """Check if the calculation was successful. If not, the ``error`` attribute contains a corresponding exception.
 
         Users should check if the calculation was successful before using the other methods of the |AMSWorkerResults| instance, as using them might raise a |ResultsError| exception otherwise.
         """
         return self.error is None
 
-    def get_errormsg(self):
+    def get_errormsg(self) -> Optional[str]:
         """Attempts to retreive a human readable error message from a crashed job. Returns ``None`` for jobs without errors."""
         if self.ok():
             return None
@@ -317,17 +351,17 @@ class AMSWorkerMDState:
                 return "Could not determine error message. Please check the error.stdout and error.stderr manually."
 
     @_restrict
-    def get_potentialenergy(self, unit="au"):
+    def get_potentialenergy(self, unit: str = "au") -> float:
         """Return the potential energy, expressed in *unit*."""
         return self._state["potentialEnergy"] * Units.conversion_ratio("au", unit)
 
     @_restrict
-    def get_kineticenergy(self, unit="au"):
+    def get_kineticenergy(self, unit: str = "au") -> float:
         """Return the kinetic energy, expressed in *unit*."""
         return self._state["kineticEnergy"] * Units.conversion_ratio("au", unit)
 
     @_restrict
-    def get_velocities(self, dist_unit="Angstrom", time_unit="fs"):
+    def get_velocities(self, dist_unit: str = "Angstrom", time_unit: str = "fs") -> np.ndarray:
         """Return the atomic velocities, expressed in *dist_unit* / *time_unit*."""
         return (
             self._state["velocities"]
@@ -336,12 +370,12 @@ class AMSWorkerMDState:
         )
 
     @_restrict
-    def get_latticevectors(self, unit="Angstrom"):
+    def get_latticevectors(self, unit: str = "Angstrom") -> np.ndarray:
         """Return the lattice vectors, expressed in *unit*."""
         return self._state["latticeVectors"] * Units.conversion_ratio("au", unit)
 
     @_restrict
-    def get_coords(self, unit="Angstrom"):
+    def get_coords(self, unit: str = "Angstrom") -> np.ndarray:
         """Return an array of MD state coordinates"""
         return self._state["xyzAtoms"] * Units.conversion_ratio("au", unit)
 
@@ -352,19 +386,19 @@ class AMSWorkerError(PlamsError):
     The output from the failed worker process is stored in the ``stdout`` and ``stderr`` attributes.
     """
 
-    def __init__(self, *args):
+    def __init__(self, *args: Any):
         super().__init__(*args)
-        self.stdout = None
-        self.stderr = None
+        self.stdout: Optional[List[str]] = None
+        self.stderr: Optional[List[str]] = None
 
-    def __str__(self):
+    def __str__(self) -> str:
         msg = super().__str__()
         if self.stderr is not None:
             return "".join([msg, "\n"] + self.stderr)
         else:
             return msg
 
-    def get_errormsg(self):
+    def get_errormsg(self) -> str:
         lines = str(self).splitlines()
         if lines:
             for line in reversed(lines):
@@ -421,12 +455,12 @@ class AMSWorker:
     @requires_optional_package("psutil", "nt")
     def __init__(
         self,
-        settings,
-        workerdir_root=TMPDIR,
-        workerdir_prefix="amsworker",
-        use_restart_cache=True,
-        keep_crashed_workerdir=False,
-        always_keep_workerdir=False,
+        settings: Settings,
+        workerdir_root: Optional[str] = TMPDIR,
+        workerdir_prefix: str = "amsworker",
+        use_restart_cache: bool = True,
+        keep_crashed_workerdir: bool = False,
+        always_keep_workerdir: bool = False,
     ):
 
         self.PyProtVersion = 1
@@ -437,11 +471,11 @@ class AMSWorker:
         # They will be overwritten when we actually start things up, but we do
         # not want them to be undefined for now, just in case of errors ...
         self.proc = None
-        self.callpipe = None
-        self.replypipe = None
+        self.callpipe: Optional[IO[bytes]] = None
+        self.replypipe: Optional[IO[bytes]] = None
 
-        self.restart_cache = set()
-        self.restart_cache_deleted = set()
+        self.restart_cache: Set[str] = set()
+        self.restart_cache_deleted: Set[str] = set()
 
         # Check if the settings we have are actually suitable for a PipeWorker.
         # They should not contain certain keywords and blocks.
@@ -472,7 +506,7 @@ class AMSWorker:
         # Start the worker process.
         self._start_subprocess()
 
-    def _start_subprocess(self):
+    def _start_subprocess(self) -> None:
 
         # We will use the standard PLAMS AMSJob class to prepare our input and runscript.
         amsjob = AMSJob(name="amsworker", settings=self.settings)
@@ -579,7 +613,7 @@ class AMSWorker:
             exc.stdout, exc.stderr = self.stop()
             raise
 
-    def _startup_watcher(self, workerdir):
+    def _startup_watcher(self, workerdir: str) -> None:
         while not self._stop_watcher.is_set():
             try:
                 # ToDo: verify behaviour with None proc
@@ -602,12 +636,12 @@ class AMSWorker:
                 # self.proc is still alive.
                 pass
 
-    def __enter__(self):
+    def __enter__(self: TSelf) -> TSelf:
         return self
 
     if os.name == "nt":
 
-        def _find_worker_processes(self):
+        def _find_worker_processes(self) -> Set["psutil.Process"]:
             # This is a convoluted workaround for the fact that the MSYS sh.exe on Windows likes to
             # launch commands as detached grandchildren, not direct children, so we can't track them
             # down just by following PPIDs. We thus have to resort to heuristics to find all processes
@@ -628,7 +662,7 @@ class AMSWorker:
                     break
 
             # Convert PIDs to Process objects ASAP to minimize the potential for races with PID reuse.
-            console_procs = []
+            console_procs: List[psutil.Process] = []
             for pid in console_pids[0:n]:
                 try:
                     console_procs.append(psutil.Process(pid))
@@ -638,7 +672,7 @@ class AMSWorker:
 
             # Find all "(ba)sh.exe" processes on this console that are running in self.workerdir
             # and add them to worker_procs including all descendants.
-            worker_procs = set()
+            worker_procs: Set[psutil.Process] = set()
             for proc in console_procs:
                 if proc in worker_procs:
                     continue
@@ -651,7 +685,7 @@ class AMSWorker:
 
             return worker_procs
 
-    def stop(self, keep_workerdir=False):
+    def stop(self, keep_workerdir: bool = False) -> Tuple[Optional[List[str]], Optional[List[str]]]:
         """Stops the worker process and removes its working directory.
 
         This method should be called when the |AMSWorker| instance is not used as a context manager and the instance is no longer needed. Otherwise proper cleanup is not guaranteed to happen, the worker process might be left running and files might be left on disk.
@@ -755,22 +789,22 @@ class AMSWorker:
                 else:
 
                     @retry(maxtries=10)
-                    def retry_unlink(file_path):
+                    def retry_unlink(file_path: str) -> None:
                         os.unlink(file_path)
 
                     retry_unlink(file_path)
 
         return (stdout, stderr)
 
-    def __exit__(self, *args):
+    def __exit__(self, *args: Any) -> None:
         self.stop()
 
-    def _delete_from_restart_cache(self, name):
+    def _delete_from_restart_cache(self, name: str) -> None:
         if name in self.restart_cache:
             self.restart_cache.remove(name)
             self.restart_cache_deleted.add(name)
 
-    def _prune_restart_cache(self):
+    def _prune_restart_cache(self) -> None:
         for name in list(self.restart_cache_deleted):
             self._call("DeleteResults", {"title": name})
         self.restart_cache_deleted.clear()
@@ -788,7 +822,7 @@ class AMSWorker:
             return False
 
     @staticmethod
-    def _settings_to_args(s: Settings) -> Dict:
+    def _settings_to_args(s: Settings) -> Dict[str, Any]:
         """
         Return a **request_kwargs corresponding to a given settings object.
 
@@ -811,13 +845,13 @@ class AMSWorker:
         return args
 
     @staticmethod
-    def _args_to_settings(**kwargs) -> Settings:
+    def _args_to_settings(**kwargs: Any) -> Settings:
         s = Settings()
         for key, val in kwargs.items():
             s.set_nested(_arg2setting[key], val)
         return s
 
-    def _solve_from_settings(self, name, molecule, settings):
+    def _solve_from_settings(self, name: str, molecule: "Molecule", settings: Settings) -> AMSWorkerResults:
         args = AMSWorker._settings_to_args(settings)
         if args["task"].lower() == "geometryoptimization":
             args["gradients"] = True  # need to explicitly set gradients to True to get them in the AMSWorkerResults
@@ -827,32 +861,32 @@ class AMSWorker:
 
     def _solve(
         self,
-        name,
-        molecule,
-        task,
-        prev_results=None,
-        quiet=True,
-        gradients=False,
-        stresstensor=False,
-        hessian=False,
-        elastictensor=False,
-        charges=False,
-        dipolemoment=False,
-        dipolegradients=False,
-        method=None,
-        coordinatetype=None,
-        usesymmetry=None,
-        optimizelattice=False,
-        maxiterations=None,
-        pretendconverged=None,
-        calcpropertiesonlyifconverged=True,
-        convquality=None,
-        convenergy=None,
-        convgradients=None,
-        convstep=None,
-        convstressenergyperatom=None,
-        constraints=None,
-    ):
+        name: str,
+        molecule: "Molecule",
+        task: str,
+        prev_results: Optional[Union[AMSWorkerResults, AMSWorkerMDState]] = None,
+        quiet: bool = True,
+        gradients: bool = False,
+        stresstensor: bool = False,
+        hessian: bool = False,
+        elastictensor: bool = False,
+        charges: bool = False,
+        dipolemoment: bool = False,
+        dipolegradients: bool = False,
+        method: Optional[str] = None,
+        coordinatetype: Optional[str] = None,
+        usesymmetry: Optional[bool] = None,
+        optimizelattice: bool = False,
+        maxiterations: Optional[int] = None,
+        pretendconverged: Optional[bool] = None,
+        calcpropertiesonlyifconverged: bool = True,
+        convquality: Optional[str] = None,
+        convenergy: Optional[float] = None,
+        convgradients: Optional[float] = None,
+        convstep: Optional[float] = None,
+        convstressenergyperatom: Optional[float] = None,
+        constraints: Optional[Settings] = None,
+    ) -> AMSWorkerResults:
         from scm.amspipe import AMSPipeRuntimeError
 
         if self.use_restart_cache and name in self.restart_cache:
@@ -862,7 +896,7 @@ class AMSWorker:
 
             self._prepare_system(molecule)
 
-            args = {
+            args: Dict[str, Any] = {
                 "request": {"title": str(name)},
                 "keepResults": self.use_restart_cache,
             }
@@ -919,31 +953,31 @@ class AMSWorker:
                 results = self._call("Optimize", args)
                 # For now, add the optimization results to the results object
                 # This way they are separated on the AMS side, but not yet on the Python side
-                if len(results) > 1:
+                if results is not None and len(results) > 1:
                     results[0]["results"].update(results[1]["optimizationResults"])
             else:
                 results = self._call("Solve", args)
 
-            results = self._unflatten_arrays(results[0]["results"])
-            results = AMSWorkerResults(name, molecule, results)
+            results = self._unflatten_arrays(results[0]["results"])  # type: ignore
+            results = AMSWorkerResults(name, molecule, results)  # type: ignore
 
             if self.use_restart_cache:
                 self.restart_cache.add(name)
                 weakref.finalize(results, self._delete_from_restart_cache, name)
 
-            return results
+            return results  # type: ignore
 
         except AMSPipeRuntimeError as exc:
-            return AMSWorkerResults(name, molecule, None, exc)
+            return AMSWorkerResults(name, molecule, {}, exc)
         except AMSWorkerError as exc:
             # Something went wrong. Our worker process might also be down.
             # Let's reset everything to be safe ...
             exc.stdout, exc.stderr = self.stop()
             self._start_subprocess()
             # ... and return an AMSWorkerResults object indicating our failure.
-            return AMSWorkerResults(name, molecule, None, exc)
+            return AMSWorkerResults(name, molecule, {}, exc)
 
-    def _prepare_system(self, molecule):
+    def _prepare_system(self, molecule: "Molecule") -> None:
         # This is a good opportunity to let the worker process know about all the results we no longer need ...
         self._prune_restart_cache()
 
@@ -969,18 +1003,18 @@ class AMSWorker:
 
     def SinglePoint(
         self,
-        name,
-        molecule,
-        prev_results=None,
-        quiet=True,
-        gradients=False,
-        stresstensor=False,
-        hessian=False,
-        elastictensor=False,
-        charges=False,
-        dipolemoment=False,
-        dipolegradients=False,
-    ):
+        name: str,
+        molecule: "Molecule",
+        prev_results: Optional[AMSWorkerResults] = None,
+        quiet: bool = True,
+        gradients: bool = False,
+        stresstensor: bool = False,
+        hessian: bool = False,
+        elastictensor: bool = False,
+        charges: bool = False,
+        dipolemoment: bool = False,
+        dipolegradients: bool = False,
+    ) -> AMSWorkerResults:
         """Performs a single point calculation on the geometry given by the |Molecule| instance *molecule* and returns an instance of |AMSWorkerResults| containing the results.
 
         Every calculation should be given a *name*. Note that the name **must be unique** for this |AMSWorker| instance: One should not attempt to reuse calculation names with a given instance of |AMSWorker|.
@@ -1021,31 +1055,31 @@ class AMSWorker:
 
     def GeometryOptimization(
         self,
-        name,
-        molecule,
-        prev_results=None,
-        quiet=True,
-        gradients=True,
-        stresstensor=False,
-        hessian=False,
-        elastictensor=False,
-        charges=False,
-        dipolemoment=False,
-        dipolegradients=False,
-        method=None,
-        coordinatetype=None,
-        usesymmetry=None,
-        optimizelattice=False,
-        maxiterations=None,
-        pretendconverged=None,
-        calcpropertiesonlyifconverged=True,
-        convquality=None,
-        convenergy=None,
-        convgradients=None,
-        convstep=None,
-        convstressenergyperatom=None,
-        constraints=None,
-    ):
+        name: str,
+        molecule: "Molecule",
+        prev_results: Optional[AMSWorkerResults] = None,
+        quiet: bool = True,
+        gradients: bool = True,
+        stresstensor: bool = False,
+        hessian: bool = False,
+        elastictensor: bool = False,
+        charges: bool = False,
+        dipolemoment: bool = False,
+        dipolegradients: bool = False,
+        method: Optional[str] = None,
+        coordinatetype: Optional[str] = None,
+        usesymmetry: Optional[bool] = None,
+        optimizelattice: bool = False,
+        maxiterations: Optional[int] = None,
+        pretendconverged: Optional[bool] = None,
+        calcpropertiesonlyifconverged: bool = True,
+        convquality: Optional[str] = None,
+        convenergy: Optional[float] = None,
+        convgradients: Optional[float] = None,
+        convstep: Optional[float] = None,
+        convstressenergyperatom: Optional[float] = None,
+        constraints: Optional[Settings] = None,
+    ) -> AMSWorkerResults:
         """Performs a geometry optimization on the |Molecule| instance *molecule* and returns an instance of |AMSWorkerResults| containing the results from the optimized geometry.
 
         The geometry optimizer can be controlled using the following keyword arguments:
@@ -1081,13 +1115,13 @@ class AMSWorker:
 
     def MolecularDynamics(
         self,
-        name,
-        nsteps=None,
-        trajectorysamplingfrequency=None,
-        checkpointfrequency=None,
-        pipesamplingfrequency=None,
-        setsteptozero=False,
-    ):
+        name: str,
+        nsteps: Optional[int] = None,
+        trajectorysamplingfrequency: Optional[int] = None,
+        checkpointfrequency: Optional[int] = None,
+        pipesamplingfrequency: Optional[int] = None,
+        setsteptozero: bool = False,
+    ) -> List[AMSWorkerMDState]:
         try:
             args = {"title": str(name), "setStepToZero": bool(setsteptozero)}
             if nsteps is not None:
@@ -1101,10 +1135,11 @@ class AMSWorker:
 
             _states = self._call("RunMD", args)
 
-            states = []
-            for state in _states:
-                state = self._unflatten_arrays(state["state"])
-                states.append(AMSWorkerMDState(name, state))
+            states: List[AMSWorkerMDState] = []
+            if _states is not None:
+                for state in _states:
+                    state = self._unflatten_arrays(state["state"])
+                    states.append(AMSWorkerMDState(name, state))
 
             return states
 
@@ -1115,7 +1150,7 @@ class AMSWorker:
             self._start_subprocess()
             raise
 
-    def CreateMDState(self, name, molecule):
+    def CreateMDState(self, name: str, molecule: "Molecule") -> None:
         try:
 
             self._prepare_system(molecule)
@@ -1135,7 +1170,13 @@ class AMSWorker:
             self._start_subprocess()
             raise
 
-    def GenerateVelocities(self, name, randomvelocitiestemperature, randomvelocitiesmethod=None, setsteptozero=False):
+    def GenerateVelocities(
+        self,
+        name: str,
+        randomvelocitiestemperature: float,
+        randomvelocitiesmethod: Optional[str] = None,
+        setsteptozero: bool = False,
+    ) -> AMSWorkerMDState:
         try:
             args = {
                 "title": str(name),
@@ -1147,10 +1188,10 @@ class AMSWorker:
 
             state = self._call("GenerateVelocities", args)
 
-            state = self._unflatten_arrays(state[0]["state"])
-            state = AMSWorkerMDState(name, state)
+            state = self._unflatten_arrays(state[0]["state"])  # type: ignore
+            state = AMSWorkerMDState(name, state)  # type: ignore
 
-            return state
+            return state  # type: ignore
 
         except AMSWorkerError as exc:
             # Something went wrong. Our worker process might also be down.
@@ -1159,12 +1200,14 @@ class AMSWorker:
             self._start_subprocess()
             raise
 
-    def PrepareMD(self, trajfilename):
+    def PrepareMD(self, trajfilename: str) -> None:
         args = {"trajFileName": str(trajfilename)}
 
         self._call("PrepareMD", args)
 
-    def SetVelocities(self, name, velocities, dist_unit="Angstrom", time_unit="fs"):
+    def SetVelocities(
+        self, name: str, velocities: np.ndarray, dist_unit: str = "Angstrom", time_unit: str = "fs"
+    ) -> None:
         velocities = (
             np.array(velocities) * Units.conversion_ratio(dist_unit, "au") / Units.conversion_ratio(time_unit, "au")
         )
@@ -1172,22 +1215,22 @@ class AMSWorker:
 
         self._call("SetVelocities", args)
 
-    def RenameMDState(self, name, newname):
+    def RenameMDState(self, name: str, newname: str) -> None:
         args = {"title": str(name), "newTitle": str(newname)}
 
         self._call("RenameMDState", args)
 
-    def CopyMDState(self, name, newname):
+    def CopyMDState(self, name: str, newname: str) -> None:
         args = {"title": str(name), "newTitle": str(newname)}
 
         self._call("CopyMDState", args)
 
-    def DeleteMDState(self, name):
+    def DeleteMDState(self, name: str) -> None:
         args = {"title": str(name)}
 
         self._call("DeleteMDState", args)
 
-    def ParseInput(self, program_name, text_input, string_leafs):
+    def ParseInput(self, program_name: str, text_input: str, string_leafs: bool) -> Dict[str, Any]:
         """Parse the text input and return a Python dictionary representing the JSONified input.
 
         - *program_name*: the name of the program. This will be used for loading the appropriate json input definitions. e.g. if program_name='adf', the input definition file 'adf.json' will be used.
@@ -1198,7 +1241,7 @@ class AMSWorker:
             reply = self._call(
                 "ParseInput", {"programName": program_name, "textInput": text_input, "stringLeafs": string_leafs}
             )
-            json_input = reply[0]["parsedInput"]["jsonInput"]
+            json_input = reply[0]["parsedInput"]["jsonInput"]  # type: ignore
             return json_input
         except AMSWorkerError as exc:
             # This failed badly, also the worker is likely down. Let's grab some info, restart it ...
@@ -1207,31 +1250,31 @@ class AMSWorker:
             # ... and then reraise the exception for the caller.
             raise
 
-    def _check_process(self):
+    def _check_process(self) -> bool:
         if self.proc is not None:
             status = self.proc.poll()
             return status is None
         else:
             return False
 
-    def _flatten_arrays(self, d):
+    def _flatten_arrays(self, d: Mapping) -> Dict:
         from scm.amspipe.utils import flatten_arrays
 
         return flatten_arrays(d)
 
-    def _unflatten_arrays(self, d):
+    def _unflatten_arrays(self, d: Mapping[str, Any]) -> Dict[str, Any]:
         from scm.amspipe.utils import unflatten_arrays
 
         return unflatten_arrays(d)
 
-    def _read_exactly(self, pipe, n):
+    def _read_exactly(self, pipe: IO[bytes], n: int) -> bytes:
         buf = pipe.read(n)
         if len(buf) == n:
             return buf
         else:
             raise EOFError("Message truncated to " + str(len(buf)))
 
-    def _call(self, method, args={}):
+    def _call(self, method: str, args: Dict[str, Any] = {}) -> Optional[List]:
         import ubjson
         from scm.amspipe import AMSPipeError
 
@@ -1251,9 +1294,10 @@ class AMSWorker:
         results: List = []
         while True:
             try:
-                msgbuf = self._read_exactly(self.replypipe, 4)
+                # ToDo: verify behaviour with None replypipe
+                msgbuf = self._read_exactly(self.replypipe, 4)  # type: ignore
                 msglen = struct.unpack("=i", msgbuf)[0]
-                msgbuf = self._read_exactly(self.replypipe, msglen)
+                msgbuf = self._read_exactly(self.replypipe, msglen)  # type: ignore
             except EOFError as exc:
                 raise AMSWorkerError("Error while trying to read a reply") from exc
 
@@ -1299,20 +1343,23 @@ class AMSWorkerPool:
     """
 
     def __init__(
-        self, settings, num_workers, workerdir_root=TMPDIR, workerdir_prefix="awp", keep_crashed_workerdir=False
+        self,
+        settings: Settings,
+        num_workers: int,
+        workerdir_root: Optional[str] = TMPDIR,
+        workerdir_prefix: str = "awp",
+        keep_crashed_workerdir: bool = False,
     ):
-        self.workers = num_workers * [None]
+        workers: List[Optional[AMSWorker]] = [None for _ in range(num_workers)]
         if num_workers == 1:
             # Do all the work in the main thread
-            AMSWorkerPool._spawn_worker(
-                self.workers, settings, 0, workerdir_root, workerdir_prefix, keep_crashed_workerdir
-            )
+            AMSWorkerPool._spawn_worker(workers, settings, 0, workerdir_root, workerdir_prefix, keep_crashed_workerdir)
         else:
             # Spawn all workers from separate threads to overlap the ams.exe startup latency
             threads = [
                 ContextAwareThread(
                     target=AMSWorkerPool._spawn_worker,
-                    args=(self.workers, settings, i, workerdir_root, workerdir_prefix, keep_crashed_workerdir),
+                    args=(workers, settings, i, workerdir_root, workerdir_prefix, keep_crashed_workerdir),
                 )
                 for i in range(num_workers)
             ]
@@ -1320,11 +1367,19 @@ class AMSWorkerPool:
                 t.start()
             for t in threads:
                 t.join()
-            if None in self.workers:
-                raise AMSWorkerError("Some AMSWorkers in the pool failed to start")
+        if None in workers:
+            raise AMSWorkerError("Some AMSWorkers in the pool failed to start")
+        self.workers: List[AMSWorker] = [w for w in workers if w is not None]
 
     @staticmethod
-    def _spawn_worker(workers, settings, i, wdr, wdp, keep_crashed_workerdir):
+    def _spawn_worker(
+        workers: List[Optional[AMSWorker]],
+        settings: Settings,
+        i: int,
+        wdr: Optional[str],
+        wdp: str,
+        keep_crashed_workerdir: bool,
+    ) -> None:
         workers[i] = AMSWorker(
             settings,
             workerdir_root=wdr,
@@ -1333,10 +1388,12 @@ class AMSWorkerPool:
             keep_crashed_workerdir=keep_crashed_workerdir,
         )
 
-    def __enter__(self):
+    def __enter__(self: TPool) -> TPool:
         return self
 
-    def _solve_from_settings(self, items, watch=False, watch_interval=60):
+    def _solve_from_settings(
+        self, items: Sequence[Tuple[str, "Molecule", Settings]], watch: bool = False, watch_interval: int = 60
+    ) -> List[Optional[AMSWorkerResults]]:
         """Request to pool to execute calculations for all items in the iterable *items*. Returns a list of |AMSWorkerResults| objects.
 
         The *items* argument is expected to be an iterable of 3-tuples ``(name, molecule, settings)``, which are passed on to the the :meth:`_solve_from_settings <AMSWorker._solve_from_settings>` method of the pool's |AMSWorker| instances.
@@ -1366,7 +1423,7 @@ class AMSWorkerPool:
 
         if len(self.workers) == 1:  # Do all the work in the main thread
 
-            results = []
+            results: List[Optional[AMSWorkerResults]] = []
             for name, mol, settings in items:
                 results.append(self.workers[0]._solve_from_settings(name, mol, settings))
                 if watch and progress_data is not None:
@@ -1374,7 +1431,7 @@ class AMSWorkerPool:
 
         else:  # Build a queue of things to do and spawn threads that grab from the queue in parallel
 
-            results = [None] * len(items)
+            results = [None for _ in range(len(items))]
             q: queue.Queue = queue.Queue()
 
             threads = [
@@ -1410,7 +1467,7 @@ class AMSWorkerPool:
         return results
 
     @staticmethod
-    def _progress_monitor(pd, t):
+    def _progress_monitor(pd: Dict[str, Any], t: int) -> None:
         width = len(str(pd["num_jobs"]))
         while True:
             if pd["done_event"].wait(timeout=t):
@@ -1427,13 +1484,15 @@ class AMSWorkerPool:
                 trem = ""
             log(f"{str(num_done).rjust(width)} / {pd['num_jobs']} jobs finished:{percent_done:5.1f}%{trem}")
 
-    def _prep_solve_from_settings(self, method, items):
+    def _prep_solve_from_settings(
+        self, method: str, items: Sequence[Union[Tuple[str, "Molecule"], Tuple[str, "Molecule", Dict[str, Any]]]]
+    ) -> List[Tuple[str, "Molecule", Settings]]:
 
-        solve_items = []
+        solve_items: List[Tuple[str, "Molecule", Settings]] = []
         for item in items:
             if len(item) == 2:
                 name, mol = item
-                kwargs = {}
+                kwargs: Dict[str, Any] = {}
             elif len(item) == 3:
                 name, mol, kwargs = item
             else:
@@ -1447,7 +1506,12 @@ class AMSWorkerPool:
 
         return solve_items
 
-    def SinglePoints(self, items, watch=False, watch_interval=60):
+    def SinglePoints(
+        self,
+        items: Sequence[Union[Tuple[str, "Molecule"], Tuple[str, "Molecule", Dict[str, Any]]]],
+        watch: bool = False,
+        watch_interval: int = 60,
+    ) -> List[Optional[AMSWorkerResults]]:
         """Request to pool to execute single point calculations for all items in the iterable *items*. Returns a list of |AMSWorkerResults| objects.
 
         The *items* argument is expected to be an iterable of 2-tuples ``(name, molecule)`` and/or 3-tuples ``(name, molecule, kwargs)``, which are passed on to the :meth:`SinglePoint <AMSWorker.SinglePoint>` method of the pool's |AMSWorker| instances. (Here ``kwargs`` is a dictionary containing the optional keyword arguments and their values for this method.)
@@ -1466,7 +1530,12 @@ class AMSWorkerPool:
         solve_items = self._prep_solve_from_settings("SinglePoint", items)
         return self._solve_from_settings(solve_items, watch, watch_interval)
 
-    def GeometryOptimizations(self, items, watch=False, watch_interval=60):
+    def GeometryOptimizations(
+        self,
+        items: List[Union[Tuple[str, "Molecule"], Tuple[str, "Molecule", Dict[str, Any]]]],
+        watch: bool = False,
+        watch_interval: int = 60,
+    ) -> List[Optional[AMSWorkerResults]]:
         """Request to pool to execute geometry optimizations for all items in the iterable *items*. Returns a list of |AMSWorkerResults| objects for the optimized geometries.
 
         If *watch* is set to ``True``, the AMSWorkerPool will regularly log progress information. The interval between messages can be set with the *watch_interval* argument in seconds.
@@ -1487,7 +1556,12 @@ class AMSWorkerPool:
         return self._solve_from_settings(solve_items, watch, watch_interval)
 
     @staticmethod
-    def _execute_queue(worker, q, results, progress_data=None):
+    def _execute_queue(
+        worker: AMSWorker,
+        q: queue.Queue,
+        results: List[AMSWorkerResults],
+        progress_data: Optional[Dict[str, Any]] = None,
+    ) -> None:
         while True:
             item = q.get()
             try:
@@ -1501,7 +1575,7 @@ class AMSWorkerPool:
             finally:
                 q.task_done()
 
-    def stop(self):
+    def stop(self) -> None:
         """Stops the all worker processes and removes their working directories.
 
         This method should be called when the |AMSWorkerPool| instance is not used as a context manager and the instance is no longer needed. Otherwise proper cleanup is not guaranteed to happen, worker processes might be left running and files might be left on disk.
@@ -1509,5 +1583,5 @@ class AMSWorkerPool:
         for worker in self.workers:
             worker.stop()
 
-    def __exit__(self, *args):
+    def __exit__(self, *args: Any) -> None:
         self.stop()

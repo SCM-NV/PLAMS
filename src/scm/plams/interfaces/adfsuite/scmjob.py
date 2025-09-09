@@ -1,5 +1,6 @@
 import os
 from os.path import join as opj
+from typing import Union, TYPE_CHECKING, Dict, Any, TypeVar, NoReturn, Optional, Sequence, Type, Callable, List, Mapping
 
 import numpy as np
 
@@ -21,13 +22,19 @@ try:
 except ImportError:
     _has_scm_pisa = False
 
+if TYPE_CHECKING:
+    from scm.plams.tools.kftools import TRead
+
+T = TypeVar("T")
+TSelf = TypeVar("TSelf", bound="SCMResults")
+
 
 class SCMResults(Results):
     """Abstract class gathering common mechanisms for results of ADF Suite programs."""
 
     _kfext = ""
 
-    def collect(self):
+    def collect(self) -> None:
         """Collect files present in the job folder. Use parent method from |Results|, then create an instance of |KFFile| for the main KF file and store it as ``_kf`` attribute."""
         Results.collect(self)
         kfname = self.job.name + self.__class__._kfext
@@ -36,7 +43,7 @@ class SCMResults(Results):
         else:
             log("WARNING: Main KF file {} not present in {}".format(kfname, self.job.path), 1)
 
-    def refresh(self):
+    def refresh(self) -> None:
         """Refresh the contents of ``files`` list. Use parent method from |Results|, then look at all attributes that are instances of |KFFile| and check if they point to existing files. If not, try to reinstantiate them with current job path (that can happen while loading a pickled job after the entire job folder was moved)."""
         Results.refresh(self)
         to_remove = []
@@ -50,7 +57,7 @@ class SCMResults(Results):
         for i in to_remove:
             del self.__dict__[i]
 
-    def readkf(self, section, variable):
+    def readkf(self, section: str, variable: str) -> "TRead":
         """readkf(section, variable)
         Read data from *section*/*variable* of the main KF file.
 
@@ -60,7 +67,7 @@ class SCMResults(Results):
             return self._kf.read(section, variable)
         raise FileError("File {} not present in {}".format(self.job.name + self.__class__._kfext, self.job.path))
 
-    def newkf(self, filename):
+    def newkf(self, filename: str) -> KFFile:
         """newkf(filename)
         Create new |KFFile| instance using file *filename* in the job folder.
 
@@ -78,12 +85,12 @@ class SCMResults(Results):
         else:
             raise FileError("File {} not present in {}".format(filename, self.job.path))
 
-    def get_properties(self):
+    def get_properties(self) -> Dict[str, Any]:
         """get_properties()
         Return a dictionary with all the entries from ``Properties`` section in the main KF file.
         """
         n = self.readkf("Properties", "nEntries")
-        ret = {}
+        ret: Dict[str, Any] = {}
         for i in range(1, n + 1):
             tp = self.readkf("Properties", "Type({})".format(i)).strip()
             stp = self.readkf("Properties", "Subtype({})".format(i)).strip()
@@ -92,13 +99,15 @@ class SCMResults(Results):
             ret[key] = val
         return ret
 
-    def get_molecule(self, section, variable, unit="bohr", internal=False, n=1):
+    def get_molecule(
+        self, section: str, variable: str, unit: str = "bohr", internal: bool = False, n: int = 1
+    ) -> Molecule:
         """get_molecule(section, variable, unit='bohr', internal=False, n=1)
         Read molecule coordinates from *section*/*variable* of the main KF file.
 
         Returned |Molecule| instance is created by copying a molecule from associated |SCMJob| instance and updating atomic coordinates with values read from *section*/*variable*. The format in which coordinates are stored is not consistent for all programs or even for different sections of the same KF file. Sometimes coordinates are stored in bohr, sometimes in angstrom. The order of atoms can be either input order or internal order. These settings can be adjusted with *unit* and *internal* parameters. Some variables store more than one geometry, in those cases *n* can be used to choose the preferred one.
         """
-        atnums = self._atomic_numbers_input_order()
+        atnums: List[int] = self._atomic_numbers_input_order()
         natoms = len(atnums)
         coords = self.readkf(section, variable)
         coords = [coords[i : i + 3] for i in range(0, len(coords), 3)]
@@ -118,7 +127,7 @@ class SCMResults(Results):
             ret.add_atom(Atom(atnum=z, coords=crd, unit=unit))
         return ret
 
-    def _get_single_value(self, section, variable, output_unit, native_unit="au"):
+    def _get_single_value(self, section: str, variable: str, output_unit: str, native_unit: str = "au") -> "TRead":
         """_get_single_value(section, variable, output_unit, native_unit='au')
 
         A small method template for all the single number "get_something()" methods extracting data from main KF file. Returned value is converted from *native_unit* to *output_unit*.
@@ -127,31 +136,31 @@ class SCMResults(Results):
             return Units.convert(self.readkf(section, variable), native_unit, output_unit)
         raise ResultsError("'{}%{}' not present in {}".format(section, variable, self._kfpath()))
 
-    def _atomic_numbers_input_order(self):
+    def _atomic_numbers_input_order(self) -> NoReturn:
         """_atomic_numbers_input_order()
         Return a list of atomic numbers, in the input order. Abstract method.
         """
         raise PlamsError("Trying to run an abstract method SCMResults._atomic_numbers_input_order()")
 
-    def kfpath(self):
+    def kfpath(self) -> str:
         """kfpath()
         Return the absolute path to the main KF file.
         """
         return self._kfpath()
 
-    def _kfpath(self):
+    def _kfpath(self) -> str:
         """_kfpath()
         Return the absolute path to the main KF file.
         """
         return opj(self.job.path, self.job.name + self.__class__._kfext)
 
-    def _kfpresent(self):
+    def _kfpresent(self) -> bool:
         """_kfpresent()
         Check if this instance has a valid ``_kf`` attribute.
         """
         return hasattr(self, "_kf") and isinstance(self._kf, KFFile)
 
-    def _export_attribute(self, attr, other):
+    def _export_attribute(self: TSelf, attr: T, other: TSelf) -> Optional[T]:
         """_export_attribute(attr, other)
         If *attr* is a KF file take care of a proper path. Otherwise use parent method. See :meth:`Results._copy_to<scm.plams.core.results.Results._copy_to>` for details.
         """
@@ -163,17 +172,17 @@ class SCMResults(Results):
         else:
             return Results._export_attribute(self, attr, other)
 
-    def _int2inp(self):
+    def _int2inp(self) -> NoReturn:
         """_int2inp()
         Obtain mapping from internal atom order to the input one. Abstract method.
         """
         raise PlamsError("Trying to run an abstract method SCMResults._int2inp()")
 
-    def to_input_order(self, data):
+    def to_input_order(self, data: Sequence[T]) -> Sequence[T]:
         """to_input_order(self, data)
         Reorder any iterable *data* from the internal atom order to the input atom order. The length of *data* must be equal to the number of atoms, otherwise an exception is raised. Returned value is a container of the same type as *data*.
         """
-        mapping = self._int2inp()
+        mapping: Mapping[int, int] = self._int2inp()
         if len(mapping) != len(data):
             raise PlamsError(
                 "to_input_order() got an argument with incorrect length. Length must be equal to the number of atoms"
@@ -181,7 +190,7 @@ class SCMResults(Results):
         t = np.array if type(data) is np.ndarray else type(data)
         return t([data[mapping[i] - 1] for i in range(len(mapping))])  # type: ignore
 
-    def readarray(self, section: str, subsection: str, **kwargs) -> "np.ndarray":
+    def readarray(self, section: str, subsection: str, **kwargs: Any) -> "np.ndarray":
         """Read data from *section*/*subsection* of the main KF file and return as NumPy array.
 
         All additional provided keyword arguments will be passed onto the numpy.array_ function.
@@ -200,10 +209,10 @@ class SCMJob(SingleJob):
     _json_definitions = _command
     _subblock_end = "subend"
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: Any):
         SingleJob.__init__(self, **kwargs)
 
-    def get_input(self):
+    def get_input(self) -> str:
         """Generate the input file. This method is just a wrapper around :meth:`_serialize_input`.
 
         Each instance of |SCMJob| or |SCMResults| present as a value in ``settings.input`` branch is replaced with an absolute path to the main KF file of that job.
@@ -211,7 +220,7 @@ class SCMJob(SingleJob):
         special = {SCMJob: lambda x: x.results._kfpath(), SCMResults: lambda x: x._kfpath(), KFFile: lambda x: x.path}
         return self._serialize_input(special)
 
-    def get_runscript(self):
+    def get_runscript(self) -> str:
         """Generate a runscript. Returned string is of the form::
 
             $AMSBIN/name [-n nproc] <jobname.in [>jobname.out]
@@ -228,7 +237,7 @@ class SCMJob(SingleJob):
         ret += "\n\n"
         return ret
 
-    def check(self):
+    def check(self) -> bool:
         """Check if ``termination status`` variable from ``General`` section of main KF file equals ``NORMAL TERMINATION``."""
         try:
             status = self.results.readkf("General", "termination status")
@@ -243,7 +252,7 @@ class SCMJob(SingleJob):
             return True
         return False
 
-    def hash_input(self):
+    def hash_input(self) -> str:
         """Calculate the hash of the input file.
 
         All instances of |SCMJob| or |SCMResults| present as values in ``settings.input`` branch are replaced with hashes of corresponding job's inputs.
@@ -251,7 +260,7 @@ class SCMJob(SingleJob):
         special = {SCMJob: lambda x: x.hash_input(), SCMResults: lambda x: x.job.hash_input(), KFFile: lambda x: x.path}
         return sha256(self._serialize_input(special))
 
-    def _serialize_input(self, special):
+    def _serialize_input(self, special: Dict[Type, Callable[[Any], str]]) -> str:
         """Transform all contents of ``setting.input`` branch into string with blocks, keys and values.
 
         On the highest level alphabetic order of iteration is modified: keys occuring in attribute ``_top`` are printed first. Special values can be indicated with *special* argument, which should be a dictionary having types of objects as keys and functions translating these types to strings as values.
@@ -259,14 +268,14 @@ class SCMJob(SingleJob):
         Automatic handling of ``molecule`` can be disabled with ``settings.ignore_molecule = True``.
         """
 
-        def unspec(value):
+        def unspec(value: Any) -> Any:
             """Check if *value* is one of a special types and convert it to string if it is."""
             for spec_type in special:
                 if isinstance(value, spec_type):
                     return special[spec_type](value)
             return value
 
-        def serialize(key, value, indent):
+        def serialize(key: str, value: Any, indent: int) -> str:
             """Given a *key* and its corresponding *value* from the |Settings| instance produce a snippet of the input file representing this pair.
 
             If the value is a nested |Settings| instance, use recursive calls to build the snippet for the entire block. Indent the result with *indent* spaces.
@@ -337,16 +346,16 @@ class SCMJob(SingleJob):
             self._remove_mol()
         return inp
 
-    def _serialize_mol(self):
+    def _serialize_mol(self) -> NoReturn:
         """Process |Molecule| instance stored in ``molecule`` attribute and add it as relevant entries of ``settings.input`` branch. Abstract method."""
         raise PlamsError("Trying to run an abstract method SCMJob._serialize_mol()")
 
-    def _remove_mol(self):
+    def _remove_mol(self) -> NoReturn:
         """Remove from ``settings.input`` all entries added by :meth:`_serialize_mol`. Abstract method."""
         raise PlamsError("Trying to run an abstract method SCMJob._remove_mol()")
 
     @staticmethod
-    def _atom_symbol(atom):
+    def _atom_symbol(atom: Atom) -> str:
         """Return the atomic symbol of *atom*. Ensure proper formatting for ADFSuite input taking into account ``ghost`` and ``name`` entries in ``properties`` of *atom*."""
         smb = atom.symbol
         if "ghost" in atom.properties and atom.properties.ghost:
@@ -356,7 +365,7 @@ class SCMJob(SingleJob):
         return smb
 
     @classmethod
-    def from_inputfile(cls, filename: str, heredoc_delimit: str = "eor", **kwargs) -> "SCMJob":
+    def from_inputfile(cls, filename: str, heredoc_delimit: str = "eor", **kwargs: Any) -> "SCMJob":
         """Construct a :class:`SCMJob` instance from an ADF inputfile.
 
         If a runscript is provided then this method will attempt to extract the input file based
@@ -387,3 +396,7 @@ class SCMJob(SingleJob):
     def settings_to_mol(s: Settings) -> None:
         """An abstract method for extracting molecules from input settings (see :meth:`SCMJob.from_inputfile`)."""
         return None
+
+
+"""Custom typehint for types that can be used to automatically convert to an rkf path inside `job.settings.input`."""
+TSCMJobPath = Union[str, SCMJob, SCMResults]

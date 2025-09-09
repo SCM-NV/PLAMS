@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import itertools
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional, Sequence, Type
+from types import TracebackType
 
 import numpy as np
 
 if TYPE_CHECKING:
     from scm.plams.mol.molecule import Molecule
+    from scm.plams.mol.atom import Atom
 
 
 class AsArrayContext:
@@ -16,7 +18,7 @@ class AsArrayContext:
         self._atoms = mol.atoms
         self._from_array = mol.from_array
 
-    def __call__(self, atom_subset=None):
+    def __call__(self, atom_subset: Optional[Sequence["Atom"]] = None) -> np.ndarray:
         """Return cartesian coordinates of this molecule's atoms as a numpy array.
 
         *atom_subset* argument can be used to specify only a subset of atoms, it should be an iterable container with atoms belonging to this molecule.
@@ -53,16 +55,21 @@ class AsArrayContext:
             shape = at_len, 3
 
         atom_iterator = itertools.chain.from_iterable(at.coords for at in atom_subset)
-        xyz_array = np.fromiter(atom_iterator, count=count, dtype=float)
+        xyz_array: np.ndarray = np.fromiter(atom_iterator, count=count, dtype=float)
         xyz_array.shape = shape
         return xyz_array
 
-    def __enter__(self, atom_subset=None):
+    def __enter__(self, atom_subset: Optional[Sequence["Atom"]] = None) -> np.ndarray:
         """Enter the context manager; return the Cartesian coordinate array."""
         self._atom_subset = atom_subset
         self._xyz_array = self.__call__(atom_subset=atom_subset)
         return self._xyz_array
 
-    def __exit__(self, exc_type, exc_value, traceback):
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> None:
         """Exit the context manager; update the ``mol`` coordinates with those from the Cartesian coordinate array."""
         self._from_array(self._xyz_array, self._atom_subset)

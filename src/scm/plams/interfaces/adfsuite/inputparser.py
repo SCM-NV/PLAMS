@@ -1,7 +1,7 @@
 import os
 import json
 import threading
-from typing import List, Union, Tuple, Optional, Dict, TYPE_CHECKING
+from typing import List, Union, Tuple, Optional, Dict, TYPE_CHECKING, TypeVar, Any
 
 from scm.plams.core.settings import Settings
 from scm.plams.core.errors import PlamsError
@@ -13,6 +13,8 @@ from scm.plams.interfaces.adfsuite.ams import AMSJob
 if TYPE_CHECKING:
     from scm.libbase import InputParser as InputParserLibbase
     from scm.libbase import InputFile as InputFileLibbase
+
+TSelf = TypeVar("TSelf", bound="InputParser")
 
 __all__: List[str] = ["get_system_blocks_as_molecules_from_input", "input_to_settings"]
 
@@ -33,24 +35,24 @@ class InputParser:
     # environments without access to the base library.
     # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-    def __init__(self):
+    def __init__(self) -> None:
         sett = Settings()
         sett.input.LennardJones = Settings()
         sett.runscript.nproc = 1
         sett.runscript.preamble_lines = [f'export AMS_INPUTREADER_ROOTPATH="{os.getcwd()}"']
         self.worker = AMSWorker(sett)
 
-    def __enter__(self):
+    def __enter__(self: TSelf) -> TSelf:
         return self
 
-    def stop(self, keep_workerdir=False):
+    def stop(self, keep_workerdir: bool = False) -> None:
         if self.worker is not None:
             self.worker.stop(keep_workerdir)
 
-    def __exit__(self, *args):
+    def __exit__(self, *args: Any) -> None:
         self.stop()
 
-    def to_dict(self, program, text_input, string_leafs=True):
+    def to_dict(self, program: str, text_input: str, string_leafs: bool = True) -> Any:
         """Run a string of text input through the input parser and produce a Python dictionary representing the JSONified input."""
         try:
             json_input = self.worker.ParseInput(program, text_input, string_leafs)
@@ -61,12 +63,12 @@ class InputParser:
     # Renamed for alignment with the libbase InputParser and yet to maintain backwards compatibility
     _run = to_dict
 
-    def to_settings(self, program, text_input):
+    def to_settings(self, program: str, text_input: str) -> Settings:
         """Transform a string with text input into a PLAMS Settings object."""
         return input_to_settings(text_input, program=program, parser=self)
 
     @staticmethod
-    def separate_engine_lines(lines):
+    def separate_engine_lines(lines: List[str]) -> Tuple[List[str], Optional[List[str]]]:
         """
         Separate the engine lines from other lines of AMS input text
         """
@@ -93,7 +95,7 @@ class InputParserFacade:
         _has_scm_libbase = False
 
     @property
-    def parser(self):
+    def parser(self) -> Union[InputParser, "InputParserLibbase"]:
         """
         Get instance of a parser used to convert text input.
         """
@@ -102,7 +104,7 @@ class InputParserFacade:
         else:
             return InputParser()
 
-    def to_dict(self, program: str, text_input: str, string_leafs: bool = True):
+    def to_dict(self, program: str, text_input: str, string_leafs: bool = True) -> Any:
         """
         Run a string of text input through the input parser and produce a Python dictionary representing the JSONified input.
         """

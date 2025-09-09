@@ -6,7 +6,7 @@ from scm.plams.core.settings import Settings
 from scm.plams.mol.molecule import Atom, Molecule
 
 if TYPE_CHECKING:
-    from ase import atoms as ASEAtoms
+    from ase.atoms import Atoms as ASEAtoms
 
 
 __all__ = ["toASE", "fromASE"]
@@ -20,7 +20,7 @@ def toASE(molecule: Molecule, set_atomic_charges: bool = False) -> "ASEAtoms":
     set_atomic_charges: bool
         If True, set_initial_charges() will be called with the average atomic charge (taken from molecule.properties.charge). The purpose is to preserve the total charge, not to set any reasonable initial charges.
     """
-    from ase import Atoms
+    import ase
 
     # iterate over PLAMS atoms
     for atom in molecule:
@@ -29,7 +29,7 @@ def toASE(molecule: Molecule, set_atomic_charges: bool = False) -> "ASEAtoms":
         if not all(isinstance(x, (int, float)) for x in atom.coords):
             raise ValueError("Non-Number in Atomic Coordinates, not compatible with ASE")
 
-    ase_mol = Atoms(numbers=molecule.numbers, positions=molecule.as_array())
+    ase_mol = ase.Atoms(numbers=molecule.numbers, positions=molecule.as_array())
 
     # get lattice info if any
     lattice = np.zeros((3, 3))
