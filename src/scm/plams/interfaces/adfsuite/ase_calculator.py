@@ -31,6 +31,7 @@ except ImportError:
 
 if TYPE_CHECKING:
     from scm.plams.interfaces.adfsuite.ams import AMSResults
+    from scm.plams.interfaces.adfsuite.amsworker import AMSWorkerResults
     from scm.plams.mol.molecule import Molecule
     from ase.atoms import Atoms
 
@@ -358,7 +359,7 @@ class AMSPipeCalculator(AMSCalculator):
             del self.worker_settings.input.ams.Properties
         self.worker = None
 
-    def _get_ams_results(self, molecule: "Molecule", properties: List[str]) -> "AMSResults":
+    def _get_ams_results(self, molecule: "Molecule", properties: List[str]) -> "AMSWorkerResults":
         job_settings = self._get_job_settings(properties)
         if self.worker is None:
             self.worker = AMSWorker(self.worker_settings, use_restart_cache=self.restart)
