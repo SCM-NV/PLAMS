@@ -152,7 +152,7 @@ class PeriodicTable:
     # Collection of symbols used for different kinds of dummy atoms:
     dummysymbols: List[str] = ["Xx", "El", "Eh", "J"]
 
-    def __init__(self) -> NoReturn:
+    def __init__(self) -> None:
         raise PTError("Instances of PeriodicTable cannot be created")
 
     @classmethod

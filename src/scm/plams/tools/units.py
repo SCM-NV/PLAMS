@@ -248,7 +248,7 @@ class Units:
                 quantities_for_unit[unit] = {}
             quantities_for_unit[unit][quantity] = factor
 
-    def __init__(self) -> NoReturn:
+    def __init__(self) -> None:
         raise UnitsError("Instances of Units cannot be created")
 
     @classmethod
