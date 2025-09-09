@@ -126,7 +126,7 @@ class Job(ABC):
         if os.path.sep in name:
             raise PlamsError(f"Job name cannot contain {os.path.sep}")
         self._status_log: List[Tuple[datetime.datetime, str]] = []
-        self.status: str = JobStatus.CREATED
+        self.status: JobStatus = JobStatus.CREATED
         self.results = self.__class__._result_type(self)
         self.name: str = name
         self.path: Optional[str] = None

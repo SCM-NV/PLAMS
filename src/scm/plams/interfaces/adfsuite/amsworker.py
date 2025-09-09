@@ -851,7 +851,7 @@ class AMSWorker:
             s.set_nested(_arg2setting[key], val)
         return s
 
-    def _solve_from_settings(self, name: str, molecule: "Molecule", settings: Settings) -> "AMSWorkerResults":
+    def _solve_from_settings(self, name: str, molecule: "Molecule", settings: Settings) -> AMSWorkerResults:
         args = AMSWorker._settings_to_args(settings)
         if args["task"].lower() == "geometryoptimization":
             args["gradients"] = True  # need to explicitly set gradients to True to get them in the AMSWorkerResults

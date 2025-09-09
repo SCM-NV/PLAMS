@@ -168,7 +168,7 @@ class AMSCalculator(Calculator):
 
     def __new__(  # type: ignore
         cls: Type[TSelf],
-        settings: Settings,
+        settings: Optional[Settings] = None,
         name: str = "",
         amsworker: bool = False,
         restart: bool = True,
@@ -187,7 +187,7 @@ class AMSCalculator(Calculator):
 
     def __init__(
         self,
-        settings: Settings,
+        settings: Optional[Settings] = None,
         name: str = "",
         amsworker: bool = False,
         restart: bool = True,
@@ -195,10 +195,14 @@ class AMSCalculator(Calculator):
         extractors: List[BasePropertyExtractor] = [],
     ):
 
-        settings = settings.copy()
+        if settings is None:
+            settings = Settings()
+        elif not isinstance(settings, Settings):
+            settings = Settings.from_dict(settings)
+        else:
+            settings = settings.copy()
 
-        self.settings: Settings = settings
-
+        self.settings: Settings = settings.copy()
         self.amsworker: bool = amsworker
         self.worker: Optional[AMSWorker] = None
         self._name: str = name

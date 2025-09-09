@@ -174,6 +174,3 @@ class ContextAwareThread(threading.Thread):
         Run thread target in the context copied from the parent thread
         """
         self._context.run(super().run)
-
-
-ContextAwareThread()
