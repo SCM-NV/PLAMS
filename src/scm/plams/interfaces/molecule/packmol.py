@@ -1318,7 +1318,7 @@ def packmol_around_md(
     """
     from scm.libbase import (
         UnifiedChemicalSystem as ChemicalSystem,
-        UnifiedLattice as Lattice,
+        Lattice,
     )
     from scm.utils.conversions import plams_molecule_to_chemsys, chemsys_to_plams_molecule
 

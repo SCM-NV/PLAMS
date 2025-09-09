@@ -11,7 +11,7 @@ from scm.plams.mol.molecule import Molecule
 from test_helpers import skip_if_windows
 
 try:
-    from scm.libbase import UnifiedChemicalSystem as ChemicalSystem, UnifiedLattice as Lattice
+    from scm.libbase import UnifiedChemicalSystem as ChemicalSystem, Lattice
 
     _has_scm_chemsys = True
 except ImportError:
