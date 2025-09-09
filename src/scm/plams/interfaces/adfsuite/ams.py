@@ -26,7 +26,7 @@ except ImportError:
     _has_scm_pisa = False
 
 try:
-    from scm.libbase import UnifiedChemicalSystem as ChemicalSystem
+    from scm.libbase import ChemicalSystem
 
     _has_scm_chemsys = True
 except ImportError:
@@ -3095,7 +3095,7 @@ class AMSJob(SingleJob):
             systems = {}
         else:
             raise JobError(
-                f"Incorrect 'molecule' attribute of job {self._full_name()}. 'molecule' should be a Molecule, a UnifiedChemicalSystem, a dictionary or None, and not {type(self.molecule).__name__}"
+                f"Incorrect 'molecule' attribute of job {self._full_name()}. 'molecule' should be a Molecule, a ChemicalSystem, a dictionary or None, and not {type(self.molecule).__name__}"
             )
 
         if _has_scm_pisa and isinstance(self.settings.input, DriverBlock):
@@ -3257,7 +3257,7 @@ class AMSJob(SingleJob):
             moldict = self.molecule
         else:
             raise JobError(
-                f"Incorrect 'molecule' attribute of job {self._full_name()}. 'molecule' should be a Molecule, a UnifiedChemicalSystem, a dictionary or None, and not {type(self.molecule).__name__}"
+                f"Incorrect 'molecule' attribute of job {self._full_name()}. 'molecule' should be a Molecule, a ChemicalSystem, a dictionary or None, and not {type(self.molecule).__name__}"
             )
 
         ret = [AMSJob._serialize_single_molecule(name, molecule) for name, molecule in moldict.items()]

@@ -370,17 +370,17 @@ The problem can be fixed by passing the argument ``presanitize`` to the ``to_rdm
 
 .. figure:: MoleculeFormats_files/MoleculeFormats_42_1.svg
 
-SCM libbase UnifiedChemicalSystem Python class
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+SCM libbase ChemicalSystem Python class
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Convert PLAMS Molecule to UnifiedChemicalSystem
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Convert PLAMS Molecule to ChemicalSystem
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. code:: ipython3
 
    from scm.utils.conversions import plams_molecule_to_chemsys, chemsys_to_plams_molecule
    from scm.plams import Molecule
-   from scm.libbase import UnifiedChemicalSystem
+   from scm.libbase import ChemicalSystem
 
    mol = Molecule(xyz_file)
    chemsys = plams_molecule_to_chemsys(mol)
@@ -389,7 +389,7 @@ Convert PLAMS Molecule to UnifiedChemicalSystem
 
 ::
 
-   type(chemsys)=<class 'scm_libbase_internal.UnifiedChemicalSystem'>
+   type(chemsys)=<class 'scm_libbase_internal.ChemicalSystem'>
    System
       Atoms
          C -1.47627 -1.15316 -0.292796
@@ -421,14 +421,14 @@ Convert PLAMS Molecule to UnifiedChemicalSystem
       End
    End
 
-Convert UnifiedChemicalSystem to PLAMS Molecule
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Convert ChemicalSystem to PLAMS Molecule
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. code:: ipython3
 
    from scm.utils.conversions import plams_molecule_to_chemsys, chemsys_to_plams_molecule
    from scm.plams import Molecule
-   from scm.libbase import UnifiedChemicalSystem
+   from scm.libbase import ChemicalSystem
 
    mol = chemsys_to_plams_molecule(chemsys)
    print(f"{type(chemsys)=}")
@@ -437,7 +437,7 @@ Convert UnifiedChemicalSystem to PLAMS Molecule
 
 ::
 
-   type(chemsys)=<class 'scm_libbase_internal.UnifiedChemicalSystem'>
+   type(chemsys)=<class 'scm_libbase_internal.ChemicalSystem'>
    type(mol)=<class 'scm.plams.mol.molecule.Molecule'>
 
 .. figure:: MoleculeFormats_files/MoleculeFormats_46_1.png

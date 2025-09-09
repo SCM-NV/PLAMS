@@ -246,7 +246,7 @@ class TestWaterOptimizationAMSResults:
 
         # When get molecule from given file section
         try:
-            from scm.libbase import UnifiedChemicalSystem as ChemicalSystem
+            from scm.libbase import ChemicalSystem
 
             # Then molecule as expected when chemical system present
             molecule = water_opt_results.get_system(section, file)
@@ -287,7 +287,7 @@ class TestWaterOptimizationAMSResults:
 
         # When get input molecule
         try:
-            from scm.libbase import UnifiedChemicalSystem as ChemicalSystem
+            from scm.libbase import ChemicalSystem
 
             # Then molecule as expected when chemical system present
             molecule = water_opt_results.get_input_system()
@@ -322,7 +322,7 @@ class TestWaterOptimizationAMSResults:
 
         # Then molecule as expected (post optimization)
         try:
-            from scm.libbase import UnifiedChemicalSystem as ChemicalSystem
+            from scm.libbase import ChemicalSystem
 
             # Then molecule as expected when chemical system present
             molecule = water_opt_results.get_main_system()
