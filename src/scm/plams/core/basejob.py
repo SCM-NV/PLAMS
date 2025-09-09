@@ -484,7 +484,11 @@ class SingleJob(Job):
 
     _filenames = {"inp": "$JN.in", "run": "$JN.run", "out": "$JN.out", "err": "$JN.err"}
 
-    def __init__(self, molecule: Optional[Union[Molecule, Dict[str, Molecule], "ChemicalSystem", Dict[str, "ChemicalSystem"]]] = None, **kwargs: Any):
+    def __init__(
+        self,
+        molecule: Optional[Union[Molecule, Dict[str, Molecule], "ChemicalSystem", Dict[str, "ChemicalSystem"]]] = None,
+        **kwargs: Any,
+    ):
         Job.__init__(self, **kwargs)
         self.molecule = molecule.copy() if isinstance(molecule, Molecule) else molecule
 

@@ -1,5 +1,5 @@
 from scm.plams.core.errors import PTError
-from typing import List, Union, Optional, NoReturn, Literal, overload
+from typing import List, Union, Optional, Literal, overload
 import numpy
 
 __all__ = ["PeriodicTable", "PT"]
