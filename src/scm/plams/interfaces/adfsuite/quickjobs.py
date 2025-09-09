@@ -10,6 +10,7 @@ from typing import Optional, Union, Sequence, overload, List
 __all__ = ["preoptimize", "refine_density", "refine_lattice", "shakemd"]
 
 
+# ToDo: remove type ignore once mypy_path is enabled
 @overload
 def preoptimize(
     molecule: Molecule,
@@ -19,7 +20,7 @@ def preoptimize(
     maxiterations: int = 100,
 ) -> Molecule: ...
 @overload
-def preoptimize(
+def preoptimize(  # type: ignore
     molecule: Sequence[Molecule],
     model: str = "UFF",
     settings: Optional[Settings] = None,

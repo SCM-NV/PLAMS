@@ -19,6 +19,8 @@ from scm.plams.core.enums import JobStatus
 
 if TYPE_CHECKING:
     from scm.plams.core.basejob import Job
+    from scm.plams.core.settings import Settings
+    from scm.plams.mol.molecule import Molecule
 
 T = TypeVar("T")
 P = ParamSpec("P")
@@ -385,17 +387,17 @@ class Results(ApplyRestrict):
             raise ResultsError(f"Job {self.job.name} is not an instance of SingleJob, it does not have an output")
         return self.get_file_chunk(output, begin, end, match, inc_begin, inc_end, process)
 
-    def recreate_molecule(self) -> None:
+    def recreate_molecule(self) -> Union[None, "Molecule", Dict[str, "Molecule"]]:
         """Recreate the input molecule for the corresponding job based on files present in the job folder. This method is used by |load_external|.
 
-        The definiton here serves as a default fall-back template preventing |load_external| from crashing when a particular |Results| subclass does not define it's own :meth:`recreate_molecule`.
+        The definition here serves as a default fall-back template preventing |load_external| from crashing when a particular |Results| subclass does not define it's own :meth:`recreate_molecule`.
         """
         return None
 
-    def recreate_settings(self) -> None:
+    def recreate_settings(self) -> Optional["Settings"]:
         """Recreate the input |Settings| instance for the corresponding job based on files present in the job folder. This method is used by |load_external|.
 
-        The definiton here serves as a default fall-back template preventing |load_external| from crashing when a particular |Results| subclass does not define it's own :meth:`recreate_settings`.
+        The definition here serves as a default fall-back template preventing |load_external| from crashing when a particular |Results| subclass does not define it's own :meth:`recreate_settings`.
         """
         return None
 

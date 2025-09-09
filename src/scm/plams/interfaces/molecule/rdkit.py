@@ -377,12 +377,13 @@ def prop_to_rdmol(rd_obj: Union["RDKitMol", "RDKitAtom", "RDKitBond"], propkey: 
             pass
 
 
+# ToDo: remove type ignore once mypy_path is enabled
 @overload
 def prop_from_rdmol(pl_obj: Bond, rd_obj: "RDKitBond") -> None: ...
 @overload
-def prop_from_rdmol(pl_obj: Atom, rd_obj: "RDKitAtom") -> None: ...
+def prop_from_rdmol(pl_obj: Atom, rd_obj: "RDKitAtom") -> None: ...  # type: ignore
 @overload
-def prop_from_rdmol(pl_obj: Molecule, rd_obj: "RDKitMol") -> None: ...
+def prop_from_rdmol(pl_obj: Molecule, rd_obj: "RDKitMol") -> None: ...  # type: ignore
 def prop_from_rdmol(pl_obj: Union[Molecule, Atom, Bond], rd_obj: Union["RDKitMol", "RDKitAtom", "RDKitBond"]) -> None:
     """
     Convert one or more RDKit properties into PLAMS properties.
@@ -453,7 +454,7 @@ def from_smiles(
     smiles = Chem.CanonSmiles(smiles)
     rdkit_mol = Chem.AddHs(Chem.MolFromSmiles(smiles))
     rdkit_mol.SetProp("smiles", smiles)
-    return get_conformations(rdkit_mol, nconfs, name, forcefield, rms)
+    return get_conformations(rdkit_mol, nconfs, name, forcefield, rms)  # type: ignore
 
 
 @overload
@@ -491,7 +492,7 @@ def from_smarts(
     Chem.SanitizeMol(mol)
     molecule = Chem.AddHs(mol)
     molecule.SetProp("smiles", smiles)
-    return get_conformations(molecule, nconfs, name, forcefield, rms)
+    return get_conformations(molecule, nconfs, name, forcefield, rms)  # type: ignore
 
 
 @overload
@@ -773,7 +774,7 @@ def from_sequence(
 
     rdkit_mol = Chem.AddHs(Chem.MolFromSequence(sequence))
     rdkit_mol.SetProp("sequence", sequence)
-    return get_conformations(rdkit_mol, nconfs, name, forcefield, rms)
+    return get_conformations(rdkit_mol, nconfs, name, forcefield, rms)  # type: ignore
 
 
 @requires_optional_package("rdkit")
@@ -1079,17 +1080,18 @@ def readpdb(
     """
     from rdkit import Chem
 
-    try:
-        pdb_file = open(pdb_file, "r")
-    except TypeError:
-        pass  # pdb_file is a file-like object... hopefully
+    if isinstance(pdb_file, str):
+        with open(pdb_file) as f:
+            contents = f.read()
+    else:
+        contents = pdb_file.read()
 
-    pdb_mol = Chem.MolFromPDBBlock(pdb_file.read(), sanitize=sanitize, removeHs=removeHs)
+    pdb_mol = Chem.MolFromPDBBlock(contents, sanitize=sanitize, removeHs=removeHs)
     return pdb_mol if return_rdmol else from_rdmol(pdb_mol)
 
 
 @requires_optional_package("rdkit")
-def writepdb(mol: Union[Molecule, "RDKitMol"], pdb_file: IO = sys.stdout) -> None:
+def writepdb(mol: Union[Molecule, "RDKitMol"], pdb_file: Union[str, IO] = sys.stdout) -> None:
     """
     Write a PDB file from a molecule
 
@@ -1100,13 +1102,13 @@ def writepdb(mol: Union[Molecule, "RDKitMol"], pdb_file: IO = sys.stdout) -> Non
     """
     from rdkit import Chem
 
-    try:
-        pdb_file = open(pdb_file, "w")
-    except TypeError:
-        pass  # pdb_file is a file-like object... hopefully
-
     mol = to_rdmol(mol, sanitize=False)
-    pdb_file.write(Chem.MolToPDBBlock(mol))
+
+    if isinstance(pdb_file, str):
+        with open(pdb_file, "w") as f:
+            f.write(Chem.MolToPDBBlock(mol))
+    else:
+        pdb_file.write(Chem.MolToPDBBlock(mol))
 
 
 @overload
@@ -1187,7 +1189,7 @@ def add_fragment(
         ba = b.GetBeginAtomIdx()
         ea = b.GetEndAtomIdx()
         rwmol.AddBond(new_indices[ba], new_indices[ea], b.GetBondType())
-    if bond_order:
+    if bond_order and rwmol_atom_idx and frag_atom_idx:
         rwmol.AddBond(rwmol_atom_idx, new_indices[frag_atom_idx], Chem.BondType.values[bond_order])
         rwmol.GetAtomWithIdx(new_indices[frag_atom_idx]).SetNumRadicalElectrons(0)
 
@@ -1301,7 +1303,7 @@ def partition_protein(
             if (resa, resb) not in residue_bonds and (resb, resa) not in residue_bonds:
                 continue
         cap = get_fragment(mol, match[0:5])
-        cap = add_Hs(cap, return_rdmol=True)
+        cap = add_Hs(cap, return_rdmol=True)  # type: ignore
         caps.append(cap if return_rdmol else from_rdmol(cap))
         cap_o_ind = cap.GetSubstructMatch(Chem.MolFromSmarts("[C;X4][CX3]=O"))
         cap_o = get_fragment(cap, cap_o_ind, neutralize=False)
@@ -1314,7 +1316,7 @@ def partition_protein(
     ss_bond = Chem.MolFromSmarts("[C;X4;H1,H2]SS[C;X4;H1,H2]")
     for match in mol.GetSubstructMatches(ss_bond):
         cap = get_fragment(mol, match[0:5])
-        cap = add_Hs(cap, return_rdmol=True)
+        cap = add_Hs(cap, return_rdmol=True)  # type: ignore
         caps.append(cap if return_rdmol else from_rdmol(cap))
         cap_s_ind = cap.GetSubstructMatch(Chem.MolFromSmarts("[C;X4]SS[C;X4]"))
         cap_s1 = get_fragment(cap, cap_s_ind[0:2], neutralize=False)
@@ -1434,7 +1436,7 @@ def get_substructure(
     rdmol = to_rdmol(mol)
     rdmol_func_list = [_to_rdmol(i) for i in func_list]
     gen = (_get_match(mol, rdmol, i) for i in rdmol_func_list)
-    return {key: value for key, value in zip(func_list, gen) if value}
+    return {key: value for key, value in zip(func_list, gen) if value}  # type: ignore
 
 
 def yield_coords(rdmol: "RDKitMol", id: int = -1) -> Generator[Tuple[float, float, float], None, None]:
@@ -1616,7 +1618,7 @@ def to_image(
             img.save(buf, format=fmt)
             img_text = buf.getvalue()
     # If I do not make this correction to the SVG text, it is not readable in JupyterLab
-    if fmt.lower() == "svg":
+    if fmt.lower() == "svg" and isinstance(img_text, str):
         img_text = _correct_svg(img_text)
 
     # Write to file, if required
@@ -1676,6 +1678,7 @@ def get_reaction_image(
     # Get the actual image
     width = size[0]
     height = size[1]
+    img_text: Union[str, bytes, "Image.Image"]
     if fmt.lower() == "svg":
         img_text = _get_reaction_image_svg(reactants, products, width, height)
     else:
@@ -1755,9 +1758,8 @@ def _get_reaction_image_svg(
     nmols = len(rdmols)
 
     # Place the molecules in a row of images
-    subimg_size = [width, height]
     kwargs = {"legendFontSize": 16}  # ,"legendFraction":0.1}
-    img_text = _MolsToGridSVG(rdmols, molsPerRow=nmols, subImgSize=subimg_size, **kwargs)
+    img_text = _MolsToGridSVG(rdmols, molsPerRow=nmols, subImgSize=(width, height), **kwargs)  # type: ignore
     img_text = _correct_svg(img_text)
 
     # Add + and =>
@@ -1882,14 +1884,14 @@ def _get_reaction_image_pil(
     img = add_plus_signs_pil(img, width, height, nmols, nreactants)
     img = add_arrow_pil(img, width, height, nreactants)
 
-    # Get the bytestring
-    img_text = img
+    # Get the img/bytestring
     if as_string:
         buf = BytesIO()
         img.save(buf, format=fmt)
-        img_text = buf.getvalue()
-
-    return img_text
+        img_bytes = buf.getvalue()
+        return img_bytes
+    else:
+        return img
 
 
 def _correct_svg(image: str) -> str:
@@ -1959,7 +1961,7 @@ def _kekulize(
         return rdmol, {}, {}
 
     # Set the bond orders along the chain to 2, 1, 2, 1,...
-    altered_bonds = {}
+    altered_bonds: Dict[tuple[int, int], int] = {}
     if len(indices) > 1:
         emol = Chem.RWMol(rdmol)
         if use_dfs:
@@ -1996,7 +1998,7 @@ def _find_aromatic_sequence(rdmol: "RDKitMol", text: str) -> Optional[List[int]]
     """
     Find the sequence of atoms with 1.5 bond orders
     """
-    indices = None
+    indices: Optional[List[int]] = None
     lines = text.split("\n")
     line = lines[-1]
     if "Unkekulized atoms:" in line:
@@ -2010,7 +2012,7 @@ def _find_aromatic_sequence(rdmol: "RDKitMol", text: str) -> Optional[List[int]]
     iat: Any
     if "marked aromatic" in line:
         iat = int(line.split("atom")[-1].split()[0])
-        indices: List[int] = [iat]
+        indices = [iat]
         while iat is not None:
             icurrent = iat
             iat = None

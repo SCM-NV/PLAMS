@@ -145,7 +145,7 @@ class JobManager:
         except ImportError:
             import pickle
 
-        def setstate(job: "Job", path: str, parent: Optional["Job"] = None) -> None:
+        def setstate(job: "Job", path: str, parent: Optional["MultiJob"] = None) -> None:
             job.parent = parent
             job.jobmanager = self
             job.default_settings = [config.job]
@@ -217,7 +217,7 @@ class JobManager:
 
             # renaming a job always preserves the parent directory it was run in, so determine this
             try:
-                if job.parent is not None:
+                if job.parent is not None or job.path is None:
                     rel_dir = Path(".")
                 else:
                     rel_dir = Path(job.path).parent.resolve().relative_to(self._workdir)
@@ -342,7 +342,7 @@ class JobManager:
                         raise PlamsError(f"Job {job.name} already registered and cannot automatically be renamed", 1)
 
             if job.path is None:
-                if job.parent:
+                if job.parent and job.parent.path:
                     job.path = opj(job.parent.path, job.name)
                 else:
                     job.path = opj(dir_for_jobs, job.name)

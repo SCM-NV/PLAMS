@@ -34,6 +34,13 @@ from scm.plams.core.settings import Settings
 from scm.plams.mol.molecule import Molecule
 
 try:
+    from scm.libbase import UnifiedChemicalSystem as ChemicalSystem
+
+    _has_scm_chemsys = True
+except ImportError:
+    _has_scm_chemsys = False
+
+try:
     from scm.pisa.block import DriverBlock
 
     _has_scm_pisa = True
@@ -121,7 +128,7 @@ class Job(ABC):
         self._status_log: List[Tuple[datetime.datetime, str]] = []
         self.status: str = JobStatus.CREATED
         self.results = self.__class__._result_type(self)
-        self.name = name
+        self.name: str = name
         self.path: Optional[str] = None
         self.jobmanager: Optional["JobManager"] = None
         self.parent: Optional["MultiJob"] = None
@@ -477,7 +484,7 @@ class SingleJob(Job):
 
     _filenames = {"inp": "$JN.in", "run": "$JN.run", "out": "$JN.out", "err": "$JN.err"}
 
-    def __init__(self, molecule: Optional[Molecule] = None, **kwargs: Any):
+    def __init__(self, molecule: Optional[Union[Molecule, Dict[str, Molecule], "ChemicalSystem", Dict[str, "ChemicalSystem"]]] = None, **kwargs: Any):
         Job.__init__(self, **kwargs)
         self.molecule = molecule.copy() if isinstance(molecule, Molecule) else molecule
 
@@ -591,6 +598,8 @@ class SingleJob(Job):
         """
         log(f"Starting {self.name}._execute()", 7)
         if not get_config().preview:
+            if not self.path:
+                raise JobError(f"Path is not set for the job '{self.name}'")
             o = self._filename("out") if not self.settings.runscript.stdout_redirect else None
             retcode = jobrunner.call(
                 runscript=self._filename("run"),
@@ -609,7 +618,7 @@ class SingleJob(Job):
         return self._filenames[t].replace("$JN", self.name)
 
     @classmethod
-    def load(cls, path: str, jobmanager: Optional["JobManager"] = None, strict: bool = True) -> "SingleJob":
+    def load(cls, path: str, jobmanager: Optional["JobManager"] = None, strict: bool = True) -> Optional["Job"]:
         """
         Loads a Job instance from `path`, where path can either be a
         directory with a `*.dill` file, or the full path to the `*.dill` file.
@@ -643,14 +652,15 @@ class SingleJob(Job):
         else:
             with open(path, "rb") as f_dill:
                 job = pickle.load(f_dill)
+            if job is not None:
                 # For backwards compatibility (before attributes added/converted to properties)
                 if not hasattr(job, "_status"):
                     job._status = job.__dict__["status"]
                     job._status_log = []
                 if not hasattr(job, "_error_msg"):
                     job._error_msg = None
-            job.path = os.path.dirname(os.path.abspath(path))
-            job.results.collect()
+                job.path = os.path.dirname(os.path.abspath(path))
+                job.results.collect()
 
         if strict and job.__class__ != cls:
             raise ValueError(

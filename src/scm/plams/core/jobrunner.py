@@ -186,7 +186,7 @@ class JobRunner(metaclass=_MetaRunner):
         else:
             self._jobthread_limit = LimitedSemaphore(value) if value else None
 
-    def call(self, runscript: str, workdir: str, out: str, err: str, runflags: Any) -> int:
+    def call(self, runscript: str, workdir: str, out: Optional[str], err: str, runflags: Any) -> int:
         """call(runscript, workdir, out, err, runflags)
         Execute the *runscript* in the folder *workdir*. Redirect output and error streams to *out* and *err*, respectively.
 
@@ -228,7 +228,7 @@ class JobRunner(metaclass=_MetaRunner):
             try:
                 # Log any error messages to the standard logger
                 if not job.ok(False) or not job.check():
-                    err_msg = job.get_errormsg()
+                    err_msg = job.get_errormsg() or "Could not determine error message. Please check the output manually."
                     err_lines = err_msg.splitlines()
                     max_lines = 30
                     if len(err_lines) > max_lines:
@@ -344,6 +344,7 @@ class GridRunner(JobRunner):
         self._active_lock = threading.Lock()
         self._mainlock = threading.Lock()
 
+        self.settings: Settings
         if isinstance(grid, Settings):
             self.settings = grid
         elif grid == "auto":
@@ -465,7 +466,7 @@ class GridRunner(JobRunner):
             finally:
                 self._mainlock.release()
 
-    def _autodetect(self) -> Optional[Settings]:
+    def _autodetect(self) -> Settings:
         """Try to autodetect the type of queueing system.
 
         The autodetection mechanism is very simple. For each entry in ``GridRunner.config`` the submit command followed by ``--version`` is executed (for example ``qsub --version``). If the execution was successful (which is indicated by the exit code 0), that queueing system is present and it is chosen. Thus if there are multiple queueing systems installed, only one of them is picked -- the one which "name" (indicated by a key in ``GridRunner.config``) is first in the lexicographical order.

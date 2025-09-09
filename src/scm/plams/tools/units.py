@@ -1,6 +1,6 @@
 import collections
 import math
-from typing import Dict, TypeVar, NoReturn
+from typing import Dict, TypeVar
 
 from scm.plams.core.errors import UnitsError
 import numpy as np
