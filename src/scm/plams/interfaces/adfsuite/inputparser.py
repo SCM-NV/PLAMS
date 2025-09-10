@@ -142,6 +142,8 @@ def get_system_blocks_as_molecules_from_input(input_file: "InputFileLibbase") ->
         tmp = Settings()
         tmp.input.ams.System = Settings(json.loads(input_file.get_json())).System
         mols = AMSJob.settings_to_mol(tmp)
+        if mols is None:
+            raise PlamsError(f"No system blocks found for program '{input_file.program}'")
     else:
         mols = {}
 

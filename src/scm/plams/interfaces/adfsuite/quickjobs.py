@@ -2,6 +2,7 @@ import numpy as np
 
 from scm.plams.core.functions import get_config, delete_job, finish, init
 from scm.plams.core.settings import Settings
+from scm.plams.core.errors import PlamsError
 from scm.plams.interfaces.adfsuite.ams import AMSJob
 from scm.plams.interfaces.adfsuite.amsworker import AMSWorker
 from scm.plams.mol.molecule import Molecule
@@ -49,16 +50,18 @@ def preoptimize(
         Maximum number of iterations for the geometry optimization.
     """
     my_settings = _get_quick_settings(model, settings, nproc)
-    single_molecule = isinstance(molecule, Molecule)
 
-    input_molecules = [molecule] if single_molecule else molecule
-    output_molecules = []
+    input_molecules = [molecule] if (single_molecule := isinstance(molecule, Molecule)) else molecule
+    output_molecules: List[Molecule] = []
     with AMSWorker(my_settings) as worker:
         for i, mol in enumerate(input_molecules):
             results = worker.GeometryOptimization(
                 name=f"preoptimization_{i}", molecule=mol, maxiterations=maxiterations, pretendconverged=True
             )
-            output_molecules.append(results.get_main_molecule())
+            result_molecule = results.get_main_molecule()
+            if result_molecule is None:
+                raise PlamsError(f"Preoptimization failed for molecule with index {i}.")
+            output_molecules.append(result_molecule)
 
     if single_molecule:
         return output_molecules[0]
@@ -192,7 +195,10 @@ def refine_density(
                 pretendconverged=True,
             )
 
-            output_molecule = results.get_main_molecule()
+            result_molecule = results.get_main_molecule()
+            if result_molecule is None:
+                raise PlamsError(f"Density refinement failed for density '{new_density}'.")
+            output_molecule = result_molecule
             current_density = output_molecule.get_density()  # kg/m^3
 
     return output_molecule
@@ -329,7 +335,7 @@ def model_to_settings(model: str) -> Settings:
     return settings
 
 
-def _get_quick_settings(model: str, settings: Settings, nproc: int) -> Settings:
+def _get_quick_settings(model: str, settings: Optional[Settings], nproc: int) -> Settings:
     if settings is None:
         my_settings = model_to_settings(model)
     else:

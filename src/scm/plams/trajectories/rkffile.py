@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 
-from scm.plams.core.errors import PlamsError
 import numpy
+from typing import Optional, Dict
+
+from scm.plams.core.errors import PlamsError
 from scm.plams.mol.molecule import Molecule
 from scm.plams.tools.kftools import KFFile
 from scm.plams.tools.periodic_table import PeriodicTable
@@ -164,7 +166,7 @@ class RKFTrajectoryFile(TrajectoryFile):
         self.mdblockitems = None
         self._mdblock = {}
         self.include_historydata = False  # Any additional data along the history section will be stored
-        self.historydata = None
+        self.historydata: Optional[Dict] = None
         self.historyitems = None
 
         # Skip to the trajectory part of the file (only if in read mode, because coords are required in header)

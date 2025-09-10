@@ -15,6 +15,7 @@ from typing import (
     TypeVar,
     Type,
     ClassVar,
+    cast,
 )
 from typing_extensions import Self
 
@@ -240,6 +241,9 @@ class ViewConfig:
             raise ValueError(f"open_window must be a boolean value, but was '{self.open_window}'")
 
 
+_view_backends_cache: Optional[Dict[str, Tuple["_ViewBackend", bool, Optional[Exception]]]] = None
+
+
 @requires_optional_package("PIL")
 def view(
     system: Union[Molecule, "ChemicalSystem"],
@@ -279,6 +283,7 @@ def view(
     :param open_window: override to open AMSview in a dedicated window
     :return: image of the molecule generated using AMSView
     """
+    global _view_backends_cache
     # Set up config objects, applying any config overrides from the keyword args
     config = config or ViewConfig()
     if width is not None:
@@ -314,7 +319,7 @@ def view(
         config.timeout = 10 if not config.open_window else None
 
     # On first call check which backends are available
-    if not hasattr(view, "_backends"):
+    if _view_backends_cache is None:
 
         def check_backend_available(b: TBackend) -> Tuple[TBackend, bool, Optional[Exception]]:
             try:
@@ -328,9 +333,9 @@ def view(
             "amsview_xvfb": check_backend_available(_AmsViewXvfbBackend()),
             "ase_plot": check_backend_available(_AsePlotBackend()),
         }
-        view._backends = backends
+        _view_backends_cache = backends
     else:
-        backends = view._backends
+        backends = _view_backends_cache
 
     # On subsequent calls get the available backend
     if config.backend != "auto" and config.backend not in backends:

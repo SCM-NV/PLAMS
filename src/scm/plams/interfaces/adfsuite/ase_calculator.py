@@ -49,7 +49,7 @@ class BasePropertyExtractor:
         raise NotImplementedError
 
     def set_settings(self, settings: Settings) -> Settings:
-        pass
+        return settings
 
     def check_settings(self, settings: Settings) -> bool:
         return True
@@ -210,7 +210,7 @@ class AMSCalculator(Calculator):
         self.molecule: Optional["Molecule"] = molecule
         self.extractors: List[BasePropertyExtractor] = [EnergyExtractor(), ForceExtractor(), StressExtractor()]
         self.extractors += [e for e in extractors if e not in self.extractors]
-        self.extractors += [e for e in settings.pop("Extractors", []) if e not in self.extractors]
+        self.extractors += [e for e in (settings.pop("Extractors", None) or []) if e not in self.extractors]
 
         if "system" in self.settings.input.ams:
             mol_dict = AMSJob.settings_to_mol(settings)
@@ -363,7 +363,7 @@ class AMSPipeCalculator(AMSCalculator):
             del self.worker_settings.input.ams.Properties
         self.worker = None
 
-    def _get_ams_results(self, molecule: "Molecule", properties: List[str]) -> "AMSWorkerResults":
+    def _get_ams_results(self, molecule: "Molecule", properties: List[str]) -> "AMSWorkerResults":  # type: ignore
         job_settings = self._get_job_settings(properties)
         if self.worker is None:
             self.worker = AMSWorker(self.worker_settings, use_restart_cache=self.restart)
