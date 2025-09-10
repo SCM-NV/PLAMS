@@ -3446,11 +3446,11 @@ class Molecule:
 
     def readcoskf(self, filename: str_type, **other: Any) -> None:
         kf = KFFile(filename)
-        natom = kf.read("COSMO", "Number of Atoms")
-        atom_symbols = kf.read("COSMO", "Atom Type").split()
-        atom_coords = np.array(kf.read("COSMO", "Atom Coordinates"))
+        natom = kf.read_int("COSMO", "Number of Atoms")
+        atom_symbols = kf.read_string("COSMO", "Atom Type").split()
+        atom_coords = np.array(kf.read_reals("COSMO", "Atom Coordinates"))
         atom_coords = np.reshape(atom_coords, (natom, 3))
-        mol_charge = -np.round(np.sum(kf.read("COSMO", "Segment Charge")), 1)
+        mol_charge = -np.round(np.sum(kf.read_reals("COSMO", "Segment Charge")), 1)
         self.properties.charge = mol_charge
 
         for s, (x, y, z) in zip(atom_symbols, atom_coords):
