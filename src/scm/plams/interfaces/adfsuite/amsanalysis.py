@@ -3,7 +3,7 @@ from typing import Dict, Union, Optional, KeysView, List, Any, Tuple, NoReturn, 
 from typing_extensions import LiteralString
 
 if TYPE_CHECKING:
-    from scm.plams.tools.kftools import KFFile
+    from scm.plams.tools.kftools import KFFile, TRead
     from scm.plams.mol.molecule import Atom
 
 from scm.plams.core.errors import FileError, PlamsError
@@ -50,7 +50,7 @@ class AMSAnalysisPlot:
         self.y_name: Optional[str] = None
         self.y_sigma: Optional[List[float]] = None
 
-        self.properties: Optional[Dict] = None
+        self.properties: Optional[Dict[str, TRead]] = None
         self.name: Optional[str] = None
         self.section: Optional[str] = None
 
@@ -88,17 +88,17 @@ class AMSAnalysisPlot:
         Read properties from the KF file
         """
         counter = 0
-        properties = {}
+        properties: Dict[str, TRead] = {}
         while 1:
             counter += 1
             try:
                 propname = kf.read_string(sec, f"Property({counter})").strip()
             except:
                 break
-            properties[propname] = kf.read(sec, propname)
-            if isinstance(properties[propname], str):
-                properties[propname] = properties[propname].strip()
-                properties[propname] = convert_to_unicode(properties[propname])
+            prop = kf.read(sec, propname)
+            if isinstance(prop, str):
+                prop = convert_to_unicode(prop.strip())
+            properties[propname] = prop
 
         # Now set the instance variables
         self.properties = properties

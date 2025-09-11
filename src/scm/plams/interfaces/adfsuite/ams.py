@@ -128,9 +128,9 @@ class AMSResults(Results):
         rkfname = "ams.rkf"
         if rkfname in self.files:
             main = KFFile(opj(self.job.path, rkfname))
-            n = main[("EngineResults", "nEntries")]
+            n = main.read_int("EngineResults", "nEntries")
             for i in range(1, n + 1):
-                files = main[("EngineResults", "Files({})".format(i))].split("\x00")
+                files = main.read_string("EngineResults", "Files({})".format(i)).split("\x00")
                 if files[0].endswith(".rkf"):
                     key = files[0][:-4]
                     self.rkfs[key] = KFFile(opj(self.job.path, files[0]))
@@ -288,8 +288,8 @@ class AMSResults(Results):
         from ase import Atoms
 
         sectiondict = self.read_rkf_section(section, file)
-        bohr2angstrom = 0.529177210903
-        nLatticeVectors = sectiondict.get("nLatticeVectors", 0)
+        bohr2angstrom = Units.conversion_ratio("bohr", "angstrom")
+        nLatticeVectors: int = sectiondict.get("nLatticeVectors", 0)
         pbc = [True] * nLatticeVectors + [False] * (3 - nLatticeVectors)
         if nLatticeVectors > 0:
             cell = np.zeros((3, 3))
