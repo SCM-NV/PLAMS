@@ -6,10 +6,10 @@ readme = "README.md"
 requires-python = ">=3.8"
 license = { text = "LGPLv3" }
 authors = [
-    { name = "Software for Chemistry and Materials", email = "info@scm.com" }
+    { name = "Software for Chemistry and Materials", email = "info@scm.com" },
 ]
 maintainers = [
-    { name = "Software for Chemistry and Materials", email = "info@scm.com" }
+    { name = "Software for Chemistry and Materials", email = "info@scm.com" },
 ]
 classifiers = [
     "License :: OSI Approved :: GNU Lesser General Public License v3 (LGPLv3)",
@@ -29,27 +29,13 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Bio-Informatics",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
-keywords = [
-    "molecular modeling",
-    "computational chemistry",
-    "workflow"
-]
-dependencies = [
-    "numpy>=1.21.2",
-    "dill>=0.3.6"
-]
+keywords = ["molecular modeling", "computational chemistry", "workflow"]
+dependencies = ["numpy>=1.21.2", "dill>=0.3.6"]
 
 [project.optional-dependencies]
-chem = [
-    "ase>=3.18",
-    "rdkit>=2017",
-]
+chem = ["ase>=3.18", "rdkit>=2017"]
 
-ams = [
-    "psutil>=5.8.0",
-    "py-ubjson>=0.16.1",
-    "watchdog>=2.1.8"
-]
+ams = ["psutil>=5.8.0", "py-ubjson>=0.16.1", "watchdog>=2.1.8"]
 
 analysis = [
     "scipy>=1.8.0",
@@ -60,7 +46,7 @@ analysis = [
     "h5py>=3.6.0",
     "ipython>=7.22.0",
     "pyomo>=6.4.1",
-    "pillow>=10.4.0"
+    "pillow>=10.4.0",
 ]
 
 docs = [
@@ -68,12 +54,10 @@ docs = [
     "sphinx_copybutton>=0.5.2",
     "sphinx_design>=0.5.0",
     "ipython>=7.22.0",
-    "nbconvert>=6.4.5"
+    "nbconvert>=6.4.5",
 ]
 
-examples = [
-    "jupyterlab>=3.5.2"
-]
+examples = ["jupyterlab>=3.5.2"]
 
 dev = [
     "pytest>=7.4.0",
@@ -81,7 +65,10 @@ dev = [
     "black==24.8.0",
     "black[jupyter]==24.8.0",
     "flake8==5.0.4",
-    "mypy==1.12.0"
+    "mypy==1.12.0",
+]
+logs = [
+    "discord-py>=2.6.3",
 ]
 
 [project.urls]
