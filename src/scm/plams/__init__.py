@@ -15,12 +15,12 @@ from scm.plams.core.functions import (
     add_to_class,
     add_to_instance,
     config,
-    get_config,
     config_context,
-    jobs_in_directory,
     delete_job,
     finish,
+    get_config,
     init,
+    jobs_in_directory,
     load,
     load_all,
     log,
@@ -41,30 +41,14 @@ from scm.plams.core.settings import (
     Settings,
 )
 from scm.plams.interfaces.adfsuite.ams import AMSJob, AMSResults
-from scm.plams.interfaces.adfsuite.amsanalysis import (
-    AMSAnalysisJob,
-    AMSAnalysisResults,
-    convert_to_unicode,
-)
-from scm.plams.interfaces.adfsuite.amsworker import (
-    AMSWorker,
-    AMSWorkerError,
-    AMSWorkerPool,
-    AMSWorkerResults,
-)
+from scm.plams.interfaces.adfsuite.amsanalysis import AMSAnalysisJob, AMSAnalysisResults, convert_to_unicode
+from scm.plams.interfaces.adfsuite.amsworker import AMSWorker, AMSWorkerError, AMSWorkerPool, AMSWorkerResults
 from scm.plams.interfaces.adfsuite.crs import CRSJob, CRSResults
 from scm.plams.interfaces.adfsuite.densf import DensfJob, DensfResults
 from scm.plams.interfaces.adfsuite.fcf import FCFJob, FCFResults
-from scm.plams.interfaces.adfsuite.forcefieldparams import (
-    ForceFieldPatch,
-    forcefield_params_from_kf,
-)
+from scm.plams.interfaces.adfsuite.forcefieldparams import ForceFieldPatch, forcefield_params_from_kf
 from scm.plams.interfaces.adfsuite.inputparser import get_system_blocks_as_molecules_from_input, input_to_settings
-from scm.plams.interfaces.adfsuite.quickjobs import (
-    preoptimize,
-    refine_density,
-    refine_lattice,
-)
+from scm.plams.interfaces.adfsuite.quickjobs import preoptimize, refine_density, refine_lattice
 from scm.plams.interfaces.adfsuite.unifac import UnifacJob, UnifacResults
 from scm.plams.interfaces.molecule.ase import fromASE, toASE
 from scm.plams.interfaces.molecule.packmol import (
@@ -87,16 +71,16 @@ from scm.plams.interfaces.molecule.rdkit import (
     gen_coords_rdmol,
     get_backbone_atoms,
     get_conformations,
+    get_reaction_image,
     get_substructure,
     modify_atom,
     partition_protein,
     readpdb,
+    to_image,
     to_rdmol,
     to_smiles,
     writepdb,
     yield_coords,
-    to_image,
-    get_reaction_image,
 )
 from scm.plams.interfaces.thirdparty.cp2k import Cp2kJob, Cp2kResults, Cp2kSettings2Mol
 from scm.plams.interfaces.thirdparty.crystal import CrystalJob, mol2CrystalConf
@@ -120,11 +104,7 @@ from scm.plams.recipes.md.trajectoryanalysis import AMSMSDJob, AMSRDFJob, AMSVAC
 from scm.plams.recipes.numgrad import NumGradJob
 from scm.plams.recipes.numhess import NumHessJob
 from scm.plams.recipes.pestools.optimizer import Optimizer
-from scm.plams.recipes.redox import (
-    AMSRedoxDirectJob,
-    AMSRedoxScreeningJob,
-    AMSRedoxThermodynamicCycleJob,
-)
+from scm.plams.recipes.redox import AMSRedoxDirectJob, AMSRedoxScreeningJob, AMSRedoxThermodynamicCycleJob
 from scm.plams.recipes.reorganization_energy import ReorganizationEnergyJob
 from scm.plams.tools.converters import (
     file_to_traj,
@@ -144,42 +124,30 @@ from scm.plams.tools.geometry import (
     distance_array,
     rotation_matrix,
 )
-from scm.plams.tools.kftools import KFFile, KFHistory, KFReader
-from scm.plams.tools.periodic_table import PT, PeriodicTable
-from scm.plams.tools.table_formatter import format_in_table
 from scm.plams.tools.job_analysis import JobAnalysis
+from scm.plams.tools.kftools import KFFile, KFHistory, KFReader
+from scm.plams.tools.log_via_discord import log_message_via_discord
+from scm.plams.tools.periodic_table import PT, PeriodicTable
 from scm.plams.tools.plot import (
     get_correlation_xy,
     plot_band_structure,
-    plot_phonons_band_structure,
-    plot_phonons_dos,
-    plot_phonons_thermodynamic_properties,
     plot_correlation,
     plot_grid_molecules,
     plot_molecule,
     plot_msd,
+    plot_phonons_band_structure,
+    plot_phonons_dos,
+    plot_phonons_thermodynamic_properties,
     plot_work_function,
 )
-from scm.plams.tools.view import view, ViewConfig
 from scm.plams.tools.reaction import ReactionEquation
-from scm.plams.tools.reaction_energies import (
-    balance_equation,
-    balance_equation_new,
-    get_stoichiometry,
-    reaction_energy,
-)
+from scm.plams.tools.reaction_energies import balance_equation, balance_equation_new, get_stoichiometry, reaction_energy
+from scm.plams.tools.table_formatter import format_in_table
 from scm.plams.tools.units import Units
+from scm.plams.tools.view import ViewConfig, view
 from scm.plams.trajectories.dcdfile import DCDTrajectoryFile
-from scm.plams.trajectories.rkffile import (
-    RKFTrajectoryFile,
-    write_general_section,
-    write_molecule_section,
-)
-from scm.plams.trajectories.rkfhistoryfile import (
-    RKFHistoryFile,
-    molecules_to_rkf,
-    rkf_filter_regions,
-)
+from scm.plams.trajectories.rkffile import RKFTrajectoryFile, write_general_section, write_molecule_section
+from scm.plams.trajectories.rkfhistoryfile import RKFHistoryFile, molecules_to_rkf, rkf_filter_regions
 from scm.plams.trajectories.sdffile import SDFTrajectoryFile, create_sdf_string
 from scm.plams.trajectories.sdfhistoryfile import SDFHistoryFile
 from scm.plams.trajectories.trajectory import Trajectory
@@ -368,4 +336,5 @@ __all__ = [
     "AMSRedoxDirectJob",
     "AMSRedoxScreeningJob",
     "AMSRedoxThermodynamicCycleJob",
+    "log_message_via_discord",
 ]

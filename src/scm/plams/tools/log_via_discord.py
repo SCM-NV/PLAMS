@@ -1,7 +1,3 @@
-"""
-resources: https://www.youtube.com/watch?v=CHbN_gB30Tw&list=PL-7Dfw57ZZVQ-GCNQS4Kyz637Fffhb0Hs&index=1&ab_channel=JamesS
-"""
-
 import json
 from dataclasses import asdict, dataclass
 from typing import Optional, Union
@@ -84,9 +80,9 @@ class SettingsDiscordLogger:
         return
 
 
-@requires_optional_package("discord-py")
+@requires_optional_package("discord")
 def log_message_via_discord(settings_path: Union[str, SettingsDiscordLogger], message: str):
-    """_summary_
+    """used to log if a workflow has finished
 
     :param settings_path: if is a str it should be a path to a json file with dict entries equivalent to attributes of SettingsDiscordLogger
     :type settings_path: Union[str, SettingsDiscordLogger]
