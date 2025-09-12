@@ -420,7 +420,7 @@ class KFFile:
         :return: The list of integers of *variable* located in *section*
         """
         ret = self.read(section, variable, return_as_list=True)
-        if not isinstance(ret, List) or len(ret) == 0 or not isinstance(ret[0], int):
+        if not isinstance(ret, List) or not self._variable_type_equals(section, variable, 1):
             raise KFTypedReadError(section, variable, ret, "List[int]")
         return ret
 
@@ -446,7 +446,7 @@ class KFFile:
         :return: The list of reals/floats of *variable* located in *section*
         """
         ret = self.read(section, variable, return_as_list=True)
-        if not isinstance(ret, List) or len(ret) == 0 or not isinstance(ret[0], float):
+        if not isinstance(ret, List) or not self._variable_type_equals(section, variable, 2):
             raise KFTypedReadError(section, variable, ret, "List[float]")
         return ret
 
@@ -472,7 +472,7 @@ class KFFile:
         :return: The list of logicals/bools of *variable* located in *section*
         """
         ret = self.read(section, variable, return_as_list=True)
-        if not isinstance(ret, List) or len(ret) == 0 or not isinstance(ret[0], bool):
+        if not isinstance(ret, List) or not self._variable_type_equals(section, variable, 3):
             raise KFTypedReadError(section, variable, ret, "List[bool]")
         return ret
 
@@ -597,6 +597,13 @@ class KFFile:
                 ret[sec] = set()
             ret[sec].add(var)
         return ret
+
+    def _variable_type_equals(self, section: str, variable: str, variable_type: int) -> bool:
+        """Check the type of a variable."""
+        if self.reader is not None:
+            return self.reader.variable_type(section, variable) == variable_type
+        else:
+            return False
 
     def __getitem__(self, name: Union[str, Tuple[str, str]]) -> TRead:
         """Allow to use ``x = mykf['section%variable']`` or ``x = mykf[('section','variable')]`` instead of ``x = kf.read('section', 'variable')``."""
