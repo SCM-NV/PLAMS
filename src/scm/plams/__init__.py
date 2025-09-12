@@ -15,12 +15,12 @@ from scm.plams.core.functions import (
     add_to_class,
     add_to_instance,
     config,
-    get_config,
     config_context,
-    jobs_in_directory,
     delete_job,
     finish,
+    get_config,
     init,
+    jobs_in_directory,
     load,
     load_all,
     log,
@@ -52,6 +52,7 @@ from scm.plams.interfaces.adfsuite.amsworker import (
     AMSWorkerPool,
     AMSWorkerResults,
 )
+from scm.plams.interfaces.adfsuite.conformers import ConformersJob, ConformersResults
 from scm.plams.interfaces.adfsuite.crs import CRSJob, CRSResults
 from scm.plams.interfaces.adfsuite.densf import DensfJob, DensfResults
 from scm.plams.interfaces.adfsuite.fcf import FCFJob, FCFResults
@@ -59,7 +60,10 @@ from scm.plams.interfaces.adfsuite.forcefieldparams import (
     ForceFieldPatch,
     forcefield_params_from_kf,
 )
-from scm.plams.interfaces.adfsuite.inputparser import get_system_blocks_as_molecules_from_input, input_to_settings
+from scm.plams.interfaces.adfsuite.inputparser import (
+    get_system_blocks_as_molecules_from_input,
+    input_to_settings,
+)
 from scm.plams.interfaces.adfsuite.quickjobs import (
     preoptimize,
     refine_density,
@@ -87,16 +91,16 @@ from scm.plams.interfaces.molecule.rdkit import (
     gen_coords_rdmol,
     get_backbone_atoms,
     get_conformations,
+    get_reaction_image,
     get_substructure,
     modify_atom,
     partition_protein,
     readpdb,
+    to_image,
     to_rdmol,
     to_smiles,
     writepdb,
     yield_coords,
-    to_image,
-    get_reaction_image,
 )
 from scm.plams.interfaces.thirdparty.cp2k import Cp2kJob, Cp2kResults, Cp2kSettings2Mol
 from scm.plams.interfaces.thirdparty.crystal import CrystalJob, mol2CrystalConf
@@ -144,23 +148,21 @@ from scm.plams.tools.geometry import (
     distance_array,
     rotation_matrix,
 )
+from scm.plams.tools.job_analysis import JobAnalysis
 from scm.plams.tools.kftools import KFFile, KFHistory, KFReader
 from scm.plams.tools.periodic_table import PT, PeriodicTable
-from scm.plams.tools.table_formatter import format_in_table
-from scm.plams.tools.job_analysis import JobAnalysis
 from scm.plams.tools.plot import (
     get_correlation_xy,
     plot_band_structure,
-    plot_phonons_band_structure,
-    plot_phonons_dos,
-    plot_phonons_thermodynamic_properties,
     plot_correlation,
     plot_grid_molecules,
     plot_molecule,
     plot_msd,
+    plot_phonons_band_structure,
+    plot_phonons_dos,
+    plot_phonons_thermodynamic_properties,
     plot_work_function,
 )
-from scm.plams.tools.view import view, ViewConfig
 from scm.plams.tools.reaction import ReactionEquation
 from scm.plams.tools.reaction_energies import (
     balance_equation,
@@ -168,7 +170,9 @@ from scm.plams.tools.reaction_energies import (
     get_stoichiometry,
     reaction_energy,
 )
+from scm.plams.tools.table_formatter import format_in_table
 from scm.plams.tools.units import Units
+from scm.plams.tools.view import ViewConfig, view
 from scm.plams.trajectories.dcdfile import DCDTrajectoryFile
 from scm.plams.trajectories.rkffile import (
     RKFTrajectoryFile,
@@ -368,4 +372,6 @@ __all__ = [
     "AMSRedoxDirectJob",
     "AMSRedoxScreeningJob",
     "AMSRedoxThermodynamicCycleJob",
+    "ConformersResults",
+    "ConformersJob",
 ]
