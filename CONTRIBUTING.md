@@ -72,8 +72,7 @@ uv add pigeon-jupyter --optional ml
 
 ### Fix the code before submitting it
 
-Check the file /home/benedini/PLAMS/.github/workflows/ci.yml, 
-here we store all the checks before the merging a pull-request.
+Check the file [ci.yml](https://github.com/SCM-NV/PLAMS/blob/trunk/.github/workflows/ci.yml), here we store all the checks before the merging a pull-request.
 
 For example: `black --check -t py38 -l 120 .` is run. 
 You can check from command line using `uv run [command]`.
