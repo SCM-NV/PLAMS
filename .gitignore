@@ -82,3 +82,6 @@ svn.authors
 
 # versioning
 version.py
+
+# uv lock file
+uv.lock
