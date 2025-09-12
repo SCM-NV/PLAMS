@@ -1,13 +1,18 @@
-import pytest
 import builtins
 from importlib import reload
 from threading import Thread
 
+import pytest
+from test_helpers import (
+    get_mock_import_function,
+    skip_if_no_ams_installation,
+    skip_if_no_scm_libbase,
+)
+
 from scm.plams.core.settings import Settings
-from scm.plams.mol.molecule import Molecule
-from scm.plams.mol.atom import Atom
 from scm.plams.interfaces.adfsuite.inputparser import input_to_settings
-from test_helpers import get_mock_import_function, skip_if_no_ams_installation
+from scm.plams.mol.atom import Atom
+from scm.plams.mol.molecule import Molecule
 
 
 @pytest.fixture
@@ -211,9 +216,13 @@ def test_to_dict_with_scmlibbase_succeeds(system_text_inputs):
 def test_get_system_blocks_from_input_as_molecules(system_text_inputs):
     # If there is no AMS installation the input file will not be present so skip test with a warning
     skip_if_no_ams_installation()
+    skip_if_no_scm_libbase()
 
-    from scm.plams.interfaces.adfsuite.inputparser import get_system_blocks_as_molecules_from_input
     from scm.libbase import InputFile
+
+    from scm.plams.interfaces.adfsuite.inputparser import (
+        get_system_blocks_as_molecules_from_input,
+    )
 
     # Combine system blocks into one text
     text_input = "\n".join([s[0] for s in system_text_inputs])
@@ -245,7 +254,7 @@ def get_monkeypatched_input_parser(monkeypatch):
     import scm.plams.interfaces.adfsuite.inputparser as inputparser
 
     reload(inputparser)
-    from scm.plams.interfaces.adfsuite.inputparser import InputParserFacade, InputParser
+    from scm.plams.interfaces.adfsuite.inputparser import InputParser, InputParserFacade
 
     # Get an instance of the input parser facade using the fallback input parser
     input_parser = InputParserFacade()
@@ -258,7 +267,7 @@ def get_input_parser_or_skip():
     # If there is no AMS installation the input parser will not run so skip test with a warning
     skip_if_no_ams_installation()
 
-    from scm.plams.interfaces.adfsuite.inputparser import InputParserFacade, InputParser
+    from scm.plams.interfaces.adfsuite.inputparser import InputParser, InputParserFacade
 
     # Get an instance of the input parser facade using the scm.libbase parser
     # otherwise skip the test if the package is not loaded
