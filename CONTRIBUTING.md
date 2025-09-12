@@ -46,3 +46,34 @@ These can be installed with the command `pip install '.[dev]'`.
 
 A series of checks are conducted in our CI pipeline, which must pass 
 before your pull request is considered ready for review.
+
+## Develop with UV locally
+
+If you work with uv and from command line, install all the dependencies:
+```bash
+uv sync --all-extras -p 3.9
+```
+If you work with AMS (check ams installation: `$AMSBIN/dirac check`):
+```bash
+uv pip install $AMSHOME/scripting/scm/amspipe
+```
+or:
+```bash
+uv pip install $AMSHOME/scripting/wheels/amspipe-0.1-py3-none-any.whl
+```
+To run tests use:
+```bash
+PYTHONPATH=${PYTHONPATH}:./src:./unit_tests uv run pytest unit_tests/
+```
+To add optional dependencies use (default dependencies are difficult to be added):
+```bash
+uv add pigeon-jupyter --optional ml
+```
+
+### Fix the code before submitting it
+
+Check the file /home/benedini/PLAMS/.github/workflows/ci.yml, 
+here we store all the checks before the merging a pull-request.
+
+For example: `black --check -t py38 -l 120 .` is run. 
+You can check from command line using `uv run [command]`.
