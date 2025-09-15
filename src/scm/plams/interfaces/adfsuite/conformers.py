@@ -8,17 +8,13 @@ from typing import List
 import numpy as np
 
 from scm.plams.core.basejob import Job, Results, SingleJob
-from scm.plams.core.functions import (
-    read_all_molecules_in_xyz_file,
-    requires_optional_package,
-)
+from scm.plams.core.functions import read_all_molecules_in_xyz_file, requires_optional_package
 from scm.plams.core.settings import Settings
+from scm.plams.interfaces.adfsuite.ams import AMSJob, AMSResults
 from scm.plams.mol.molecule import Molecule
 from scm.plams.tools.kftools import KFFile
 from scm.plams.tools.plot import plot_molecule
 from scm.plams.tools.units import Units
-
-from .ams import AMSJob, AMSResults
 
 __all__ = ["ConformersJob", "ConformersResults"]
 
