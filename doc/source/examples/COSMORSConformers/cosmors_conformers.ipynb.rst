@@ -8,14 +8,14 @@ Initial imports
 
    from scm.plams.recipes.adfcosmorsconformers import ADFCOSMORSConfJob, ADFCOSMORSConfFilter
    from scm.plams import Molecule, from_smiles, Settings, init, config, JobRunner
-   from scm.conformers import ConformersJob
+   from scm.plams import ConformersJob
 
    # this line is not required in AMS2025+
    init();
 
 ::
 
-   PLAMS working folder: /path/plams/examples/COSMORSConformers/plams_workdir
+   PLAMS working folder: /home/benedini/PLAMS/examples/COSMORSConformers/plams_workdir.002
 
 .. code:: ipython3
 
@@ -80,21 +80,21 @@ Finally, we give this information to the ``ADFCOSMORSConfJob`` class. We also sp
 
 ::
 
-   [19.03|15:33:37] JOB plamsjob STARTED
-   [19.03|15:33:37] Waiting for job plamsjob to finish
-   [19.03|15:33:37] JOB plamsjob/conformers_uff STARTED
-   [19.03|15:33:37] JOB plamsjob/additional_1 STARTED
-   [19.03|15:33:37] JOB plamsjob/adf_conformers STARTED
-   [19.03|15:33:37] JOB plamsjob/adf_filter STARTED
-   [19.03|15:33:37] Waiting for job conformers_uff to finish
-   [19.03|15:33:37] Waiting for job adf_filter to finish
-   [19.03|15:33:37] Waiting for job additional_1 to finish
-   [19.03|15:33:37] Waiting for job adf_conformers to finish
-   [19.03|15:33:44] JOB plamsjob/conformers_uff SUCCESSFUL
-   [19.03|15:33:45] JOB plamsjob/additional_1 SUCCESSFUL
-   [19.03|15:43:18] JOB plamsjob/adf_conformers SUCCESSFUL
-   [19.03|15:43:19] JOB plamsjob/adf_filter SUCCESSFUL
-   [19.03|15:43:19] JOB plamsjob/replay STARTED
+   [12.09|16:17:48] JOB plamsjob STARTED
+   [12.09|16:17:48] Waiting for job plamsjob to finish
+   [12.09|16:17:48] JOB plamsjob/conformers_uff STARTED
+   [12.09|16:17:48] JOB plamsjob/additional_1 STARTED
+   [12.09|16:17:48] JOB plamsjob/adf_conformers STARTED
+   [12.09|16:17:48] JOB plamsjob/adf_filter STARTED
+   [12.09|16:17:48] Waiting for job adf_filter to finish
+   [12.09|16:17:48] Waiting for job conformers_uff to finish
+   [12.09|16:17:48] Waiting for job additional_1 to finish
+   [12.09|16:17:48] Waiting for job adf_conformers to finish
+   [12.09|16:17:52] JOB plamsjob/conformers_uff SUCCESSFUL
+   [12.09|16:17:54] JOB plamsjob/additional_1 SUCCESSFUL
+   [12.09|16:24:45] JOB plamsjob/adf_conformers SUCCESSFUL
+   [12.09|16:24:45] JOB plamsjob/adf_filter SUCCESSFUL
+   [12.09|16:24:45] JOB plamsjob/replay STARTED
    ... (PLAMS log lines truncated) ...
 
 .. code:: ipython3

@@ -10,14 +10,17 @@ Initial imports
 
    import scm.plams as plams
    import sys
-   from scm.conformers import ConformersJob
-   from scm.conformers.plams.plot import plot_conformers
+   from scm.plams import ConformersJob
    import numpy as np
    import matplotlib.pyplot as plt
    import os
 
    # this line is not required in AMS2025+
    plams.init();
+
+::
+
+   PLAMS working folder: /home/benedini/PLAMS/examples/ConformersMultipleMolecules/plams_workdir.003
 
 Single alanine molecule
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -68,8 +71,8 @@ To determine the radius of the ``SphericalWall`` we measure the size of the init
 
 ::
 
-   Largest distance between atoms: 8.397 ang.
-   Radius: 5.584 ang.
+   Largest distance between atoms: 9.909 ang.
+   Radius: 6.589 ang.
 
 Now we can set up the Crest conformer generation job, with the appropriate spherical wall constraining the molecules close together.
 
@@ -97,16 +100,16 @@ Now we can run the conformer generation job.
 
 ::
 
-   [04.02|15:45:58] JOB conformers STARTED
-   [04.02|15:45:58] JOB conformers RUNNING
-   [04.02|15:57:08] JOB conformers FINISHED
-   [04.02|15:57:08] JOB conformers SUCCESSFUL
+   [12.09|16:12:17] JOB conformers STARTED
+   [12.09|16:12:17] JOB conformers RUNNING
+   [12.09|16:16:13] JOB conformers FINISHED
+   [12.09|16:16:14] JOB conformers SUCCESSFUL
 
 
 
 
 
-   <scm.conformers.plams.interface.ConformersResults at 0x16786fb20>
+   <scm.plams.interfaces.adfsuite.conformers.ConformersResults at 0x7a0c23f46ac0>
 
 .. code:: ipython3
 
@@ -115,7 +118,7 @@ Now we can run the conformer generation job.
 
 ::
 
-   Conformers stored in /path/plams/examples/ConformersMultipleMolecules/plams_workdir/conformers/conformers.rkf
+   Conformers stored in /home/benedini/PLAMS/examples/ConformersMultipleMolecules/plams_workdir.003/conformers/conformers.rkf
 
 This job will run for approximately 15 minutes.
 
@@ -126,7 +129,7 @@ Here we plot the three lowest-energy conformers.
 
 .. code:: ipython3
 
-   plot_conformers(job);
+   job.results.plot_conformers();
 
 .. figure:: conformers_files/conformers_22_0.png
 
@@ -177,28 +180,28 @@ Finally in AMS2025+, you can also inspect the conformer data using the JobAnalys
    except ImportError:
        pass
 
-============ ====== =====
-Conformer Id E      P
-============ ====== =====
-1            0.00   0.036
-2            0.01   0.035
-3            0.03   0.034
-4            0.03   0.034
-5            0.08   0.031
-6            0.13   0.029
-7            0.15   0.028
-8            0.18   0.026
-9            0.22   0.024
-10           0.23   0.024
-…            …      …
-1807         135.93 0.000
-1808         137.12 0.000
-1809         138.93 0.000
-1810         139.38 0.000
-1811         140.51 0.000
-1812         143.04 0.000
-1813         148.33 0.000
-1814         152.45 0.000
-1815         164.99 0.000
-1816         201.42 0.000
-============ ====== =====
+============ ======= =====
+Conformer Id E       P
+============ ======= =====
+1            0.00    0.077
+2            0.01    0.076
+3            0.01    0.076
+4            0.07    0.069
+5            0.10    0.065
+6            0.15    0.059
+7            0.21    0.054
+8            0.23    0.052
+9            0.31    0.046
+10           0.32    0.045
+…            …       …
+940          931.03  0.000
+941          954.43  0.000
+942          998.90  0.000
+943          1195.50 0.000
+944          1226.73 0.000
+945          1256.35 0.000
+946          1273.11 0.000
+947          1285.97 0.000
+948          1307.95 0.000
+949          1311.18 0.000
+============ ======= =====

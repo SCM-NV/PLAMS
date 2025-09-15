@@ -22,6 +22,7 @@ top of things.
 * Make commits of logical units
 * Make sure your commit messages are informative
 * Make sure you have added the necessary tests for your changes
+* Add examples: take a look at the corresponding [README.md](./examples/README.md) 
 
 ## Submitting Changes
 

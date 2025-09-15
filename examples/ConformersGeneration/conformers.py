@@ -9,7 +9,7 @@ import sys
 import matplotlib.pyplot as plt
 import numpy as np
 
-from scm.conformers import ConformersJob
+from scm.plams import ConformersJob
 from scm.plams import *
 
 # this line is not required in AMS2025+
@@ -72,33 +72,6 @@ def get_conformers(job: ConformersJob):
     return job.results.get_conformers()
 
 
-def plot_conformers(job: ConformersJob, indices=None, temperature=298, unit="kcal/mol", lowest=True):
-    molecules = get_conformers(job)
-    energies = get_energies(job, unit)
-    populations = get_populations(job, temperature)
-
-    if isinstance(indices, int):
-        N_plot = min(indices, len(energies))
-        if lowest:
-            indices = list(range(N_plot))
-        else:
-            indices = np.linspace(0, len(energies) - 1, N_plot, dtype=np.int32)
-    if indices is None:
-        indices = list(range(min(3, len(energies))))
-
-    fig, axes = plt.subplots(1, len(indices), figsize=(12, 3))
-    if len(indices) == 1:
-        axes = [axes]
-
-    for ax, i in zip(axes, indices):
-        mol = molecules[i]
-        E = energies[i]
-        population = populations[i]
-
-        plot_molecule(mol, ax=ax)
-        ax.set_title(f"#{i+1}\nΔE = {E:.2f} kcal/mol\nPop.: {population:.3f} (T = {temperature} K)")
-
-
 try:
     # For AMS2025+ can use JobAnalysis class to perform results analysis
     from scm.plams import JobAnalysis
@@ -153,7 +126,7 @@ temperature = 298
 print_results(generate_job, temperature, unit)
 
 
-plot_conformers(generate_job, 4, temperature=temperature, unit=unit, lowest=True)
+generate_job.results.plot_conformers(4, temperature=temperature, unit=unit, lowest=True)
 
 
 # ## Re-optimize conformers with GFNFF
@@ -180,7 +153,7 @@ reoptimize_job.run()
 print_results(reoptimize_job, temperature=temperature, unit=unit)
 
 
-plot_conformers(reoptimize_job, 4, temperature=temperature, unit=unit, lowest=True)
+reoptimize_job.results.plot_conformers(4, temperature=temperature, unit=unit, lowest=True)
 
 
 # ## Score conformers with DFTB
@@ -204,7 +177,7 @@ score_job.run()
 print_results(score_job, temperature=temperature, unit=unit)
 
 
-plot_conformers(score_job, 4, temperature=temperature, unit=unit, lowest=True)
+score_job.results.plot_conformers(4, temperature=temperature, unit=unit, lowest=True)
 
 
 # Here, you see that from the conformers in the set, **DFTB predicts a different lowest-energy conformer than GFNFF** (compare to previous figure).
@@ -229,7 +202,7 @@ filter_job.run()
 print_results(filter_job, temperature=temperature, unit=unit)
 
 
-plot_conformers(filter_job, 4, temperature=temperature, unit=unit, lowest=True)
+filter_job.results.plot_conformers(4, temperature=temperature, unit=unit, lowest=True)
 
 
 # The structures and energies are identical to before. However, the relative populations changed slightly as there are now fewer conformers in the set.

@@ -9,8 +9,7 @@
 
 import scm.plams as plams
 import sys
-from scm.conformers import ConformersJob
-from scm.conformers.plams.plot import plot_conformers
+from scm.plams import ConformersJob
 import numpy as np
 import matplotlib.pyplot as plt
 import os
@@ -84,7 +83,7 @@ print(f"Conformers stored in {rkf}")
 # ## Results
 # Here we plot the three lowest-energy conformers.
 
-plot_conformers(job)
+job.results.plot_conformers()
 
 
 # You can also open the conformers in AMSmovie to browse all conformers 1000+ conformers:
