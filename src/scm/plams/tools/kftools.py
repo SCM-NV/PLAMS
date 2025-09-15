@@ -21,7 +21,7 @@ from typing import (
 )
 
 import numpy as np
-from scm.plams.core.errors import FileError
+from scm.plams.core.errors import FileError, PlamsError
 from scm.plams.core.functions import log
 from scm.plams.core.private import saferun
 import numpy
@@ -34,6 +34,31 @@ TMultiValue = Union[int, float, bool]
 TValue = Union[TMultiValue, str]
 TRead = Union[TValue, Sequence[TMultiValue]]
 TWrite = Union[TValue, Sequence[TValue]]
+
+
+class KFTypedReadError(PlamsError):
+    def __init__(self, section: str, variable: str, ret: TRead, expected_ret: str):
+        where = f'Variable "{variable}" of Section "{section}"'
+        found_type = f"{ret} ({self._get_read_return_type(ret)})"
+        super().__init__(f"{where} is not an {expected_ret}, but instead found {found_type}")
+
+    def _get_read_return_type(self, ret: TRead) -> str:
+        """Obtains a string representation of a value returned from `KFReader.read` used for error formatting.
+
+        :param ret: The read value to be inspected for its type
+        :return: A str representation of the type of ret
+        """
+        is_list = False
+        if isinstance(ret, List):
+            is_list = True
+            if len(ret) == 0:
+                return "List"
+            else:
+                ret = ret[0]
+        ret_type = str(type(ret))
+        if is_list:
+            ret_type = f"List[{ret_type}]"
+        return ret_type
 
 
 def _run_kftool(*args: Any, **kwargs: Any) -> "subprocess.CompletedProcess[Any]":
@@ -373,6 +398,97 @@ class KFFile:
             ret = [ret]
         return ret
 
+    def read_int(self, section: str, variable: str) -> int:
+        """Obtain an integer for a *variable* located in *section*.
+
+        :param section: Section where the variable is located
+        :param variable: Variable to obtain
+        :raises KFTypedReadError: Error is raised if the *variable* in *section* does not contain a single integer
+        :return: The integer value of *variable* located in *section*
+        """
+        ret = self.read(section, variable)
+        if not isinstance(ret, int):
+            raise KFTypedReadError(section, variable, ret, "int")
+        return ret
+
+    def read_ints(self, section: str, variable: str) -> List[int]:
+        """Obtain a list of integers for a *variable* located in *section*.
+
+        :param section: Section where the variable is located
+        :param variable: Variable to obtain
+        :raises KFTypedReadError: Error is raised if the *variable* in *section* does not contain a list of integers
+        :return: The list of integers of *variable* located in *section*
+        """
+        ret = self.read(section, variable, return_as_list=True)
+        if not isinstance(ret, List) or not self._variable_type_equals(section, variable, 1):
+            raise KFTypedReadError(section, variable, ret, "List[int]")
+        return ret
+
+    def read_real(self, section: str, variable: str) -> float:
+        """Obtain a real/float for a *variable* located in *section*.
+
+        :param section: Section where the variable is located
+        :param variable: Variable to obtain
+        :raises KFTypedReadError: Error is raised if the *variable* in *section* does not contain a single real/float
+        :return: The real/float value of *variable* located in *section*
+        """
+        ret = self.read(section, variable)
+        if not isinstance(ret, float):
+            raise KFTypedReadError(section, variable, ret, "float")
+        return ret
+
+    def read_reals(self, section: str, variable: str) -> List[float]:
+        """Obtain a list of reals/floats for a *variable* located in *section*.
+
+        :param section: Section where the variable is located
+        :param variable: Variable to obtain
+        :raises KFTypedReadError: Error is raised if the *variable* in *section* does not contain a list of reals/floats
+        :return: The list of reals/floats of *variable* located in *section*
+        """
+        ret = self.read(section, variable, return_as_list=True)
+        if not isinstance(ret, List) or not self._variable_type_equals(section, variable, 2):
+            raise KFTypedReadError(section, variable, ret, "List[float]")
+        return ret
+
+    def read_logical(self, section: str, variable: str) -> bool:
+        """Obtain a logical/bool for a *variable* located in *section*.
+
+        :param section: Section where the variable is located
+        :param variable: Variable to obtain
+        :raises KFTypedReadError: Error is raised if the *variable* in *section* does not contain a single logical/bool
+        :return: The logical/bool value of *variable* located in *section*
+        """
+        ret = self.read(section, variable)
+        if not isinstance(ret, bool):
+            raise KFTypedReadError(section, variable, ret, "bool")
+        return ret
+
+    def read_logicals(self, section: str, variable: str) -> List[bool]:
+        """Obtain a list of logicals/bools for a *variable* located in *section*.
+
+        :param section: Section where the variable is located
+        :param variable: Variable to obtain
+        :raises KFTypedReadError: Error is raised if the *variable* in *section* does not contain a list of logicals/bools
+        :return: The list of logicals/bools of *variable* located in *section*
+        """
+        ret = self.read(section, variable, return_as_list=True)
+        if not isinstance(ret, List) or not self._variable_type_equals(section, variable, 3):
+            raise KFTypedReadError(section, variable, ret, "List[bool]")
+        return ret
+
+    def read_string(self, section: str, variable: str) -> str:
+        """Obtain a string for a *variable* located in *section*.
+
+        :param section: Section where the variable is located
+        :param variable: Variable to obtain
+        :raises KFTypedReadError: Error is raised if the *variable* in *section* does not contain a single string
+        :return: The string value of *variable* located in *section*
+        """
+        ret = self.read(section, variable)
+        if not isinstance(ret, str):
+            raise KFTypedReadError(section, variable, ret, "str")
+        return ret
+
     def write(
         self,
         section: str,
@@ -481,6 +597,13 @@ class KFFile:
                 ret[sec] = set()
             ret[sec].add(var)
         return ret
+
+    def _variable_type_equals(self, section: str, variable: str, variable_type: int) -> bool:
+        """Check the type of a variable."""
+        if self.reader is not None:
+            return self.reader.variable_type(section, variable) == variable_type
+        else:
+            return False
 
     def __getitem__(self, name: Union[str, Tuple[str, str]]) -> TRead:
         """Allow to use ``x = mykf['section%variable']`` or ``x = mykf[('section','variable')]`` instead of ``x = kf.read('section', 'variable')``."""

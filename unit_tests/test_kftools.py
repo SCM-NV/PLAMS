@@ -2,7 +2,7 @@ import pytest
 import numpy as np
 
 from scm.plams.core.errors import FileError
-from scm.plams.tools.kftools import KFReader, KFFile, KFHistory
+from scm.plams.tools.kftools import KFReader, KFFile, KFHistory, KFTypedReadError
 
 
 @pytest.fixture
@@ -133,6 +133,46 @@ class TestKFFile:
         # Missing section and variable
         with pytest.raises(KeyError):
             file.read("Foo", "Bar", return_as_list)
+
+    def test_typed_reads(self, water_optimization_rkf):
+        file = KFFile(water_optimization_rkf, autosave=False)
+        assert file.read_string("General", "title") == "water_optimization"  # single string value
+        assert file.read_real("General", "CPUTime") == 0.732007  # single float value
+        assert file.read_int("Molecule", "nAtoms") == 3  # single int value
+        assert file.read_logical("Molecule", "eeUseChargeBroadening") == False  # single bool value
+        assert file.read_ints("Molecule", "AtomicNumbers") == [8, 1, 1]  # multiple int values
+        assert file.read_reals("Molecule", "AtomMasses") == [
+            15.99491400,
+            1.00782500,
+            1.00782500,
+        ]  # multiple float values
+        assert file.read_reals("Molecule", "Coords") == [
+            0.12646245476495446,
+            0.12646245476495452,
+            0.0,
+            1.9124814444820302,
+            -0.14921777462121424,
+            0.0,
+            -0.14921777462121424,
+            1.9124814444820302,
+            0.0,
+        ]  # multiple float values
+
+        # assortment of unhappy reads
+        with pytest.raises(KFTypedReadError):
+            file.read_real("General", "title")
+        with pytest.raises(KFTypedReadError):
+            file.read_reals("General", "title")
+        with pytest.raises(KFTypedReadError):
+            file.read_int("General", "title")
+        with pytest.raises(KFTypedReadError):
+            file.read_ints("General", "title")
+        with pytest.raises(KFTypedReadError):
+            file.read_logical("General", "title")
+        with pytest.raises(KFTypedReadError):
+            file.read_logicals("General", "title")
+        with pytest.raises(KFTypedReadError):
+            file.read_string("General", "CPUTime")
 
     def test_read_non_existing_file_errors(self):
         file = KFFile("not-a-file", autosave=False)

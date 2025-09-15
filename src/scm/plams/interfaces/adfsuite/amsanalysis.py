@@ -3,7 +3,7 @@ from typing import Dict, Union, Optional, KeysView, List, Any, Tuple, NoReturn, 
 from typing_extensions import LiteralString
 
 if TYPE_CHECKING:
-    from scm.plams.tools.kftools import KFFile
+    from scm.plams.tools.kftools import KFFile, TRead
     from scm.plams.mol.molecule import Atom
 
 from scm.plams.core.errors import FileError, PlamsError
@@ -50,7 +50,7 @@ class AMSAnalysisPlot:
         self.y_name: Optional[str] = None
         self.y_sigma: Optional[List[float]] = None
 
-        self.properties: Optional[Dict] = None
+        self.properties: Optional[Dict[str, TRead]] = None
         self.name: Optional[str] = None
         self.section: Optional[str] = None
 
@@ -65,19 +65,19 @@ class AMSAnalysisPlot:
         xnums = sorted([xnum for xnum in set(xnums)])
         for i in xnums:
             xkey = f"x({i})-axis"
-            self.x.append(kf.read(sec, xkey))
-            x_name: str = kf.read(sec, f"{xkey}(label)")
+            self.x.append(kf.read_reals(sec, xkey))
+            x_name = kf.read_string(sec, f"{xkey}(label)")
             self.x_names.append(convert_to_unicode(x_name))
-            self.x_units.append(convert_to_unicode(kf.read(sec, f"{xkey}(units)")))
+            self.x_units.append(convert_to_unicode(kf.read_string(sec, f"{xkey}(units)")))
 
         # Read the y-values
         ykey = "y-axis"
-        y_name = kf.read(sec, f"{ykey}(label)")
-        self.y = kf.read(sec, ykey)
+        y_name = kf.read_string(sec, f"{ykey}(label)")
+        self.y = kf.read_reals(sec, ykey)
         self.y_name = convert_to_unicode(y_name)
-        self.y_units = convert_to_unicode(kf.read(sec, f"{ykey}(units)"))
+        self.y_units = convert_to_unicode(kf.read_string(sec, f"{ykey}(units)"))
 
-        self.y_sigma = kf.read(sec, "sigma")
+        self.y_sigma = kf.read_reals(sec, "sigma")
 
         self.read_properties(kf, sec)
         self.section = sec.split("(")[0] + "_" + sec.split("(")[1].split(")")[0]
@@ -88,17 +88,17 @@ class AMSAnalysisPlot:
         Read properties from the KF file
         """
         counter = 0
-        properties = {}
+        properties: Dict[str, TRead] = {}
         while 1:
             counter += 1
             try:
-                propname = kf.read(sec, f"Property({counter})").strip()
+                propname = kf.read_string(sec, f"Property({counter})").strip()
             except:
                 break
-            properties[propname] = kf.read(sec, propname)
-            if isinstance(properties[propname], str):
-                properties[propname] = properties[propname].strip()
-                properties[propname] = convert_to_unicode(properties[propname])
+            prop = kf.read(sec, propname)
+            if isinstance(prop, str):
+                prop = convert_to_unicode(prop.strip())
+            properties[propname] = prop
 
         # Now set the instance variables
         self.properties = properties
@@ -252,7 +252,7 @@ class AMSAnalysisResults(SCMResults):
 
         Extract user input from the kf file and parse it back to a |Settings| instance using ``scm.libbase`` module. Remove the ``system`` branch from that instance.
         """
-        user_input: str = self._kf.read("General", "user input")
+        user_input = self._kf.read_string("General", "user input")
         try:
             inp = input_to_settings(user_input, program="analysis")
         except:

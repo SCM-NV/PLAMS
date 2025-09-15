@@ -158,10 +158,10 @@ class ForceFieldPatch:
         """
         if len(self) > 0:
             self.clear()
-        npatches: int = kf.read("AMSResults", "Config.nPatches")
+        npatches = kf.read_int("AMSResults", "Config.nPatches")
         patch = ForceFieldPatch()
         if npatches > 0:
-            patchtext: str = kf.read("AMSResults", "Config.FFPatch(1)")
+            patchtext = kf.read_string("AMSResults", "Config.FFPatch(1)")
             patch += ForceFieldPatch(patchtext)
 
         for key in vars(patch):
@@ -292,9 +292,9 @@ def forcefield_params_from_kf(kf: "KFFile") -> Tuple[List[float], List[str], Opt
     """
     Read the parameters from kf
     """
-    charges: List[float] = kf.read("AMSResults", "Charges", return_as_list=True)
-    alltypes: List[str] = kf.read("AMSResults", "AtomTyping.atomTypes").split("\x00")
-    indices: List[int] = kf.read("AMSResults", "AtomTyping.atomIndexToType", return_as_list=True)
+    charges = kf.read_reals("AMSResults", "Charges")
+    alltypes = kf.read_string("AMSResults", "AtomTyping.atomTypes").split("\x00")
+    indices = kf.read_ints("AMSResults", "AtomTyping.atomIndexToType")
     types = [alltypes[i - 1] for i in indices]
 
     # Read the force field patch
