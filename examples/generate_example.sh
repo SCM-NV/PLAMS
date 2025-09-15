@@ -52,24 +52,24 @@ nb_file="${name}.ipynb"
 echo "Using ipynb '${name}' for example generation"
 
 echo "Running black formatter for '${nb_file}'"
-$AMSBIN/amspython -m black -t py38  -l 120 "${example_dir}/${nb_file}"
+$AMSBIN/uv run --with black[jupyter] -m black -t py38  -l 120 "${example_dir}/${nb_file}"
 
 # create the .py file
 # remove any get_ipython calls (generated if a cell contains for example_dir !amsmovie)
 py_file="${name}.py"
-$AMSBIN/amspython -m nbconvert --to python --stdout --no-prompt "${example_dir}/${nb_file}" | sed "1s# python# amspython#; /get_ipython/d" > "${example_dir}/${py_file}"
+$AMSBIN/uv run --with nbconvert -m nbconvert --to python --stdout --no-prompt "${example_dir}/${nb_file}" | sed "1s# python# amspython#; /get_ipython/d" > "${example_dir}/${py_file}"
 
 echo "Generated the python file '${example_dir}/${py_file}'"
 
 echo "Running black formatter for '${py_file}'"
-$AMSBIN/amspython -m black -t py38  -l 120 "${example_dir}/${py_file}"
+$AMSBIN/uv run --with black -m black -t py38  -l 120 "${example_dir}/${py_file}"
 
 # create the .rst file
 # do this via markdown as this gives better control over the pandoc conversion e.g. the width of lines for tables
 md_file="${name}.md"
 rst_file="${name}.rst"
 rst_ipynb_file="${name}.ipynb.rst"
-$AMSBIN/amspython -m nbconvert --Exporter.preprocessors="nbconvert_utils.PlamsPreprocessor" --to markdown "${example_dir}/${nb_file}"
+$AMSBIN/uv run --with nbconvert -m nbconvert --Exporter.preprocessors="nbconvert_utils.PlamsPreprocessor" --to markdown "${example_dir}/${nb_file}"
 pandoc --from markdown --to rst --columns=2000 "${example_dir}/${md_file}" -o "${example_dir}/${rst_file}"
 
 # perform some post-manipulation
