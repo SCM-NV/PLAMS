@@ -3,7 +3,7 @@ import os
 import re
 from os.path import join as opj
 from pathlib import Path
-from typing import List
+from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 
@@ -30,22 +30,24 @@ class ConformersCollection:
             raise ValueError(f"{path=} not valid")
 
         assert path.exists()
-        molecules = read_all_molecules_in_xyz_file(path)
+        molecules = read_all_molecules_in_xyz_file(str(path))
         for m in molecules:
-            m.properties = self.parse_comment(m.properties.pop("comment", ""))
+            c = m.properties.pop("comment", "")
+            assert isinstance(c, str)
+            m.properties = Settings(self.parse_comment(c))
         self.molecules = list(sorted(molecules, key=lambda m: m.properties["Energy in kcal/mol"], reverse=False))
 
     @property
-    def energies(self):
+    def energies(self) -> List[float]:
         return list(map(lambda m: m.properties["Energy in kcal/mol"], self.molecules))
 
     @property
-    def relative_energies(self):
+    def relative_energies(self) -> List[float]:
         en = self.energies
         min_en = min(en)
         return [e - min_en for e in en]
 
-    def parse_comment(self, c: str):
+    def parse_comment(self, c: str) -> Dict[str, Union[float, str, int]]:
         pairs = re.findall(r"([^:]+):\s*([^\s]+)", c)
         result = {key.strip(): value for key, value in pairs}
         for k, v in result.items():
@@ -58,7 +60,7 @@ class ConformersCollection:
                     pass  # leave as string
         return result
 
-    def __str__(self):
+    def __str__(self) -> str:
         """
         Print conformer info
         """
@@ -66,11 +68,11 @@ class ConformersCollection:
         min_energy = None
         if len(self.molecules) > 0:
             min_energy = min(self.energies)
-        for i in range(len(self.molecules)):
-            block += "%9i %20.6f\n" % (
-                i,
-                self.energies[i] - min_energy,
-            )
+            for i in range(len(self.molecules)):
+                block += "%9i %20.6f\n" % (
+                    i,
+                    self.energies[i] - min_energy,
+                )
         return block
 
 
@@ -82,46 +84,76 @@ class ConformersResults(Results):
 
     rkfname = "conformers.rkf"
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         Results.__init__(self, *args, **kwargs)
-        self._conformers = None
+        self._conformers: Optional[ConformersCollection] = None
         self.rkf = None
+
+    def collect(self) -> None:
+        """Collect files present in the job folder.
+
+        Use parent method from |Results| to get a list of all files in the results folder.
+        Then instantiate ``self.rkf`` to be a |KFFile| instance for the main ``conformers.rkf`` output file.
+        Also instantiate ``self._conformers`` to be a Conformers instance built from it.
+
+        This method is called automatically during the final part of the job execution and there is no need to call it manually.
+        """
+        Results.collect(self)
+
+        if self.rkfname in self.files:
+            p = self.get_path()
+            self.rkf = KFFile(str(Path(p) / self.rkfname))
+            self._conformers = ConformersCollection(path_in=p)
+
+    def get_path(self) -> str:
+        p = self.job.path
+        if p is None:
+            raise ValueError(f"self.job.path is None, maybe you did not run this job? {self.job=}|{self.job.name=}")
+        return p
+
+    @property
+    def conformers(self) -> ConformersCollection:
+        if self._conformers is None:
+            self.collect()
+        assert isinstance(self._conformers, ConformersCollection)
+        return self._conformers
 
     def rkfpath(self) -> str:
         """Absolute path to the 'conformers.rkf' results file"""
-        return opj(self.job.path, self.rkfname)
+        p = self.get_path()
+        return opj(p, self.rkfname)
 
     def get_lowest_conformer(self) -> Molecule:
         """Return the conformer with the lowest energy"""
-        return self._conformers[0]
+        return self.conformers.molecules[0]
 
     def get_conformers(self) -> List[Molecule]:
         """
         Return a list containing all conformers found.
         The conformers are sorted according to their energy, the first element being the lowest energy conformer.
         """
-        return self._conformers.molecules
+        return self.conformers.molecules
 
-    def get_relative_energies(self, unit="au") -> List[float]:
+    def get_relative_energies(self, unit: str = "au") -> List[float]:
         """
         Return the relative energies of the conformers i.e. the energy of the conformer minus the energy of the lowest conformer found.
         This list is sorted according to the energy of the conformers, the first element corresponding to the lowest energy conformer.
         So, by definition, the first element will have an energy of 0.
         """
-        e = self._conformers.relative_energies
+        e = self.conformers.relative_energies
         return Units.convert(e, "kcal/mol", unit)
 
-    def get_energies(self, unit="au") -> List[float]:
+    def get_energies(self, unit: str = "au") -> List[float]:
         """
         Return the energies of the conformers.
         This list is sorted according to the energy of the conformers, the first element corresponding to the lowest energy conformer.
         """
-        e = self._conformers.energies
+        e = self.conformers.energies
         return Units.convert(e, "kcal/mol", unit)
 
-    def get_lowest_energy(self, unit="au") -> float:
+    def get_lowest_energy(self, unit: str = "au") -> float:
         """Return the energy of the lowest-energy conformer."""
-        return Units.convert(self._conformers.energies[0], "kcal/mol", unit)
+        return Units.convert(self.conformers.energies[0], "kcal/mol", unit)
 
     def get_boltzmann_distribution(self, temperature: float) -> List[float]:
         """
@@ -137,34 +169,25 @@ class ConformersResults(Results):
         dist = [w / denominator for w in weights]
         return dist
 
-    def __str__(self):
+    def __str__(self) -> str:
         return str(self._conformers)
 
-    def get_energy_landscape(self):
+    def get_energy_landscape(self) -> AMSResults.EnergyLandscape:
+        # TODO how is this possible?
         el = AMSResults.EnergyLandscape(None)
         for energy, mol in zip(self.get_energies(), self.get_conformers()):
             state = AMSResults.EnergyLandscape.State(el, None, energy, mol, 1, False)
             el._states.append(state)
         return el
 
-    def collect(self):
-        """Collect files present in the job folder.
-
-        Use parent method from |Results| to get a list of all files in the results folder.
-        Then instantiate ``self.rkf`` to be a |KFFile| instance for the main ``conformers.rkf`` output file.
-        Also instantiate ``self._conformers`` to be a Conformers instance built from it.
-
-        This method is called automatically during the final part of the job execution and there is no need to call it manually.
-        """
-        Results.collect(self)
-
-        if self.rkfname in self.files:
-            rkf_path = opj(self.job.path, self.rkfname)
-            self.rkf = KFFile(rkf_path)
-            self._conformers = ConformersCollection(self.job.path)
-
     @requires_optional_package("matplotlib")
-    def plot_conformers(self, indices=None, temperature=298, unit="kcal/mol", lowest=True):
+    def plot_conformers(
+        self,
+        indices: Optional[Union[int, List[int]]] = None,
+        temperature: float = 298.0,
+        unit: str = "kcal/mol",
+        lowest: bool = True,
+    ) -> Union[List[Any], Any]:
         """
         Function for plotting conformers
 
@@ -184,6 +207,8 @@ class ConformersResults(Results):
         lowest: bool
             Only used if ``indices`` is an integer. If True, plot the N lowest energy conformers. If False, plot conformers evenly distributed from the most stable to the least stable.
 
+        returns:
+            NDArray[Axes] or Axes depending how many conformers are present/requested to plot
         """
         import matplotlib.pyplot as plt
 
@@ -194,17 +219,20 @@ class ConformersResults(Results):
         if isinstance(indices, int):
             N_plot = min(indices, len(energies))
             if lowest:
-                indices = list(range(N_plot))
+                indices_ok = list(range(N_plot))
             else:
-                indices = np.linspace(0, len(energies) - 1, N_plot, dtype=np.int32)
-        if indices is None:
-            indices = list(range(min(3, len(energies))))
+                indices_ok = np.linspace(0, len(energies) - 1, N_plot, dtype=np.int32).tolist()
+        else:
+            if indices is None:
+                indices_ok = list(range(min(3, len(energies))))
+            else:
+                indices_ok = indices
 
-        fig, axes = plt.subplots(1, len(indices), figsize=(12, 3))
-        if len(indices) == 1:
+        fig, axes = plt.subplots(1, len(indices_ok), figsize=(12, 3))
+        if len(indices_ok) == 1:
             axes = [axes]
 
-        for ax, i in zip(axes, indices):
+        for ax, i in zip(axes, indices_ok):
             mol = molecules[i]
             E = energies[i]
             population = populations[i]
@@ -220,24 +248,26 @@ class ConformersJob(SingleJob):
     _result_type = ConformersResults
     _command = "conformers"
 
-    def __init__(self, name="conformers", molecule=None, **kwargs):
+    def __init__(self, name: str = "conformers", molecule: Optional[Molecule] = None, **kwargs: Any) -> None:
         Job.__init__(self, name=name, **kwargs)
 
+        # TODO: include UCS
+        # TODO: Implement multiple molecules input.
         if molecule is None:
             self.molecule = None
         elif isinstance(molecule, Molecule):
             self.molecule = molecule.copy()
         else:
-            raise NotImplementedError("TODO: Implement multiple molecules input.")
+            raise ValueError(f"Found: {type(molecule)=} but it must be Molecule or None")
 
-    def check(self):
+    def check(self) -> bool:
         return True
 
-    def get_input(self):
+    def get_input(self) -> str:
         sett = self.settings.copy()
 
         # If there are references to ConformersResults in the settings, expand them into full paths:
-        def expand_results_into_paths(s):
+        def expand_results_into_paths(s: Settings) -> None:
             for k, v in s.items():
                 if isinstance(v, Settings):
                     expand_results_into_paths(v)
@@ -250,7 +280,7 @@ class ConformersJob(SingleJob):
 
         return AMSJob(settings=sett, molecule=self.molecule).get_input()
 
-    def get_runscript(self):
+    def get_runscript(self) -> str:
         ret = ""
         if "preamble_lines" in self.settings.runscript:
             for line in self.settings.runscript.preamble_lines:
@@ -265,12 +295,21 @@ class ConformersJob(SingleJob):
         return ret
 
     @classmethod
-    def load_external(cls, path, settings=None, molecule=None, finalize=False, jobname=None):
+    def load_external(
+        cls,
+        path: Union[str, Path],
+        settings: Optional[Settings] = None,
+        molecule: Optional[Molecule] = None,
+        finalize: bool = False,
+        jobname: Optional[str] = None,
+    ) -> "ConformersJob":
         """
         Load an external job from *path*.
         """
-        if os.path.basename(path)[-4:] == ".rkf":
-            path = os.path.dirname(path)
+        p = str(path)
+        if os.path.basename(p)[-4:] == ".rkf":
+            p = os.path.dirname(p)
         # molecule = molecule or Molecule.read_userin(path + "/conformers.rkf", program="conformers")
-        ret = super().load_external(path, settings, molecule, finalize, jobname)
+        ret = super().load_external(p, settings, molecule, finalize, jobname)
         return ret
+        #
