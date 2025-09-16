@@ -2,7 +2,6 @@ import os
 import stat
 from collections.abc import Iterable
 from itertools import chain
-from os.path import join as opj
 from typing import List, Optional, Union, Any
 
 from scm.plams.core.basejob import SingleJob
@@ -163,7 +162,7 @@ class UnifacJob(SingleJob):
 
     def _get_ready(self) -> None:
         """Create the runfile."""
-        runfile = opj(self.path, self._filename("run"))
+        runfile = self.get_path() / self._filename("run")
         with open(runfile, "w") as f:
             f.write(self.full_runscript())
         os.chmod(runfile, os.stat(runfile).st_mode | stat.S_IEXEC)

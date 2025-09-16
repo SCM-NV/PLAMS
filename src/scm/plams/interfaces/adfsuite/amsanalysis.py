@@ -258,7 +258,7 @@ class AMSAnalysisResults(SCMResults):
         except:
             log(
                 "Failed to recreate input settings from {}".format(
-                    os.path.join(self.job.path, "".join([self.job.name, self.__class__._kfext]))
+                    str(self.job.get_path() / (self.job.name + self.__class__._kfext))
                 )
             )
             return None

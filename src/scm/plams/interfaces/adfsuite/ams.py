@@ -1,6 +1,5 @@
 import os
 import re
-from os.path import join as opj
 
 from typing import (
     Dict,
@@ -130,17 +129,17 @@ class AMSResults(Results):
     def collect_rkfs(self) -> None:
         rkfname = "ams.rkf"
         if rkfname in self.files:
-            main = KFFile(opj(self.job.path, rkfname))
+            main = KFFile(str(self.job.get_path() / rkfname))
             n = main.read_int("EngineResults", "nEntries")
             for i in range(1, n + 1):
                 files = main.read_string("EngineResults", "Files({})".format(i)).split("\x00")
                 if files[0].endswith(".rkf"):
                     key = files[0][:-4]
-                    self.rkfs[key] = KFFile(opj(self.job.path, files[0]))
+                    self.rkfs[key] = KFFile(str(self.job.get_path() / files[0]))
             self.rkfs["ams"] = main
 
         else:
-            log("WARNING: Main KF file {} not present in {}".format(rkfname, self.job.path), 1)
+            log("WARNING: Main KF file {} not present in {}".format(rkfname, str(self.job.get_path())), 1)
 
     def _copy_to(self, newresults: "AMSResults") -> None:
         super()._copy_to(newresults)
@@ -157,7 +156,7 @@ class AMSResults(Results):
         for key, val in self.rkfs.items():
             if not os.path.isfile(val.path):
                 if os.path.dirname(val.path) != self.job.path:
-                    guessnewpath = opj(self.job.path, os.path.basename(val.path))
+                    guessnewpath = str(self.job.get_path() / os.path.basename(val.path))
                     if os.path.isfile(guessnewpath):
                         self.rkfs[key] = KFFile(guessnewpath)
                     else:
@@ -220,7 +219,7 @@ class AMSResults(Results):
         """
 
         kf_file = cast(str, self.readrkf("EngineResults", f"Files({term})", file=file))
-        kf = KFReader(os.path.join(self.job.path, kf_file))
+        kf = KFReader(str(self.job.get_path() / kf_file))
         return kf.read(section, variable)
 
     def rkfpath(self, file: str = "ams") -> str:
@@ -2801,11 +2800,11 @@ class AMSResults(Results):
         filename = file + ".rkf"
         self.refresh()
         if filename in self.files:
-            self.rkfs[file] = KFFile(opj(self.job.path, filename))
+            self.rkfs[file] = KFFile(str(self.job.get_path() / filename))
             return func(self.rkfs[file])
 
         # Surrender:
-        raise FileError("File {} not present in {}".format(filename, self.job.path))
+        raise FileError("File {} not present in {}".format(filename, self.job.get_path()))
 
     def _process_engine_results(self, func: Callable[[KFFile], T], engine: Optional[str] = None) -> T:
         """A generic method skeleton for processing any engine results ``.rkf`` file. *func* should be a function that takes one argument (an instance of |KFFile|) and returns arbitrary data.
@@ -2817,12 +2816,14 @@ class AMSResults(Results):
             if engine in names:
                 return func(self.rkfs[engine])
             else:
-                raise FileError(f"File {engine}.rkf not present in {self.job.path}\n engine names found are: {names}")
+                raise FileError(
+                    f"File {engine}.rkf not present in {self.job.get_path()}\n engine names found are: {names}"
+                )
         else:
             if len(names) == 1:
                 return func(self.rkfs[names[0]])
             elif len(names) == 0:
-                raise FileError("There is no engine .rkf present in {}".format(self.job.path))
+                raise FileError("There is no engine .rkf present in {}".format(self.job.get_path()))
             else:
                 raise ValueError(
                     "You need to specify the 'engine' argument when there are multiple engine result files present in the job folder"

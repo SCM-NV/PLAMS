@@ -1,5 +1,4 @@
 import os
-from os.path import join as opj
 from typing import (
     Union,
     TYPE_CHECKING,
@@ -54,7 +53,7 @@ class SCMResults(Results):
         Results.collect(self)
         kfname = self.job.name + self.__class__._kfext
         if kfname in self.files:
-            self._kf = KFFile(opj(self.job.path, kfname))
+            self._kf = KFFile(str(self.job.get_path() / kfname))
         else:
             log("WARNING: Main KF file {} not present in {}".format(kfname, self.job.path), 1)
 
@@ -64,9 +63,9 @@ class SCMResults(Results):
         to_remove = []
         for attr, val in self.__dict__.items():
             if isinstance(val, KFFile) and os.path.dirname(val.path) != self.job.path:
-                guessnewpath = opj(self.job.path, os.path.basename(val.path))
+                guessnewpath = self.job.get_path() / os.path.basename(val.path)
                 if os.path.isfile(guessnewpath):
-                    self.__dict__[attr] = KFFile(guessnewpath)
+                    self.__dict__[attr] = KFFile(str(guessnewpath))
                 else:
                     to_remove.append(attr)
         for i in to_remove:
@@ -80,7 +79,7 @@ class SCMResults(Results):
         """
         if self._kfpresent():
             return self._kf.read(section, variable)
-        raise FileError("File {} not present in {}".format(self.job.name + self.__class__._kfext, self.job.path))
+        raise FileError("File {} not present in {}".format(self.job.name + self.__class__._kfext, self.job.get_path()))
 
     def newkf(self, filename: str) -> KFFile:
         """newkf(filename)
@@ -96,9 +95,9 @@ class SCMResults(Results):
         self.refresh()
         filename = filename.replace("$JN", self.job.name)
         if filename in self.files:
-            return KFFile(opj(self.job.path, filename))
+            return KFFile(str(self.job.get_path() / filename))
         else:
-            raise FileError("File {} not present in {}".format(filename, self.job.path))
+            raise FileError("File {} not present in {}".format(filename, self.job.get_path()))
 
     def get_properties(self) -> Dict[str, Any]:
         """get_properties()
@@ -167,7 +166,7 @@ class SCMResults(Results):
         """_kfpath()
         Return the absolute path to the main KF file.
         """
-        return opj(self.job.path, self.job.name + self.__class__._kfext)
+        return str(self.job.get_path() / (self.job.name + self.__class__._kfext))
 
     def _kfpresent(self) -> bool:
         """_kfpresent()
@@ -182,7 +181,7 @@ class SCMResults(Results):
         if isinstance(attr, KFFile):
             oldname = os.path.basename(attr.path)
             newname = Results._replace_job_name(oldname, self.job.name, other.job.name)
-            newpath = opj(other.job.path, newname)
+            newpath = str(other.job.get_path() / newname)
             return KFFile(newpath) if os.path.isfile(newpath) else None
         else:
             return Results._export_attribute(self, attr, other)
