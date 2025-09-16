@@ -57,26 +57,26 @@ def unique_atoms(atomlist: Sequence["Atom"]) -> List["Atom"]:
     """Filter *atomlist* (list or |Molecule|) for atoms with unique ``IDname``."""
     d = {}
     for atom in atomlist:
-        if atom.IDname not in d:
-            d[atom.IDname] = 0
-        d[atom.IDname] += 1
-    return [atom for atom in atomlist if d[atom.IDname] == 1]
+        if atom.IDname not in d:  # type: ignore[attr-defined]
+            d[atom.IDname] = 0  # type: ignore[attr-defined]
+        d[atom.IDname] += 1  # type: ignore[attr-defined]
+    return [atom for atom in atomlist if d[atom.IDname] == 1]  # type: ignore[attr-defined]
 
 
 def initialize(molecule: "Molecule") -> None:
     """Initialize atom labeling algorithm by setting ``IDname`` and ``IDdone`` attributes for all atoms in *molecule*."""
     for at in molecule:
-        at.IDname = at.symbol
-        at.IDdone = False
+        at.IDname = at.symbol  # type: ignore[attr-defined]
+        at.IDdone = False  # type: ignore[attr-defined]
 
 
 def clear(molecule: "Molecule") -> None:
     """Remove ``IDname`` and ``IDdone`` attributes from all atoms in *molecule*."""
     for at in molecule:
         if hasattr(at, "IDname"):
-            del at.IDname
+            del at.IDname  # type: ignore[attr-defined]
         if hasattr(at, "IDdone"):
-            del at.IDdone
+            del at.IDdone  # type: ignore[attr-defined]
 
 
 def iterate(molecule: "Molecule", flags: Dict[str, Any]) -> bool:
@@ -84,20 +84,20 @@ def iterate(molecule: "Molecule", flags: Dict[str, Any]) -> bool:
 
     First, mark all atoms that are unique and have only unique neighbors as "done". Then calculate new label for each atom that is not done. Return True if the number of different atom labels increased during this iteration.
     """
-    names = len(set(at.IDname for at in molecule))
+    names = len(set(at.IDname for at in molecule))  # type: ignore[attr-defined]
     unique = set(unique_atoms(molecule))
 
     for atom in molecule:
         if atom in unique and all(N in unique for N in atom.neighbors()):
-            atom.IDdone = True
-        if not atom.IDdone:
-            atom.IDnew = new_name(atom, flags)
+            atom.IDdone = True  # type: ignore[attr-defined]
+        if not atom.IDdone:  # type: ignore[attr-defined]
+            atom.IDnew = new_name(atom, flags)  # type: ignore[attr-defined]
 
     for atom in molecule:
-        if not atom.IDdone:
-            atom.IDname = atom.IDnew
+        if not atom.IDdone:  # type: ignore[attr-defined]
+            atom.IDname = atom.IDnew  # type: ignore[attr-defined]
 
-    new_names = len(set(atom.IDname for atom in molecule))
+    new_names = len(set(atom.IDname for atom in molecule))  # type: ignore[attr-defined]
     return new_names > names  # True means this iteration increased the number of distinct names
 
 
@@ -139,7 +139,7 @@ def new_name(atom: "Atom", flags: Dict[str, Any]) -> str:
                         angles.append(sorted(bend(v1, atom.vector_to(a), flags.get("bend_tol")) for a in d[k]))  # type: ignore
             more.append("CO" + str(angles))
 
-    return sha256("|".join([atom.IDname] + [i[0] for i in knocks] + more))
+    return sha256("|".join([atom.IDname] + [i[0] for i in knocks] + more))  # type: ignore[attr-defined]
 
 
 def knock(A: "Atom", bond: "Bond", flags: Dict[str, Any]) -> Tuple[str, "Atom"]:
@@ -149,7 +149,7 @@ def knock(A: "Atom", bond: "Bond", flags: Dict[str, Any]) -> Tuple[str, "Atom"]:
     """
 
     S = bond.other_end(A)
-    ret: str = S.IDname
+    ret: str = S.IDname  # type: ignore[attr-defined]
 
     if flags["BO"] and bond.order != 1:
         ret += "BO" + str(bond.order)
@@ -158,7 +158,7 @@ def knock(A: "Atom", bond: "Bond", flags: Dict[str, Any]) -> Tuple[str, "Atom"]:
         S_nbors = S.neighbors()
         S_nbors.remove(A)
         if len(S_nbors) == 3 and len(unique_atoms(S_nbors)) == 3:
-            S_nbors.sort(key=lambda x: x.IDname)
+            S_nbors.sort(key=lambda x: x.IDname)  # type: ignore[attr-defined]
             v1, v2, v3 = [S.vector_to(i) for i in S_nbors]
             t = twist(v1, v2, v3, flags.get("twist_tol"))
             ret += "H2" + str(t)
@@ -167,14 +167,14 @@ def knock(A: "Atom", bond: "Bond", flags: Dict[str, Any]) -> Tuple[str, "Atom"]:
         S_unique = unique_atoms(S.neighbors())
         if A in S_unique:  # *A* is a unique neighbor of *S*
             S_unique.remove(A)
-            S_unique.sort(key=lambda x: x.IDname)
+            S_unique.sort(key=lambda x: x.IDname)  # type: ignore[attr-defined]
             for b in S.bonds:
                 N = b.other_end(S)
                 if N in S_unique:
                     N_unique = unique_atoms(N.neighbors())
                     if S in N_unique:
                         N_unique.remove(S)
-                    N_unique.sort(key=lambda x: x.IDname)
+                    N_unique.sort(key=lambda x: x.IDname)  # type: ignore[attr-defined]
                     if N_unique:
                         F = N_unique[0]
                         v1 = A.vector_to(S)
@@ -219,7 +219,7 @@ def label_atoms(molecule: "Molecule", **kwargs: Any) -> "Molecule":
 
 def molecule_name(molecule: "Molecule") -> str:
     """Compute the label of the whole *molecule* based on ``IDname`` attributes of all the atoms."""
-    names = [atom.IDname for atom in molecule]
+    names = [atom.IDname for atom in molecule]  # type: ignore[attr-defined]
     names.sort()
     return sha256(" ".join(names))
 
@@ -244,7 +244,7 @@ def get_graph(mol: "Molecule", dic: Dict[str, Any], level: int = 1) -> Optional[
     matrix = matrix.astype(np.int32)
 
     # Multiply the graph entries with the unique labels for each atom
-    identifiers = np.array([dic[at.IDname] if at.IDname in dic.keys() else None for at in mol.atoms])
+    identifiers = np.array([dic[at.IDname] if at.IDname in dic.keys() else None for at in mol.atoms])  # type: ignore[attr-defined]
     if None in identifiers:
         return None
     identifiers = identifiers.astype(np.int32)
