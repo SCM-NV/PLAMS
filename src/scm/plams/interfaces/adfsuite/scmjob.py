@@ -1,6 +1,20 @@
 import os
 from os.path import join as opj
-from typing import Union, TYPE_CHECKING, Dict, Any, TypeVar, NoReturn, Optional, Sequence, Type, Callable, List, Mapping
+from typing import (
+    Union,
+    TYPE_CHECKING,
+    Dict,
+    Any,
+    TypeVar,
+    NoReturn,
+    Optional,
+    Sequence,
+    Type,
+    Callable,
+    List,
+    Mapping,
+    cast,
+)
 
 import numpy as np
 
@@ -90,11 +104,11 @@ class SCMResults(Results):
         """get_properties()
         Return a dictionary with all the entries from ``Properties`` section in the main KF file.
         """
-        n = self.readkf("Properties", "nEntries")
+        n = cast(int, self.readkf("Properties", "nEntries"))
         ret: Dict[str, Any] = {}
         for i in range(1, n + 1):
-            tp = self.readkf("Properties", "Type({})".format(i)).strip()
-            stp = self.readkf("Properties", "Subtype({})".format(i)).strip()
+            tp = cast(str, self.readkf("Properties", "Type({})".format(i))).strip()
+            stp = cast(str, self.readkf("Properties", "Subtype({})".format(i))).strip()
             val = self.readkf("Properties", "Value({})".format(i))
             key = stp if stp.endswith(tp) else ("{} {}".format(stp, tp) if stp else tp)
             ret[key] = val
@@ -242,7 +256,7 @@ class SCMJob(SingleJob):
     def check(self) -> bool:
         """Check if ``termination status`` variable from ``General`` section of main KF file equals ``NORMAL TERMINATION``."""
         try:
-            status = self.results.readkf("General", "termination status")
+            status = cast(str, self.results.readkf("General", "termination status"))
         except:
             return False
         if "NORMAL TERMINATION" in status:

@@ -2,7 +2,7 @@ import inspect
 import os
 import subprocess
 from itertools import cycle
-from typing import Optional, List, Dict, TYPE_CHECKING, Set, Union, Any, Tuple
+from typing import Optional, List, Dict, TYPE_CHECKING, Set, Union, Any, Tuple, cast
 
 import numpy as np
 
@@ -37,12 +37,12 @@ class CRSResults(SCMResults):
 
     def get_energy(self, energy_type: str = "deltag", compound_idx: int = 0, unit: str = "kcal/mol") -> float:
         """Returns the solute solvation energy from an Activity Coefficients calculation."""
-        E: float = self.readkf(self.section, energy_type)[compound_idx]
+        E = cast(List[float], self.readkf(self.section, energy_type))[compound_idx]
         return Units.convert(E, "kcal/mol", unit)
 
     def get_activity_coefficient(self, compound_idx: int = 0) -> float:
         """Return the solute activity coefficient from an Activity Coefficients calculation."""
-        return self.readkf(self.section, "gamma")[compound_idx]
+        return cast(List[float], self.readkf(self.section, "gamma"))[compound_idx]
 
     def get_sigma_profile(self, subsection: str = "profil", as_df: bool = False) -> dict:
         r"""Grab all sigma profiles, returning a dictionary of Numpy Arrays.
@@ -113,10 +113,10 @@ class CRSResults(SCMResults):
             raise ValueError("Results object is missing or incomplete.")
 
         # first get the two ranges for the indices
-        ncomp = self.readkf(section, "ncomp")
-        nitems = self.readkf(section, "nitems")
+        ncomp = cast(int, self.readkf(section, "ncomp"))
+        nitems = cast(int, self.readkf(section, "nitems"))
         try:
-            nstruct = self.readkf(section, "nstruct")
+            nstruct = cast(int, self.readkf(section, "nstruct"))
         except:
             nstruct = ncomp
 
@@ -126,6 +126,7 @@ class CRSResults(SCMResults):
         for prop in props:
             tmp = self.readkf(section, prop)
             if prop in ["filename", "name", "SMILES", "mol_filenames"]:
+                tmp = cast(str, tmp)
                 if len(tmp) / ncomp == chunk_length:
                     np_dict[prop] = [tmp[i : i + chunk_length].strip() for i in range(0, len(tmp), chunk_length)]
                     continue
@@ -133,6 +134,7 @@ class CRSResults(SCMResults):
                     np_dict[prop] = tmp.split("\x00")
                     continue
             if prop == "struct names":
+                tmp = cast(str, tmp)
                 if len(tmp) / nstruct == chunk_length:
                     np_dict[prop] = [tmp[i : i + chunk_length].strip() for i in range(0, len(tmp), chunk_length)]
                     continue
@@ -162,9 +164,9 @@ class CRSResults(SCMResults):
         else:
             nPhase = 1
 
-        ncomp: int = self.readkf(self.section, "ncomp")
+        ncomp = cast(int, self.readkf(self.section, "ncomp"))
         struct_names = res["struct names"]
-        num_points: int = self.readkf(self.section, "nitems")
+        num_points = cast(int, self.readkf(self.section, "nitems"))
         valid_structs: List[List[str]] = [[] for _ in range(ncomp)]
         comp_dist = res["comp distribution"].flatten()
         for i in range(len(struct_names)):
@@ -226,28 +228,26 @@ class CRSResults(SCMResults):
 
         section = "EnegyComponent"
         try:
-            nspecies = self.readkf(section, "nspecies")
+            nspecies = cast(int, self.readkf(section, "nspecies"))
         except:
             log("The section of EnergyComponent is not found in the crskf file.")
             return None, None
 
-        ms_index = self.readkf(section, "ms_index")
-        ms_index = np.array(ms_index)
+        ms_index = np.array(self.readkf(section, "ms_index"))
         ms_index = ms_index.reshape(nspecies, 4)
 
-        mu_component = self.readkf(section, "mu_component")
-        mu_component = np.array(mu_component)
+        mu_component = np.array(self.readkf(section, "mu_component"))
         mu_component = mu_component.reshape(nspecies, int(len(mu_component) / nspecies))
 
         species_molfrac = self.readkf(section, "species_molfrac")
-        species_coskf = self.readkf(section, "species_coskf").split("\x00")
+        species_coskf = cast(str, self.readkf(section, "species_coskf")).split("\x00")
         species_coskf = [os.path.basename(x.rstrip()) for x in species_coskf]
 
         Assoc = self.readkf(section, "Assoc")
         NumRepMonmer = self.readkf(section, "NumRepMonmer")
         NumStrucPerComp = self.readkf(section, "NumStrucPerComp")
 
-        dict_species = {}
+        dict_species: Dict[str, Any] = {}
         dict_species["s_idx"] = [i + 1 for i in range(nspecies)]
         dict_species["CompIdx"] = ms_index[:, 0]
         dict_species["FormIdx"] = ms_index[:, 1]
@@ -271,9 +271,9 @@ class CRSResults(SCMResults):
             Assoc_s_idx = self.readkf(section, "Assoc_s_idx")
             ReqCompIdxAssoc = self.readkf(section, "ReqCompIdxAssoc")
             NumReqCompAssoc = self.readkf(section, "NumReqCompAssoc")
-            ReqCompNameAssoc = self.readkf(section, "ReqCompNameAssoc").split("\x00")
+            ReqCompNameAssoc = cast(str, self.readkf(section, "ReqCompNameAssoc")).split("\x00")
 
-            dict_Asson = {}
+            dict_Asson: Dict[str, Any] = {}
             dict_Asson["Assoc_s_idx"] = Assoc_s_idx
             dict_Asson["ReqCompIdxAssoc"] = ReqCompIdxAssoc
             dict_Asson["NumReqCompAssoc"] = NumReqCompAssoc
@@ -456,12 +456,12 @@ class CRSResults(SCMResults):
     def _construct_array_dict(self, section: str, subsection: str, unit: str = "kcal/mol") -> dict:
         """Construct dictionary containing all values in *section*/*subsection*."""
         # Use filenames as keys
-        _filenames: Union[List[str], str] = self.readkf(section, "filename").split()
+        _filenames = cast(str, self.readkf(section, "filename")).split()
         filenames = [_filenames] if not isinstance(_filenames, list) else _filenames
 
         # Grab the keys and the number of items per key
         keys = [os.path.basename(key) for key in filenames] + ["Total"]
-        nitems: int = self.readkf(section, "nitems")
+        nitems = cast(int, self.readkf(section, "nitems"))
 
         # Use sigma profiles/potentials as values
         ratio = Units.conversion_ratio("kcal/mol", unit)

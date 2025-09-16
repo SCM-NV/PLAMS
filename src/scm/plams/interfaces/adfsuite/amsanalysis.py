@@ -1,5 +1,5 @@
 import os
-from typing import Dict, Union, Optional, KeysView, List, Any, Tuple, NoReturn, TYPE_CHECKING
+from typing import Dict, Union, Optional, KeysView, List, Any, Tuple, NoReturn, TYPE_CHECKING, cast
 from typing_extensions import LiteralString
 
 if TYPE_CHECKING:
@@ -103,7 +103,7 @@ class AMSAnalysisPlot:
         # Now set the instance variables
         self.properties = properties
         if "Legend" in properties:
-            self.name = properties["Legend"]
+            self.name = cast(str, properties["Legend"])
 
     def get_dimensions(self) -> int:
         """
@@ -186,8 +186,8 @@ class AMSAnalysisResults(SCMResults):
         """
         if not self._kfpresent():
             raise FileError("File {} not present in {}".format(self.job.name + self.__class__._kfext, self.job.path))
-        if self._kf.reader._sections is None:
-            self._kf.reader._create_index()
+        if self._kf.reader._sections is None:  # type: ignore
+            self._kf.reader._create_index()  # type: ignore
         return self._kf.reader._sections.keys()  # type: ignore
 
     def get_xy(self, section: str = "", i: int = 1) -> AMSAnalysisPlot:
@@ -243,7 +243,7 @@ class AMSAnalysisResults(SCMResults):
         if not plot.properties or "DiffusionCoefficient" not in plot.properties.keys():
             return None, None
 
-        D = plot.properties["DiffusionCoefficient"]
+        D = cast(float, plot.properties["DiffusionCoefficient"])
         D_units = plot.y_units
         return D, D_units
 

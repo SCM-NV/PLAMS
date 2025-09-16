@@ -17,6 +17,7 @@ from typing import (
     TypeVar,
     Iterator,
     Type,
+    cast,
 )
 
 import numpy as np
@@ -218,7 +219,7 @@ class AMSResults(Results):
         Example: job.results.read_hybrid_term_rkf("AMSResults", "Energy", file="engine", term=1)
         """
 
-        kf_file = self.readrkf("EngineResults", f"Files({term})", file=file)
+        kf_file = cast(str, self.readrkf("EngineResults", f"Files({term})", file=file))
         kf = KFReader(os.path.join(self.job.path, kf_file))
         return kf.read(section, variable)
 
@@ -291,7 +292,7 @@ class AMSResults(Results):
 
         sectiondict = self.read_rkf_section(section, file)
         bohr2angstrom = Units.conversion_ratio("bohr", "angstrom")
-        nLatticeVectors: int = sectiondict.get("nLatticeVectors", 0)
+        nLatticeVectors = cast(int, sectiondict.get("nLatticeVectors", 0))
         pbc = [True] * nLatticeVectors + [False] * (3 - nLatticeVectors)
         if nLatticeVectors > 0:
             cell = np.zeros((3, 3))
@@ -299,7 +300,7 @@ class AMSResults(Results):
             cell[: lattice.shape[0], : lattice.shape[1]] = lattice * bohr2angstrom
         else:
             cell = None
-        atomsymbols = sectiondict["AtomSymbols"].split()
+        atomsymbols = cast(str, sectiondict["AtomSymbols"]).split()
         positions = np.array(sectiondict["Coords"]).reshape(-1, 3) * bohr2angstrom
         return Atoms(symbols=atomsymbols, positions=positions, pbc=pbc, cell=cell)
 
@@ -333,9 +334,11 @@ class AMSResults(Results):
         if "InputMolecule" in skel:
             mols[""] = self.get_molecule("InputMolecule")
         if "InputMolecules" in skel:
-            num_named_molecules: int = self.readrkf("InputMolecules", "numNamedMolecules")
+            num_named_molecules = cast(int, self.readrkf("InputMolecules", "numNamedMolecules"))
             for imol in range(1, num_named_molecules + 1):
-                mols[self.readrkf("InputMolecules", f"Name({imol})")] = self.get_molecule(f"InputMolecule({imol})")
+                mols[cast(str, self.readrkf("InputMolecules", f"Name({imol})"))] = self.get_molecule(
+                    f"InputMolecule({imol})"
+                )
         return mols
 
     def get_main_molecule(self) -> Molecule:
@@ -500,7 +503,7 @@ class AMSResults(Results):
 
     def get_history_length(self, history_section: str = "History") -> int:
         """Returns the number of entries (nEntries) in the history section on the ams.rkf file."""
-        return self.readrkf(history_section, "nEntries")
+        return cast(int, self.readrkf(history_section, "nEntries"))
 
     def get_history_property(self, varname: str, history_section: str = "History") -> Optional[List]:
         """Return the values of *varname* in the history section *history_section*."""
@@ -523,9 +526,9 @@ class AMSResults(Results):
                 main.read(history_section, f"{varname}({iblock})", return_as_list=True)
                 for iblock in range(1, nblocks + 1)
             ]
-            values = [val for blockvals in values for val in blockvals if isinstance(blockvals, list)]
+            values = [val for blockvals in values for val in blockvals if isinstance(blockvals, list)]  # type: ignore[union-attr]
         else:
-            values = [main.read(history_section, f"{varname}({step})") for step in range(1, nentries + 1)]
+            values = [main.read(history_section, f"{varname}({step})") for step in range(1, nentries + 1)]  # type: ignore[misc]
         return values
 
     def get_property_at_step(self, step: int, varname: str, history_section: str = "History") -> Optional["TRead"]:
@@ -541,7 +544,7 @@ class AMSResults(Results):
                 history_section, f"{varname}({iblock})"
             )  # this can return something that isn't a list, for example an int
             try:
-                value = value[(step % blocksize) - 1]
+                value = value[(step % blocksize) - 1]  # type: ignore[index]
             except TypeError:  # TypeError: 'int' object is not subscriptable
                 pass
         else:
@@ -625,11 +628,11 @@ class AMSResults(Results):
 
         read_labels = True
 
-        nBands: int = self.readrkf("band_curves", "nBands", file="engine")
+        nBands = cast(int, self.readrkf("band_curves", "nBands", file="engine"))
 
-        nEdges: int = self.readrkf("band_curves", "nEdges", file="engine")
+        nEdges = cast(int, self.readrkf("band_curves", "nEdges", file="engine"))
         try:
-            nSpin: int = self.readrkf("band_curves", "nSpin", file="engine")
+            nSpin = cast(int, self.readrkf("band_curves", "nSpin", file="engine"))
         except KeyError:
             nSpin = 1
 
@@ -652,7 +655,7 @@ class AMSResults(Results):
             prevmaxx = np.max(my_x)
 
             if read_labels:
-                my_labels = self.readrkf("band_curves", f"Edge_{i+1}_labels", file="engine").split()
+                my_labels = cast(str, self.readrkf("band_curves", f"Edge_{i+1}_labels", file="engine")).split()
                 if len(my_labels) == 2:
                     if only_high_symmetry_points:
                         labels += [my_labels[0]]  # only the first point of the curve
@@ -664,7 +667,7 @@ class AMSResults(Results):
             else:
                 x.append(my_x)
 
-            A = self.readrkf("band_curves", f"Edge_{i+1}_bands", file="engine")
+            A = cast(List[float], self.readrkf("band_curves", f"Edge_{i+1}_bands", file="engine"))
             A = np.array(A).reshape(-1, nBands * nSpin)
             spinup_data = A[:, bands]
             spindown_data = A[:, spindown_bands]
@@ -684,10 +687,10 @@ class AMSResults(Results):
 
         x = np.concatenate(x).ravel()
 
-        fermi_energy = self.readrkf("BandStructure", "FermiEnergy", file="engine")
+        fermi_energy = cast(float, self.readrkf("BandStructure", "FermiEnergy", file="engine"))
         fermi_energy = Units.convert(fermi_energy, "hartree", unit)
 
-        return x, complete_spinup_data, complete_spindown_data, labels, fermi_energy  # type: ignore
+        return x, complete_spinup_data, complete_spindown_data, labels, fermi_energy
 
     def get_phonons_dos(
         self, unit: str = "hartree"
@@ -713,16 +716,16 @@ class AMSResults(Results):
         """
         energyConv = Units.convert(1.0, "Hartree", unit)
 
-        nEnergies = self.readrkf("DOS_Phonons", "nEnergies", file="engine")
+        nEnergies = cast(int, self.readrkf("DOS_Phonons", "nEnergies", file="engine"))
 
-        integrateDeltaE = self.readrkf("DOS_Phonons", "IntegrateDeltaE", file="engine")
+        integrateDeltaE = cast(float, self.readrkf("DOS_Phonons", "IntegrateDeltaE", file="engine"))
 
         assert integrateDeltaE
 
-        energy = np.array(self.readrkf("DOS_Phonons", "Energies", file="engine")) * energyConv
+        energy = np.array(cast(List[float], self.readrkf("DOS_Phonons", "Energies", file="engine"))) * energyConv
         dE = energy[1] - energy[0]
 
-        total_dos = np.array(self.readrkf("DOS_Phonons", "Total DOS", file="engine")) / dE
+        total_dos = np.array(cast(List[float], self.readrkf("DOS_Phonons", "Total DOS", file="engine"))) / dE
 
         assert len(energy) == nEnergies
         assert len(total_dos) == nEnergies
@@ -732,7 +735,7 @@ class AMSResults(Results):
 
         nSpecies = None
         try:
-            nSpecies = self.readrkf("DOS_Phonons", "nSpecies", file="engine")
+            nSpecies = cast(int, self.readrkf("DOS_Phonons", "nSpecies", file="engine"))
         except KeyError:
             print(
                 "Warning! The density of states (DOS) per atom and species is currently only supported by the Quantum Espresso engine."
@@ -742,20 +745,22 @@ class AMSResults(Results):
 
         if nSpecies:
 
-            nAtoms = self.readrkf("DOS_Phonons", "nAtoms", file="engine")
+            nAtoms = cast(int, self.readrkf("DOS_Phonons", "nAtoms", file="engine"))
 
             assert nAtoms == len(self.job.molecule)
 
-            DOSperSpecies = np.array(self.readrkf("DOS_Phonons", "DOS per species", file="engine")).reshape(
-                nSpecies, -1
-            )
-            species = self.readrkf("DOS_Phonons", "Species", file="engine").split("\0")
+            DOSperSpecies = np.array(
+                cast(List[int], self.readrkf("DOS_Phonons", "DOS per species", file="engine"))
+            ).reshape(nSpecies, -1)
+            species = cast(str, self.readrkf("DOS_Phonons", "Species", file="engine")).split("\0")
 
             for i, s in enumerate(species):
                 dos_per_species[s] = DOSperSpecies[i] / dE
 
-            DOSperAtom = np.array(self.readrkf("DOS_Phonons", "DOS per atom", file="engine")).reshape(nAtoms, -1)
-            atomToSpecies = np.array(self.readrkf("DOS_Phonons", "Atom to Species", file="engine")) - 1
+            DOSperAtom = np.array(cast(List[int], self.readrkf("DOS_Phonons", "DOS per atom", file="engine"))).reshape(
+                nAtoms, -1
+            )
+            atomToSpecies = np.array(cast(List[int], self.readrkf("DOS_Phonons", "Atom to Species", file="engine"))) - 1
             if isinstance(atomToSpecies, np.int64):
                 atomToSpecies = atomToSpecies.reshape(1)
 
@@ -794,8 +799,8 @@ class AMSResults(Results):
 
         read_labels = True
 
-        nBands: int = self.readrkf("phonon_curves", "nBands", file="engine")
-        nEdges: int = self.readrkf("phonon_curves", "nEdges", file="engine")
+        nBands = cast(int, self.readrkf("phonon_curves", "nBands", file="engine"))
+        nEdges = cast(int, self.readrkf("phonon_curves", "nEdges", file="engine"))
 
         if bands is None:
             bands = np.arange(nBands).tolist()
@@ -806,12 +811,14 @@ class AMSResults(Results):
 
         prevmaxx = 0
         for i in range(nEdges):
-            my_x = np.array(self.readrkf("phonon_curves", f"Edge_{i+1}_xFor1DPlotting", file="engine"))
+            my_x = np.array(
+                cast(List[float], self.readrkf("phonon_curves", f"Edge_{i+1}_xFor1DPlotting", file="engine"))
+            )
             my_x += prevmaxx
             prevmaxx = np.max(my_x)
 
             if read_labels:
-                my_labels = self.readrkf("phonon_curves", f"Edge_{i+1}_labels", file="engine").split()
+                my_labels = cast(str, self.readrkf("phonon_curves", f"Edge_{i+1}_labels", file="engine")).split()
                 if len(my_labels) == 2:
                     if only_high_symmetry_points:
                         labels += [my_labels[0]]  # only the first point of the curve
@@ -823,7 +830,7 @@ class AMSResults(Results):
             else:
                 x.append(my_x)
 
-            A = self.readrkf("phonon_curves", f"Edge_{i+1}_bands", file="engine")
+            A = cast(List[float], self.readrkf("phonon_curves", f"Edge_{i+1}_bands", file="engine"))
             A = np.array(A).reshape(-1, nBands)
             spinup_data = A[:, bands]
 
@@ -879,24 +886,24 @@ class AMSResults(Results):
                 Units.constants["Boltzmann"] * Units.constants["Avogadro_constant"] / Units.constants["electron_charge"]
             )
 
-        nPlots = self.readrkf("Plot", "numPlots", file="engine")
+        nPlots = cast(int, self.readrkf("Plot", "numPlots", file="engine"))
 
         temperature = np.array(
-            self.readrkf("Plot", "XValues(1)", file="engine")
+            cast(List[float], self.readrkf("Plot", "XValues(1)", file="engine"))
         )  # We assume that temperature is the same for all properties
 
         for iProp in range(nPlots):
-            label = self.readrkf("Plot", f"YLabel({iProp+1})", file="engine").strip()
+            label = cast(str, self.readrkf("Plot", f"YLabel({iProp+1})", file="engine")).strip()
 
             if label not in ["Internal Energy", "Free Energy", "Specific Heat", "Entropy"]:
                 continue
 
-            values = np.array(self.readrkf("Plot", f"YValues({iProp+1})", file="engine"))
+            values = np.array(cast(List[float], self.readrkf("Plot", f"YValues({iProp+1})", file="engine")))
 
-            property_title = self.readrkf("Plot", f"Title({iProp+1})", file="engine").strip()
-            temperature_unit = self.readrkf("Plot", f"XUnit({iProp+1})", file="engine").strip()
-            property_unit = self.readrkf("Plot", f"YUnit({iProp+1})", file="engine").strip()
-            temperature_label = self.readrkf("Plot", f"XLabel({iProp+1})", file="engine").strip()
+            property_title = cast(str, self.readrkf("Plot", f"Title({iProp+1})", file="engine")).strip()
+            temperature_unit = cast(str, self.readrkf("Plot", f"XUnit({iProp+1})", file="engine")).strip()
+            property_unit = cast(str, self.readrkf("Plot", f"YUnit({iProp+1})", file="engine")).strip()
+            temperature_label = cast(str, self.readrkf("Plot", f"XLabel({iProp+1})", file="engine")).strip()
 
             assert property_title == label
             assert temperature_label == "Temperature"
@@ -1454,12 +1461,12 @@ class AMSResults(Results):
 
     def get_timings(self) -> Dict[str, float]:
         """Return a dictionary with timing statistics of the job execution. Returned dictionary contains keys cpu, system and elapsed. The values are corresponding timings, expressed in seconds."""
-        ret = {}
+        ret: Dict[str, float] = {}
         try:
             # new AMS versions store timings on ams.rkf
-            ret["elapsed"] = self.readrkf("General", "ElapsedTime")
-            ret["system"] = self.readrkf("General", "SysTime")
-            ret["cpu"] = self.readrkf("General", "CPUTime")
+            ret["elapsed"] = cast(float, self.readrkf("General", "ElapsedTime"))
+            ret["system"] = cast(float, self.readrkf("General", "SysTime"))
+            ret["cpu"] = cast(float, self.readrkf("General", "CPUTime"))
         except:
             # fall back to reading output, was needed for old AMS versions
             cpu = self.grep_output("Total cpu time:")
@@ -1562,7 +1569,7 @@ class AMSResults(Results):
             else:
                 return [x]
 
-        nScanCoord: int = self.readrkf("PESScan", "nScanCoord")
+        nScanCoord = cast(int, self.readrkf("PESScan", "nScanCoord"))
 
         pes = tolist(self.readrkf("PESScan", "PES"))
 
@@ -1671,15 +1678,15 @@ class AMSResults(Results):
             else:
                 return [x]
 
-        ret = {}
+        ret: Dict[str, Any] = {}
         conversion_ratio = Units.conversion_ratio("au", unit)
         ret["nImages"] = self.readrkf("NEB", "nebImages")
         ret["nIterations"] = self.readrkf("NEB", "nebIterations")
         ret["Climbing"] = bool(self.readrkf("NEB", "climbing"))
         ret["HighestIndex"] = self.readrkf("NEB", "highestIndex")
-        ret["LeftBarrier"] = self.readrkf("NEB", "LeftBarrier") * conversion_ratio
-        ret["RightBarrier"] = self.readrkf("NEB", "RightBarrier") * conversion_ratio
-        ret["ReactionEnergy"] = self.readrkf("NEB", "ReactionEnergy") * conversion_ratio
+        ret["LeftBarrier"] = cast(float, self.readrkf("NEB", "LeftBarrier")) * conversion_ratio
+        ret["RightBarrier"] = cast(float, self.readrkf("NEB", "RightBarrier")) * conversion_ratio
+        ret["ReactionEnergy"] = cast(float, self.readrkf("NEB", "ReactionEnergy")) * conversion_ratio
         history_dim = tolist(self.readrkf("NEB", "historyIndex@dim"))  # nimages, randombign
         history_dim.reverse()  # randombign, nimages
         history_indices_matrix = np.array(
@@ -1690,9 +1697,11 @@ class AMSResults(Results):
         if any(x == -1 for x in history_indices):
             raise ValueError("Found -1 in the 'converged' part of historyIndex. This should not happen!")
         ret["HistoryIndices"] = history_indices
-        ret["Energies"] = [self.get_property_at_step(ind, "Energy") * conversion_ratio for ind in ret["HistoryIndices"]]
+        ret["Energies"] = [
+            cast(float, self.get_property_at_step(ind, "Energy")) * conversion_ratio for ind in ret["HistoryIndices"]
+        ]
         if molecules:
-            ret["Molecules"] = [self.get_history_molecule(ind) for ind in ret["HistoryIndices"]]
+            ret["Molecules"] = [self.get_history_molecule(ind) for ind in cast(Sequence, ret["HistoryIndices"])]
 
         return ret
 
@@ -1802,8 +1811,8 @@ class AMSResults(Results):
 
     def get_time_step(self, history_section: Literal["BinLog", "MDHistory"] = "MDHistory") -> int:
         """Returns the time step between adjacent frames (NOT the TimeStep in the settings, but Timestep*SamplingFreq) in femtoseconds for MD simulation jobs"""
-        time1 = self.get_property_at_step(1, "Time", history_section=history_section)
-        time2 = self.get_property_at_step(2, "Time", history_section=history_section)
+        time1 = cast(Optional[int], self.get_property_at_step(1, "Time", history_section=history_section))
+        time2 = cast(Optional[int], self.get_property_at_step(2, "Time", history_section=history_section))
 
         if time1 is None or time2 is None:
             raise PlamsError(f"Cannot determine time step from 'Time' variable of history section '{history_section}'")
@@ -1872,7 +1881,7 @@ class AMSResults(Results):
         """
         from scm.plams.trajectories.analysis import autocorrelation
 
-        nEntries: int = self.readrkf("MDHistory", "nEntries")
+        nEntries = cast(int, self.readrkf("MDHistory", "nEntries"))
 
         time_step = self.get_time_step()
 
@@ -1959,7 +1968,7 @@ class AMSResults(Results):
         from scm.plams.trajectories.analysis import autocorrelation
 
         # nEntries = self.readrkf('BinLog', 'nEntries')
-        time_step: int = self.get_time_step(history_section="BinLog")
+        time_step = self.get_time_step(history_section="BinLog")
 
         data = self.get_dipole_history()
 
@@ -2218,7 +2227,7 @@ class AMSResults(Results):
             T = np.array(self.get_history_property("Temperature", "MDHistory"))[start_step:end_step:every]
             mean_T = np.mean(T)
         except KeyError:  # might be triggered for currently running trajectories, then just use the first temperature
-            mean_T = self.get_property_at_step(1, "Temperature", "MDHistory")
+            mean_T = cast(float, self.get_property_at_step(1, "Temperature", "MDHistory"))
 
         k_B = Units.constants["k_B"]
 
@@ -2284,7 +2293,7 @@ class AMSResults(Results):
         bohr2ang = Units.convert(1.0, "bohr", "angstrom")
 
         start_step, end_step, every, _ = self._get_integer_start_end_every_max(start_fs, end_fs, every_fs, None)
-        nEntries = self.readrkf("History", "nEntries")
+        nEntries = cast(int, self.readrkf("History", "nEntries"))
         history_coords = np.array(self.get_history_property("Coords")).reshape(nEntries, -1, 3)
         coords = history_coords[start_step:end_step:every]
         nEntries = len(coords)
@@ -2406,12 +2415,12 @@ class AMSResults(Results):
         coordinate = np.array(self.readrkf("WorkFunction", "coordinate", file="engine")) * to_dunit
         planarAverage = np.array(self.readrkf("WorkFunction", "planarAverage", file="engine")) * to_eunit
         macroscopicAverage = np.array(self.readrkf("WorkFunction", "macroscopicAverage", file="engine")) * to_eunit
-        Efermi = self.readrkf("WorkFunction", "fermiEnergy", file="engine") * to_eunit
-        Vbulk = self.readrkf("WorkFunction", "minMacroscopicAverPotential", file="engine") * to_eunit
-        leftVvacuum = self.readrkf("WorkFunction", "leftVacuumPotential", file="engine") * to_eunit
-        rightVvacuum = self.readrkf("WorkFunction", "rightVacuumPotential", file="engine") * to_eunit
-        leftWF = self.readrkf("WorkFunction", "leftWorkFunction", file="engine") * to_eunit
-        rightWF = self.readrkf("WorkFunction", "rightWorkFunction", file="engine") * to_eunit
+        Efermi = cast(float, self.readrkf("WorkFunction", "fermiEnergy", file="engine")) * to_eunit
+        Vbulk = cast(float, self.readrkf("WorkFunction", "minMacroscopicAverPotential", file="engine")) * to_eunit
+        leftVvacuum = cast(float, self.readrkf("WorkFunction", "leftVacuumPotential", file="engine")) * to_eunit
+        rightVvacuum = cast(float, self.readrkf("WorkFunction", "rightVacuumPotential", file="engine")) * to_eunit
+        leftWF = cast(float, self.readrkf("WorkFunction", "leftWorkFunction", file="engine")) * to_eunit
+        rightWF = cast(float, self.readrkf("WorkFunction", "rightWorkFunction", file="engine")) * to_eunit
 
         return (
             coordinate,
@@ -2445,7 +2454,7 @@ class AMSResults(Results):
         If ``ams.rkf`` is present in the job folder, extract user input and parse it back to a |Settings| instance using ``scm.libbase`` module. Remove the ``system`` branch from that instance.
         """
         if "ams" in self.rkfs:
-            user_input = self.readrkf("General", "user input")
+            user_input = cast(str, self.readrkf("General", "user input"))
             try:
                 from scm.plams.interfaces.adfsuite.inputparser import input_to_settings
 
@@ -2623,26 +2632,39 @@ class AMSResults(Results):
             # If there is only 1 state in the 'EnergyLandscape' section, some variables that are normally lists are insted be build-in types (e.g. a 'float' instead of a 'list of floats').
             # For convenience here we make sure that the following variables are always 'lists':
             for var in ["energies", "counts", "isTS", "reactants", "products"]:
+                tmp = sec[var]
                 if not isinstance(sec[var], list):
-                    sec[var] = [sec[var]]
+                    sec[var] = [sec[var]]  # type: ignore[list-item]
 
-            nStates: int = sec["nStates"]
+            nStates = cast(int, sec["nStates"])
 
             for iState in range(nStates):
-                energy: float = sec["energies"][iState]
-                resfile = os.path.splitext(sec["fileNames"].split("\0")[iState])[0]
+                energy = cast(List[float], sec["energies"])[iState]
+                resfile = os.path.splitext(cast(str, sec["fileNames"]).split("\0")[iState])[0]
                 mol = results.get_molecule("Molecule", file=resfile)
-                count: int = sec["counts"][iState]
-                if not sec["isTS"][iState]:
+                count = cast(List[int], sec["counts"])[iState]
+                if not cast(List[bool], sec["isTS"])[iState]:
                     self._states.append(AMSResults.EnergyLandscape.State(self, resfile, energy, mol, count, False))
                 else:
-                    reactantsID = sec["reactants"][iState] if sec["reactants"][iState] > 0 else None
-                    productsID = sec["products"][iState] if sec["products"][iState] > 0 else None
+                    reactantsID = (
+                        cast(List[int], sec["reactants"])[iState]
+                        if cast(List[int], sec["reactants"])[iState] > 0
+                        else None
+                    )
+                    productsID = (
+                        cast(List[int], sec["products"])[iState]
+                        if cast(List[int], sec["products"])[iState] > 0
+                        else None
+                    )
                     prefactorsFromReactant = (
-                        sec["prefactorsFromReactant"][iState] if sec["products"][iState] > 0 else None
+                        cast(List[int], sec["prefactorsFromReactant"])[iState]
+                        if cast(List[int], sec["products"])[iState] > 0
+                        else None
                     )
                     prefactorsFromProduct = (
-                        sec["prefactorsFromProduct"][iState] if sec["products"][iState] > 0 else None
+                        cast(List[float], sec["prefactorsFromProduct"])[iState]
+                        if cast(List[bool], sec["products"])[iState] > 0
+                        else None
                     )
                     self._states.append(
                         AMSResults.EnergyLandscape.State(
@@ -2662,32 +2684,32 @@ class AMSResults(Results):
             if "nFragments" not in sec:
                 return
 
-            nFragments = sec["nFragments"]
+            nFragments = cast(int, sec["nFragments"])
 
             for iFragment in range(nFragments):
-                energy = sec["fragmentsEnergies"][iFragment]
-                resfile = os.path.splitext(sec["fragmentsFileNames"].split("\0")[iFragment])[0]
+                energy = cast(List[float], sec["fragmentsEnergies"])[iFragment]
+                resfile = os.path.splitext(cast(str, sec["fragmentsFileNames"]).split("\0")[iFragment])[0]
                 mol = results.get_molecule("Molecule", file=resfile)
                 self._fragments.append(AMSResults.EnergyLandscape.Fragment(self, resfile, energy, mol))
 
             if "nFStates" not in sec:
                 return
 
-            nFragmentedStates = sec["nFStates"]
+            nFragmentedStates = cast(int, sec["nFStates"])
 
             for iFState in range(nFragmentedStates):
-                iEnergy = sec["fStatesEnergy(" + str(iFState + 1) + ")"]
+                iEnergy = cast(float, sec["fStatesEnergy(" + str(iFState + 1) + ")"])
 
-                value = sec["fStatesComposition(" + str(iFState + 1) + ")"]
+                value = cast(Union[List[int], int], sec["fStatesComposition(" + str(iFState + 1) + ")"])
                 iComposition = [i - 1 for i in value] if isinstance(value, list) else [value - 1]
 
-                value = sec["fStatesConnections(" + str(iFState + 1) + ")"]
+                value = cast(Union[List[int], int], sec["fStatesConnections(" + str(iFState + 1) + ")"])
                 iConnections = [i - 1 for i in value] if isinstance(value, list) else [value - 1]
 
-                value = sec["fStatesAdsorptionPrefactors(" + str(iFState + 1) + ")"]
+                value = cast(Union[List[int], int], sec["fStatesAdsorptionPrefactors(" + str(iFState + 1) + ")"])
                 iAdsorptionPrefactors = value if isinstance(value, list) else [value]
 
-                value = sec["fStatesDesorptionPrefactors(" + str(iFState + 1) + ")"]
+                value = cast(Union[List[int], int], sec["fStatesDesorptionPrefactors(" + str(iFState + 1) + ")"])
                 iDesorptionPrefactors = value if isinstance(value, list) else [value]
 
                 self._fstates.append(
@@ -2945,7 +2967,7 @@ class AMSJob(SingleJob):
     def check(self) -> bool:
         """Check if ``termination status`` variable from ``General`` section of main KF file equals ``NORMAL TERMINATION``."""
         try:
-            status = self.results.readrkf("General", "termination status")
+            status = cast(str, self.results.readrkf("General", "termination status"))
         except (FileError, KeyError) as e:
             log(str(e), 1)
             return False
@@ -2987,7 +3009,7 @@ class AMSJob(SingleJob):
                 #                find the last error from the stderr
                 # Note AMS can crash before even creating an rkf, then can just check the output and error files.
                 try:
-                    termination_status = self.results.readrkf("General", "termination status")
+                    termination_status = cast(str, self.results.readrkf("General", "termination status"))
                 except FileError:
                     termination_status = None
 
