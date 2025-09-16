@@ -400,7 +400,7 @@ sleep 0.0 && sed 's/input/output/g' plamsjob.in
         assert all(j.ok() for j in jobs)
         for j in jobs:
             o, i1, i2 = j.name.split("_")
-            assert Path(j.path) == Path(config.default_jobmanager.workdir, "results", o, i1, j.name)
+            assert Path(j.path).resolve() == Path(config.default_jobmanager.workdir, "results", o, i1, j.name).resolve()
 
     def test_ok_waits_on_results_and_checks_status(self):
         # Given job and a copy
