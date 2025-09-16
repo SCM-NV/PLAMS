@@ -97,18 +97,7 @@ Worked Example
 
 EOF
 
-awk '
-  /^-{3,}/ {
-    dash_count = length($0)
-    tildes = "";              #
-    for (i = 1; i <= dash_count; i++) {
-      tildes = tildes "~"
-    }
-    print tildes
-    next
-  }
-  { print }
-' "${example_dir}/${rst_file}" >> "${example_dir}/${rst_ipynb_file}"
+sed '/^----*/ { s/-/~/g; }' "${example_dir}/${rst_file}" >> "${example_dir}/${rst_ipynb_file}"
 
 # move the required files over to the doc directory
 cp "${example_dir}/${rst_ipynb_file}" "${target_dir}/"
