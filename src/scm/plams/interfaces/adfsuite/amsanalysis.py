@@ -1,4 +1,3 @@
-import os
 from typing import Dict, Union, Optional, KeysView, List, Any, Tuple, NoReturn, TYPE_CHECKING, cast
 from typing_extensions import LiteralString
 

@@ -2631,7 +2631,6 @@ class AMSResults(Results):
             # If there is only 1 state in the 'EnergyLandscape' section, some variables that are normally lists are insted be build-in types (e.g. a 'float' instead of a 'list of floats').
             # For convenience here we make sure that the following variables are always 'lists':
             for var in ["energies", "counts", "isTS", "reactants", "products"]:
-                tmp = sec[var]
                 if not isinstance(sec[var], list):
                     sec[var] = [sec[var]]  # type: ignore[list-item]
 
