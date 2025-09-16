@@ -15,7 +15,7 @@ Initial imports
 
 ::
 
-   PLAMS working folder: /home/benedini/PLAMS/examples/COSMORSConformers/plams_workdir.002
+   PLAMS working folder: /path/plams/examples/COSMORSConformers/plams_workdir.002
 
 .. code:: ipython3
 

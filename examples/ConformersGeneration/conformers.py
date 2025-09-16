@@ -15,12 +15,10 @@ from scm.plams import *
 # this line is not required in AMS2025+
 init()
 
-
 # ## Initial structure
 
 molecule = from_smiles("OC(CC1c2ccccc2Sc2ccccc21)CN1CCCC1")
 plot_molecule(molecule)
-
 
 # ## Generate conformers with RDKit and UFF
 # The fastest way to generate conformers is to use RDKit with the UFF force field.
@@ -35,17 +33,14 @@ s.input.ams.Generator.Method = "RDKit"  # default
 s.input.ams.Generator.RDKit.InitialNConformers = 16  # optional, non-default
 s.input.ForceField.Type = "UFF"  # default
 
-
 # ### Conformer generation input file
 
 print(ConformersJob(settings=s).get_input())
-
 
 # ### Run conformer generation
 
 generate_job = ConformersJob(name="generate", molecule=molecule, settings=s)
 generate_job.run()
-
 
 # ## Conformer generation results
 
@@ -122,12 +117,9 @@ except ImportError:
 unit = "kcal/mol"
 temperature = 298
 
-
 print_results(generate_job, temperature, unit)
 
-
 generate_job.results.plot_conformers(4, temperature=temperature, unit=unit, lowest=True)
-
 
 # ## Re-optimize conformers with GFNFF
 #
@@ -146,15 +138,11 @@ s.input.GFNFF  # or choose a different engine if you don't have a GFNFF license
 reoptimize_job = ConformersJob(settings=s, name="reoptimize")
 print(reoptimize_job.get_input())
 
-
 reoptimize_job.run()
-
 
 print_results(reoptimize_job, temperature=temperature, unit=unit)
 
-
 reoptimize_job.results.plot_conformers(4, temperature=temperature, unit=unit, lowest=True)
-
 
 # ## Score conformers with DFTB
 #
@@ -173,12 +161,9 @@ s.input.DFTB.Model = "GFN1-xTB"  # or choose a different engine if you don't hav
 score_job = ConformersJob(settings=s, name="score")
 score_job.run()
 
-
 print_results(score_job, temperature=temperature, unit=unit)
 
-
 score_job.results.plot_conformers(4, temperature=temperature, unit=unit, lowest=True)
-
 
 # Here, you see that from the conformers in the set, **DFTB predicts a different lowest-energy conformer than GFNFF** (compare to previous figure).
 
@@ -198,12 +183,9 @@ s.input.ams.InputMaxEnergy = 1.0
 filter_job = ConformersJob(settings=s, name="filter")
 filter_job.run()
 
-
 print_results(filter_job, temperature=temperature, unit=unit)
 
-
 filter_job.results.plot_conformers(4, temperature=temperature, unit=unit, lowest=True)
-
 
 # The structures and energies are identical to before. However, the relative populations changed slightly as there are now fewer conformers in the set.
 

@@ -20,7 +20,7 @@ Initial imports
 
 ::
 
-   PLAMS working folder: /home/benedini/PLAMS/examples/ConformersGeneration/plams_workdir.002
+   PLAMS working folder: /path/plams/examples/ConformersGeneration/plams_workdir.002
 
 Initial structure
 ~~~~~~~~~~~~~~~~~
@@ -222,7 +222,7 @@ Below, the most stable conformers (within 8 kcal/mol of the most stable conforme
 
 ::
 
-   InputConformersSet /home/benedini/PLAMS/examples/ConformersGeneration/plams_workdir.002/generate/conformers.rkf
+   InputConformersSet /path/plams/examples/ConformersGeneration/plams_workdir.002/generate/conformers.rkf
 
    InputMaxEnergy 8.0
 

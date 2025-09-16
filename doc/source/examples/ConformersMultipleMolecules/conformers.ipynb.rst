@@ -20,7 +20,7 @@ Initial imports
 
 ::
 
-   PLAMS working folder: /home/benedini/PLAMS/examples/ConformersMultipleMolecules/plams_workdir.003
+   PLAMS working folder: /path/plams/examples/ConformersMultipleMolecules/plams_workdir.003
 
 Single alanine molecule
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -118,7 +118,7 @@ Now we can run the conformer generation job.
 
 ::
 
-   Conformers stored in /home/benedini/PLAMS/examples/ConformersMultipleMolecules/plams_workdir.003/conformers/conformers.rkf
+   Conformers stored in /path/plams/examples/ConformersMultipleMolecules/plams_workdir.003/conformers/conformers.rkf
 
 This job will run for approximately 15 minutes.
 

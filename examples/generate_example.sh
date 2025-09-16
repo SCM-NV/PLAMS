@@ -57,7 +57,7 @@ $AMSBIN/uv run --with black[jupyter] -m black -t py38  -l 120 "${example_dir}/${
 # create the .py file
 # remove any get_ipython calls (generated if a cell contains for example_dir !amsmovie)
 py_file="${name}.py"
-$AMSBIN/uv run --with nbconvert -m nbconvert --to python --stdout --no-prompt "${example_dir}/${nb_file}" | sed "1s# python# amspython#; /get_ipython/d" > "${example_dir}/${py_file}"
+$AMSBIN/uv run --with nbconvert --with ipython -m nbconvert --to python --stdout --no-prompt "${example_dir}/${nb_file}" | sed "1s# python# amspython#; /get_ipython/d" > "${example_dir}/${py_file}"
 
 echo "Generated the python file '${example_dir}/${py_file}'"
 
@@ -78,13 +78,13 @@ pandoc --from markdown --to rst --columns=2000 "${example_dir}/${md_file}" -o "$
 # - remove figure captions
 if [ "$(uname)" = "Darwin" ]; then
     sed -i '' -e "
-    s#/.*/plams/#/path/plams/#g;
+    s#/.*/[Pp][Ll][Aa][Mm][Ss]/#/path/plams/#g;
     s#code:: python#code:: ipython3#g;
     /^\.\. figure:: / {n;N;N; d;}
     " "${example_dir}/${nb_file}" "${example_dir}/${rst_file}"
 else
     sed -i -e "
-    s#/.*/plams/#/path/plams/#g;
+    s#/.*/[Pp][Ll][Aa][Mm][Ss]/#/path/plams/#g;
     s#code:: python#code:: ipython3#g;
     /^\.\. figure:: / {n;N;N; d;}
     " "${example_dir}/${nb_file}" "${example_dir}/${rst_file}"
