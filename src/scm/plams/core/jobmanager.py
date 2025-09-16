@@ -309,10 +309,9 @@ class JobManager:
                 dir_for_jobs = self.current_dir_for_jobs
                 # N.B. resolve does not remove the Windows extended prefix if the directory does not yet exist
                 # so sanitise the directory for jobs here when finding the relative path
-                prefix = "\\\\?\\"
                 dir_for_jobs_str = str(dir_for_jobs)
                 clean_dir_for_jobs = Path(
-                    dir_for_jobs_str[len(prefix) :] if dir_for_jobs_str.startswith(prefix) else dir_for_jobs_str
+                    dir_for_jobs_str[4:] if dir_for_jobs_str.startswith(("\\\\?\\", "//?/")) else dir_for_jobs_str
                 ).resolve()
                 rel_dir_for_jobs = clean_dir_for_jobs.relative_to(self.workdir)
             rel_dir_for_jobs = rel_dir_for_jobs if rel_dir_for_jobs != Path(".") else None
