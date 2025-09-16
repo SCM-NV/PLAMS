@@ -287,6 +287,7 @@ class AMSAnalysisResults(SCMResults):
 class AMSAnalysisJob(SCMJob):
     """A class for analyzing molecular dynamics trajectories using the ``analysis`` program."""
 
+    results: AMSAnalysisResults
     _result_type = AMSAnalysisResults
     _command = "analysis"
     _subblock_end = "end"

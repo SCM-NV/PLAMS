@@ -32,6 +32,7 @@ TSelf = TypeVar("TSelf", bound="SCMResults")
 class SCMResults(Results):
     """Abstract class gathering common mechanisms for results of ADF Suite programs."""
 
+    job: "SCMJob"
     _kfext = ""
 
     def collect(self) -> None:
@@ -203,6 +204,7 @@ class SCMResults(Results):
 class SCMJob(SingleJob):
     """Abstract class gathering common mechanisms for jobs with ADF Suite programs."""
 
+    results: SCMResults
     _result_type = SCMResults
     _top = ["title", "units", "define"]
     _command = ""

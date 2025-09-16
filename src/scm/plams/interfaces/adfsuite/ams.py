@@ -110,6 +110,8 @@ __all__ = ["AMSJob", "AMSResults"]
 class AMSResults(Results):
     """A specialized |Results| subclass for accessing the results of |AMSJob|."""
 
+    job: "AMSJob"
+
     def __init__(self, *args: Any, **kwargs: Any):
         Results.__init__(self, *args, **kwargs)
         self.rkfs: Dict[str, KFFile] = {}
