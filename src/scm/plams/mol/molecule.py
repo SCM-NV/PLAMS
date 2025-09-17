@@ -502,13 +502,13 @@ class Molecule:
         The starting value of the numbering can be set with *start* (starts at 1 by default).
         """
         for i, at in enumerate(self.atoms, start):
-            at.id = i
+            at.id = i  # type: ignore[attr-defined]
 
     def unset_atoms_id(self) -> None:
         """Delete ``id`` attributes of all atoms."""
         for at in self.atoms:
             try:
-                del at.id
+                del at.id  # type: ignore[attr-defined]
             except AttributeError:
                 pass
 
@@ -525,7 +525,7 @@ class Molecule:
         ret = np.zeros((len(self), len(self)))
         self.set_atoms_id(start=0)
         for b in self.bonds:
-            i, j = b.atom1.id, b.atom2.id
+            i, j = b.atom1.id, b.atom2.id  # type: ignore[attr-defined]
             ret[i, j] = ret[j, i] = b.order
         self.unset_atoms_id()
         return ret
@@ -578,31 +578,31 @@ class Molecule:
         frags = []
         clone = self.copy()
         for at in clone:
-            at._visited = False
+            at._visited = False  # type: ignore[attr-defined]
 
         def dfs(start_v: Atom, mol: "Molecule") -> None:
             stack = [start_v]
 
             while stack:
                 v = stack.pop()
-                if not v._visited:
-                    v._visited = True
+                if not v._visited:  # type: ignore[attr-defined]
+                    v._visited = True  # type: ignore[attr-defined]
                     v.mol = mol
                     for e in v.bonds:
                         e.mol = mol
                         u = e.other_end(v)
-                        if not u._visited:
+                        if not u._visited:  # type: ignore[attr-defined]
                             stack.append(u)
 
         for src in clone.atoms:
-            if not src._visited:
+            if not src._visited:  # type: ignore[attr-defined]
                 m = Molecule()
                 dfs(src, m)
                 frags.append(m)
                 frags[-1].lattice = self.lattice
 
         for at in clone.atoms:
-            del at._visited
+            del at._visited  # type: ignore[attr-defined]
             at.mol.atoms.append(at)
         for b in clone.bonds:
             b.mol.bonds.append(b)
@@ -679,13 +679,13 @@ class Molecule:
 
             cubes: Dict[Tuple[int, ...], List[Atom]] = {}
             for i, at in enumerate(atom_list, 1):
-                at._id = i
-                at.free = at.connectors
-                at.cube = tuple(map(lambda x: int(math.floor(x / cubesize)), at.coords))
-                if at.cube in cubes:
-                    cubes[at.cube].append(at)
+                at._id = i  # type: ignore[attr-defined]
+                at.free = at.connectors  # type: ignore[attr-defined]
+                at.cube = tuple(map(lambda x: int(math.floor(x / cubesize)), at.coords))  # type: ignore[attr-defined]
+                if at.cube in cubes:  # type: ignore[attr-defined]
+                    cubes[at.cube].append(at)  # type: ignore[attr-defined]
                 else:
-                    cubes[at.cube] = [at]
+                    cubes[at.cube] = [at]  # type: ignore[attr-defined]
 
             neighbors: Dict[Tuple[int, ...], List[Atom]] = {}
             for cube in cubes:
@@ -717,16 +717,16 @@ class Molecule:
 
             heap = []
             for at1 in from_atoms_subset:
-                if at1.free > 0 or ignore_free:
-                    for at2 in neighbors[at1.cube]:
+                if at1.free > 0 or ignore_free:  # type: ignore[attr-defined]
+                    for at2 in neighbors[at1.cube]:  # type: ignore[attr-defined]
                         if not at2 in to_atoms_subset:
                             continue
                         if ignore_free:
                             if at2 in from_atoms_subset:
-                                if at2._id <= at1._id:
+                                if at2._id <= at1._id:  # type: ignore[attr-defined]
                                     continue
                         else:
-                            if at2.free <= 0 or at2._id <= at1._id:
+                            if at2.free <= 0 or at2._id <= at1._id:  # type: ignore[attr-defined]
                                 continue
                         # the bond guessing is more accurate with smaller metallic radii
                         ratio = at1.distance_to(at2) / (
@@ -739,30 +739,30 @@ class Molecule:
                                 heap.append(HeapElement(0, ratio, at1, at2))
                                 # I hate to do this, but I guess there's no other way :/ [MiHa]
                                 if at1.atnum == 16 and at2.atnum == 8:
-                                    at1.free = 6
+                                    at1.free = 6  # type: ignore[attr-defined]
                                 elif at2.atnum == 16 and at1.atnum == 8:
-                                    at2.free = 6
+                                    at2.free = 6  # type: ignore[attr-defined]
                                 elif at1.atnum == 7:
-                                    at1.free += 1
+                                    at1.free += 1  # type: ignore[attr-defined]
                                 elif at2.atnum == 7:
-                                    at2.free += 1
+                                    at2.free += 1  # type: ignore[attr-defined]
             if not ignore_free:
                 heapq.heapify(heap)
 
                 for at in atom_list:
                     if at.atnum == 7:
-                        if at.free > 6:
-                            at.free = 4
+                        if at.free > 6:  # type: ignore[attr-defined]
+                            at.free = 4  # type: ignore[attr-defined]
                         else:
-                            at.free = 3
+                            at.free = 3  # type: ignore[attr-defined]
 
                 while heap:
                     val, o, r, at1, at2 = heapq.heappop(heap).unpack()
                     step = 1 if o in [0, 2] else 0.5
-                    if at1.free >= step and at2.free >= step:
+                    if at1.free >= step and at2.free >= step:  # type: ignore[attr-defined]
                         o += step
-                        at1.free -= step
-                        at2.free -= step
+                        at1.free -= step  # type: ignore[attr-defined]
+                        at2.free -= step  # type: ignore[attr-defined]
                         if o < 3:
                             heapq.heappush(heap, HeapElement(o, r, at1, at2))
                         else:
@@ -773,13 +773,13 @@ class Molecule:
                         self.add_bond(at1, at2, o)
 
                 def dfs(atom: Atom, par: int) -> Optional[bool]:
-                    atom.arom += 1000
+                    atom.arom += 1000  # type: ignore[attr-defined]
                     for b in atom.bonds:
                         oe = b.other_end(atom)
-                        if b.is_aromatic() and oe.arom < 1000:
-                            if oe.arom > 2:
+                        if b.is_aromatic() and oe.arom < 1000:  # type: ignore[attr-defined]
+                            if oe.arom > 2:  # type: ignore[attr-defined]
                                 return False
-                            if par and oe.arom == 1:
+                            if par and oe.arom == 1:  # type: ignore[attr-defined]
                                 b.order = 2
                                 return True
                             if dfs(oe, 1 - par):
@@ -788,21 +788,21 @@ class Molecule:
                     return None
 
                 for at in atom_list:
-                    at.arom = len(list(filter(Bond.is_aromatic, at.bonds)))
+                    at.arom = len(list(filter(Bond.is_aromatic, at.bonds)))  # type: ignore[attr-defined]
 
                 for at in atom_list:
-                    if at.arom == 1:
+                    if at.arom == 1:  # type: ignore[attr-defined]
                         dfs(at, 1)
 
         def cleanup_atom_list(atom_list: Sequence[Atom]) -> None:
             for at in atom_list:
-                del at.cube, at.free, at._id
+                del at.cube, at.free, at._id  # type: ignore[attr-defined]
                 if hasattr(at, "arom"):
-                    del at.arom
+                    del at.arom  # type: ignore[attr-defined]
                 if hasattr(at, "_metalbondcounter"):
-                    del at._metalbondcounter
+                    del at._metalbondcounter  # type: ignore[attr-defined]
                 if hasattr(at, "_electronegativebondcounter"):
-                    del at._electronegativebondcounter
+                    del at._electronegativebondcounter  # type: ignore[attr-defined]
 
         self.delete_all_bonds()
         atom_list = atom_subset or self.atoms
@@ -851,12 +851,12 @@ class Molecule:
             # delete metal-metal bonds and metal-hydrogen bonds if the metal is bonded to enough electronegative atoms and not enough metal atoms
             # (this means that the metal is a cation, so bonds should almost never be drawn unless it's a dimetal complex or a hydride/H2 ligand, but that should be rare)
             for at in metallic:
-                at._metalbondcounter = len([x for x in at.bonds if x.other_end(at).is_metallic])
-                at._electronegativebondcounter = len([x for x in at.bonds if x.other_end(at).is_electronegative])
+                at._metalbondcounter = len([x for x in at.bonds if x.other_end(at).is_metallic])  # type: ignore[attr-defined]
+                at._electronegativebondcounter = len([x for x in at.bonds if x.other_end(at).is_electronegative])  # type: ignore[attr-defined]
                 if (
-                    at._electronegativebondcounter >= 3
-                    or (at._electronegativebondcounter >= 2 >= at._metalbondcounter)
-                    or (at._electronegativebondcounter >= 1 and at._metalbondcounter <= 0)
+                    at._electronegativebondcounter >= 3  # type: ignore[attr-defined]
+                    or (at._electronegativebondcounter >= 2 >= at._metalbondcounter)  # type: ignore[attr-defined]
+                    or (at._electronegativebondcounter >= 1 and at._metalbondcounter <= 0)  # type: ignore[attr-defined]
                 ):
                     bonds_to_delete = [b for b in at.bonds if b.other_end(at).is_metallic or b.other_end(at).atnum == 1]
                     for b in bonds_to_delete:
@@ -1045,27 +1045,27 @@ class Molecule:
             self._validate_bond(arg, msg="Cannot check whether in ring.")
 
         def dfs(v: Atom, depth: int = 0) -> None:
-            v._visited = True
+            v._visited = True  # type: ignore[attr-defined]
             for bond in v.bonds:
                 if bond is not arg:
                     u = bond.other_end(v)
                     if u is arg and depth > 1:
-                        u._visited = "cycle"
-                    if not u._visited:
+                        u._visited = "cycle"  # type: ignore[attr-defined]
+                    if not u._visited:  # type: ignore[attr-defined]
                         dfs(u, depth + 1)
 
         for at in self:
-            at._visited = False
+            at._visited = False  # type: ignore[attr-defined]
 
         if isinstance(arg, Atom):
             dfs(arg)
-            ret = arg._visited == "cycle"
+            ret = arg._visited == "cycle"  # type: ignore[attr-defined]
         else:
             dfs(arg.atom1)
-            ret = arg.atom2._visited
+            ret = arg.atom2._visited  # type: ignore[attr-defined]
 
         for at in self:
-            del at._visited
+            del at._visited  # type: ignore[attr-defined]
         return ret
 
     def supercell(self, *args: Any) -> "Molecule":
@@ -1343,10 +1343,10 @@ class Molecule:
         def dfs(atom: Atom, func: Callable[["_SupportsFloatOrIndex"], int]) -> None:
             """Depth-first search algorithm for integer-ifying the bond orders."""
             for b2 in atom.bonds:
-                if b2._visited:
+                if b2._visited:  # type: ignore[attr-defined]
                     continue
 
-                b2._visited = True
+                b2._visited = True  # type: ignore[attr-defined]
                 b2.order = func(b2.order)  # func = ``math.ceil()`` or ``math.floor()``
                 del bond_dict[b2]
 
@@ -1368,10 +1368,10 @@ class Molecule:
                 if (
                     hasattr(bond.order, "is_integer") and not bond.order.is_integer()
                 ):  # Checking for ``is_integer()`` catches both float and np.float
-                    bond._visited = False
+                    bond._visited = False  # type: ignore[attr-defined]
                     bond_dict[bond] = None
                 else:
-                    bond._visited = True
+                    bond._visited = True  # type: ignore[attr-defined]
             return bond_dict, order_before
 
         bond_dict, order_before = collect_and_mark_bonds(self)
@@ -1386,7 +1386,7 @@ class Molecule:
             func = ceil if abs(delta_ceil) < abs(delta_floor) else floor
 
             b1.order = func(order)
-            b1._visited = True
+            b1._visited = True  # type: ignore[attr-defined]
             dfs(b1.atom1, func=func_invert[func])
             dfs(b1.atom2, func=func_invert[func])
 
@@ -1394,7 +1394,7 @@ class Molecule:
         order_after_sum = 0.0
         for bond in self.bonds:
             order_after_sum += bond.order
-            del bond._visited
+            del bond._visited  # type: ignore[attr-defined]
 
         # Check that the total (summed) bond order has not changed
         order_before_sum = sum(order_before)
@@ -1521,16 +1521,16 @@ class Molecule:
         """
         molecule_indices: List[List[int]] = []
         for at in self:
-            at._visited = False
+            at._visited = False  # type: ignore[attr-defined]
 
         def dfs(v: Atom, indices: List[int]) -> None:
             """
             Depth first search of self starting at atom v, extending the list of connected atoms (indices)
             """
-            v._visited = True
+            v._visited = True  # type: ignore[attr-defined]
             for e in v.bonds:
                 u = e.other_end(v)
-                if not u._visited:
+                if not u._visited:  # type: ignore[attr-defined]
                     indices.append(self.index(u, start=indices[0] + 1) - 1)
                     dfs(u, indices)
 
@@ -1542,12 +1542,12 @@ class Molecule:
             atoms = [v]
             while len(atoms) > 0:
                 for v in atoms:
-                    v._visited = True
+                    v._visited = True  # type: ignore[attr-defined]
                 res = []
                 for v in atoms:
                     for e in v.bonds:
                         other_end = e.other_end(v)
-                        if not other_end._visited and other_end not in res:
+                        if not other_end._visited and other_end not in res:  # type: ignore[attr-defined]
                             res.append(other_end)
                 atoms = res
                 # atoms = [e.other_end(v) for v in atoms for e in v.bonds if not e.other_end(v)._visited]
@@ -1555,14 +1555,14 @@ class Molecule:
                     indices.append(self.index(u, start=indices[0] + 1) - 1)
 
         for iatom, src in enumerate(self.atoms):
-            if not src._visited:
+            if not src._visited:  # type: ignore[attr-defined]
                 indices = [iatom]
                 # dfs(src, indices)
                 bfs(src, indices)
                 molecule_indices.append(sorted(indices))
 
         for at in self:
-            del at._visited
+            del at._visited  # type: ignore[attr-defined]
 
         return molecule_indices
 
@@ -2704,12 +2704,12 @@ class Molecule:
             s += ("%5i" % (i)) + atom.str(decimal=decimal) + "\n"
         if len(self.bonds) > 0:
             for j, atom in enumerate(self.atoms, 1):
-                atom._tmpid = j
+                atom._tmpid = j  # type: ignore[attr-defined]
             s += "  Bonds: \n"
             for bond in self.bonds:
-                s += "   (%d)--%1.1f--(%d)\n" % (bond.atom1._tmpid, bond.order, bond.atom2._tmpid)
+                s += "   (%d)--%1.1f--(%d)\n" % (bond.atom1._tmpid, bond.order, bond.atom2._tmpid)  # type: ignore[attr-defined]
             for atom in self.atoms:
-                del atom._tmpid
+                del atom._tmpid  # type: ignore[attr-defined]
         if self.lattice:
             s += "  Lattice:\n"
             for vec in self.lattice:
@@ -3116,7 +3116,7 @@ class Molecule:
             order = bo.order
             if order == Bond.AR:
                 order = 4
-            f.write("%3i %2i %2i  0  0  0  0\n" % (bo.atom1.id, bo.atom2.id, round(order)))
+            f.write("%3i %2i %2i  0  0  0  0\n" % (bo.atom1.id, bo.atom2.id, round(order)))  # type: ignore[attr-defined]
         self.unset_atoms_id()
         f.write("M  END\n")
 
@@ -3215,11 +3215,11 @@ class Molecule:
             write_prop("subst_name", at, " ", 7)
             write_prop("charge", at, " ", 6)
             write_prop("flags", at, "\n")
-            at.id = i
+            at.id = i  # type: ignore[attr-defined]
 
         f.write("\n@<TRIPOS>BOND\n")
         for i, bo in enumerate(self.bonds, 1):
-            f.write("%5i %5i %5i %4s" % (i, bo.atom1.id, bo.atom2.id, "ar" if bo.is_aromatic() else bo.order))
+            f.write("%5i %5i %5i %4s" % (i, bo.atom1.id, bo.atom2.id, "ar" if bo.is_aromatic() else bo.order))  # type: ignore[attr-defined]
             write_prop("flags", bo, "\n")
 
         self.unset_atoms_id()
@@ -3993,8 +3993,8 @@ class Molecule:
         # Link atom IDs to integers
         dic: Dict[str, int] = {}
         for at in self.atoms:
-            if not at.IDname in dic.keys():
-                dic[at.IDname] = max([v for v in dic.values()]) + 1 if len(dic) > 0 else 1
+            if not at.IDname in dic.keys():  # type: ignore[attr-defined]
+                dic[at.IDname] = max([v for v in dic.values()]) + 1 if len(dic) > 0 else 1  # type: ignore[attr-defined]
 
         # Create the graphs
         graph = get_graph(self, dic, level=1)

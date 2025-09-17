@@ -1,6 +1,19 @@
 import os
-from os.path import join as opj
-from typing import Union, TYPE_CHECKING, Dict, Any, TypeVar, NoReturn, Optional, Sequence, Type, Callable, List, Mapping
+from typing import (
+    Union,
+    TYPE_CHECKING,
+    Dict,
+    Any,
+    TypeVar,
+    NoReturn,
+    Optional,
+    Sequence,
+    Type,
+    Callable,
+    List,
+    Mapping,
+    cast,
+)
 
 import numpy as np
 
@@ -32,6 +45,7 @@ TSelf = TypeVar("TSelf", bound="SCMResults")
 class SCMResults(Results):
     """Abstract class gathering common mechanisms for results of ADF Suite programs."""
 
+    job: "SCMJob"
     _kfext = ""
 
     def collect(self) -> None:
@@ -39,7 +53,7 @@ class SCMResults(Results):
         Results.collect(self)
         kfname = self.job.name + self.__class__._kfext
         if kfname in self.files:
-            self._kf = KFFile(opj(self.job.path, kfname))
+            self._kf = KFFile(str(self.job.get_path() / kfname))
         else:
             log("WARNING: Main KF file {} not present in {}".format(kfname, self.job.path), 1)
 
@@ -49,9 +63,9 @@ class SCMResults(Results):
         to_remove = []
         for attr, val in self.__dict__.items():
             if isinstance(val, KFFile) and os.path.dirname(val.path) != self.job.path:
-                guessnewpath = opj(self.job.path, os.path.basename(val.path))
+                guessnewpath = self.job.get_path() / os.path.basename(val.path)
                 if os.path.isfile(guessnewpath):
-                    self.__dict__[attr] = KFFile(guessnewpath)
+                    self.__dict__[attr] = KFFile(str(guessnewpath))
                 else:
                     to_remove.append(attr)
         for i in to_remove:
@@ -65,7 +79,7 @@ class SCMResults(Results):
         """
         if self._kfpresent():
             return self._kf.read(section, variable)
-        raise FileError("File {} not present in {}".format(self.job.name + self.__class__._kfext, self.job.path))
+        raise FileError("File {} not present in {}".format(self.job.name + self.__class__._kfext, self.job.get_path()))
 
     def newkf(self, filename: str) -> KFFile:
         """newkf(filename)
@@ -81,19 +95,19 @@ class SCMResults(Results):
         self.refresh()
         filename = filename.replace("$JN", self.job.name)
         if filename in self.files:
-            return KFFile(opj(self.job.path, filename))
+            return KFFile(str(self.job.get_path() / filename))
         else:
-            raise FileError("File {} not present in {}".format(filename, self.job.path))
+            raise FileError("File {} not present in {}".format(filename, self.job.get_path()))
 
     def get_properties(self) -> Dict[str, Any]:
         """get_properties()
         Return a dictionary with all the entries from ``Properties`` section in the main KF file.
         """
-        n = self.readkf("Properties", "nEntries")
+        n = cast(int, self.readkf("Properties", "nEntries"))
         ret: Dict[str, Any] = {}
         for i in range(1, n + 1):
-            tp = self.readkf("Properties", "Type({})".format(i)).strip()
-            stp = self.readkf("Properties", "Subtype({})".format(i)).strip()
+            tp = cast(str, self.readkf("Properties", "Type({})".format(i))).strip()
+            stp = cast(str, self.readkf("Properties", "Subtype({})".format(i))).strip()
             val = self.readkf("Properties", "Value({})".format(i))
             key = stp if stp.endswith(tp) else ("{} {}".format(stp, tp) if stp else tp)
             ret[key] = val
@@ -152,7 +166,7 @@ class SCMResults(Results):
         """_kfpath()
         Return the absolute path to the main KF file.
         """
-        return opj(self.job.path, self.job.name + self.__class__._kfext)
+        return str(self.job.get_path() / (self.job.name + self.__class__._kfext))
 
     def _kfpresent(self) -> bool:
         """_kfpresent()
@@ -167,7 +181,7 @@ class SCMResults(Results):
         if isinstance(attr, KFFile):
             oldname = os.path.basename(attr.path)
             newname = Results._replace_job_name(oldname, self.job.name, other.job.name)
-            newpath = opj(other.job.path, newname)
+            newpath = str(other.job.get_path() / newname)
             return KFFile(newpath) if os.path.isfile(newpath) else None
         else:
             return Results._export_attribute(self, attr, other)
@@ -203,6 +217,7 @@ class SCMResults(Results):
 class SCMJob(SingleJob):
     """Abstract class gathering common mechanisms for jobs with ADF Suite programs."""
 
+    results: SCMResults
     _result_type = SCMResults
     _top = ["title", "units", "define"]
     _command = ""
@@ -240,7 +255,7 @@ class SCMJob(SingleJob):
     def check(self) -> bool:
         """Check if ``termination status`` variable from ``General`` section of main KF file equals ``NORMAL TERMINATION``."""
         try:
-            status = self.results.readkf("General", "termination status")
+            status = cast(str, self.results.readkf("General", "termination status"))
         except:
             return False
         if "NORMAL TERMINATION" in status:

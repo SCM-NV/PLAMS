@@ -960,9 +960,9 @@ def gen_coords(plamsmol: Molecule) -> List[int]:
     for a in range(len(plamsmol.atoms)):
         pos = conf.GetAtomPosition(a)
         atom = plamsmol.atoms[a]
-        atom._setx(pos.x)
-        atom._sety(pos.y)
-        atom._setz(pos.z)
+        atom._setx(pos.x)  # type: ignore[attr-defined]
+        atom._sety(pos.y)  # type: ignore[attr-defined]
+        atom._setz(pos.z)  # type: ignore[attr-defined]
     return [a + 1 for a in unchanged]
 
 

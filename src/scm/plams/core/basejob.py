@@ -252,6 +252,13 @@ class Job(ABC):
             else "Could not determine error message. Please check the output manually."
         )
 
+    def get_path(self) -> Path:
+        if self.path is None:
+            raise JobError(
+                f"'path' attribute of job '{self.name} is not yet initialized, typically because the job has not yet ran."
+            )
+        return Path(self.path)
+
     @abstractmethod
     def hash(self) -> Optional[str]:
         """Calculate the hash of this instance."""
