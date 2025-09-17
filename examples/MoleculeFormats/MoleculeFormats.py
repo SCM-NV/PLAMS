@@ -214,13 +214,13 @@ rdkit_mol = to_rdmol(mol, presanitize=True)
 rdkit_mol
 
 
-# ### SCM libbase UnifiedChemicalSystem Python class
+# ### SCM libbase ChemicalSystem Python class
 #
-# #### Convert PLAMS Molecule to UnifiedChemicalSystem
+# #### Convert PLAMS Molecule to ChemicalSystem
 
 from scm.utils.conversions import plams_molecule_to_chemsys, chemsys_to_plams_molecule
 from scm.plams import Molecule
-from scm.libbase import UnifiedChemicalSystem
+from scm.libbase import ChemicalSystem
 
 mol = Molecule(xyz_file)
 chemsys = plams_molecule_to_chemsys(mol)
@@ -228,11 +228,11 @@ print(f"{type(chemsys)=}")
 print(chemsys)
 
 
-# #### Convert UnifiedChemicalSystem to PLAMS Molecule
+# #### Convert ChemicalSystem to PLAMS Molecule
 
 from scm.utils.conversions import plams_molecule_to_chemsys, chemsys_to_plams_molecule
 from scm.plams import Molecule
-from scm.libbase import UnifiedChemicalSystem
+from scm.libbase import ChemicalSystem
 
 mol = chemsys_to_plams_molecule(chemsys)
 print(f"{type(chemsys)=}")

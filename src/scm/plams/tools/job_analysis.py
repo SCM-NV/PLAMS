@@ -19,7 +19,7 @@ from scm.plams.mol.molecule import Molecule
 from scm.plams.interfaces.adfsuite.inputparser import input_to_settings
 
 try:
-    from scm.libbase import UnifiedChemicalSystem as ChemicalSystem
+    from scm.libbase import ChemicalSystem
     from scm.utils.conversions import chemsys_to_plams_molecule
 
     _has_scm_libbase = True

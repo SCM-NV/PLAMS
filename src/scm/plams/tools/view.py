@@ -37,7 +37,7 @@ from scm.plams.core.private import run_with_timeout
 from scm.plams.tools.units import Units
 
 try:
-    from scm.libbase import UnifiedChemicalSystem as ChemicalSystem
+    from scm.libbase import ChemicalSystem
 
     _has_scm_chemsys = True
 except ImportError:
