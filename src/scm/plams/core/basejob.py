@@ -34,7 +34,7 @@ from scm.plams.core.settings import Settings
 from scm.plams.mol.molecule import Molecule
 
 try:
-    from scm.libbase import UnifiedChemicalSystem as ChemicalSystem
+    from scm.libbase import ChemicalSystem
 
     _has_scm_chemsys = True
 except ImportError:
