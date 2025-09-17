@@ -666,8 +666,8 @@ class AMSResults(Results):
             else:
                 x.append(my_x)
 
-            A = cast(List[float], self.readrkf("band_curves", f"Edge_{i+1}_bands", file="engine"))
-            A = np.array(A).reshape(-1, nBands * nSpin)
+            tA = cast(List[float], self.readrkf("band_curves", f"Edge_{i+1}_bands", file="engine"))
+            A = np.array(tA).reshape(-1, nBands * nSpin)
             spinup_data = A[:, bands]
             spindown_data = A[:, spindown_bands]
 
@@ -689,7 +689,7 @@ class AMSResults(Results):
         fermi_energy = cast(float, self.readrkf("BandStructure", "FermiEnergy", file="engine"))
         fermi_energy = Units.convert(fermi_energy, "hartree", unit)
 
-        return x, complete_spinup_data, complete_spindown_data, labels, fermi_energy
+        return x, complete_spinup_data, complete_spindown_data, labels, fermi_energy  # type: ignore[return-value]
 
     def get_phonons_dos(
         self, unit: str = "hartree"
@@ -745,7 +745,7 @@ class AMSResults(Results):
         if nSpecies:
 
             nAtoms = cast(int, self.readrkf("DOS_Phonons", "nAtoms", file="engine"))
-
+            assert self.job.molecule is not None
             assert nAtoms == len(self.job.molecule)
 
             DOSperSpecies = np.array(
@@ -829,8 +829,8 @@ class AMSResults(Results):
             else:
                 x.append(my_x)
 
-            A = cast(List[float], self.readrkf("phonon_curves", f"Edge_{i+1}_bands", file="engine"))
-            A = np.array(A).reshape(-1, nBands)
+            tA = cast(List[float], self.readrkf("phonon_curves", f"Edge_{i+1}_bands", file="engine"))
+            A = np.array(tA).reshape(-1, nBands)
             spinup_data = A[:, bands]
 
             if only_high_symmetry_points:

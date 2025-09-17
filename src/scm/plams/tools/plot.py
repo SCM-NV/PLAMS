@@ -429,7 +429,7 @@ def get_correlation_xy(
             d1 = cast(Union[List[float], float], j1.results.readrkf(section, variable, file=file))
         except KeyError:
             d1 = cast(Union[List[float], float], j1.results.get_history_property(variable, history_section=section))
-        d1 = np.ravel(d1) * multiplier
+        d1a = np.ravel(d1) * multiplier
 
         try:
             d2 = cast(Union[List[float], float], j2.results.readrkf(alt_section, alt_variable, file=file))
@@ -437,10 +437,10 @@ def get_correlation_xy(
             d2 = cast(
                 Union[List[float], float], j2.results.get_history_property(alt_variable, history_section=alt_section)
             )
-        d2 = np.ravel(d2) * multiplier
+        d2a = np.ravel(d2) * multiplier
 
-        data1.extend(list(d1))
-        data2.extend(list(d2))
+        data1.extend(list(d1a))
+        data2.extend(list(d2a))
 
     return np.array(data1), np.array(data2)
 

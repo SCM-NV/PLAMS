@@ -279,7 +279,7 @@ class CRSResults(SCMResults):
             dict_Asson["NumReqCompAssoc"] = NumReqCompAssoc
             dict_Asson["ReqCompNameAssoc"] = ReqCompNameAssoc
         else:
-            dict_Asson = None
+            dict_Asson = None  # type: ignore
 
         if as_df:
             try:
@@ -457,7 +457,7 @@ class CRSResults(SCMResults):
         """Construct dictionary containing all values in *section*/*subsection*."""
         # Use filenames as keys
         _filenames = cast(str, self.readkf(section, "filename")).split()
-        filenames = [_filenames] if not isinstance(_filenames, list) else _filenames
+        filenames = [_filenames] if not isinstance(_filenames, list) else _filenames  # type: ignore[list-item]
 
         # Grab the keys and the number of items per key
         keys = [os.path.basename(key) for key in filenames] + ["Total"]
