@@ -1055,8 +1055,8 @@ class ConfigSettings(Settings):
         # Values are held inside a lazy wrapper to allow lazy values to be copied between settings instances
         # Make sure to do the initialisation inside a lock to avoid race-conditions between multiple threads
         self.__lazylock__ = threading.Lock()  # N.B. nomenclature used purely to avoid adding to settings dictionary
-        self.default_jobrunner = LazyWrapper(factory=self._jobrunner_factory)
-        self.default_jobmanager = LazyWrapper(factory=self._jobmanager_factory)
+        self.default_jobrunner = LazyWrapper(factory=self._jobrunner_factory)  # type: ignore[assignment]
+        self.default_jobmanager = LazyWrapper(factory=self._jobmanager_factory)  # type: ignore[assignment]
 
     @property
     def init(self) -> bool:
@@ -1200,7 +1200,7 @@ class ConfigSettings(Settings):
         return self["default_jobrunner"]
 
     @default_jobrunner.setter
-    def default_jobrunner(self, value: Union["JobRunner", LazyWrapper["JobRunner"]]) -> None:
+    def default_jobrunner(self, value: "JobRunner") -> None:
         with self.__lazylock__:
             self["default_jobrunner"] = value
 
@@ -1222,7 +1222,7 @@ class ConfigSettings(Settings):
         return self["default_jobmanager"]
 
     @default_jobmanager.setter
-    def default_jobmanager(self, value: Union["JobManager", LazyWrapper["JobManager"]]) -> None:
+    def default_jobmanager(self, value: "JobManager") -> None:
         with self.__lazylock__:
             self["default_jobmanager"] = value
 

@@ -242,7 +242,7 @@ class Results(ApplyRestrict):
         """grep_output(pattern='', options='')
         Shortcut for :meth:`~Results.grep_file` on the output file."""
         try:
-            output = self.job._filename("out")
+            output = self.job._filename("out")  # type: ignore[attr-defined]
         except AttributeError:
             raise ResultsError(
                 f"Job {self.job.name} does not seem to be an instance of SingleJob, it does not have _filenames dictionary"
@@ -305,7 +305,7 @@ class Results(ApplyRestrict):
         """awk_output(script='', progfile=None, **kwargs)
         Shortcut for :meth:`~Results.awk_file` on the output file."""
         try:
-            output = self.job._filename("out")
+            output = self.job._filename("out")  # type: ignore[attr-defined]
         except AttributeError:
             raise ResultsError(
                 f"Job {self.job.name} does not seem to be an instance of SingleJob, it does not have _filenames dictionary"
@@ -382,7 +382,7 @@ class Results(ApplyRestrict):
         """get_output_chunk(begin=None, end=None, match=0, inc_begin=False, inc_end=False, process=None)
         Shortcut for :meth:`~Results.get_file_chunk` on the output file."""
         try:
-            output = self.job._filename("out")
+            output = self.job._filename("out")  # type: ignore[attr-defined]
         except AttributeError:
             raise ResultsError(f"Job {self.job.name} is not an instance of SingleJob, it does not have an output")
         return self.get_file_chunk(output, begin, end, match, inc_begin, inc_end, process)
@@ -410,7 +410,7 @@ class Results(ApplyRestrict):
 
         path = self.job.get_path()
         absfiles = [path / f for f in self.files]
-        childnames = [child.name for child in self.job] if hasattr(self.job, "children") else []
+        childnames = [child.name for child in self.job] if hasattr(self.job, "children") else []  # type: ignore[attr-defined]
         if arg in ["none", [], None]:
             for f in absfiles:
                 if os.path.isfile(f):
@@ -434,7 +434,7 @@ class Results(ApplyRestrict):
                 absarg = functools.reduce(operator.iadd, map(glob.glob, absarg))
 
             for f in absfiles:
-                if (f in absarg) == rev and os.path.isfile(f):
+                if (f in absarg) == rev and os.path.isfile(f):  # type: ignore[comparison-overlap]
                     os.remove(f)
                     log(f"Deleting file {str(f)}", 5)
 
@@ -455,7 +455,7 @@ class Results(ApplyRestrict):
             oldpath = self.job.get_path() / name
             newpath = newresults.job.get_path() / newname
             os.makedirs(os.path.dirname(newpath), exist_ok=True)
-            if os.name == "posix" and self.job.settings.link_files is True:
+            if os.name == "posix" and self.job.settings.link_files is True:  # type: ignore[has-type]
                 os.link(oldpath, newpath)
             else:
                 shutil.copy(oldpath, newpath)
