@@ -1055,8 +1055,8 @@ class AMSResults(Results):
 
         The *engine* argument should be the identifier of the file you wish to read. To access a file called ``something.rkf`` you need to call this function with ``engine='something'``. The *engine* argument can be omitted if there's only one engine results file in the job folder.
         """
-        freqs = self._process_engine_results(lambda x: x.read_reals("Vibrations", "Frequencies[cm-1]"), engine)
-        freqs = np.array(freqs)
+        freqs = self.readrkf("Vibrations", "Frequencies[cm-1]", file=engine or "engine")
+        freqs = np.array(freqs).reshape((-1,))
         return freqs * Units.conversion_ratio("cm^-1", unit)
 
     def get_frequency_spectrum(
@@ -1222,11 +1222,7 @@ class AMSResults(Results):
 
         The *engine* argument should be the identifier of the file you wish to read. To access a file called ``something.rkf`` you need to call this function with ``engine='something'``. The *engine* argument can be omitted if there's only one engine results file in the job folder.
         """
-        return np.asarray(
-            self._process_engine_results(lambda x: x.read_reals("Vibrations", "Intensities[km/mol]"), engine)
-        ).reshape(
-            -1,
-        )
+        return np.asarray(self.readrkf("Vibrations", "Intensities[km/mol]", file=engine or "engine")).reshape((-1,))
 
     def get_raman_intensities(self, engine: Optional[str] = None) -> np.ndarray:
         """Return the Raman intensities in Angstrom^4/amu unit.
