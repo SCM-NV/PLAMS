@@ -176,7 +176,7 @@ class AMSAnalysisResults(SCMResults):
     _kfext = ".kf"
     _rename_map = {"plot.kf": "$JN" + _kfext}
 
-    def get_molecule(self, *args: Any, **kwargs: Any) -> NoReturn:
+    def get_molecule(self, *args: Any, **kwargs: Any) -> NoReturn:  # type: ignore[override]
         raise PlamsError("AMSAnalysisResults does not support the get_molecule() method.")
 
     def get_sections(self) -> KeysView[str]:
@@ -300,7 +300,7 @@ class AMSAnalysisJob(SCMJob):
         """
         from scm.plams import AMSJob
 
-        systems = AMSJob._serialize_molecule(self)
+        systems = AMSJob._serialize_molecule(self)  # type: ignore[arg-type]
         if len(systems) > 0:
             if _has_scm_pisa and isinstance(self.settings.input, DriverBlock):
                 self.settings.system = systems

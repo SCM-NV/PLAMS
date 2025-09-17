@@ -24,6 +24,7 @@ if TYPE_CHECKING:
 
 T = TypeVar("T")
 P = ParamSpec("P")
+TSelf = TypeVar("TSelf", bound="Results")
 
 __all__ = ["Results"]
 
@@ -465,7 +466,7 @@ class Results(ApplyRestrict):
                 continue
             newresults.__dict__[k] = self._export_attribute(v, newresults)
 
-    def _export_attribute(self, attr: T, other: "Results") -> T:
+    def _export_attribute(self: TSelf, attr: T, other: TSelf) -> T:
         """_export_attribute(attr, other)
         Export this instance's attribute to *other*. This method should be overridden in your |Results| subclass if it has some attributes that are not properly handled by :func:`python3:copy.deepcopy`.
 

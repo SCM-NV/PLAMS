@@ -167,7 +167,7 @@ class UnifacJob(SingleJob):
             f.write(self.full_runscript())
         os.chmod(runfile, os.stat(runfile).st_mode | stat.S_IEXEC)
 
-    def get_input(self) -> None:
+    def get_input(self) -> None:  # type: ignore[override]
         return None
 
     def hash_input(self) -> str:

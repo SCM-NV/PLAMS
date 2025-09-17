@@ -327,7 +327,7 @@ class CRSResults(SCMResults):
                 return np.arange(array.shape[1])
 
             if isinstance(x_axis, str):
-                ret = self._prop_dict[x_axis]
+                ret = self._prop_dict[x_axis]  # type: ignore[attr-defined]
             else:
                 ret = np.array(x_axis, copy=False)
             ret = ret.ravel()  # Flatten it
