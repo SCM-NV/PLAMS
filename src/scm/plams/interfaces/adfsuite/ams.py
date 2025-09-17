@@ -3179,7 +3179,7 @@ class AMSJob(SingleJob):
 
     @staticmethod
     def _serialize_single_molecule(name: str, mol: Union[Molecule, "ChemicalSystem"]) -> Settings:
-        def serialize_unichemsys_to_settings(mol: "ChemicalSystem") -> Settings:
+        def serialize_chemsys_to_settings(mol: "ChemicalSystem") -> Settings:
             from scm.plams.interfaces.adfsuite.inputparser import input_to_settings
 
             sett = input_to_settings(str(mol), program=AMSJob._command)
@@ -3231,7 +3231,7 @@ class AMSJob(SingleJob):
         if isinstance(mol, Molecule):
             sett = serialize_molecule_to_settings(mol, name)
         elif _has_scm_chemsys and isinstance(mol, ChemicalSystem):
-            sett = serialize_unichemsys_to_settings(mol)
+            sett = serialize_chemsys_to_settings(mol)
         else:
             raise PlamsError(f"Cannot serialize molecule of type {type(mol).__name__} to settings.")
 
