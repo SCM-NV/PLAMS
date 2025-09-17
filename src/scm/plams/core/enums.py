@@ -2,11 +2,11 @@ from typing import Literal, Union
 
 # Import StrEnum for Python >=3.11, otherwise use backwards compatible class
 try:
-    from enum import StrEnum  # type: ignore
+    from enum import StrEnum  # type: ignore[]
 except ImportError:
     from enum import Enum
 
-    class StrEnum(str, Enum):  # type: ignore
+    class StrEnum(str, Enum):  # type: ignore[]
         """
         Enum where all members are strings and so can be used for string comparison.
         """

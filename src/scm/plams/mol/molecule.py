@@ -903,7 +903,7 @@ class Molecule:
             if search_depth is not None:
                 if search_depth <= 0:
                     return en
-            en = [electronegativities[atom.symbol] if atom.symbol in electronegativities else None]  # type: ignore
+            en = [electronegativities[atom.symbol] if atom.symbol in electronegativities else None]  # type: ignore[]
             en = [v for v in en if v is not None]
             if search_depth is not None:
                 search_depth -= 1
@@ -1412,7 +1412,7 @@ class Molecule:
     @overload
     def index(self, value: Atom, start: int = 1, stop: Optional[int] = None) -> int: ...
     @overload
-    def index(self, value: Bond, start: int = 1, stop: Optional[int] = None) -> Tuple[int, int]: ...  # type: ignore
+    def index(self, value: Bond, start: int = 1, stop: Optional[int] = None) -> Tuple[int, int]: ...  # type: ignore[]
     def index(
         self, value: Union[Atom, Bond], start: int = 1, stop: Optional[int] = None
     ) -> Union[int, Tuple[int, int]]:
@@ -1613,7 +1613,7 @@ class Molecule:
         D = distance_array(solvated_coords, solvated_coords)[zero_based_indices]
         less_equal = np.less_equal(D, threshold)
         within_threshold = np.any(less_equal, axis=0)
-        good_indices = [i for i, value in enumerate(within_threshold) if value]  # type: ignore
+        good_indices = [i for i, value in enumerate(within_threshold) if value]  # type: ignore[]
 
         complete_indices: Set[int] = set()
         for indlist in molecule_indices:
@@ -1637,7 +1637,7 @@ class Molecule:
             """
             bond = None
             for bond in ret.bonds:
-                indices = [i - 1 for i in ret.index(bond)]  # type: ignore
+                indices = [i - 1 for i in ret.index(bond)]  # type: ignore[]
                 if iat1 in indices and iat2 in indices:
                     break
             if bond is None:
@@ -2364,7 +2364,7 @@ class Molecule:
                 # Check if the mapping has moved the bonded atoms relative to each other.
                 at1: int
                 at2: int
-                at1, at2 = self.index(b)  # type: ignore
+                at1, at2 = self.index(b)  # type: ignore[]
                 at1 = at1 - 1
                 at2 = at2 - 1  # -1 because np.array is indexed from 0
                 relshift = (shift[at2, :n] - shift[at1, :n]).astype(int)
@@ -3061,7 +3061,7 @@ class Molecule:
                             symb = atomline[31:34].strip()
                         else:
                             tmp = atomline.split()
-                            crd = tuple(map(float, tmp[0:3]))  # type: ignore
+                            crd = tuple(map(float, tmp[0:3]))  # type: ignore[]
                             symb = tmp[3]
                         self.add_atom(Atom(symbol=symb, coords=crd))
                     for j in range(nbond):
@@ -3933,7 +3933,7 @@ class Molecule:
         from scm.plams.mol.identify import possible_flags, clear, label_atoms, molecule_name
 
         if isinstance(level, (tuple, list)):
-            return tuple(self.label(i) for i in level)  # type: ignore
+            return tuple(self.label(i) for i in level)  # type: ignore[]
 
         if flags is None:
             if level == 0:

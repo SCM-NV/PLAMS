@@ -65,9 +65,9 @@ def _run_kftool(*args: Any, **kwargs: Any) -> "subprocess.CompletedProcess[Any]"
     startupinfo = None
     if os.name == "nt":
         # Prevent unwanted console windows from popping up on Windows
-        startupinfo = subprocess.STARTUPINFO()  # type: ignore
-        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW  # type: ignore
-        startupinfo.wShowWindow = subprocess.SW_HIDE  # type: ignore
+        startupinfo = subprocess.STARTUPINFO()  # type: ignore[]
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW  # type: ignore[]
+        startupinfo.wShowWindow = subprocess.SW_HIDE  # type: ignore[]
 
     return saferun(*args, **kwargs, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, startupinfo=startupinfo)
 
@@ -104,7 +104,7 @@ class KFReader:
         if autodetect:
             self._autodetect()
 
-    def read(self, section: str, variable: str) -> TRead:  # type: ignore
+    def read(self, section: str, variable: str) -> TRead:  # type: ignore[]
         """Extract and return data for a *variable* located in a *section*.
 
         For single-value numerical or boolean variables returned value is a single number or bool. For longer variables this method returns a list of values. For string variables a single string is returned.
@@ -114,7 +114,7 @@ class KFReader:
             self._create_index()
 
         try:
-            tmp = self._sections[section]  # type: ignore
+            tmp = self._sections[section]  # type: ignore[]
         except KeyError:
             raise KeyError(f"Section {section} not present in {self.path}")
         try:
@@ -130,7 +130,7 @@ class KFReader:
                     ret = self._get_data(self._read_block(f, i), vtype)[vstart - 1 :]
                     first = False
                 else:
-                    ret += self._get_data(self._read_block(f, i), vtype)  # type: ignore
+                    ret += self._get_data(self._read_block(f, i), vtype)  # type: ignore[]
                 if len(ret) >= vlen:
                     ret = ret[:vlen]
                     if isinstance(ret, bytes):
@@ -150,7 +150,7 @@ class KFReader:
             self._create_index()
 
         try:
-            vtype, vlb, vstart, vlen = self._sections[section][variable]  # type: ignore
+            vtype, vlb, vstart, vlen = self._sections[section][variable]  # type: ignore[]
         except KeyError:
             raise KeyError(f"Section '{section}' or variable '{variable}' not present in '{self.path}'")
         return vtype
@@ -159,8 +159,8 @@ class KFReader:
         """Iteration yields pairs of section name and variable name."""
         if self._sections is None:
             self._create_index()
-        for section in self._sections:  # type: ignore
-            for variable in self._sections[section]:  # type: ignore
+        for section in self._sections:  # type: ignore[]
+            for variable in self._sections[section]:  # type: ignore[]
                 yield section, variable
 
     def _autodetect(self) -> None:
@@ -515,7 +515,7 @@ class KFFile:
             self.tmpdata[section] = OrderedDict()
 
         if trick_value:
-            self.tmpdata[section][variable] = trick_value  # type: ignore
+            self.tmpdata[section][variable] = trick_value  # type: ignore[]
         else:
             self.tmpdata[section][variable] = value
 
@@ -548,7 +548,7 @@ class KFFile:
         if self.reader:
             if not self.reader._sections:
                 self.reader._create_index()
-            if section in self.reader._sections:  # type: ignore
+            if section in self.reader._sections:  # type: ignore[]
                 tmpfile = self.path + ".tmp"
                 _run_kftool(["cpkf", self.path, tmpfile, "-rm", section])
                 shutil.move(tmpfile, self.path)
@@ -560,7 +560,7 @@ class KFFile:
         if self.reader:
             if self.reader._sections is None:
                 self.reader._create_index()
-            ret |= set(self.reader._sections)  # type: ignore
+            ret |= set(self.reader._sections)  # type: ignore[]
         return sorted(ret)
 
     def read_section(self, section: str) -> Dict[str, TRead]:
@@ -716,12 +716,12 @@ class KFHistory:
     def __init__(self, kf: KFReader, section: str):
         self.kf = kf
         self.section = section
-        self.nsteps: int = kf.read(section, "nEntries")  # type: ignore
+        self.nsteps: int = kf.read(section, "nEntries")  # type: ignore[]
         self.shapes: Dict[str, Tuple[int, ...]] = {}
         self.blocked: Set[str] = set()
 
         if (section, "nBlocks") in kf:
-            self.nblocks: int = kf.read(section, "nBlocks")  # type: ignore
+            self.nblocks: int = kf.read(section, "nBlocks")  # type: ignore[]
         else:
             self.nblocks = 0
 
@@ -744,7 +744,7 @@ class KFHistory:
             for i in range(1, self.nblocks + 1):
                 block = self.kf.read(self.section, f"{name}({i})")
                 try:
-                    yield from block  # type: ignore
+                    yield from block  # type: ignore[]
                 except TypeError:
                     # one-element blocks are not iterable (KFReader returns them as scalars)
                     yield block
@@ -763,13 +763,13 @@ class KFHistory:
     def _init_shape(self, name: str) -> None:
         shapevar = name + "(dim)"
         if (self.section, shapevar) in self.kf:
-            shape: Union[List[int], int] = self.kf.read(self.section, shapevar)  # type: ignore
+            shape: Union[List[int], int] = self.kf.read(self.section, shapevar)  # type: ignore[]
             try:
                 # shape is a list (variable "name" is at least rank-2)
-                self.shapes[name] = tuple(shape)  # type: ignore
+                self.shapes[name] = tuple(shape)  # type: ignore[]
             except TypeError:
                 # shape is a scalar (variable "name" is a scalar or rank-1)
-                self.shapes[name] = (shape,)  # type: ignore
+                self.shapes[name] = (shape,)  # type: ignore[]
             perAtomVar = name + "(perAtom)"
             if self.nblocks and (self.section, perAtomVar) in self.kf:
                 perAtom = self.kf.read(self.section, perAtomVar)

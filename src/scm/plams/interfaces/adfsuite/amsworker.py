@@ -25,7 +25,7 @@ from typing import (
     Sequence,
     Set,
     IO,
-    cast
+    cast,
 )
 from typing_extensions import Concatenate, ParamSpec
 
@@ -59,11 +59,11 @@ if os.name == "nt":
     import ctypes.wintypes
     import msvcrt
 
-    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)  # type: ignore
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)  # type: ignore[]
 
     def CheckHandle(result: Optional[int], func: Any, arguments: Any) -> Optional[int]:
         if result == ctypes.wintypes.HANDLE(-1).value:
-            raise ctypes.WinError(ctypes.get_last_error())  # type: ignore
+            raise ctypes.WinError(ctypes.get_last_error())  # type: ignore[]
         else:
             return result
 
@@ -80,9 +80,9 @@ if os.name == "nt":
 
     def CheckConnect(result: Optional[int], func: Any, arguments: Any) -> Optional[int]:
         if result == 0:
-            error = ctypes.get_last_error()  # type: ignore
+            error = ctypes.get_last_error()  # type: ignore[]
             if error != ERROR_PIPE_CONNECTED:
-                raise ctypes.WinError(error)  # type: ignore
+                raise ctypes.WinError(error)  # type: ignore[]
         return result
 
     ConnectNamedPipe = kernel32.ConnectNamedPipe
@@ -560,9 +560,9 @@ class AMSWorker:
             ) as amsoutput, open(os.path.join(self.workerdir, "ams.err"), "w") as amserror:
                 startupinfo = None
                 if os.name == "nt":
-                    startupinfo = subprocess.STARTUPINFO()  # type: ignore
-                    startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW  # type: ignore
-                    startupinfo.wShowWindow = subprocess.SW_HIDE  # type: ignore
+                    startupinfo = subprocess.STARTUPINFO()  # type: ignore[]
+                    startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW  # type: ignore[]
+                    startupinfo.wShowWindow = subprocess.SW_HIDE  # type: ignore[]
                 self.proc = subprocess.Popen(
                     ["sh", "amsworker.run"],
                     cwd=self.workerdir,
@@ -573,7 +573,7 @@ class AMSWorker:
                     # to enable mass-killing in stop().
                     start_new_session=(os.name == "posix"),
                     startupinfo=startupinfo,
-                    creationflags=(subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0),  # type: ignore
+                    creationflags=(subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0),  # type: ignore[]
                 )
 
         # Start a dedicated watcher thread to rescue us in case the worker never opens its end of the pipes.
@@ -585,7 +585,7 @@ class AMSWorker:
             # This will block until either the worker is ready or the watcher steps in.
             if os.name == "nt":
                 ConnectNamedPipe(pipe, None)
-                pipefd = msvcrt.open_osfhandle(pipe, 0)  # type: ignore
+                pipefd = msvcrt.open_osfhandle(pipe, 0)  # type: ignore[]
                 self.callpipe = os.fdopen(pipefd, "r+b")
                 self.replypipe = self.callpipe
             else:
@@ -618,7 +618,7 @@ class AMSWorker:
         while not self._stop_watcher.is_set():
             try:
                 # ToDo: verify behaviour with None proc
-                self.proc.wait(timeout=0.01)  # type: ignore
+                self.proc.wait(timeout=0.01)  # type: ignore[]
                 # self.proc has died and won't open its end of the pipes ...
                 if not self._stop_watcher.is_set():
                     # ... but the main thread is still expecting someone to do it.
@@ -656,7 +656,7 @@ class AMSWorker:
                 console_pids = (ctypes.wintypes.DWORD * bufsize)()
                 n = GetConsoleProcessList(console_pids, bufsize)
                 if n == 0:
-                    raise ctypes.WinError(ctypes.get_last_error())  # type: ignore
+                    raise ctypes.WinError(ctypes.get_last_error())  # type: ignore[]
                 elif n > bufsize:
                     bufsize *= 2
                 else:
@@ -746,7 +746,7 @@ class AMSWorker:
                     worker_procs = self._find_worker_processes()
                     # Send Ctrl-Break to the entire process group under self.proc.
                     # Ctrl-C is less reliable in convincing processes to quit.
-                    os.kill(self.proc.pid, signal.CTRL_BREAK_EVENT)  # type: ignore
+                    os.kill(self.proc.pid, signal.CTRL_BREAK_EVENT)  # type: ignore[]
                     dead, alive = psutil.wait_procs(worker_procs, timeout=self.timeout)
                     for p in alive:
                         # Forcefully kill any descendant that is still running.
@@ -959,14 +959,14 @@ class AMSWorker:
             else:
                 results = self._call("Solve", args)
 
-            results = self._unflatten_arrays(results[0]["results"])  # type: ignore
-            results = AMSWorkerResults(name, molecule, results)  # type: ignore
+            results = self._unflatten_arrays(results[0]["results"])  # type: ignore[]
+            results = AMSWorkerResults(name, molecule, results)  # type: ignore[]
 
             if self.use_restart_cache:
                 self.restart_cache.add(name)
                 weakref.finalize(results, self._delete_from_restart_cache, name)
 
-            return results  # type: ignore
+            return results  # type: ignore[]
 
         except AMSPipeRuntimeError as exc:
             return AMSWorkerResults(name, molecule, {}, exc)
@@ -1189,10 +1189,10 @@ class AMSWorker:
 
             state = self._call("GenerateVelocities", args)
 
-            state = self._unflatten_arrays(state[0]["state"])  # type: ignore
-            state = AMSWorkerMDState(name, state)  # type: ignore
+            state = self._unflatten_arrays(state[0]["state"])  # type: ignore[]
+            state = AMSWorkerMDState(name, state)  # type: ignore[]
 
-            return state  # type: ignore
+            return state  # type: ignore[]
 
         except AMSWorkerError as exc:
             # Something went wrong. Our worker process might also be down.
@@ -1242,7 +1242,7 @@ class AMSWorker:
             reply = self._call(
                 "ParseInput", {"programName": program_name, "textInput": text_input, "stringLeafs": string_leafs}
             )
-            json_input = reply[0]["parsedInput"]["jsonInput"]  # type: ignore
+            json_input = reply[0]["parsedInput"]["jsonInput"]  # type: ignore[]
             return json_input
         except AMSWorkerError as exc:
             # This failed badly, also the worker is likely down. Let's grab some info, restart it ...
@@ -1283,10 +1283,10 @@ class AMSWorker:
         msglen = struct.pack("=i", len(msg))
         try:
             # ToDo: verify behaviour with None callpipe
-            self.callpipe.write(msglen + msg)  # type: ignore
+            self.callpipe.write(msglen + msg)  # type: ignore[]
             if method.startswith("Set"):
                 return None
-            self.callpipe.flush()  # type: ignore
+            self.callpipe.flush()  # type: ignore[]
         except OSError as exc:
             raise AMSWorkerError("Error while sending a message " + method + " " + str(len(msg))) from exc
         if method == "Exit":
@@ -1296,9 +1296,9 @@ class AMSWorker:
         while True:
             try:
                 # ToDo: verify behaviour with None replypipe
-                msgbuf = self._read_exactly(self.replypipe, 4)  # type: ignore
+                msgbuf = self._read_exactly(self.replypipe, 4)  # type: ignore[]
                 msglen = struct.unpack("=i", msgbuf)[0]
-                msgbuf = self._read_exactly(self.replypipe, msglen)  # type: ignore
+                msgbuf = self._read_exactly(self.replypipe, msglen)  # type: ignore[]
             except EOFError as exc:
                 raise AMSWorkerError("Error while trying to read a reply") from exc
 

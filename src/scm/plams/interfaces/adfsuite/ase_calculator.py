@@ -22,7 +22,7 @@ except ImportError:
     # empty interface if ase does not exist:
     __all__ = []
 
-    class Calculator:  # type: ignore
+    class Calculator:  # type: ignore[no-redef]
         def __init__(self, *args: Any, **kwargs: Any):
             raise NotImplementedError("AMSCalculator can not be used without ASE")
 
@@ -64,7 +64,7 @@ class EnergyExtractor(BasePropertyExtractor):
 
 def canonicalize_string(possible_string: T) -> T:
     try:
-        return possible_string.lower().strip()  # type: ignore
+        return possible_string.lower().strip()  # type: ignore[]
     except (AttributeError, TypeError):
         return possible_string
 
@@ -166,7 +166,7 @@ class AMSCalculator(Calculator):
     # counters are a dict as a class variable. This is to support deepcopying/multiple instances with the same name
     _counter: Dict[str, int] = {}
 
-    def __new__(  # type: ignore
+    def __new__(  # type: ignore[]
         cls: Type[TSelf],
         settings: Optional[Settings] = None,
         name: str = "",
@@ -180,9 +180,9 @@ class AMSCalculator(Calculator):
             if amsworker:
                 obj = object.__new__(AMSPipeCalculator)
             else:
-                obj = object.__new__(AMSJobCalculator)  # type: ignore
+                obj = object.__new__(AMSJobCalculator)  # type: ignore[]
         else:
-            obj = object.__new__(cls)  # type: ignore
+            obj = object.__new__(cls)  # type: ignore[]
         return obj
 
     def __init__(
@@ -239,7 +239,7 @@ class AMSCalculator(Calculator):
         self._counter[self.name] = value
 
     @property
-    def implemented_properties(self) -> List[str]:  # type: ignore
+    def implemented_properties(self) -> List[str]:  # type: ignore[]
         """Returns the list of properties that this calculator has implemented"""
         return [extractor.name for extractor in self.extractors if extractor.check_settings(self.settings)]
 
@@ -363,7 +363,7 @@ class AMSPipeCalculator(AMSCalculator):
             del self.worker_settings.input.ams.Properties
         self.worker = None
 
-    def _get_ams_results(self, molecule: "Molecule", properties: List[str]) -> "AMSWorkerResults":  # type: ignore
+    def _get_ams_results(self, molecule: "Molecule", properties: List[str]) -> "AMSWorkerResults":  # type: ignore[]
         job_settings = self._get_job_settings(properties)
         if self.worker is None:
             self.worker = AMSWorker(self.worker_settings, use_restart_cache=self.restart)
@@ -383,13 +383,13 @@ class AMSPipeCalculator(AMSCalculator):
         """The AMSWorker instance is not copied, but instead, all the copies use the same worker"""
         memo[id(self.worker)] = self.worker
         try:
-            this_method = self.__deepcopy__  # type: ignore
-            self.__deepcopy__ = None  # type: ignore
+            this_method = self.__deepcopy__  # type: ignore[]
+            self.__deepcopy__ = None  # type: ignore[]
             copy = deepcopy(self, memo)
-            self.__deepcopy__ = this_method  # type: ignore
+            self.__deepcopy__ = this_method  # type: ignore[]
             return copy
         except Exception as e:
-            self.__deepcopy__ = this_method  # type: ignore
+            self.__deepcopy__ = this_method  # type: ignore[]
             raise e
 
 
