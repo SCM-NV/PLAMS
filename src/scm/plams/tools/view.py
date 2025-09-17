@@ -15,7 +15,6 @@ from typing import (
     TypeVar,
     Type,
     ClassVar,
-    cast,
 )
 from typing_extensions import Self
 

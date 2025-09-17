@@ -689,11 +689,10 @@ class JobAnalysis:
 
         :param job: |Job| to add to the analysis
         """
-        if job.path is None:
-            raise KeyError(f"Job must have a defined path to be added to the analysis - has it been run?")
-        if job.path in self._jobs:
-            raise KeyError(f"Job with path '{job.path}' has already been added to the analysis.")
-        self._jobs[job.path] = job
+        path = str(job.get_path())
+        if path in self._jobs:
+            raise KeyError(f"Job with path '{path}' has already been added to the analysis.")
+        self._jobs[path] = job
 
     def add_job(self, job: Job) -> "JobAnalysis":
         """
