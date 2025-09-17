@@ -443,7 +443,7 @@ class Results(ApplyRestrict):
             log(f"WARNING: {arg} is not a valid keep/save argument", 3)
         self.refresh()
 
-    def _copy_to(self, newresults: "Results") -> None:
+    def _copy_to(self: TSelf, newresults: TSelf) -> None:
         """_copy_to(newresults)
         Copy these results to *newresults*.
 

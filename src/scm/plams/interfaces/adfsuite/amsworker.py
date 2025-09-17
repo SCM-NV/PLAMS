@@ -25,6 +25,7 @@ from typing import (
     Sequence,
     Set,
     IO,
+    cast
 )
 from typing_extensions import Concatenate, ParamSpec
 
@@ -268,10 +269,10 @@ class AMSWorkerResults:
         if self._main_molecule is None:
             if self._results is not None and "xyzAtoms" in self._results:
                 self._main_molecule = self._input_molecule.copy()
-                self._main_molecule.from_array(self._results.get("xyzAtoms") * Units.conversion_ratio("au", "Angstrom"))
+                self._main_molecule.from_array(self._results.get("xyzAtoms") * Units.conversion_ratio("au", "Angstrom"))  # type: ignore[operator]
                 if "latticeVectors" in self._results:
                     self._main_molecule.lattice = [
-                        tuple(v) for v in self._results.get("latticeVectors") * Units.conversion_ratio("au", "Angstrom")
+                        list(v) for v in self._results.get("latticeVectors") * Units.conversion_ratio("au", "Angstrom")  # type: ignore[operator,union-attr]
                     ]
             else:
                 self._main_molecule = self._input_molecule
@@ -304,7 +305,7 @@ class AMSWorkerResults:
                 )
                 self._main_ase_atoms = Atoms(symbols=atomsymbols, positions=positions, pbc=pbc, cell=cell)
             else:
-                self._main_ase_atoms = toASE(self.get_main_molecule())
+                self._main_ase_atoms = toASE(cast("Molecule", self.get_main_molecule()))
 
         return self._main_ase_atoms
 
