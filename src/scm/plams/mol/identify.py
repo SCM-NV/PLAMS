@@ -1,8 +1,9 @@
 from collections import OrderedDict
 from itertools import combinations
-from typing import Optional, Dict, Tuple, TYPE_CHECKING, Sequence, List, Any
+from typing import Optional, Dict, Tuple, TYPE_CHECKING, Sequence, List, Any, Union
 
 import numpy as np
+from numpy.typing import ArrayLike
 
 from scm.plams.core.functions import requires_optional_package
 from scm.plams.core.private import sha256
@@ -20,15 +21,16 @@ __all__ = ["label_atoms"]
 possible_flags = ["BO", "RS", "EZ", "DH", "CO", "H2"]
 
 
-def twist(
-    v1: np.ndarray, v2: np.ndarray, v3: np.ndarray, tolerance: Optional[float] = None
-) -> Tuple[int, Optional[int]]:
+def twist(v1: ArrayLike, v2: ArrayLike, v3: ArrayLike, tolerance: Optional[float] = None) -> Tuple[int, Optional[int]]:
     """
     Given 3 vectors in 3D space measure their "chirality" with *tolerance*.
 
     Returns a pair. The first element is an integer number measuring the orientation (clockwise vs counterclockwise) of *v1* and *v3* while looking along *v2*. Values 1 and -1 indicate this case and the second element of returned pair is ``None``. Value 0 indicates that *v1*, *v2*, and *v3* are coplanar, and the second element of the returned pair is indicating if two turns made by going *v1*->*v2*->*v3* are the same (left-left, right-right) or the opposite (left-right, right-left).
     """
     tolerance = 1e-2 if tolerance is None else tolerance
+    v1 = np.asarray(v1)
+    v2 = np.asarray(v2)
+    v3 = np.asarray(v3)
     v1 /= np.linalg.norm(v1)
     v2 /= np.linalg.norm(v2)
     v3 /= np.linalg.norm(v3)
@@ -38,11 +40,13 @@ def twist(
     return int(np.sign(x)), None
 
 
-def bend(v1: np.ndarray, v2: np.ndarray, tolerance: Optional[float] = None) -> int:
+def bend(v1: ArrayLike, v2: ArrayLike, tolerance: Optional[float] = None) -> int:
     """Check if two vectors in 3D space are parallel or perpendicular, with *tolerance* (in degrees).
 
     Returns 1 if *v1* and *v2* are collinear, 2 if they are perpendicular, 0 otherwise."""
     tolerance = 7.5 if tolerance is None else tolerance
+    v1 = np.asarray(v1)
+    v2 = np.asarray(v2)
     v1 /= np.linalg.norm(v1)
     v2 /= np.linalg.norm(v2)
     angle = Units.convert(abs(np.arccos(np.dot(v1, v2))), "rad", "deg")
@@ -53,7 +57,7 @@ def bend(v1: np.ndarray, v2: np.ndarray, tolerance: Optional[float] = None) -> i
     return 0
 
 
-def unique_atoms(atomlist: Sequence["Atom"]) -> List["Atom"]:
+def unique_atoms(atomlist: Union[Sequence["Atom"], "Molecule"]) -> List["Atom"]:
     """Filter *atomlist* (list or |Molecule|) for atoms with unique ``IDname``."""
     d = {}
     for atom in atomlist:
