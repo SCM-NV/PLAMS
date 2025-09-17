@@ -108,3 +108,10 @@ version-file = "src/scm/plams/version.py"
 
 [tool.scm]
 copy-to-target = [".flake8", "examples/**/*", "unit_tests/**/*"]
+
+[[tool.uv.index]]
+name = "gitea"
+url = "https://git.scm.com/api/packages/SCM/pypi/simple"
+publish-url = "https://git.scm.com/api/packages/SCM/pypi"
+explicit = true
+
