@@ -1,13 +1,12 @@
 #!/usr/bin/env amspython
 # Workflow with PLAMS
-from scm.plams import AMSResults, Units, add_to_class, Settings, read_molecules, AMSJob
+from scm.plams import AMSResults, Units, Settings, read_molecules, AMSJob
 
 # A couple of useful function for extracting results:
 
 
-@add_to_class(AMSResults)
 def get_excitations(results):
-    """Returns excitation energies (in eV) and oscillator strenghts (in Debye)."""
+    """Returns excitation energies (in eV) and oscillator strengths (in Debye)."""
     if results.job.ok():
         exci_energies_au = results.readrkf("Excitations SS A", "excenergies", file="engine")
         oscillator_str_au = results.readrkf("Excitations SS A", "oscillator strengths", file="engine")
@@ -19,12 +18,11 @@ def get_excitations(results):
         return [], []
 
 
-@add_to_class(AMSResults)
 def has_good_excitations(results, min_energy, max_energy, oscillator_str_threshold=1e-4):
-    """Returns True if there is at least one excitation with non-vanishing oscillator strenght
+    """Returns True if there is at least one excitation with non-vanishing oscillator strength
     in the energy range [min_energy, max_energy]. Unit for min_energy and max energy: eV.
     """
-    exci_energies, oscillator_str = results.get_excitations()
+    exci_energies, oscillator_str = get_excitations(results)
     for e, o in zip(exci_energies, oscillator_str):
         if min_energy < e < max_energy and o > oscillator_str_threshold:
             return True
@@ -91,10 +89,10 @@ promising_molecules = {}
 
 for name, mol in molecules.items():
     dftb_job = AMSJob(name="DFTB_" + name, molecule=mol, settings=go_dftb_sett)
-    dftb_job.run()
+    dftb_results = dftb_job.run()
 
-    if dftb_job.results.has_good_excitations(1, 6):
-        promising_molecules[name] = dftb_job.results.get_main_molecule()
+    if has_good_excitations(dftb_results, 1, 6):
+        promising_molecules[name] = dftb_results.get_main_molecule()
 
 print(f"Found {len(promising_molecules)} promising molecules with DFTB")
 
@@ -113,12 +111,12 @@ for name, mol in promising_molecules.items():
         molecule=optimized_mol,
         settings=sp_adf_exci_sett,
     )
-    adf_exci_job.run()
+    adf_exci_results = adf_exci_job.run()
 
-    if adf_exci_job.results.has_good_excitations(2, 4):
+    if has_good_excitations(adf_exci_results, 2, 4):
         print(f"Molecule {name} has excitation(s) satysfying our criteria!")
         print(optimized_mol)
-        exci_energies, oscillator_str = adf_exci_job.results.get_excitations()
+        exci_energies, oscillator_str = get_excitations(adf_exci_results)
         print("Excitation energy [eV], oscillator strength:")
         for e, o in zip(exci_energies, oscillator_str):
             print(f"{e:8.4f}, {o:8.4f}")

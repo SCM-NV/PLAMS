@@ -232,13 +232,6 @@ Thanks to that calling |Results| methods can be safely done in |postrun| and you
     It can be done right inside you script.
     After the above definition you can create instances of the new class and treat them in exactly the same way you would treat ``MyJob`` instances.
     The only difference is that they will be equipped with |prerun| method you just defined.
-*   you can bind the method to an existing class using |add_to_class| decorator::
-
-        @add_to_class(MyJob)
-        def prerun(self):
-            #do stuff
-
-    That change affects all instances of ``MyJob``, even those created before the above code was executed (obviously it won't affect instances previously run and finished).
 *   you can bind the method directly to an instance using |add_to_instance| decorator::
 
         j = MyJob(...)

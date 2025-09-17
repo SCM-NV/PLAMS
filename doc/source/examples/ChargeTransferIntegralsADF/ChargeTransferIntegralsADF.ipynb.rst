@@ -6,7 +6,7 @@ Initial Imports
 
 .. code:: ipython3
 
-   from scm.plams import Settings, ADFFragmentResults, Molecule, log, ADFFragmentJob, add_to_class, init
+   from scm.plams import Settings, ADFFragmentResults, Molecule, log, ADFFragmentJob, init
 
    # this line is not required in AMS2025+
    init()
@@ -22,9 +22,8 @@ Add helper results extraction method.
 
 .. code:: ipython3
 
-   @add_to_class(ADFFragmentResults)
-   def get_transfer_integrals(self):
-       return self.job.full.results.read_rkf_section("TransferIntegrals", file="adf")
+   def get_transfer_integrals(results):
+       return results.job.full.results.read_rkf_section("TransferIntegrals", file="adf")
 
 Configure Settings
 ~~~~~~~~~~~~~~~~~~
@@ -77,23 +76,23 @@ Run Job and Get Results
 
 ::
 
-   [10.02|15:07:14] JOB ADFTI STARTED
-   [10.02|15:07:14] JOB ADFTI RUNNING
-   [10.02|15:07:14] JOB ADFTI/frag1 STARTED
-   [10.02|15:07:14] JOB ADFTI/frag1 RUNNING
-   [10.02|15:07:20] JOB ADFTI/frag1 FINISHED
-   [10.02|15:07:20] JOB ADFTI/frag1 SUCCESSFUL
-   [10.02|15:07:20] JOB ADFTI/frag2 STARTED
-   [10.02|15:07:20] JOB ADFTI/frag2 RUNNING
-   [10.02|15:07:25] JOB ADFTI/frag2 FINISHED
-   [10.02|15:07:25] JOB ADFTI/frag2 SUCCESSFUL
+   [02.09|15:32:10] JOB ADFTI STARTED
+   [02.09|15:32:10] JOB ADFTI RUNNING
+   [02.09|15:32:10] JOB ADFTI/frag1 STARTED
+   [02.09|15:32:10] JOB ADFTI/frag1 RUNNING
+   [02.09|15:32:13] JOB ADFTI/frag1 FINISHED
+   [02.09|15:32:13] JOB ADFTI/frag1 SUCCESSFUL
+   [02.09|15:32:13] JOB ADFTI/frag2 STARTED
+   [02.09|15:32:13] JOB ADFTI/frag2 RUNNING
+   [02.09|15:32:16] JOB ADFTI/frag2 FINISHED
+   [02.09|15:32:16] JOB ADFTI/frag2 SUCCESSFUL
    ... (PLAMS log lines truncated) ...
 
 .. code:: ipython3
 
    # TI is a dictionary with the whole TransferIntegrals section from adf.rkf
    print("== Results ==")
-   TI = results.get_transfer_integrals()
+   TI = get_transfer_integrals(results)
    for key, value in sorted(TI.items()):
        print("{:<28}: {:>12.6f}".format(key, value))
 

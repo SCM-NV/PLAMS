@@ -133,7 +133,7 @@ class JobManager:
             )
         return self._job_logger
 
-    def load_job(self, filename):
+    def load_job(self, filename: str) -> Optional["Job"]:
         """Load previously saved job from *filename*.
 
         *Filename* should be a path to a ``.dill`` file in some job folder. A |Job| instance stored there is loaded and returned. All attributes of this instance removed before pickling are restored. That includes ``jobmanager``, ``path`` (the absolute path to the folder containing *filename* is used) and ``default_settings`` (a list containing only ``config.job``).
@@ -145,7 +145,7 @@ class JobManager:
         except ImportError:
             import pickle
 
-        def setstate(job, path, parent=None):
+        def setstate(job: "Job", path: str, parent: Optional["MultiJob"] = None) -> None:
             job.parent = parent
             job.jobmanager = self
             job.default_settings = [config.job]
@@ -171,7 +171,7 @@ class JobManager:
         path = os.path.dirname(filename)
         with open(filename, "rb") as f:
 
-            def resolve_missing_attributes(j):
+            def resolve_missing_attributes(j: "Job") -> None:
                 # For backwards compatibility (before attributes added/converted to properties)
                 if not hasattr(j, "_status"):
                     j._status = j.__dict__["status"]
@@ -217,7 +217,7 @@ class JobManager:
 
             # renaming a job always preserves the parent directory it was run in, so determine this
             try:
-                if job.parent is not None:
+                if job.parent is not None or job.path is None:
                     rel_dir = Path(".")
                 else:
                     rel_dir = Path(job.path).parent.resolve().relative_to(self._workdir)
@@ -233,7 +233,7 @@ class JobManager:
             self._register(job, rel_dir)
 
             # child jobs have been removed, so re-register these to update the paths
-            def reregister_child_job(child_job: "Job"):
+            def reregister_child_job(child_job: "Job") -> None:
                 child_job.path = None
                 self._register(child_job, rel_dir_for_jobs=Path("."), auto_rename=False)
 
@@ -307,7 +307,13 @@ class JobManager:
                 dir_for_jobs = (self._workdir / rel_dir_for_jobs).resolve()
             else:
                 dir_for_jobs = self.current_dir_for_jobs
-                rel_dir_for_jobs = dir_for_jobs.relative_to(self.workdir)
+                # N.B. resolve does not remove the Windows extended prefix if the directory does not yet exist
+                # so sanitise the directory for jobs here when finding the relative path
+                dir_for_jobs_str = str(dir_for_jobs)
+                clean_dir_for_jobs = Path(
+                    dir_for_jobs_str[4:] if dir_for_jobs_str.startswith(("\\\\?\\", "//?/")) else dir_for_jobs_str
+                ).resolve()
+                rel_dir_for_jobs = clean_dir_for_jobs.relative_to(self.workdir)
             rel_dir_for_jobs = rel_dir_for_jobs if rel_dir_for_jobs != Path(".") else None
 
             # check the name of the current job for collisions with existing jobs, and rename if required
@@ -342,7 +348,7 @@ class JobManager:
                         raise PlamsError(f"Job {job.name} already registered and cannot automatically be renamed", 1)
 
             if job.path is None:
-                if job.parent:
+                if job.parent and job.parent.path:
                     job.path = opj(job.parent.path, job.name)
                 else:
                     job.path = opj(dir_for_jobs, job.name)
@@ -352,7 +358,7 @@ class JobManager:
 
             log(f"Job {job.name} registered", 7)
 
-    def _check_hash(self, job):
+    def _check_hash(self, job: "Job") -> Optional["Job"]:
         """Calculate the hash of *job* and, if it is not ``None``, search previously run jobs for the same hash. If such a job is found, return it. Otherwise, return ``None``"""
         h = job.hash()
         if h is not None:
@@ -365,7 +371,7 @@ class JobManager:
                     self.hashes[h] = job
         return None
 
-    def _clean(self):
+    def _clean(self) -> None:
         """Clean all registered jobs according to the ``save`` parameter in their ``settings``. If ``remove_empty_directories`` is ``True``,  traverse the working directory and delete all empty subdirectories."""
         log("Cleaning job manager", 7)
 

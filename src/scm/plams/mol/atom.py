@@ -1,7 +1,8 @@
 import math
 
 import numpy as np
-from typing import Iterable, Union, List, Tuple, TYPE_CHECKING, Sequence, Optional, Dict
+from typing import Iterable, Union, List, Tuple, TYPE_CHECKING, Sequence, Optional, Dict, Iterator, Any
+
 
 from scm.plams.core.settings import Settings
 from scm.plams.tools.periodic_table import PT
@@ -11,7 +12,8 @@ __all__ = ["Atom"]
 
 if TYPE_CHECKING:
     from scm.plams.mol.bond import Bond
-    import scm.plams.mol.molecule as molecule  # required to avoid Sphinx error in type hinting (due to add_to_class)
+    from _typeshed import ConvertibleToFloat
+    from scm.plams.mol.molecule import Molecule
 
 str_type = str  # To avoid type-hinting issues with str() method
 
@@ -25,7 +27,7 @@ class Atom:
     *   ``coords`` -- tuple of length 3 storing spatial coordinates
     *   ``bonds`` -- list of bonds (see |Bond|) this atom is a part of
     *   ``mol`` -- |Molecule| this atom belongs to
-    *   ``properties`` -- |Settings| instance storing all other information about this atom (initially it is populated with *\*\*other*)
+    *   ``properties`` -- |Settings| instance storing all other information about this atom (initially it is populated with *\\*\\*other*)
 
     The above attributes can be accessed either directly or using one of the following properties:
 
@@ -65,11 +67,11 @@ class Atom:
         self,
         atnum: int = 0,
         symbol: Optional[str] = None,
-        coords: Optional[Sequence[float]] = None,
+        coords: Optional[Sequence["ConvertibleToFloat"]] = None,
         unit: str = "angstrom",
         bonds: Optional[List["Bond"]] = None,
-        mol: Optional["molecule.Molecule"] = None,
-        **other,
+        mol: Optional["Molecule"] = None,
+        **other: Any,
     ):
         if symbol is not None:
             self.symbol = str(symbol)
@@ -101,13 +103,13 @@ class Atom:
 
     def str(
         self,
-        symbol: Union[bool, str] = True,
+        symbol: Union[bool, str_type] = True,
         suffix: str = "",
         suffix_dict: Optional[Dict] = None,
         unit: str = "angstrom",
         space: int = 14,
         decimal: int = 6,
-    ) -> str:
+    ) -> str_type:
         """Return a string representation of this atom.
 
         Returned string is a single line (no newline characters) that always contains atomic coordinates (and maybe more). Each atomic coordinate is printed using *space* characters, with *decimal* characters reserved for decimal digits. Coordinates values are expressed in *unit*.
@@ -148,11 +150,11 @@ class Atom:
             symbol = self.symbol
         return ("{0:>10s} {1} {2} {3} " + suffix).format(symbol, *map(f, self.coords), **suffix_dict).rstrip()
 
-    def __str__(self):
+    def __str__(self) -> str_type:
         """Return a string representation of this atom. Simplified version of :meth:`str` to work as a magic method."""
         return self.str()
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator:
         """Iteration through atom yields coordinates. Thanks to that instances of |Atom| can be passed to any method requiring as an argument a point or a vector in 3D space."""
         return iter(self.coords)
 
@@ -294,6 +296,6 @@ class Atom:
         matrix = np.array(matrix).reshape(3, 3)
         self.coords = tuple(np.dot(matrix, np.array(self.coords)))
 
-    def neighbors(self) -> List["Bond"]:
+    def neighbors(self) -> List["Atom"]:
         """Return a list of neighbors of this atom within the molecule. The list follows the same order as the ``bonds`` attribute."""
         return [b.other_end(self) for b in self.bonds]

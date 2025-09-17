@@ -1,5 +1,7 @@
 from scm.plams.core.errors import PlamsError
-from scm.plams.interfaces.adfsuite.scmjob import SCMJob, SCMResults
+from scm.plams.interfaces.adfsuite.scmjob import SCMJob, SCMResults, TSCMJobPath
+
+from typing import Any, Optional
 
 __all__ = ["DensfJob", "DensfResults"]
 
@@ -8,7 +10,7 @@ class DensfResults(SCMResults):
     _kfext = ".t41"
     _rename_map = {"TAPE41": "$JN" + _kfext}
 
-    def get_molecule(self, *args, **kwargs):
+    def get_molecule(self, *args: Any, **kwargs: Any) -> None:
         raise PlamsError("DensfResults do not support get_molecule() method. You can get molecule from inputjob")
 
 
@@ -24,18 +26,18 @@ class DensfJob(SCMJob):
     _command = "densf"
     _top = ["inputfile", "units"]
 
-    def __init__(self, inputjob=None, **kwargs):
+    def __init__(self, inputjob: Optional[TSCMJobPath] = None, **kwargs: Any):
         SCMJob.__init__(self, **kwargs)
         self.inputjob = inputjob
 
-    def _serialize_mol(self):
+    def _serialize_mol(self) -> None:
         self.settings.input.inputfile = self.inputjob
 
-    def _remove_mol(self):
+    def _remove_mol(self) -> None:
         if "inputfile" in self.settings.input:
             del self.settings.input.inputfile
 
-    def check(self):
+    def check(self) -> bool:
         try:
             grep = self.results.grep_file("$JN.err", "NORMAL TERMINATION")
         except:

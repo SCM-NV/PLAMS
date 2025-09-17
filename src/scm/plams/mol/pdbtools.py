@@ -201,7 +201,7 @@ class PDBHandler:
                 try:
                     f = open(textfile, "r")
                 except:
-                    raise FileError("PDBHandler: Error reading file %s" % textfile)
+                    raise FileError(f"PDBHandler: Error reading file {textfile}")
                 self.read(f)
                 f.close()
             else:  # textfile is an open file object
@@ -351,7 +351,7 @@ class PDBHandler:
         elif record.name == "_model":
             self.records[record.name] = record
         else:
-            raise PlamsError("PDBHandler.add_record: Invalid record passed: %s" % (record.name))
+            raise PlamsError(f"PDBHandler.add_record: Invalid record passed: {record.name}")
 
     def add_model(self, model):
         """
@@ -537,11 +537,11 @@ class PDBAtom:
             words[9] = "    "
         if not words[8].replace(".", "").isnumeric():
             if len(words[8].strip()) > 0:
-                raise PlamsError("Bad pdb format\n%s" % (line))
+                raise PlamsError(f"Bad pdb format\n{line}")
         if not words[9].replace(".", "").isnumeric():
             if len(words[9].strip()) > 0:
                 print(words[9])
-                raise PlamsError("Bad pdb format\n%s" % (line))
+                raise PlamsError(f"Bad pdb format\n{line}")
 
         # Start assigning instance variables
         x = float(words[5])
@@ -610,12 +610,12 @@ class PDBAtom:
         if len(self.seg.strip()) > 0 or len(self.element.strip()) > 0:
             tmpword = self.seg
             tmpword = tmpword[:len_seg]
-            text = "%10s" % (tmpword)
+            text = f"{tmpword:>10}"
             if len(self.element.strip()) == 2:
-                text = "%9s" % (tmpword)
+                text = f"{tmpword:>9}"
             block += text
             if len(self.element.strip()) > 0:
-                text = " %-2s " % (self.element)
+                text = f" {self.element:<2} "
                 block += text
 
         return block
@@ -671,8 +671,9 @@ class PDBLattice:
         """
         The object as a string
         """
-        parts = ["%9.3f%9.3f%9.3f" % tuple(self.lengths)]
-        parts += ["%7.2f%7.2f%7.2f P 1           1" % tuple(self.angles)]
+        # Format lengths and angles with f-strings
+        parts = [f"{self.lengths[0]:9.3f}{self.lengths[1]:9.3f}{self.lengths[2]:9.3f}"]
+        parts += [f"{self.angles[0]:7.2f}{self.angles[1]:7.2f}{self.angles[2]:7.2f} P 1           1"]
         return "".join(parts)
 
     def get_vectors(self):

@@ -1,5 +1,9 @@
-import os
-from typing import Dict, Union, Optional
+from typing import Dict, Union, Optional, KeysView, List, Any, Tuple, NoReturn, TYPE_CHECKING, cast
+from typing_extensions import LiteralString
+
+if TYPE_CHECKING:
+    from scm.plams.tools.kftools import KFFile, TRead
+    from scm.plams.mol.molecule import Atom
 
 from scm.plams.core.errors import FileError, PlamsError
 from scm.plams.interfaces.adfsuite.scmjob import SCMJob, SCMResults
@@ -24,7 +28,7 @@ class AMSAnalysisPlot:
 
     * ``x``       -- A list of lists containing the values in each of the multiple x-axes
     * ``y``       -- A list containing the values along the y-axis
-    * ``y_sigma`` -- A list containing the standard deviation of the values onthe y-axis
+    * ``y_sigma`` -- A list containing the standard deviation of the values on the y-axis
     * ``name``    -- The name of the plot
 
     The most important method is the write method, which returns a string containing all the plot info,
@@ -32,24 +36,24 @@ class AMSAnalysisPlot:
     This file can be read by e.g. gnuplot.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """
         Initiate an instance of the plot class
         """
-        self.x = []
-        self.x_units = []
-        self.x_names = []
+        self.x: List[List[float]] = []
+        self.x_units: List[str] = []
+        self.x_names: List[str] = []
 
-        self.y = None
-        self.y_units = None
-        self.y_name = None
-        self.y_sigma = None  # standard deviation for y_values
+        self.y: Optional[List[float]] = None
+        self.y_units: Optional[str] = None
+        self.y_name: Optional[str] = None
+        self.y_sigma: Optional[List[float]] = None
 
-        self.properties: Optional[Dict] = None
-        self.name = None
-        self.section = None
+        self.properties: Optional[Dict[str, TRead]] = None
+        self.name: Optional[str] = None
+        self.section: Optional[str] = None
 
-    def read_data(self, kf, sec):
+    def read_data(self, kf: "KFFile", sec: str) -> None:
         """
         Read the xy data for a section from the kf file
         """
@@ -59,54 +63,54 @@ class AMSAnalysisPlot:
         xnums = sorted([int(k.split("(")[1].split(")")[0]) for k in xkeys])
         xnums = sorted([xnum for xnum in set(xnums)])
         for i in xnums:
-            xkey = "x(%i)-axis" % (i)
-            self.x.append(kf.read(sec, xkey))
-            x_name = kf.read(sec, "%s(label)" % (xkey))
+            xkey = f"x({i})-axis"
+            self.x.append(kf.read_reals(sec, xkey))
+            x_name = kf.read_string(sec, f"{xkey}(label)")
             self.x_names.append(convert_to_unicode(x_name))
-            self.x_units.append(convert_to_unicode(kf.read(sec, "%s(units)" % (xkey))))
+            self.x_units.append(convert_to_unicode(kf.read_string(sec, f"{xkey}(units)")))
 
         # Read the y-values
         ykey = "y-axis"
-        y_name = kf.read(sec, "%s(label)" % (ykey))
-        self.y = kf.read(sec, ykey)
+        y_name = kf.read_string(sec, f"{ykey}(label)")
+        self.y = kf.read_reals(sec, ykey)
         self.y_name = convert_to_unicode(y_name)
-        self.y_units = convert_to_unicode(kf.read(sec, "%s(units)" % (ykey)))
+        self.y_units = convert_to_unicode(kf.read_string(sec, f"{ykey}(units)"))
 
-        self.y_sigma = kf.read(sec, "sigma")
+        self.y_sigma = kf.read_reals(sec, "sigma")
 
         self.read_properties(kf, sec)
         self.section = sec.split("(")[0] + "_" + sec.split("(")[1].split(")")[0]
         self.name = self.section
 
-    def read_properties(self, kf, sec):
+    def read_properties(self, kf: "KFFile", sec: str) -> None:
         """
         Read properties from the KF file
         """
         counter = 0
-        properties = {}
+        properties: Dict[str, TRead] = {}
         while 1:
             counter += 1
             try:
-                propname = kf.read(sec, "Property(%i)" % (counter)).strip()
+                propname = kf.read_string(sec, f"Property({counter})").strip()
             except:
                 break
-            properties[propname] = kf.read(sec, propname)
-            if isinstance(properties[propname], str):
-                properties[propname] = properties[propname].strip()
-                properties[propname] = convert_to_unicode(properties[propname])
+            prop = kf.read(sec, propname)
+            if isinstance(prop, str):
+                prop = convert_to_unicode(prop.strip())
+            properties[propname] = prop
 
         # Now set the instance variables
         self.properties = properties
         if "Legend" in properties:
-            self.name = properties["Legend"]
+            self.name = cast(str, properties["Legend"])
 
-    def get_dimensions(self):
+    def get_dimensions(self) -> int:
         """
         Get the dimensonality of the plot
         """
         return len(self.x)
 
-    def write(self, outfilename=None):
+    def write(self, outfilename: Optional[str] = None) -> LiteralString:
         """
         Print this plot to a text file
         """
@@ -114,15 +118,15 @@ class AMSAnalysisPlot:
         parts = []
         properties = self.properties if self.properties is not None else {}
         for propname, prop in properties.items():
-            parts.append("%-30s %s\n" % (propname, prop))
+            parts.append(f"{propname:<30} {prop}\n")
 
         # Place the string with the column names
         x_name = ""
         for xname, xunit in zip(self.x_names, self.x_units):
-            x_str = "%s(%s)" % (xname, xunit)
-            x_name += "%30s " % (x_str)
-        y_name = "%s(%s)" % (self.y_name, self.y_units)
-        parts.append("%s %30s %30s\n" % (x_name, y_name, "sigma"))
+            x_str = f"{xname}({xunit})"
+            x_name += f"{x_str:>30} "
+        y_name = f"{self.y_name}({self.y_units})"
+        parts.append(f"{x_name} {y_name:>30} {'sigma':>30}\n")
 
         # Determine the number of values per axis
         ndims = len(self.x)
@@ -133,7 +137,7 @@ class AMSAnalysisPlot:
         for i, values in enumerate(zip(*value_lists)):
             v_str = ""
             for v in values:
-                v_str += "%30.10e " % (v)
+                v_str += f"{v:30.10e} "
             v_str += "\n"
             if (i + 1) % axis_length == 0:
                 v_str += "\n"
@@ -148,12 +152,12 @@ class AMSAnalysisPlot:
         return block
 
     @classmethod
-    def from_kf(cls, kf, section, i=1):
+    def from_kf(cls, kf: "KFFile", section: str, i: int = 1) -> "AMSAnalysisPlot":
         xy = cls()
 
         # Find the correct section in the KF file
         sections = kf.sections()
-        matches = [s for s in sections if s.lower() == section.lower() + "(%i)" % (i)]
+        matches = [s for s in sections if s.lower() == f"{section.lower()}({i})"]
         if len(matches) == 0:
             print("Sections: ", list(sections))
             raise PlamsError(
@@ -172,20 +176,20 @@ class AMSAnalysisResults(SCMResults):
     _kfext = ".kf"
     _rename_map = {"plot.kf": "$JN" + _kfext}
 
-    def get_molecule(self, *args, **kwargs):
+    def get_molecule(self, *args: Any, **kwargs: Any) -> NoReturn:
         raise PlamsError("AMSAnalysisResults does not support the get_molecule() method.")
 
-    def get_sections(self):
+    def get_sections(self) -> KeysView[str]:
         """
         Read the sections available to make xy plots
         """
         if not self._kfpresent():
             raise FileError("File {} not present in {}".format(self.job.name + self.__class__._kfext, self.job.path))
-        if self._kf.reader._sections is None:
-            self._kf.reader._create_index()
+        if self._kf.reader._sections is None:  # type: ignore
+            self._kf.reader._create_index()  # type: ignore
         return self._kf.reader._sections.keys()  # type: ignore
 
-    def get_xy(self, section="", i=1):
+    def get_xy(self, section: str = "", i: int = 1) -> AMSAnalysisPlot:
         """
         Get the AMSAnalysisPlot object for a specific section of the plot KFFile
         """
@@ -201,12 +205,12 @@ class AMSAnalysisResults(SCMResults):
         xy = AMSAnalysisPlot.from_kf(self._kf, section, i)
         return xy
 
-    def get_all_plots(self):
+    def get_all_plots(self) -> List[AMSAnalysisPlot]:
         """
         Get a list of all the plot objects created by the analysis jobs
         """
         sections = self.get_sections()
-        plots = []
+        plots: List[AMSAnalysisPlot] = []
         for section in sections:
             if section == "General":
                 continue
@@ -218,15 +222,15 @@ class AMSAnalysisResults(SCMResults):
             plots.append(xy)
         return plots
 
-    def write_all_plots(self):
+    def write_all_plots(self) -> None:
         """
         Write all the plots created by the analysis job to file
         """
         plots = self.get_all_plots()
         for xy in plots:
-            xy.write("%s" % (xy.section + ".dat"))
+            xy.write(f"{xy.section}.dat")
 
-    def get_D(self, i=1):
+    def get_D(self, i: int = 1) -> Tuple[Optional[float], Optional[str]]:
         """returns a 2-tuple (D, D_units) from the AutoCorrelation(i) section on the .kf file."""
 
         # If there are multiple, it will read the first one
@@ -235,25 +239,25 @@ class AMSAnalysisResults(SCMResults):
             return None, None
         section = sections[i - 1]
         plot = self.get_xy(section.split("(")[0], i)
-        if not "DiffusionCoefficient" in plot.properties.keys():
+        if not plot.properties or "DiffusionCoefficient" not in plot.properties.keys():
             return None, None
 
-        D = plot.properties["DiffusionCoefficient"]
+        D = cast(float, plot.properties["DiffusionCoefficient"])
         D_units = plot.y_units
         return D, D_units
 
-    def recreate_settings(self):
+    def recreate_settings(self) -> Optional[Settings]:
         """Recreate the input |Settings| instance for the corresponding job based on files present in the job folder. This method is used by |load_external|.
 
         Extract user input from the kf file and parse it back to a |Settings| instance using ``scm.libbase`` module. Remove the ``system`` branch from that instance.
         """
-        user_input = self._kf.read("General", "user input")
+        user_input = self._kf.read_string("General", "user input")
         try:
             inp = input_to_settings(user_input, program="analysis")
         except:
             log(
                 "Failed to recreate input settings from {}".format(
-                    os.path.join(self.job.path, "".join([self.job.name, self.__class__._kfext]))
+                    str(self.job.get_path() / (self.job.name + self.__class__._kfext))
                 )
             )
             return None
@@ -282,14 +286,15 @@ class AMSAnalysisResults(SCMResults):
 class AMSAnalysisJob(SCMJob):
     """A class for analyzing molecular dynamics trajectories using the ``analysis`` program."""
 
+    results: AMSAnalysisResults
     _result_type = AMSAnalysisResults
     _command = "analysis"
     _subblock_end = "end"
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: Any):
         SCMJob.__init__(self, **kwargs)
 
-    def _serialize_mol(self):
+    def _serialize_mol(self) -> None:
         """
         Use the method from AMSJob to move the molecule to the settings object
         """
@@ -302,7 +307,7 @@ class AMSAnalysisJob(SCMJob):
             else:
                 self.settings.input.system = systems
 
-    def _remove_mol(self):
+    def _remove_mol(self) -> None:
         """
         Remove the molecule from the system block again
         """
@@ -312,7 +317,7 @@ class AMSAnalysisJob(SCMJob):
             del self.settings.system
 
     @staticmethod
-    def _atom_suffix(atom):
+    def _atom_suffix(atom: "Atom") -> str:
         """
         Return the suffix of an atom.
         """
@@ -320,7 +325,7 @@ class AMSAnalysisJob(SCMJob):
 
         return AMSJob._atom_suffix(atom)
 
-    def check(self):
+    def check(self) -> bool:
         try:
             grep = self.results.grep_file("$JN.err", "NORMAL TERMINATION")
         except:
@@ -328,7 +333,7 @@ class AMSAnalysisJob(SCMJob):
         return len(grep) > 0
 
 
-def convert_to_unicode(k):
+def convert_to_unicode(k: str) -> str:
     """
     Convert a string with ascii symbols representing unicode symbols
 

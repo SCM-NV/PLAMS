@@ -1,4 +1,4 @@
-from typing import List, Optional, Tuple, Union, TYPE_CHECKING
+from typing import List, Optional, Tuple, Union, TYPE_CHECKING, Dict, Any, Literal, cast
 import numpy as np
 
 from scm.plams.core.errors import MissingOptionalPackageError
@@ -8,8 +8,10 @@ from scm.plams.mol.molecule import Molecule
 
 if TYPE_CHECKING:
     import matplotlib.pyplot as plt
+    import ase
     from os import PathLike
     from PIL import Image as PilImage
+    from scm.plams.recipes.md.trajectoryanalysis import AMSMSDJob
 
 __all__ = [
     "plot_band_structure",
@@ -25,7 +27,15 @@ __all__ = [
 
 
 @requires_optional_package("matplotlib")
-def plot_band_structure(x, y_spin_up, y_spin_down=None, labels=None, fermi_energy=None, zero=None, ax=None):
+def plot_band_structure(
+    x: List[float],
+    y_spin_up: np.ndarray,
+    y_spin_down: Optional[np.ndarray] = None,
+    labels: Optional[List[str]] = None,
+    fermi_energy: Optional[float] = None,
+    zero: Optional[Union[Literal["fermi", "vbm", "vbmax", "cbm", "cbmin"], float]] = None,
+    ax: Optional["plt.Axes"] = None,
+) -> "plt.Axes":
     """
     Plots an electronic band structure from DFTB, BAND, or QuantumEspresso engines with matplotlib.
 
@@ -47,7 +57,7 @@ def plot_band_structure(x, y_spin_up, y_spin_down=None, labels=None, fermi_energ
     fermi_energy: float
         Returned by AMSResults.get_band_structure(). Should have the same unit as ``y``.
 
-    zero: None or float or one of 'fermi', 'vbmax', 'cbmin'
+    zero: None or float or one of 'fermi', 'vbm', 'vbmax', 'cbm', 'cbmin'
         Shift the curves so that y=0 is at the specified value. If None, no shift is performed. 'fermi', 'vbmax', and 'cbmin' require that the ``fermi_energy`` is not None. Note: 'vbmax' and 'cbmin' calculate the zero as the highest (lowest) eigenvalue smaller (greater) than or equal to ``fermi_energy``. This is NOT necessarily equal to the valence band maximum or conduction band minimum as calculated by the compute engine.
 
     Additional parameters:
@@ -58,20 +68,24 @@ def plot_band_structure(x, y_spin_up, y_spin_down=None, labels=None, fermi_energ
     import matplotlib.pyplot as plt
 
     if zero is None:
-        zero = 0
+        zero_value = 0.0
     elif zero == "fermi":
         assert fermi_energy is not None
-        zero = fermi_energy
+        zero_value = fermi_energy
     elif zero in ["vbm", "vbmax"]:
         assert fermi_energy is not None
-        zero = y_spin_up[y_spin_up <= fermi_energy].max()
+        zero_value = y_spin_up[y_spin_up <= fermi_energy].max()
         if y_spin_down is not None:
-            zero = max(zero, y_spin_down[y_spin_down <= fermi_energy].max())
-    elif zero in ["cbm", "cbmax"]:
+            zero_value = max(zero_value, y_spin_down[y_spin_down <= fermi_energy].max())
+    elif zero in ["cbm", "cbmin"]:
         assert fermi_energy is not None
-        zero = y_spin_up[y_spin_up >= fermi_energy].min()
+        zero_value = y_spin_up[y_spin_up >= fermi_energy].min()
         if y_spin_down is not None:
-            zero = min(zero, y_spin_down[y_spin_down <= fermi_energy].min())
+            zero_value = min(zero_value, y_spin_down[y_spin_down <= fermi_energy].min())
+    else:
+        raise ValueError(
+            f"When specified, zero must be a float or one of: 'fermi', 'vbm', 'vbmax', 'cbm', 'cbmin'; but was '{zero}'"
+        )
 
     labels = labels or []
 
@@ -88,9 +102,9 @@ def plot_band_structure(x, y_spin_up, y_spin_down=None, labels=None, fermi_energ
     if ax is None:
         _, ax = plt.subplots()
 
-    ax.plot(x, y_spin_up - zero, "-")
+    ax.plot(x, y_spin_up - zero_value, "-")
     if y_spin_down is not None:
-        ax.plot(x, y_spin_down - zero, "--")
+        ax.plot(x, y_spin_down - zero_value, "--")
 
     tick_x: List[float] = []
     tick_labels: List[str] = []
@@ -111,7 +125,7 @@ def plot_band_structure(x, y_spin_up, y_spin_down=None, labels=None, fermi_energ
         ax.axvline(xx)
 
     if fermi_energy is not None:
-        ax.axhline(fermi_energy - zero, linestyle="--")
+        ax.axhline(fermi_energy - zero_value, linestyle="--")
 
     ax.set_xticks(ticks=tick_x, labels=tick_labels)
 
@@ -119,7 +133,13 @@ def plot_band_structure(x, y_spin_up, y_spin_down=None, labels=None, fermi_energ
 
 
 @requires_optional_package("matplotlib")
-def plot_phonons_band_structure(x, y, labels=None, zero=None, ax=None):
+def plot_phonons_band_structure(
+    x: List[float],
+    y: np.ndarray,
+    labels: Optional[List[str]] = None,
+    zero: Optional[float] = None,
+    ax: Optional["plt.Axes"] = None,
+) -> "plt.Axes":
     """
     Plots a phonons band structure from DFTB, BAND or QuantumEspresso engines with matplotlib.
 
@@ -189,7 +209,14 @@ def plot_phonons_band_structure(x, y, labels=None, zero=None, ax=None):
 
 
 @requires_optional_package("matplotlib")
-def plot_phonons_dos(energy, total_dos, dos_per_species, dos_per_atom, dos_type="total", ax=None):
+def plot_phonons_dos(
+    energy: List[float],
+    total_dos: List[float],
+    dos_per_species: Dict[str, List[float]],
+    dos_per_atom: Dict[str, List[float]],
+    dos_type: str = "total",
+    ax: Optional["plt.Axes"] = None,
+) -> "plt.Axes":
     """
     Plots the phonons DOS from DFTB, BAND or QuantumEspresso engines with matplotlib.
 
@@ -246,7 +273,9 @@ def plot_phonons_dos(energy, total_dos, dos_per_species, dos_per_atom, dos_type=
 
 
 @requires_optional_package("matplotlib")
-def plot_phonons_thermodynamic_properties(temperature, properties, units, ax=None):
+def plot_phonons_thermodynamic_properties(
+    temperature: List[float], properties: Dict[str, List[float]], units: Dict[str, str], ax: Optional["plt.Axes"] = None
+) -> "plt.Axes":
     """
     Plots the phonons thermodynamic properties from DFTB, BAND or QuantumEspresso engines with matplotlib.
 
@@ -282,7 +311,13 @@ def plot_phonons_thermodynamic_properties(temperature, properties, units, ax=Non
 
 @requires_optional_package("matplotlib")
 @requires_optional_package("ase")
-def plot_molecule(molecule, figsize=None, ax=None, keep_axis: bool = False, **kwargs):
+def plot_molecule(
+    molecule: Union["ase.Atoms", Molecule],
+    figsize: Optional[Union[int, Tuple[int]]] = None,
+    ax: Optional["plt.Axes"] = None,
+    keep_axis: bool = False,
+    **kwargs: Any,
+) -> "plt.Axes":
     """Show a molecule in a Jupyter notebook"""
     import matplotlib.pyplot as plt
     from ase.visualize.plot import plot_atoms
@@ -310,8 +345,8 @@ def plot_grid_molecules(
     subImgSize: Tuple[int, int] = (200, 200),
     ax: Optional["plt.Axes"] = None,
     save_svg_path: Optional[Union[str, "PathLike"]] = None,
-    **kwargs,
-) -> Union["PilImage", "plt.Axes", str]:
+    **kwargs: Any,
+) -> Union["PilImage.Image", "plt.Axes", str]:
     """Plot series of molecules in a grid using RDKit
 
     :param ax: if provided molecules are plotted in these axes, note that the quality of the image might reduce, defaults to None
@@ -375,8 +410,8 @@ def get_correlation_xy(
     alt_variable: Optional[str] = None,
     file: str = "ams",
     multiplier: float = 1.0,
-) -> Tuple:
-    def tolist(x):
+) -> Tuple[np.ndarray, np.ndarray]:
+    def tolist(x: Any) -> List:
         if isinstance(x, list):
             return x
         return [x]
@@ -391,19 +426,21 @@ def get_correlation_xy(
     data2 = []
     for j1, j2 in zip(job1, job2):
         try:
-            d1 = j1.results.readrkf(section, variable, file=file)
+            d1 = cast(Union[List[float], float], j1.results.readrkf(section, variable, file=file))
         except KeyError:
-            d1 = j1.results.get_history_property(variable, history_section=section)
-        d1 = np.ravel(d1) * multiplier
+            d1 = cast(Union[List[float], float], j1.results.get_history_property(variable, history_section=section))
+        d1a = np.ravel(d1) * multiplier
 
         try:
-            d2 = j2.results.readrkf(alt_section, alt_variable, file=file)
+            d2 = cast(Union[List[float], float], j2.results.readrkf(alt_section, alt_variable, file=file))
         except KeyError:
-            d2 = j2.results.get_history_property(alt_variable, history_section=alt_section)
-        d2 = np.ravel(d2) * multiplier
+            d2 = cast(
+                Union[List[float], float], j2.results.get_history_property(alt_variable, history_section=alt_section)
+            )
+        d2a = np.ravel(d2) * multiplier
 
-        data1.extend(list(d1))
-        data2.extend(list(d2))
+        data1.extend(list(d1a))
+        data2.extend(list(d2a))
 
     return np.array(data1), np.array(data2)
 
@@ -420,14 +457,14 @@ def plot_correlation(
     multiplier: float = 1.0,
     unit: Optional[str] = None,
     save_txt: Optional[str] = None,
-    ax=None,
+    ax: Optional["plt.Axes"] = None,
     show_xy: bool = True,
     show_linear_fit: bool = True,
     show_mad: bool = True,
     show_rmsd: bool = True,
     xlabel: Optional[str] = None,
     ylabel: Optional[str] = None,
-):
+) -> "plt.Axes":
     """
 
     Plot a correlation plot from AMS .rkf files
@@ -489,7 +526,7 @@ def plot_correlation(
 
     import matplotlib.pyplot as plt
 
-    def tolist(x):
+    def tolist(x: Any) -> List:
         if isinstance(x, list):
             return x
         return [x]
@@ -502,7 +539,7 @@ def plot_correlation(
 
     data1, data2 = get_correlation_xy(job1, job2, section, variable, alt_section, alt_variable, file, multiplier)
 
-    def add_unit(s: str):
+    def add_unit(s: str) -> str:
         if unit is not None:
             return f"{s} ({unit})"
 
@@ -583,7 +620,9 @@ def plot_correlation(
 
 
 @requires_optional_package("matplotlib")
-def plot_msd(job, start_time_fit_fs=None, ax=None):
+def plot_msd(
+    job: "AMSMSDJob", start_time_fit_fs: Optional[float] = None, ax: Optional["plt.Axes"] = None
+) -> "plt.Axes":
     """
     job: AMSMSDJob
         The job for which to plot the results
@@ -624,8 +663,8 @@ def plot_work_function(
     Vbulk: float,
     Vvacuum: Tuple[float, float],
     WF: Tuple[float, float],
-    ax=None,
-):
+    ax: Optional["plt.Axes"] = None,
+) -> "plt.Axes":
     """
     Plots an Electrostatic Potential Profile from AMS-QE with matplotlib.
 
@@ -700,7 +739,7 @@ def plot_work_function(
         ax.text(
             x0 + 0.98 * (x1 - x0),
             (Vvacuum[1] + Efermi) / 2,
-            "WF=" + "%.1f" % WF[1] + " eV",
+            f"WF={WF[1]:.1f} eV",
             fontsize=11,
             color="black",
             horizontalalignment="right",
@@ -725,9 +764,7 @@ def plot_work_function(
             fc="black",
             ec="black",
         )
-        ax.text(
-            x0 + 0.02 * (x1 - x0), (Vvacuum[0] + Efermi) / 2, "WF=" + "%.1f" % WF[0] + " eV", fontsize=11, color="black"
-        )
+        ax.text(x0 + 0.02 * (x1 - x0), (Vvacuum[0] + Efermi) / 2, f"WF={WF[0]:.1f} eV", fontsize=11, color="black")
         ax.arrow(
             x0 + 1.0 * (x1 - x0),
             Efermi,
@@ -741,7 +778,7 @@ def plot_work_function(
         ax.text(
             x0 + 0.98 * (x1 - x0),
             (Vvacuum[1] + Efermi) / 2,
-            "WF=" + "%.1f" % WF[1] + " eV",
+            f"WF={WF[1]:.1f} eV",
             fontsize=11,
             color="black",
             horizontalalignment="right",

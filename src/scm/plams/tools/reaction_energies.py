@@ -5,10 +5,20 @@ import numpy as np
 from scm.plams.mol.molecule import Molecule
 from scm.plams import ReactionEquation
 
+from typing import overload, Dict, Literal, Union, List, Tuple, Sequence, Set
+
 __all__ = ["get_stoichiometry", "balance_equation", "reaction_energy"]
 
 
-def get_stoichiometry(job_or_molecule_or_path, as_dict=True):
+@overload
+def get_stoichiometry(
+    job_or_molecule_or_path: Union[AMSJob, Molecule, str], as_dict: Literal[True] = True
+) -> Dict[str, int]: ...
+@overload
+def get_stoichiometry(job_or_molecule_or_path: Union[AMSJob, Molecule, str], as_dict: Literal[False]) -> str: ...
+def get_stoichiometry(
+    job_or_molecule_or_path: Union[AMSJob, Molecule, str], as_dict: bool = True
+) -> Union[str, Dict[str, int]]:
     r = job_or_molecule_or_path
     d = None
     if isinstance(r, AMSJob):
@@ -34,7 +44,9 @@ def get_stoichiometry(job_or_molecule_or_path, as_dict=True):
     return d
 
 
-def balance_equation_new(reactants, products, normalization="r0", normalization_value=1.0):
+def balance_equation_new(
+    reactants: List[AMSJob], products: List[AMSJob], normalization: str = "r0", normalization_value: float = 1.0
+) -> Tuple[List[float], List[float]]:
     """
     Calculate stoichiometric coefficients (meant to replace balance_equation method)
 
@@ -58,18 +70,18 @@ def balance_equation_new(reactants, products, normalization="r0", normalization_
         if None, whatever integer value the ReactionEquation object produces should be used.
     """
 
-    def get_formulas(list_of_jobs):
+    def get_formulas(list_of_jobs: List[AMSJob]) -> List[str]:
         """
         Convert the list of molecules to a list of molecular formulas
         """
-        formulas = []
+        formulas: List[str] = []
         for r in list_of_jobs:
             d = get_stoichiometry(r)
             formula = "".join(["%s%i" % (el, n) for el, n in d.items()])
             formulas.append(formula)
         return formulas
 
-    def get_normalization_index(normalization):
+    def get_normalization_index(normalization: str) -> int:
         if normalization.startswith("r"):
             normalization_index = int(normalization.split("r")[1])
             if normalization_index >= num_reactants:
@@ -125,7 +137,12 @@ def balance_equation_new(reactants, products, normalization="r0", normalization_
     return coeffs[:num_reactants], coeffs[num_reactants:]
 
 
-def balance_equation(reactants, products, normalization="r0", normalization_value=1.0):
+def balance_equation(
+    reactants: Sequence[Union[AMSJob, Molecule, str, Dict[str, int]]],
+    products: Sequence[Union[AMSJob, Molecule, str, Dict[str, int]]],
+    normalization: str = "r0",
+    normalization_value: float = 1.0,
+) -> Tuple[List[float], List[float]]:
     """
     Calculate stoichiometric coefficients
     This only works if
@@ -169,7 +186,7 @@ def balance_equation(reactants, products, normalization="r0", normalization_valu
 
     """
 
-    def get_stoichiometries_and_elements(list_of_jobs):
+    def get_stoichiometries_and_elements(list_of_jobs: Sequence[AMSJob]) -> Tuple[List[Dict[str, int]], Set[str]]:
         stoich = []
         elements = set()
         for r in list_of_jobs:
@@ -179,7 +196,7 @@ def balance_equation(reactants, products, normalization="r0", normalization_valu
                 elements.add(k)
         return stoich, elements
 
-    def get_normalization_index(normalization):
+    def get_normalization_index(normalization: str) -> int:
         if normalization.startswith("r"):
             normalization_index = int(normalization.split("r")[1])
             if normalization_index >= num_reactants:
@@ -207,9 +224,7 @@ def balance_equation(reactants, products, normalization="r0", normalization_valu
 
     stoich_r, elements_r = get_stoichiometries_and_elements(reactants)
     stoich_p, elements_p = get_stoichiometries_and_elements(products)
-    elements = elements_r
-    elements.update(elements_p)  # hopefully not necessary
-    elements = list(elements)
+    elements = list(elements_r | elements_p)
     num_reactants = len(stoich_r)
     num_products = len(stoich_p)
 
@@ -265,7 +280,12 @@ def balance_equation(reactants, products, normalization="r0", normalization_valu
     return list(coeffs[:num_reactants]), list(coeffs[num_reactants:])
 
 
-def reaction_energy(reactants, products, normalization="r0", unit="hartree"):
+def reaction_energy(
+    reactants: Sequence[Union[AMSJob, str]],
+    products: Sequence[Union[AMSJob, str]],
+    normalization: str = "r0",
+    unit: str = "hartree",
+) -> Tuple[List[float], List[float], float]:
     """
 
     Calculates a reaction energy from an unbalanced chemical equation (the equation is first balanced)

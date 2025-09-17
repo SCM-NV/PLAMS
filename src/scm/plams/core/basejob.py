@@ -7,7 +7,21 @@ import time
 import shutil
 from os.path import join as opj
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, Generator, Iterable, List, Optional, Union, Tuple, Callable
+from typing import (
+    TYPE_CHECKING,
+    Dict,
+    Generator,
+    Iterable,
+    List,
+    Optional,
+    Union,
+    Tuple,
+    Callable,
+    TypeVar,
+    Any,
+    Iterator,
+)
+from typing_extensions import ParamSpec, ParamSpecKwargs, Concatenate
 from abc import ABC, abstractmethod
 import traceback
 
@@ -20,6 +34,13 @@ from scm.plams.core.settings import Settings
 from scm.plams.mol.molecule import Molecule
 
 try:
+    from scm.libbase import UnifiedChemicalSystem as ChemicalSystem
+
+    _has_scm_chemsys = True
+except ImportError:
+    _has_scm_chemsys = False
+
+try:
     from scm.pisa.block import DriverBlock
 
     _has_scm_pisa = True
@@ -30,13 +51,18 @@ if TYPE_CHECKING:
     from scm.plams.core.jobmanager import JobManager
     from scm.plams.core.jobrunner import JobRunner
 
+P = ParamSpec("P")
+K = ParamSpecKwargs
+T = TypeVar("T")
+J = TypeVar("J", bound="Job")
+
 __all__ = ["SingleJob", "MultiJob"]
 
 
-def _fail_on_exception(func):
+def _fail_on_exception(func: Callable[Concatenate[J, P], T]) -> Callable[Concatenate[J, P], Optional[T]]:
     """Decorator to wrap a job method and mark the job as failed on any exception."""
 
-    def wrapper(self: "Job", *args, **kwargs):
+    def wrapper(self: J, /, *args: P.args, **kwargs: P.kwargs) -> Optional[T]:
         try:
             return func(self, *args, **kwargs)
         except Exception as ex:
@@ -50,6 +76,7 @@ def _fail_on_exception(func):
                 self.parent._notify()  # type: ignore
             # Store the exception message to be accessed from get_errormsg
             self._error_msg = traceback.format_exc()
+        return None
 
     return wrapper
 
@@ -99,12 +126,12 @@ class Job(ABC):
         if os.path.sep in name:
             raise PlamsError(f"Job name cannot contain {os.path.sep}")
         self._status_log: List[Tuple[datetime.datetime, str]] = []
-        self.status = JobStatus.CREATED
+        self.status: JobStatus = JobStatus.CREATED
         self.results = self.__class__._result_type(self)
-        self.name = name
+        self.name: str = name
         self.path: Optional[str] = None
-        self.jobmanager = None
-        self.parent = None
+        self.jobmanager: Optional["JobManager"] = None
+        self.parent: Optional["MultiJob"] = None
         self.settings = Settings()
         self.default_settings = [get_config().job]
         self.depend = depend or []
@@ -151,7 +178,7 @@ class Job(ABC):
         return self._status_log
 
     def run(
-        self, jobrunner: Optional["JobRunner"] = None, jobmanager: Optional["JobManager"] = None, **kwargs
+        self, jobrunner: Optional["JobRunner"] = None, jobmanager: Optional["JobManager"] = None, **kwargs: Any
     ) -> Results:
         """Run the job using *jobmanager* and *jobrunner* (or defaults, if ``None``). Other keyword arguments (*\\*\\*kwargs*) are stored in ``run`` branch of job's settings. Returned value is the |Results| instance associated with this job.
 
@@ -224,6 +251,13 @@ class Job(ABC):
             if self._error_msg
             else "Could not determine error message. Please check the output manually."
         )
+
+    def get_path(self) -> Path:
+        if self.path is None:
+            raise JobError(
+                f"'path' attribute of job '{self.name} is not yet initialized, typically because the job has not yet ran."
+            )
+        return Path(self.path)
 
     @abstractmethod
     def hash(self) -> Optional[str]:
@@ -378,10 +412,11 @@ class Job(ABC):
         if name == prev_name:
             return
 
-        if self.jobmanager is not None:
+        if self.path is not None:
             prev_path = self.path
 
-            self.jobmanager.rename_job(self, name)
+            if self.jobmanager is not None:
+                self.jobmanager.rename_job(self, name)
 
             if self.path != prev_path:
                 # Move files and recollect to update files in result classes
@@ -403,14 +438,16 @@ class Job(ABC):
                     os.remove(prev_dill_file)
                     self.pickle()
                 MultiJob.apply_to_children(
-                    self, lambda j: j.pickle() if Path(j.path, j.name + ".dill").exists() else None, recursive=True
+                    self,
+                    lambda j: j.pickle() if j.path and Path(j.path, j.name + ".dill").exists() else None,
+                    recursive=True,
                 )
 
         else:
             self.name = name
         log(f"JOB {prev_name} RENAMED to {self._full_name()}", level=3)
 
-    def __getstate__(self):
+    def __getstate__(self) -> Dict[str, Any]:
         """Prepare this job instance for pickling.
 
         Attributes ``jobmanager``, ``parent``, ``default_settings`` and ``_lock`` are removed, as well as all attributes listed in ``self._dont_pickle``.
@@ -454,7 +491,11 @@ class SingleJob(Job):
 
     _filenames = {"inp": "$JN.in", "run": "$JN.run", "out": "$JN.out", "err": "$JN.err"}
 
-    def __init__(self, molecule: Optional[Molecule] = None, **kwargs):
+    def __init__(
+        self,
+        molecule: Optional[Union[Molecule, Dict[str, Molecule], "ChemicalSystem", Dict[str, "ChemicalSystem"]]] = None,
+        **kwargs: Any,
+    ):
         Job.__init__(self, **kwargs)
         self.molecule = molecule.copy() if isinstance(molecule, Molecule) else molecule
 
@@ -559,7 +600,7 @@ class SingleJob(Job):
         os.chmod(runfile, os.stat(runfile).st_mode | stat.S_IEXEC)
 
     @_fail_on_exception
-    def _execute(self, jobrunner) -> None:
+    def _execute(self, jobrunner: "JobRunner") -> None:
         """Execute previously created runscript using *jobrunner*.
 
         The method :meth:`~scm.plams.core.jobrunner.JobRunner.call` of *jobrunner* is used. Working directory is ``self.path``. ``self.settings.run`` is passed as ``runflags`` argument.
@@ -568,6 +609,8 @@ class SingleJob(Job):
         """
         log(f"Starting {self.name}._execute()", 7)
         if not get_config().preview:
+            if not self.path:
+                raise JobError(f"Path is not set for the job '{self.name}'")
             o = self._filename("out") if not self.settings.runscript.stdout_redirect else None
             retcode = jobrunner.call(
                 runscript=self._filename("run"),
@@ -581,12 +624,12 @@ class SingleJob(Job):
                 self.status = JobStatus.CRASHED
         log(f"{self.name}._execute() finished", 7)
 
-    def _filename(self, t) -> str:
+    def _filename(self, t: str) -> str:
         """Return filename for file of type *t*. *t* can be any key from ``_filenames`` dictionary. ``$JN`` is replaced with job name in the returned string."""
         return self._filenames[t].replace("$JN", self.name)
 
     @classmethod
-    def load(cls, path, jobmanager: Optional["JobManager"] = None, strict: bool = True) -> "SingleJob":
+    def load(cls, path: str, jobmanager: Optional["JobManager"] = None, strict: bool = True) -> Optional["Job"]:
         """
         Loads a Job instance from `path`, where path can either be a
         directory with a `*.dill` file, or the full path to the `*.dill` file.
@@ -618,16 +661,17 @@ class SingleJob(Job):
         if jobmanager:
             job = jobmanager.load_job(path)
         else:
-            with open(path, "rb") as f:
-                job = pickle.load(f)
+            with open(path, "rb") as f_dill:
+                job = pickle.load(f_dill)
+            if job is not None:
                 # For backwards compatibility (before attributes added/converted to properties)
                 if not hasattr(job, "_status"):
                     job._status = job.__dict__["status"]
                     job._status_log = []
                 if not hasattr(job, "_error_msg"):
                     job._error_msg = None
-            job.path = os.path.dirname(os.path.abspath(path))
-            job.results.collect()
+                job.path = os.path.dirname(os.path.abspath(path))
+                job.results.collect()
 
         if strict and job.__class__ != cls:
             raise ValueError(
@@ -724,9 +768,9 @@ class MultiJob(Job):
     Private attributes ``_active_children`` and ``_lock`` are essential for proper parallel execution. Please do not modify them.
     """
 
-    def __init__(self, children=None, childrunner=None, **kwargs):
+    def __init__(self, children: Optional[List[Job]] = None, childrunner: Optional["JobRunner"] = None, **kwargs: Any):
         Job.__init__(self, **kwargs)
-        self.children = [] if children is None else children
+        self.children: List[Job] = [] if children is None else children
         self.childrunner = childrunner
         self._active_children = 0
         self._lock = threading.Lock()
@@ -781,7 +825,7 @@ class MultiJob(Job):
         for child in self:
             child.parent = self
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[Job]:
         """Iterate through ``children``. If it is a dictionary, iterate through its values."""
         if isinstance(self.children, dict):
             return iter(self.children.values())
@@ -850,7 +894,7 @@ class MultiJob(Job):
         super().delete()
 
     @classmethod
-    def apply_to_children(cls, job: Job, func: Callable[[Job], None], recursive=False) -> None:
+    def apply_to_children(cls, job: Job, func: Callable[[Job], None], recursive: bool = False) -> None:
         """
         Apply the function ``func`` to all children of a |MultiJob| (not the job itself).
         This is a no-op if the job is a |SingleJob|.

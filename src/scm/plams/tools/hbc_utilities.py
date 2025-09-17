@@ -7,7 +7,7 @@ import os
 
 
 @requires_optional_package("scm.libbase")
-def view_HBC(rkf_path: str, xyz_file: Optional[str] = None):
+def view_HBC(rkf_path: str, xyz_file: Optional[str] = None) -> None:
     """
     visulize the hydrogen bond centers (HBC)
 
@@ -57,7 +57,7 @@ def view_HBC(rkf_path: str, xyz_file: Optional[str] = None):
 @requires_optional_package("scm.libbase")
 def write_HBC_to_COSKF(
     rkf_path: str, HBC_xyz: List[np.ndarray], HBC_atom: List[int], HBC_angle: List[float], HBC_info: Dict[str, Any]
-):
+) -> None:
     """
     Write the hydrogen bond centers (HBC) information into the COSKF file
     """

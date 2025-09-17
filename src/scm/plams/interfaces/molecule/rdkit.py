@@ -1,18 +1,38 @@
-from typing import List, Literal, Optional, overload, TYPE_CHECKING, Sequence, Dict, Any
+from typing import (
+    List,
+    Literal,
+    Optional,
+    overload,
+    TYPE_CHECKING,
+    Sequence,
+    Dict,
+    Any,
+    Union,
+    Tuple,
+    IO,
+    Iterable,
+    Generator,
+)
 import random
 import sys
 import copy
 from warnings import warn
+from collections import OrderedDict
 
-from scm.plams.core.functions import add_to_class, log, requires_optional_package
+from scm.plams.core.functions import log, requires_optional_package
 from scm.plams.mol.atom import Atom
 from scm.plams.mol.bond import Bond
 from scm.plams.mol.molecule import Molecule
 from scm.plams.core.errors import PlamsError
 
 if TYPE_CHECKING:
-    from rdkit import Mol as RDKitMol
-    import scm.plams.mol.molecule as molecule  # required to avoid Sphinx error in type hinting (due to add_to_class)
+    from rdkit.Chem import Mol as RDKitMol
+    from rdkit.Chem import Atom as RDKitAtom
+    from rdkit.Chem import Bond as RDKitBond
+    from rdkit.Chem import EditableMol as RDKitEdMol
+    from rdkit.Chem.AllChem import ChemicalReaction as RDKitReaction
+    from rdkit.Chem import Draw
+    from PIL import Image
 
 __all__ = [
     "add_Hs",
@@ -170,7 +190,7 @@ def to_rdmol(
         e.AddAtom(rd_atom)
 
     # Mapping of PLAMS bond orders to RDKit bond types:
-    def plams_to_rd_bonds(bo):
+    def plams_to_rd_bonds(bo: float) -> int:
         if 1.4 < bo < 1.6:
             return 12  # bond type for aromatic bond
         else:
@@ -250,7 +270,7 @@ def to_rdmol(
 
 
 @requires_optional_package("rdkit")
-def to_smiles(plams_mol: Molecule, short_smiles: bool = True, **kwargs) -> str:
+def to_smiles(plams_mol: Molecule, short_smiles: bool = True, **kwargs: Any) -> str:
     """
     Returns the RDKit-generated SMILES string of a PLAMS molecule.
 
@@ -258,7 +278,7 @@ def to_smiles(plams_mol: Molecule, short_smiles: bool = True, **kwargs) -> str:
 
     :parameter plams_mol: A PLAMS |Molecule|
     :parameter bool short_smiles: whether or not to use some RDKit sanitization to get shorter smiles (e.g. for a water molecule, short_smiles=True -> "O", short_smiles=False -> [H]O[H])
-    :parameter \**kwargs: With 'kwargs' you can provide extra optional parameters to the rdkit.Chem method 'MolToSmiles'. See the rdkit documentation for more info.
+    :parameter kwargs: With 'kwargs' you can provide extra optional parameters to the rdkit.Chem method 'MolToSmiles'. See the rdkit documentation for more info.
 
     :return: the SMILES string
     """
@@ -311,7 +331,7 @@ pdb_residue_info_items = [
 # 'MonomerType' was excluded because it is an rdkit type that cannot easilty be serialized
 
 
-def get_PDBResidueInfo(rdkit_atom):
+def get_PDBResidueInfo(rdkit_atom: "RDKitAtom") -> Dict[str, Any]:
     pdb_info = {}
     for item in pdb_residue_info_items:
         get_function = "Get" + item
@@ -320,7 +340,7 @@ def get_PDBResidueInfo(rdkit_atom):
 
 
 @requires_optional_package("rdkit")
-def set_PDBresidueInfo(rdkit_atom, pdb_info):
+def set_PDBresidueInfo(rdkit_atom: "RDKitAtom", pdb_info: Dict[str, Any]) -> None:
     from rdkit import Chem
 
     atom_pdb_residue_info = Chem.AtomPDBResidueInfo()
@@ -330,7 +350,7 @@ def set_PDBresidueInfo(rdkit_atom, pdb_info):
     rdkit_atom.SetMonomerInfo(atom_pdb_residue_info)
 
 
-def prop_to_rdmol(rd_obj, propkey, propvalue):
+def prop_to_rdmol(rd_obj: Union["RDKitMol", "RDKitAtom", "RDKitBond"], propkey: str, propvalue: Any) -> None:
     """
     Convert a single PLAMS property into an RDKit property.
 
@@ -357,7 +377,14 @@ def prop_to_rdmol(rd_obj, propkey, propvalue):
             pass
 
 
-def prop_from_rdmol(pl_obj, rd_obj):
+# ToDo: remove type ignore once mypy_path is enabled
+@overload
+def prop_from_rdmol(pl_obj: Bond, rd_obj: "RDKitBond") -> None: ...
+@overload
+def prop_from_rdmol(pl_obj: Atom, rd_obj: "RDKitAtom") -> None: ...  # type: ignore
+@overload
+def prop_from_rdmol(pl_obj: Molecule, rd_obj: "RDKitMol") -> None: ...  # type: ignore
+def prop_from_rdmol(pl_obj: Union[Molecule, Atom, Bond], rd_obj: Union["RDKitMol", "RDKitAtom", "RDKitBond"]) -> None:
     """
     Convert one or more RDKit properties into PLAMS properties.
 
@@ -394,19 +421,19 @@ def prop_from_rdmol(pl_obj, rd_obj):
 @overload
 def from_smiles(
     smiles: str, nconfs: Literal[1] = ..., name: Optional[str] = ..., forcefield: Optional[str] = ..., rms: float = ...
-) -> "molecule.Molecule": ...
+) -> Molecule: ...
 
 
 @overload
 def from_smiles(
     smiles: str, nconfs: int = ..., name: Optional[str] = ..., forcefield: Optional[str] = ..., rms: float = ...
-) -> List["molecule.Molecule"]: ...
+) -> Union[Molecule, List[Molecule]]: ...
 
 
 @requires_optional_package("rdkit")
 def from_smiles(
     smiles: str, nconfs: int = 1, name: Optional[str] = None, forcefield: Optional[str] = None, rms: float = 0.1
-):
+) -> Union[Molecule, List[Molecule]]:
     """
     Generates PLAMS molecule(s) from a smiles strings.
 
@@ -427,13 +454,21 @@ def from_smiles(
     smiles = Chem.CanonSmiles(smiles)
     rdkit_mol = Chem.AddHs(Chem.MolFromSmiles(smiles))
     rdkit_mol.SetProp("smiles", smiles)
-    return get_conformations(rdkit_mol, nconfs, name, forcefield, rms)
+    return get_conformations(rdkit_mol, nconfs, name, forcefield, rms)  # type: ignore
 
 
+@overload
+def from_smarts(
+    smarts: str, nconfs: Literal[1] = ..., name: Optional[str] = ..., forcefield: Optional[str] = ..., rms: float = ...
+) -> Molecule: ...
+@overload
+def from_smarts(
+    smarts: str, nconfs: int = ..., name: Optional[str] = ..., forcefield: Optional[str] = ..., rms: float = ...
+) -> Union[Molecule, List[Molecule]]: ...
 @requires_optional_package("rdkit")
 def from_smarts(
     smarts: str, nconfs: int = 1, name: Optional[str] = None, forcefield: Optional[str] = None, rms: float = 0.1
-):
+) -> Union[Molecule, List[Molecule]]:
     """
     Generates PLAMS molecule(s) from a smarts strings.
     This allows for example to define hydrogens explicitly.
@@ -457,23 +492,53 @@ def from_smarts(
     Chem.SanitizeMol(mol)
     molecule = Chem.AddHs(mol)
     molecule.SetProp("smiles", smiles)
-    return get_conformations(molecule, nconfs, name, forcefield, rms)
+    return get_conformations(molecule, nconfs, name, forcefield, rms)  # type: ignore
 
 
+@overload
 @requires_optional_package("rdkit")
 def get_conformations(
-    mol,
-    nconfs=1,
-    name=None,
-    forcefield=None,
-    rms=-1,
-    enforceChirality=False,
-    useExpTorsionAnglePrefs="default",
-    constraint_ats=None,
-    EmbedParameters="EmbedParameters",
-    randomSeed=1,
-    best_rms=-1,
-):
+    mol: Union[Molecule, "RDKitMol"],
+    nconfs: Literal[1] = 1,
+    name: Optional[str] = None,
+    forcefield: Optional[str] = None,
+    rms: float = -1,
+    enforceChirality: bool = False,
+    useExpTorsionAnglePrefs: str = "default",
+    constraint_ats: Optional[List[int]] = None,
+    EmbedParameters: str = "EmbedParameters",
+    randomSeed: int = 1,
+    best_rms: float = -1,
+) -> Molecule: ...
+@overload
+@requires_optional_package("rdkit")
+def get_conformations(
+    mol: Union[Molecule, "RDKitMol"],
+    nconfs: int = ...,
+    name: Optional[str] = None,
+    forcefield: Optional[str] = None,
+    rms: float = -1,
+    enforceChirality: bool = False,
+    useExpTorsionAnglePrefs: str = "default",
+    constraint_ats: Optional[List[int]] = None,
+    EmbedParameters: str = "EmbedParameters",
+    randomSeed: int = 1,
+    best_rms: float = -1,
+) -> Union[List[Molecule], Molecule]: ...
+@requires_optional_package("rdkit")
+def get_conformations(
+    mol: Union[Molecule, "RDKitMol"],
+    nconfs: int = 1,
+    name: Optional[str] = None,
+    forcefield: Optional[str] = None,
+    rms: float = -1,
+    enforceChirality: bool = False,
+    useExpTorsionAnglePrefs: str = "default",
+    constraint_ats: Optional[List[int]] = None,
+    EmbedParameters: str = "EmbedParameters",
+    randomSeed: int = 1,
+    best_rms: float = -1,
+) -> Union[List[Molecule], Molecule]:
     """
     Generates 3D conformation(s) for an rdkit_mol or a PLAMS Molecule
 
@@ -506,7 +571,9 @@ def get_conformations(
     else:
         rdkit_mol = mol
 
-    def constrained_embedding(rdkit_mol, nconfs, param_obj, template_mol, randomSeed):
+    def constrained_embedding(
+        rdkit_mol: "RDKitMol", nconfs: int, param_obj: bool, template_mol: "RDKitMol", randomSeed: int
+    ) -> List[int]:
         """
         Use RDKit ConstrainedEmbed to add conformers to rdkit_mol (EmbedMultipleConfs does not constrain)
 
@@ -538,7 +605,7 @@ def get_conformations(
             cids = [c.GetId() for c in rdkit_mol.GetConformers()]
         return cids
 
-    def MMFFenergy(cid):
+    def MMFFenergy(cid: int) -> float:
         ff = AllChem.MMFFGetMoleculeForceField(rdkit_mol, AllChem.MMFFGetMoleculeProperties(rdkit_mol), confId=cid)
         try:
             energy = ff.CalcEnergy()
@@ -552,7 +619,7 @@ def get_conformations(
             energy = 1e9
         return energy
 
-    def UFFenergy(cid):
+    def UFFenergy(cid: int) -> float:
         ff = AllChem.UFFGetMoleculeForceField(rdkit_mol, confId=cid)
         try:
             energy = ff.CalcEnergy()
@@ -566,7 +633,7 @@ def get_conformations(
             energy = 1e9
         return energy
 
-    def remove_some_Hs(m):
+    def remove_some_Hs(m: "RDKitMol") -> "RDKitMol":
         res = Chem.RWMol(m)
         c_hs = [x[0] for x in m.GetSubstructMatches(Chem.MolFromSmarts("[#1;$([#1]-[#6])]"))]
         c_hs.sort(reverse=True)
@@ -669,8 +736,24 @@ def get_conformations(
         return [from_rdmol(rdkit_mol, cid) for cid in cids]
 
 
+@overload
 @requires_optional_package("rdkit")
-def from_sequence(sequence, nconfs=1, name=None, forcefield=None, rms=0.1):
+def from_sequence(
+    sequence: str,
+    nconfs: Literal[1] = 1,
+    name: Optional[str] = None,
+    forcefield: Optional[str] = None,
+    rms: float = 0.1,
+) -> Molecule: ...
+@overload
+@requires_optional_package("rdkit")
+def from_sequence(
+    sequence: str, nconfs: int, name: Optional[str] = None, forcefield: Optional[str] = None, rms: float = 0.1
+) -> Union[List[Molecule], Molecule]: ...
+@requires_optional_package("rdkit")
+def from_sequence(
+    sequence: str, nconfs: int = 1, name: Optional[str] = None, forcefield: Optional[str] = None, rms: float = 0.1
+) -> Union[List[Molecule], Molecule]:
     """
     Generates PLAMS molecule from a peptide sequence.
     Includes explicit hydrogens and 3D coordinates.
@@ -691,11 +774,11 @@ def from_sequence(sequence, nconfs=1, name=None, forcefield=None, rms=0.1):
 
     rdkit_mol = Chem.AddHs(Chem.MolFromSequence(sequence))
     rdkit_mol.SetProp("sequence", sequence)
-    return get_conformations(rdkit_mol, nconfs, name, forcefield, rms)
+    return get_conformations(rdkit_mol, nconfs, name, forcefield, rms)  # type: ignore
 
 
 @requires_optional_package("rdkit")
-def calc_rmsd(mol1, mol2):
+def calc_rmsd(mol1: Molecule, mol2: Molecule) -> float:
     """
     Superimpose two molecules and calculate the root-mean-squared deviations of
     the atomic positions.
@@ -717,7 +800,7 @@ def calc_rmsd(mol1, mol2):
 
 
 @requires_optional_package("rdkit")
-def modify_atom(mol, idx, element):
+def modify_atom(mol: Molecule, idx: int, element: str) -> Molecule:
     """
     Change atom "idx" in molecule "mol" to "element" and add or remove hydrogens accordingly
 
@@ -746,7 +829,7 @@ def modify_atom(mol, idx, element):
 
 
 @requires_optional_package("rdkit")
-def apply_template(mol, template):
+def apply_template(mol: Molecule, template: str) -> Molecule:
     """
     Modifies bond orders in PLAMS molecule according template smiles structure.
 
@@ -764,8 +847,41 @@ def apply_template(mol, template):
     return from_rdmol(newmol)
 
 
+@overload
 @requires_optional_package("rdkit")
-def apply_reaction_smarts(mol, reaction_smarts, complete=False, forcefield=None, return_rdmol=False):
+def apply_reaction_smarts(
+    mol: Union[Molecule, "RDKitMol"],
+    reaction_smarts: str,
+    complete: bool = False,
+    forcefield: Optional[str] = None,
+    return_rdmol: Literal[False] = False,
+) -> Molecule: ...
+@overload
+@requires_optional_package("rdkit")
+def apply_reaction_smarts(
+    mol: Union[Molecule, "RDKitMol"],
+    reaction_smarts: str,
+    complete: bool = False,
+    forcefield: Optional[str] = None,
+    return_rdmol: Literal[True] = ...,
+) -> "RDKitMol": ...
+@overload
+@requires_optional_package("rdkit")
+def apply_reaction_smarts(
+    mol: Union[Molecule, "RDKitMol"],
+    reaction_smarts: str,
+    complete: bool = False,
+    forcefield: Optional[str] = None,
+    return_rdmol: bool = ...,
+) -> Union[Molecule, "RDKitMol"]: ...
+@requires_optional_package("rdkit")
+def apply_reaction_smarts(
+    mol: Union[Molecule, "RDKitMol"],
+    reaction_smarts: str,
+    complete: bool = False,
+    forcefield: Optional[str] = None,
+    return_rdmol: bool = False,
+) -> Union[Molecule, "RDKitMol"]:
     """
     Applies reaction smirks and returns product.
     If returned as a PLAMS molecule, thismolecule.properties.orig_atoms
@@ -788,7 +904,7 @@ def apply_reaction_smarts(mol, reaction_smarts, complete=False, forcefield=None,
     from rdkit import Chem
     from rdkit.Chem import AllChem
 
-    def react(reactant, reaction):
+    def react(reactant: "RDKitMol", reaction: "RDKitReaction") -> List[Tuple["RDKitMol", Iterable[int]]]:
         """Apply reaction to reactant and return products"""
         ps = reaction.RunReactants([reactant])
         # if reaction doesn't apply, return the reactant
@@ -804,7 +920,7 @@ def apply_reaction_smarts(mol, reaction_smarts, complete=False, forcefield=None,
                 ps = [[reactant]]
                 break
         # add hydrogens and generate coordinates for new atoms
-        products = []
+        products: List[Tuple["RDKitMol", Iterable[int]]] = []
         for p in ps[0]:
             Chem.SanitizeMol(p)
             q = Chem.AddHs(p)
@@ -836,7 +952,7 @@ def apply_reaction_smarts(mol, reaction_smarts, complete=False, forcefield=None,
     return product
 
 
-def gen_coords(plamsmol):
+def gen_coords(plamsmol: Molecule) -> List[int]:
     """Calculate 3D positions only for atoms without coordinates"""
     rdmol = to_rdmol(plamsmol)
     unchanged = gen_coords_rdmol(rdmol)
@@ -844,20 +960,20 @@ def gen_coords(plamsmol):
     for a in range(len(plamsmol.atoms)):
         pos = conf.GetAtomPosition(a)
         atom = plamsmol.atoms[a]
-        atom._setx(pos.x)
-        atom._sety(pos.y)
-        atom._setz(pos.z)
+        atom._setx(pos.x)  # type: ignore[attr-defined]
+        atom._sety(pos.y)  # type: ignore[attr-defined]
+        atom._setz(pos.z)  # type: ignore[attr-defined]
     return [a + 1 for a in unchanged]
 
 
 @requires_optional_package("rdkit")
-def gen_coords_rdmol(rdmol):
+def gen_coords_rdmol(rdmol: "RDKitMol") -> List[int]:
     from rdkit.Chem import AllChem
 
     ref = rdmol.__copy__()
     conf = rdmol.GetConformer()
     coordDict = {}
-    unchanged = []
+    unchanged: List[int] = []
     maps = []
     # Put known coordinates in coordDict
     for i in range(rdmol.GetNumAtoms()):
@@ -881,11 +997,11 @@ def gen_coords_rdmol(rdmol):
 
 
 @requires_optional_package("rdkit")
-def optimize_coordinates(rdkit_mol, forcefield, fixed=[]):
+def optimize_coordinates(rdkit_mol: "RDKitMol", forcefield: str, fixed: Sequence = []) -> None:
     from rdkit import Chem
     from rdkit.Chem import AllChem
 
-    def MMFFminimize():
+    def MMFFminimize() -> None:
         ff = AllChem.MMFFGetMoleculeForceField(rdkit_mol, AllChem.MMFFGetMoleculeProperties(rdkit_mol))
         for f in fixed:
             ff.AddFixedPoint(f)
@@ -894,7 +1010,7 @@ def optimize_coordinates(rdkit_mol, forcefield, fixed=[]):
         except:
             warn("MMFF geometry optimization failed for molecule: " + Chem.MolToSmiles(rdkit_mol))
 
-    def UFFminimize():
+    def UFFminimize() -> None:
         ff = AllChem.UFFGetMoleculeForceField(rdkit_mol, ignoreInterfragInteractions=True)
         for f in fixed:
             ff.AddFixedPoint(f)
@@ -910,14 +1026,47 @@ def optimize_coordinates(rdkit_mol, forcefield, fixed=[]):
 
 
 @requires_optional_package("rdkit")
-def write_molblock(plams_mol, file=sys.stdout):
+def write_molblock(plams_mol: Molecule, file: IO = sys.stdout) -> None:
     from rdkit import Chem
 
     file.write(Chem.MolToMolBlock(to_rdmol(plams_mol)))
 
 
+@overload
 @requires_optional_package("rdkit")
-def readpdb(pdb_file, sanitize=True, removeHs=False, proximityBonding=False, return_rdmol=False):
+def readpdb(
+    pdb_file: str,
+    sanitize: bool = True,
+    removeHs: bool = False,
+    proximityBonding: bool = False,
+    return_rdmol: Literal[False] = False,
+) -> Molecule: ...
+@overload
+@requires_optional_package("rdkit")
+def readpdb(
+    pdb_file: str,
+    sanitize: bool = True,
+    removeHs: bool = False,
+    proximityBonding: bool = False,
+    return_rdmol: Literal[True] = ...,
+) -> "RDKitMol": ...
+@overload
+@requires_optional_package("rdkit")
+def readpdb(
+    pdb_file: str,
+    sanitize: bool = True,
+    removeHs: bool = False,
+    proximityBonding: bool = False,
+    return_rdmol: bool = ...,
+) -> Union["RDKitMol", Molecule]: ...
+@requires_optional_package("rdkit")
+def readpdb(
+    pdb_file: Union[str, IO],
+    sanitize: bool = True,
+    removeHs: bool = False,
+    proximityBonding: bool = False,
+    return_rdmol: bool = False,
+) -> Union["RDKitMol", Molecule]:
     """
     Generate a molecule from a PDB file
 
@@ -931,17 +1080,18 @@ def readpdb(pdb_file, sanitize=True, removeHs=False, proximityBonding=False, ret
     """
     from rdkit import Chem
 
-    try:
-        pdb_file = open(pdb_file, "r")
-    except TypeError:
-        pass  # pdb_file is a file-like object... hopefully
+    if isinstance(pdb_file, str):
+        with open(pdb_file) as f:
+            contents = f.read()
+    else:
+        contents = pdb_file.read()
 
-    pdb_mol = Chem.MolFromPDBBlock(pdb_file.read(), sanitize=sanitize, removeHs=removeHs)
+    pdb_mol = Chem.MolFromPDBBlock(contents, sanitize=sanitize, removeHs=removeHs)
     return pdb_mol if return_rdmol else from_rdmol(pdb_mol)
 
 
 @requires_optional_package("rdkit")
-def writepdb(mol, pdb_file=sys.stdout):
+def writepdb(mol: Union[Molecule, "RDKitMol"], pdb_file: Union[str, IO] = sys.stdout) -> None:
     """
     Write a PDB file from a molecule
 
@@ -952,17 +1102,34 @@ def writepdb(mol, pdb_file=sys.stdout):
     """
     from rdkit import Chem
 
-    try:
-        pdb_file = open(pdb_file, "w")
-    except TypeError:
-        pass  # pdb_file is a file-like object... hopefully
-
     mol = to_rdmol(mol, sanitize=False)
-    pdb_file.write(Chem.MolToPDBBlock(mol))
+
+    if isinstance(pdb_file, str):
+        with open(pdb_file, "w") as f:
+            f.write(Chem.MolToPDBBlock(mol))
+    else:
+        pdb_file.write(Chem.MolToPDBBlock(mol))
 
 
+@overload
 @requires_optional_package("rdkit")
-def add_Hs(mol, forcefield=None, return_rdmol=False):
+def add_Hs(
+    mol: Union[Molecule, "RDKitMol"], forcefield: Optional[str] = None, return_rdmol: Literal[False] = False
+) -> Molecule: ...
+@overload
+@requires_optional_package("rdkit")
+def add_Hs(
+    mol: Union[Molecule, "RDKitMol"], forcefield: Optional[str] = None, return_rdmol: Literal[True] = ...
+) -> "RDKitMol": ...
+@overload
+@requires_optional_package("rdkit")
+def add_Hs(
+    mol: Union[Molecule, "RDKitMol"], forcefield: Optional[str] = None, return_rdmol: bool = ...
+) -> Union[Molecule, "RDKitMol"]: ...
+@requires_optional_package("rdkit")
+def add_Hs(
+    mol: Union[Molecule, "RDKitMol"], forcefield: Optional[str] = None, return_rdmol: bool = False
+) -> Union[Molecule, "RDKitMol"]:
     """
     Add hydrogens to protein molecules read from PDB.
     Makes sure that the hydrogens get the correct PDBResidue info.
@@ -1002,7 +1169,13 @@ def add_Hs(mol, forcefield=None, return_rdmol=False):
 
 
 @requires_optional_package("rdkit")
-def add_fragment(rwmol, frag, rwmol_atom_idx=None, frag_atom_idx=None, bond_order=None):
+def add_fragment(
+    rwmol: "RDKitMol",
+    frag: "RDKitMol",
+    rwmol_atom_idx: Optional[int] = None,
+    frag_atom_idx: Optional[int] = None,
+    bond_order: Optional[int] = None,
+) -> None:
     from rdkit import Chem
 
     molconf = rwmol.GetConformer()
@@ -1016,13 +1189,15 @@ def add_fragment(rwmol, frag, rwmol_atom_idx=None, frag_atom_idx=None, bond_orde
         ba = b.GetBeginAtomIdx()
         ea = b.GetEndAtomIdx()
         rwmol.AddBond(new_indices[ba], new_indices[ea], b.GetBondType())
-    if bond_order:
+    if bond_order and rwmol_atom_idx and frag_atom_idx:
         rwmol.AddBond(rwmol_atom_idx, new_indices[frag_atom_idx], Chem.BondType.values[bond_order])
         rwmol.GetAtomWithIdx(new_indices[frag_atom_idx]).SetNumRadicalElectrons(0)
 
 
 @requires_optional_package("rdkit")
-def get_fragment(mol, indices, incl_expl_Hs=True, neutralize=True):
+def get_fragment(
+    mol: "RDKitMol", indices: Sequence[int], incl_expl_Hs: bool = True, neutralize: bool = True
+) -> "RDKitMol":
     from rdkit import Chem
 
     molconf = mol.GetConformer()
@@ -1065,8 +1240,37 @@ def get_fragment(mol, indices, incl_expl_Hs=True, neutralize=True):
     return ret_frag
 
 
+@overload
 @requires_optional_package("rdkit")
-def partition_protein(mol, residue_bonds=None, split_heteroatoms=True, return_rdmol=False):
+def partition_protein(
+    mol: Union[Molecule, "RDKitMol"],
+    residue_bonds: Optional[Iterable[Tuple[int, int]]] = None,
+    split_heteroatoms: bool = True,
+    return_rdmol: Literal[False] = False,
+) -> Tuple[List[Molecule], List[Molecule]]: ...
+@overload
+@requires_optional_package("rdkit")
+def partition_protein(
+    mol: Union[Molecule, "RDKitMol"],
+    residue_bonds: Optional[Iterable[Tuple[int, int]]] = None,
+    split_heteroatoms: bool = True,
+    return_rdmol: Literal[True] = ...,
+) -> Tuple[List["RDKitMol"], List["RDKitMol"]]: ...
+@overload
+@requires_optional_package("rdkit")
+def partition_protein(
+    mol: Union[Molecule, "RDKitMol"],
+    residue_bonds: Optional[Iterable[Tuple[int, int]]] = None,
+    split_heteroatoms: bool = True,
+    return_rdmol: bool = ...,
+) -> Tuple[List[Union[Molecule, "RDKitMol"]], List[Union[Molecule, "RDKitMol"]]]: ...
+@requires_optional_package("rdkit")
+def partition_protein(
+    mol: Union[Molecule, "RDKitMol"],
+    residue_bonds: Optional[Iterable[Tuple[int, int]]] = None,
+    split_heteroatoms: bool = True,
+    return_rdmol: bool = False,
+) -> Tuple[Union[List[Molecule], List["RDKitMol"]], Union[List[Molecule], List["RDKitMol"]]]:
     """
     Splits a protein molecule into capped amino acid fragments and caps.
 
@@ -1099,7 +1303,7 @@ def partition_protein(mol, residue_bonds=None, split_heteroatoms=True, return_rd
             if (resa, resb) not in residue_bonds and (resb, resa) not in residue_bonds:
                 continue
         cap = get_fragment(mol, match[0:5])
-        cap = add_Hs(cap, return_rdmol=True)
+        cap = add_Hs(cap, return_rdmol=True)  # type: ignore
         caps.append(cap if return_rdmol else from_rdmol(cap))
         cap_o_ind = cap.GetSubstructMatch(Chem.MolFromSmarts("[C;X4][CX3]=O"))
         cap_o = get_fragment(cap, cap_o_ind, neutralize=False)
@@ -1112,7 +1316,7 @@ def partition_protein(mol, residue_bonds=None, split_heteroatoms=True, return_rd
     ss_bond = Chem.MolFromSmarts("[C;X4;H1,H2]SS[C;X4;H1,H2]")
     for match in mol.GetSubstructMatches(ss_bond):
         cap = get_fragment(mol, match[0:5])
-        cap = add_Hs(cap, return_rdmol=True)
+        cap = add_Hs(cap, return_rdmol=True)  # type: ignore
         caps.append(cap if return_rdmol else from_rdmol(cap))
         cap_s_ind = cap.GetSubstructMatch(Chem.MolFromSmarts("[C;X4]SS[C;X4]"))
         cap_s1 = get_fragment(cap, cap_s_ind[0:2], neutralize=False)
@@ -1120,14 +1324,23 @@ def partition_protein(mol, residue_bonds=None, split_heteroatoms=True, return_rd
         em.RemoveBond(match[1], match[2])
         add_fragment(em, cap_s1, match[2], 1, 1)
         add_fragment(em, cap_s2, match[1], 0, 1)
-    frags = Chem.GetMolFrags(em.GetMol(), asMols=True, sanitizeFrags=False)
+    frags: Union[List[Molecule], List["RDKitMol"]] = Chem.GetMolFrags(em.GetMol(), asMols=True, sanitizeFrags=False)
     if not return_rdmol:
         frags = [from_rdmol(frag) for frag in frags]
     return frags, caps
 
 
+@overload
 @requires_optional_package("rdkit")
-def charge_AAs(mol, return_rdmol=False):
+def charge_AAs(mol: Molecule, return_rdmol: Literal[False] = False) -> Molecule: ...
+@overload
+@requires_optional_package("rdkit")
+def charge_AAs(mol: Molecule, return_rdmol: Literal[True] = ...) -> Union[Molecule, "RDKitMol"]: ...
+@overload
+@requires_optional_package("rdkit")
+def charge_AAs(mol: Molecule, return_rdmol: bool = ...) -> Union[Molecule, "RDKitMol"]: ...
+@requires_optional_package("rdkit")
+def charge_AAs(mol: Molecule, return_rdmol: bool = False) -> Union[Molecule, "RDKitMol"]:
     from rdkit import Chem
 
     ionizations = {"ARG_NH2": 1, "LYS_NZ": 1, "GLU_OE2": -1, "ASP_OD2": -1}
@@ -1144,7 +1357,7 @@ def charge_AAs(mol, return_rdmol=False):
     return mol if return_rdmol else from_rdmol(mol)
 
 
-def get_backbone_atoms(mol):
+def get_backbone_atoms(mol: Union[Molecule, "RDKitMol"]) -> List[int]:
     """
     Return a list of atom indices corresponding to the backbone atoms in a peptide molecule.
     This function assumes PDB information in properties.pdb_info of each atom, which is the case
@@ -1161,7 +1374,9 @@ def get_backbone_atoms(mol):
 
 
 @requires_optional_package("rdkit")
-def get_substructure(mol, func_list):
+def get_substructure(
+    mol: Molecule, func_list: Sequence[Union[str, Molecule, "RDKitMol"]]
+) -> Dict[Union[str, Molecule, "RDKitMol"], Tuple[Atom, ...]]:
     """
     Search for functional groups within a molecule based on a list of reference functional groups.
     SMILES strings, PLAMS and/or RDKit molecules can be used interchangeably in "func_list".
@@ -1188,7 +1403,7 @@ def get_substructure(mol, func_list):
     """
     from rdkit import Chem
 
-    def _to_rdmol(functional_group):
+    def _to_rdmol(functional_group: Union[str, Molecule, "RDKitMol"]) -> "RDKitMol":
         """Turn a SMILES strings, RDKit or PLAMS molecules into an RDKit molecule."""
         if isinstance(functional_group, str):
             # RDKit tends to remove explicit hydrogens if SANITIZE_ADJUSTHS is enabled
@@ -1207,7 +1422,9 @@ def get_substructure(mol, func_list):
                         object type"
         )
 
-    def _get_match(mol, rdmol, functional_group):
+    def _get_match(
+        mol: Molecule, rdmol: "RDKitMol", functional_group: Union[str, Molecule, "RDKitMol"]
+    ) -> Union[List[Tuple[Atom]], bool]:
         """Perform a substructure match on "mol".
         If a match is found, return a list of n-tuples consisting PLAMS |Atom|.
         Otherwise return False."""
@@ -1219,10 +1436,10 @@ def get_substructure(mol, func_list):
     rdmol = to_rdmol(mol)
     rdmol_func_list = [_to_rdmol(i) for i in func_list]
     gen = (_get_match(mol, rdmol, i) for i in rdmol_func_list)
-    return {key: value for key, value in zip(func_list, gen) if value}
+    return {key: value for key, value in zip(func_list, gen) if value}  # type: ignore
 
 
-def yield_coords(rdmol, id=-1):
+def yield_coords(rdmol: "RDKitMol", id: int = -1) -> Generator[Tuple[float, float, float], None, None]:
     """Take an rdkit molecule and yield its coordinates as 3-tuples.
 
     .. code-block:: python
@@ -1266,40 +1483,14 @@ def yield_coords(rdmol, id=-1):
         yield (pos.x, pos.y, pos.z)
 
 
-@add_to_class(Molecule)
-def assign_chirality(self):
-    """
-    Assigns stereo-info to PLAMS molecule by invoking RDKIT
-    """
-    rd_mol = to_rdmol(self, assignChirality=True)
-    pl_mol = from_rdmol(rd_mol)
-
-    # Add R/S info to self
-    for iat, pl_atom in enumerate(pl_mol.atoms):
-        # Check for R/S information
-        if pl_atom.properties.rdkit.stereo:
-            self.atoms[iat].properties.rdkit.stereo = pl_atom.properties.rdkit.stereo
-
-    # Add cis/trans information to self
-    for ibond, pl_bond in enumerate(pl_mol.bonds):
-        if pl_bond.properties.rdkit.stereo:
-            self.bonds[ibond] = pl_bond.properties.rdkit.stereo
-
-
-@add_to_class(Molecule)
+@overload
 @requires_optional_package("rdkit")
-def get_chirality(self):
-    """
-    Returns the chirality of the atoms
-    """
-    from rdkit import Chem
-
-    rd_mol = to_rdmol(self, assignChirality=True)
-    return Chem.FindMolChiralCenters(rd_mol, force=True, includeUnassigned=True)
-
-
+def canonicalize_mol(mol: Molecule, inplace: Literal[True], **kwargs: Any) -> None: ...
+@overload
 @requires_optional_package("rdkit")
-def canonicalize_mol(mol, inplace=False, **kwargs):
+def canonicalize_mol(mol: Molecule, inplace: Literal[False] = False, **kwargs: Any) -> Molecule: ...
+@requires_optional_package("rdkit")
+def canonicalize_mol(mol: Molecule, inplace: bool = False, **kwargs: Any) -> Optional[Molecule]:
     r"""Take a PLAMS molecule and sort its atoms based on their canonical rank.
 
     Example:
@@ -1361,7 +1552,7 @@ def to_image(
     fmt: str = "svg",
     size: Sequence[int] = (200, 100),
     as_string: bool = True,
-):
+) -> Union[str, bytes, "Image.Image"]:
     """
     Convert single molecule to single image object
 
@@ -1427,7 +1618,7 @@ def to_image(
             img.save(buf, format=fmt)
             img_text = buf.getvalue()
     # If I do not make this correction to the SVG text, it is not readable in JupyterLab
-    if fmt.lower() == "svg":
+    if fmt.lower() == "svg" and isinstance(img_text, str):
         img_text = _correct_svg(img_text)
 
     # Write to file, if required
@@ -1452,7 +1643,7 @@ def get_reaction_image(
     fmt: str = "svg",
     size: Sequence[int] = (200, 100),
     as_string: bool = True,
-):
+) -> Union[str, bytes, "Image.Image"]:
     """
     Create a 2D reaction image from reactants and products (PLAMS molecules)
 
@@ -1487,6 +1678,7 @@ def get_reaction_image(
     # Get the actual image
     width = size[0]
     height = size[1]
+    img_text: Union[str, bytes, "Image.Image"]
     if fmt.lower() == "svg":
         img_text = _get_reaction_image_svg(reactants, products, width, height)
     else:
@@ -1504,7 +1696,7 @@ def get_reaction_image(
 
 def _get_reaction_image_svg(
     reactants: Sequence[Molecule], products: Sequence[Molecule], width: int = 200, height: int = 100
-):
+) -> str:
     """
     Create a 2D reaction image from reactants and products (PLAMS molecules)
 
@@ -1514,7 +1706,7 @@ def _get_reaction_image_svg(
     """
     from rdkit import Chem
 
-    def svg_arrow(x1, y1, x2, y2, prefix=""):
+    def svg_arrow(x1: float, y1: float, x2: float, y2: float, prefix: str = "") -> List[str]:
         """
         The reaction arrow in html format
         """
@@ -1530,7 +1722,9 @@ def _get_reaction_image_svg(
         line = "".join(l)
         return [arrow, line]
 
-    def add_plus_signs_svg(img_text, width, height, nmols, nreactants, prefix=""):
+    def add_plus_signs_svg(
+        img_text: str, width: float, height: float, nmols: int, nreactants: int, prefix: str = ""
+    ) -> str:
         """
         Add the lines with + signs to the SVG image
         """
@@ -1545,7 +1739,7 @@ def _get_reaction_image_svg(
         lines = lines[:-2] + t + lines[-2:]
         return "\n".join(lines)
 
-    def add_arrow_svg(img_text, width, height, nreactants, prefix=""):
+    def add_arrow_svg(img_text: str, width: float, height: float, nreactants: int, prefix: str = "") -> str:
         """
         Add the arrow to the SVG image
         """
@@ -1564,9 +1758,8 @@ def _get_reaction_image_svg(
     nmols = len(rdmols)
 
     # Place the molecules in a row of images
-    subimg_size = [width, height]
     kwargs = {"legendFontSize": 16}  # ,"legendFraction":0.1}
-    img_text = _MolsToGridSVG(rdmols, molsPerRow=nmols, subImgSize=subimg_size, **kwargs)
+    img_text = _MolsToGridSVG(rdmols, molsPerRow=nmols, subImgSize=(width, height), **kwargs)  # type: ignore
     img_text = _correct_svg(img_text)
 
     # Add + and =>
@@ -1584,7 +1777,7 @@ def _get_reaction_image_pil(
     width: int = 200,
     height: int = 100,
     as_string: bool = True,
-):
+) -> Union[bytes, "Image.Image"]:
     """
     Create a 2D reaction image from reactants and products (PLAMS molecules)
 
@@ -1598,7 +1791,7 @@ def _get_reaction_image_pil(
     from rdkit import Chem
     from rdkit.Chem.Draw import rdMolDraw2D, MolsToGridImage
 
-    def add_arrow_pil(img, width, height, nreactants):
+    def add_arrow_pil(img: "Image.Image", width: float, height: float, nreactants: int) -> "Image.Image":
         """
         Add the arrow to the PIL image
         """
@@ -1623,7 +1816,9 @@ def _get_reaction_image_pil(
 
         return img
 
-    def add_plus_signs_pil(img, width, height, nmols, nreactants):
+    def add_plus_signs_pil(
+        img: "Image.Image", width: float, height: float, nmols: int, nreactants: int
+    ) -> "Image.Image":
         """
         Add the lines with + signs to the SVG image
         """
@@ -1640,7 +1835,7 @@ def _get_reaction_image_pil(
             I1.text((x, y), "+", fill=black)
         return img
 
-    def join_pil_images(pil_images):
+    def join_pil_images(pil_images: List["Image.Image"]) -> "Image.Image":
         """
         Create a new image which connects the ones above with text
         """
@@ -1689,17 +1884,17 @@ def _get_reaction_image_pil(
     img = add_plus_signs_pil(img, width, height, nmols, nreactants)
     img = add_arrow_pil(img, width, height, nreactants)
 
-    # Get the bytestring
-    img_text = img
+    # Get the img/bytestring
     if as_string:
         buf = BytesIO()
         img.save(buf, format=fmt)
-        img_text = buf.getvalue()
+        img_bytes = buf.getvalue()
+        return img_bytes
+    else:
+        return img
 
-    return img_text
 
-
-def _correct_svg(image):
+def _correct_svg(image: str) -> str:
     """
     Correct for a bug in the AMS rdkit created SVG file
     """
@@ -1715,7 +1910,7 @@ def _correct_svg(image):
     return image
 
 
-def _presanitize(mol, rdmol):
+def _presanitize(mol: Molecule, rdmol: "RDKitMol") -> "RDKitMol":
     """
     Change bonding and atom charges to avoid failed sanitization
 
@@ -1747,7 +1942,9 @@ def _presanitize(mol, rdmol):
     return rdmol
 
 
-def _kekulize(mol, rdmol, text, use_dfs=True):
+def _kekulize(
+    mol: Molecule, rdmol: "RDKitMol", text: str, use_dfs: bool = True
+) -> Tuple["RDKitMol", Dict[Tuple[int, int], int], Dict[int, int]]:
     """
     Kekulize the atoms indicated as problematic by RDKit
 
@@ -1764,7 +1961,7 @@ def _kekulize(mol, rdmol, text, use_dfs=True):
         return rdmol, {}, {}
 
     # Set the bond orders along the chain to 2, 1, 2, 1,...
-    altered_bonds = {}
+    altered_bonds: Dict[tuple[int, int], int] = {}
     if len(indices) > 1:
         emol = Chem.RWMol(rdmol)
         if use_dfs:
@@ -1797,11 +1994,11 @@ def _kekulize(mol, rdmol, text, use_dfs=True):
     return rdmol, altered_bonds, altered_charge
 
 
-def _find_aromatic_sequence(rdmol, text):
+def _find_aromatic_sequence(rdmol: "RDKitMol", text: str) -> Optional[List[int]]:
     """
     Find the sequence of atoms with 1.5 bond orders
     """
-    indices = None
+    indices: Optional[List[int]] = None
     lines = text.split("\n")
     line = lines[-1]
     if "Unkekulized atoms:" in line:
@@ -1833,20 +2030,21 @@ def _find_aromatic_sequence(rdmol, text):
     return indices
 
 
-def _alter_aromatic_bonds(emol, iat, depth=0, double_first=False):
+def _alter_aromatic_bonds(
+    emol: "RDKitEdMol", iat: int, depth: int = 0, double_first: bool = False
+) -> "OrderedDict[Tuple[int, int], int]":
     """
     Switch all thearomitic bonds to single/double, starting at iat
 
     * ``emol`` -- RDKit EditableMol type, for which bond orders will be changed
     * ``iat``  -- Starting point for depth first search
     """
-    from collections import OrderedDict
     from rdkit import Chem
     from scm.plams import PeriodicTable as PT
 
     # Use OrderedDict, so that the leaves of the tree
     # will be at the end
-    bonds_changed = OrderedDict()
+    bonds_changed: OrderedDict[Tuple[int, int], int] = OrderedDict()
 
     at = emol.GetAtomWithIdx(iat)
     valence = PT.get_connectors(at.GetAtomicNum())
@@ -1868,7 +2066,7 @@ def _alter_aromatic_bonds(emol, iat, depth=0, double_first=False):
     for i, bond in enumerate(bonds):
         jat = bond.GetOtherAtomIdx(iat)
         if are_aromatic[i]:
-            pair = tuple(sorted([iat, jat]))
+            pair: Tuple[int, int] = tuple(sorted([iat, jat]))
             order = orders.pop(0)
             bond.SetBondType(Chem.BondType(order))
             bond.SetIsAromatic(False)  # This is necessary with the newer RDKit
@@ -1878,7 +2076,7 @@ def _alter_aromatic_bonds(emol, iat, depth=0, double_first=False):
     return bonds_changed
 
 
-def _alter_bonds_along_chain(emol, indices):
+def _alter_bonds_along_chain(emol: "RDKitEdMol", indices: Sequence[int]) -> Dict[Tuple[int, int], int]:
     """
     Along the chain of atoms (indices), alternate double and single bonds
     """
@@ -1906,7 +2104,7 @@ def _alter_bonds_along_chain(emol, indices):
         if sum(orders) > valence or sum(orders_next) > valence_next:
             new_order = 1
     # Set the bond orders along the chain to 2, 1, 2, 1,...
-    altered_bonds = {}
+    altered_bonds: Dict[Tuple[int, int], int] = {}
     for i, iat in enumerate(indices[:-1]):
         bond = emol.GetBondBetweenAtoms(iat, indices[i + 1])
         bond.SetBondType(Chem.BondType(new_order))
@@ -1916,7 +2114,7 @@ def _alter_bonds_along_chain(emol, indices):
     return altered_bonds
 
 
-def _order_atom_indices(rdmol, indices):
+def _order_atom_indices(rdmol: "RDKitMol", indices: Sequence[int]) -> List[int]:
     """
     Order the atomic indices so that they are consecutive along a bonded chain
     """
@@ -1945,7 +2143,7 @@ def _order_atom_indices(rdmol, indices):
     return indices
 
 
-def _adjust_atom_aromaticity(emol, altered_bonds):
+def _adjust_atom_aromaticity(emol: "RDKitEdMol", altered_bonds: Dict[Tuple[int, int], int]) -> None:
     """
     Assign aromaticity to the atoms based on the new bond orders
     """
@@ -1964,14 +2162,14 @@ def _adjust_atom_aromaticity(emol, altered_bonds):
             at.SetIsAromatic(False)
 
 
-def _get_charged_atoms(rdmol, indices):
+def _get_charged_atoms(rdmol: "RDKitMol", indices: Sequence[int]) -> Tuple[List[int], Dict[int, int]]:
     """
     Locate the atoms that need a charge
     """
     from scm.plams import PeriodicTable as PT
 
-    atom_indices = []
-    dangling_bonds = {}
+    atom_indices: List[int] = []
+    dangling_bonds: Dict[int, int] = {}
     for iat in indices[::-1]:
         at = rdmol.GetAtomWithIdx(iat)
         valence = PT.get_connectors(at.GetAtomicNum())
@@ -1984,7 +2182,7 @@ def _get_charged_atoms(rdmol, indices):
     return atom_indices, dangling_bonds
 
 
-def _guess_atomic_charge(iat, ndangling, rdmol, mol):
+def _guess_atomic_charge(iat: int, ndangling: int, rdmol: "RDKitMol", mol: Molecule) -> Dict[int, int]:
     """
     Guess the best atomic charge for atom iat
     """
@@ -2014,7 +2212,7 @@ def _guess_atomic_charge(iat, ndangling, rdmol, mol):
     return altered_charge
 
 
-def _rdmol_for_image(mol, remove_hydrogens=True):
+def _rdmol_for_image(mol: Molecule, remove_hydrogens: bool = True) -> "RDKitMol":
     """
     Convert PLAMS molecule to an RDKit molecule specifically for a 2D image
     """
@@ -2041,15 +2239,15 @@ def _rdmol_for_image(mol, remove_hydrogens=True):
 
 
 def _MolsToGridSVG(
-    mols,
-    molsPerRow=3,
-    subImgSize=(200, 200),
-    legends=None,
-    highlightAtomLists=None,
-    highlightBondLists=None,
-    drawOptions=None,
-    **kwargs,
-):
+    mols: Sequence[Molecule],
+    molsPerRow: int = 3,
+    subImgSize: Tuple[int, int] = (200, 200),
+    legends: Optional[Sequence[str]] = None,
+    highlightAtomLists: Optional[Sequence[int]] = None,
+    highlightBondLists: Optional[Sequence[int]] = None,
+    drawOptions: Optional["Draw.MolDrawOptions"] = None,
+    **kwargs: Any,
+) -> str:
     """
     Replaces the old version of this function in our RDKit for a more recent one, with more options
     """

@@ -1,19 +1,19 @@
 import re
+from dataclasses import dataclass
+from typing import List, Optional, Union
 
 import numpy as np
 import pytest
-from dataclasses import dataclass
-from typing import Optional, List, Union
+from test_helpers import skip_if_no_ams_installation, skip_if_no_scm_libbase
 
-from scm.plams.mol.molecule import Molecule, Atom
-from scm.plams.interfaces.molecule.rdkit import from_smiles
 from scm.plams.interfaces.molecule.packmol import (
     PackMolStructure,
-    packmol,
     guess_density,
+    packmol,
     packmol_around,
 )
-from test_helpers import skip_if_no_ams_installation
+from scm.plams.interfaces.molecule.rdkit import from_smiles
+from scm.plams.mol.molecule import Atom, Molecule
 
 
 class TestPackmolStructure:
@@ -994,6 +994,7 @@ class TestPackMolAround:
 
     def test_pack_water_iteratively(self):
         skip_if_no_ams_installation()
+        skip_if_no_scm_libbase()
 
         water = from_smiles("O")
 

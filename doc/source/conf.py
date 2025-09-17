@@ -218,7 +218,6 @@ rst_epilog = """
 .. |load_all| replace:: :func:`~scm.plams.core.functions.load_all`
 .. |finish| replace:: :func:`~scm.plams.core.functions.finish`
 .. |read_molecules| replace:: :func:`~scm.plams.core.functions.read_molecules`
-.. |add_to_class| replace:: :func:`~scm.plams.core.functions.add_to_class`
 .. |add_to_instance| replace:: :func:`~scm.plams.core.functions.add_to_instance`
 
 .. |PlamsError| replace:: :exc:`~scm.plams.core.errors.PlamsError`

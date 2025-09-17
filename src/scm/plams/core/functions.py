@@ -8,7 +8,8 @@ import types
 from os.path import dirname, expandvars, isdir, isfile
 from os.path import join as opj
 from pathlib import Path
-from typing import Dict, Iterable, Optional, Generator, Union, TYPE_CHECKING
+from typing import Dict, Iterable, Optional, Generator, Union, TYPE_CHECKING, Sequence, List, Type, Callable, TypeVar
+from typing_extensions import TypeAlias, ParamSpec
 import atexit
 from importlib.util import find_spec
 import functools
@@ -22,6 +23,11 @@ from scm.plams.core.settings import Settings, ConfigSettings
 if TYPE_CHECKING:
     from scm.plams.core.jobmanager import JobManager
     from scm.plams.core.basejob import Job
+    from scm.plams.mol.molecule import Molecule
+
+JobDict: TypeAlias = Dict[str, Union["Job", "JobDict"]]
+T = TypeVar("T")
+P = ParamSpec("P")
 
 # N.B. configuration used to be controlled solely through the global variable 'config'
 # but this has been refactored to allow config to be scoped to a specific context, through use of a context manager 'config_context'.
@@ -296,7 +302,7 @@ def init(
 # ===========================================================================
 
 
-def _finish():
+def _finish() -> None:
     """
     Internal clean up of the PLAMS environment, which will be called at the end of the script.
     """
@@ -331,7 +337,7 @@ def _finish():
     cfg.init = False
 
 
-def finish(otherJM: Optional[Iterable["JobManager"]] = None):
+def finish(otherJM: Optional[Iterable["JobManager"]] = None) -> None:
     """
     Clean up the PLAMS environment. This can be explicitly called for |cleaning| to take place.
     If you used some other job managers than just the default one, they need to be passed as *otherJM*.
@@ -365,7 +371,7 @@ atexit.register(_logger.close)
 # ===========================================================================
 
 
-def load(filename):
+def load(filename: str) -> Optional["Job"]:
     """Load previously saved job from ``.dill`` file. This is just a shortcut for |load_job| method of the default |JobManager| ``config.default_jobmanager``."""
     return get_config().default_jobmanager.load_job(filename)
 
@@ -373,7 +379,7 @@ def load(filename):
 # ===========================================================================
 
 
-def load_all(path, jobmanager=None):
+def load_all(path: str, jobmanager: Optional["JobManager"] = None) -> JobDict:
     """Load all jobs from *path*.
 
     This function works as multiple executions of |load_job|. It searches for ``.dill`` files inside the directory given by *path*, yet not directly in it, but one level deeper. In other words, all files matching ``path/*/*.dill`` are used. That way a path to the main working folder of a previously run script can be used to import all the jobs run by that script.
@@ -387,7 +393,7 @@ def load_all(path, jobmanager=None):
     Returned value is a dictionary containing all loaded jobs as values and absolute paths to ``.dill`` files as keys.
     """
     jm = jobmanager or get_config().default_jobmanager
-    loaded_jobs = {}
+    loaded_jobs: JobDict = {}
     for foldername in filter(lambda x: isdir(opj(path, x)), os.listdir(path)):
         maybedill = opj(path, foldername, foldername + ".dill")
         if isfile(maybedill):
@@ -402,7 +408,7 @@ def load_all(path, jobmanager=None):
 # ===========================================================================
 
 
-def delete_job(job: "Job"):
+def delete_job(job: "Job") -> None:
     """Remove *job* from its corresponding |JobManager| and delete the job folder from the disk. Mark *job* as 'deleted'."""
     # wrapper around the method, for backwards compatibility
     job.delete()
@@ -411,7 +417,7 @@ def delete_job(job: "Job"):
 # ===========================================================================
 
 
-def read_molecules(folder, formats=None):
+def read_molecules(folder: str, formats: Optional[Sequence[str]] = None) -> Dict[str, "Molecule"]:
     """Read all molecules from *folder*.
 
     Read all the files present in *folder* with extensions compatible with :meth:`Molecule.read<scm.plams.mol.molecule.Molecule.read>`. Returned value is a dictionary with keys being molecule names (filename without extension) and values being |Molecule| instances.
@@ -435,7 +441,7 @@ def read_molecules(folder, formats=None):
 # ===========================================================================
 
 
-def read_all_molecules_in_xyz_file(filename):
+def read_all_molecules_in_xyz_file(filename: str) -> List["Molecule"]:
     """The .xyz format allows to store multiple geometries on a single file (such file is essentially a concatenated series of xyz files)
 
     This function returns a *list* of all molecules found in the file *filename*
@@ -459,7 +465,7 @@ def read_all_molecules_in_xyz_file(filename):
 # ===========================================================================
 
 
-def add_to_class(classname):
+def add_to_class(classname: Type) -> Callable:
     """Add decorated function as a method to the whole class *classname*.
 
     The decorated function should follow a method-like syntax, with the first argument ``self`` that references the class instance.
@@ -476,10 +482,19 @@ def add_to_class(classname):
     The added method is accessible also from subclasses of *classname* so ``@add_to_class(Results)`` in the above example will work too.
 
     If *classname* is |Results| or any of its subclasses, the added method will be wrapped with the thread safety guard (see |parallel|).
+
+    .. deprecated:: 2026.101
+        The decorator ``add_to_class`` will be removed in a future release. Use a standalone function or a subclass instead.
     """
     from scm.plams.core.results import ApplyRestrict, _restrict
+    import warnings
 
-    def decorator(func):
+    warnings.warn(
+        "Decorator 'add_to_class' is deprecated and will be removed in a future release. Please use a standalone function or a subclass instead.",
+        DeprecationWarning,
+    )
+
+    def decorator(func: Callable) -> None:
         if isinstance(classname, ApplyRestrict):
             func = _restrict(func)
         setattr(classname, func.__name__, func)
@@ -490,7 +505,7 @@ def add_to_class(classname):
 # ===========================================================================
 
 
-def add_to_instance(instance):
+def add_to_instance(instance: object) -> Callable:
     """Add decorated function as a method to one particular *instance*.
 
     The decorated function should follow a method-like syntax, with the first argument ``self`` that references the class instance.
@@ -510,7 +525,7 @@ def add_to_instance(instance):
     """
     from scm.plams.core.results import Results, _restrict
 
-    def decorator(func):
+    def decorator(func: Callable) -> None:
         if isinstance(instance, Results):
             func = _restrict(func)
         func = types.MethodType(func, instance)
@@ -522,7 +537,9 @@ def add_to_instance(instance):
 # ===========================================================================
 
 
-def requires_optional_package(package_name: str, os_name: Optional[str] = None):
+def requires_optional_package(
+    package_name: str, os_name: Optional[str] = None
+) -> Callable[[Callable[P, T]], Callable[P, T]]:
     """
     Ensures a given package is available before running a function, otherwise raises an ImportError.
     This can be used to check for optional dependencies which are required for specific functionality.
@@ -530,9 +547,9 @@ def requires_optional_package(package_name: str, os_name: Optional[str] = None):
     :param os_name: name of the os that this package must be specified on, if omitted defaults to all os
     """
 
-    def decorator(func):
+    def decorator(func: Callable[P, T]) -> Callable[P, T]:
         @functools.wraps(func)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
             if (os_name is None or os.name == os_name) and find_spec(package_name) is None:
                 raise MissingOptionalPackageError(package_name)
             return func(*args, **kwargs)

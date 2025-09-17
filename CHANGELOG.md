@@ -29,10 +29,14 @@ This changelog is effective from the 2025 releases.
 * `JobAnalysis` returns an updated copy on modification instead of performing the operation in-place
 * `packmol` can accept a single `None` value for `n_molecules` if two of `n_atoms`, `density` and `box_bounds` are specified. The missing value is then auto-calculated
 * Switch to using hatchling build backend and restructure project
+* Type hints added for existing code and enforced in new code
 
 ### Fixed
 * Method to guess density in `packmol_around` changed to resolve large underestimations in molecular volumes
 * Regression in `GridRunner` which caused some SLURM and PBS commands to silently fail and jobs to be incorrectly awaited
+
+### Deprecated
+* `add_to_class` decorator is deprecated in favor of using standalone functions or subclasses
 
 ## 2025.103
 

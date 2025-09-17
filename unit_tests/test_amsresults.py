@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, Mock
 import numpy as np
 import pytest
 from ase import Atoms as AseAtoms
@@ -22,6 +22,7 @@ class TestWaterOptimizationAMSResults:
         job = MagicMock(spec=AMSJob)
         job.status = "successful"
         job.path = str(rkf_folder / "water_optimization")
+        job.get_path = Mock(return_value=rkf_folder / "water_optimization")
         results = AMSResults(job=job)
         return results
 
@@ -794,6 +795,7 @@ class TestPropaneNitrileOptimizationAMSResults:
         job = MagicMock(spec=AMSJob)
         job.status = "successful"
         job.path = str(rkf_folder / "propanenitrile")
+        job.get_path = Mock(return_value=rkf_folder / "propanenitrile")
         results = AMSResults(job=job)
         return results
 

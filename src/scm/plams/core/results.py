@@ -8,17 +8,27 @@ import shutil
 import threading
 from os.path import join as opj
 from subprocess import PIPE
-from typing import List, Dict
+from typing import List, Dict, TYPE_CHECKING, Optional, Callable, Union, TypeVar, Tuple, Any
+from typing_extensions import ParamSpec, Concatenate
+from types import FrameType
 
 from scm.plams.core.errors import FileError, ResultsError
 from scm.plams.core.functions import get_config, log
 from scm.plams.core.private import saferun
 from scm.plams.core.enums import JobStatus
 
+if TYPE_CHECKING:
+    from scm.plams.core.basejob import Job
+    from scm.plams.core.settings import Settings
+    from scm.plams.mol.molecule import Molecule
+
+T = TypeVar("T")
+P = ParamSpec("P")
+
 __all__ = ["Results"]
 
 
-def _caller_name_and_arg(frame):
+def _caller_name_and_arg(frame: Optional[FrameType]) -> Tuple[Optional[str], Optional[Any]]:
     """Extract information about name and arguments of a function call from a *frame* object"""
     if frame is None:
         return None, None
@@ -35,7 +45,7 @@ def _caller_name_and_arg(frame):
     return caller_name, caller_arg
 
 
-def _privileged_access():
+def _privileged_access() -> bool:
     """Analyze contents of the current stack to find out if privileged access to the |Results| methods should be granted.
 
     Privileged access is granted to two |Job| methods: |postrun| and :meth:`~scm.plams.core.basejob.Job.check`, but only if they are called from :meth:`~scm.plams.core.basejob.Job._finalize` of the same |Job| instance.
@@ -50,14 +60,14 @@ def _privileged_access():
     return False
 
 
-def _restrict(func):
+def _restrict(func: Callable[Concatenate["Results", P], T]) -> Callable[Concatenate["Results", P], Optional[T]]:
     """Decorator that wraps methods of |Results| instances.
 
     Whenever decorated method is called, the status of associated job is checked. Depending on its value access to the method is granted, refused or the calling thread is forced to wait for the right :ref:`event<event-objects>` to be set.
     """
 
     @functools.wraps(func)
-    def guardian(self, *args, **kwargs):
+    def guardian(self: "Results", /, *args: P.args, **kwargs: P.kwargs) -> Optional[T]:
         if not self.job:
             raise ResultsError("Using Results not associated with any Job")
 
@@ -124,6 +134,8 @@ def _restrict(func):
             self.done.wait()
             return func(self, *args, **kwargs)
 
+        return None
+
     return guardian
 
 
@@ -171,13 +183,13 @@ class Results(ApplyRestrict):
 
     _rename_map: Dict[str, str] = {}
 
-    def __init__(self, job):
+    def __init__(self, job: "Job"):
         self.job = job
-        self.files = []
+        self.files: List[str] = []
         self.finished = threading.Event()
         self.done = threading.Event()
 
-    def refresh(self):
+    def refresh(self) -> None:
         """Refresh the contents of the ``files`` list. Traverse the job folder (and all its subfolders) and collect relative paths to all files found there, except files with ``.dill`` extension.
 
         This is a cheap and fast method that should be used every time there is a risk the contents of the job folder changed and ``files`` is no longer up-to-date. For proper working of various PLAMS elements it is crucial that ``files`` always contains up-to-date information about the contents of the job folder.
@@ -192,7 +204,7 @@ class Results(ApplyRestrict):
             self.files += [opj(relpath, x) if relpath != "." else x for x in files]
         self.files = [x for x in self.files if not x.endswith(".dill")]
 
-    def collect(self):
+    def collect(self) -> None:
         """Collect the files present in the job folder after execution of the job is finished. This method is simply :meth:`~Results.refresh` followed by renaming according to the ``_rename_map``.
 
         If you wish to override this function, you have to call the parent version at the beginning.
@@ -202,11 +214,11 @@ class Results(ApplyRestrict):
             old = old.replace("$JN", self.job.name)
             new = new.replace("$JN", self.job.name)
             if old in self.files:
-                os.rename(opj(self.job.path, old), opj(self.job.path, new))
+                os.rename(self.job.get_path() / old, self.job.get_path() / new)
                 self.files[self.files.index(old)] = new
         self.refresh()
 
-    def wait(self):
+    def wait(self) -> None:
         """wait()
         Wait for associated job to finish.
 
@@ -215,7 +227,7 @@ class Results(ApplyRestrict):
             This is **not** an abstract method. It does exactly what it should: nothing. All the work is done by :func:`_restrict` decorator that is wrapped around it.
         """
 
-    def grep_file(self, filename, pattern="", options=""):
+    def grep_file(self, filename: str, pattern: str = "", options: str = "") -> List[str]:
         """grep_file(filename, pattern='', options='')
         Execute ``grep`` on a file given by *filename* and search for *pattern*.
 
@@ -226,7 +238,7 @@ class Results(ApplyRestrict):
         cmd = ["grep"] + [pattern] + options.split()
         return self._process_file(filename, cmd)
 
-    def grep_output(self, pattern="", options=""):
+    def grep_output(self, pattern: str = "", options: str = "") -> List[str]:
         """grep_output(pattern='', options='')
         Shortcut for :meth:`~Results.grep_file` on the output file."""
         try:
@@ -253,7 +265,7 @@ class Results(ApplyRestrict):
         filename = filename.replace("$JN", self.job.name)
         if filename not in self.files:
             raise ResultsError(f"No `{filename}` associated with job `{self.job.name}`")
-        with open(opj(self.job.path, filename)) as f:
+        with open(self.job.get_path() / filename) as f:
             return f.read()
 
     def regex_file(self, filename: str, regex: str) -> List:
@@ -267,7 +279,7 @@ class Results(ApplyRestrict):
         txt = self.read_file(filename)
         return findall(regex, txt)
 
-    def awk_file(self, filename, script="", progfile=None, **kwargs):
+    def awk_file(self, filename: str, script: str = "", progfile: Optional[str] = None, **kwargs: Any) -> List[str]:
         """awk_file(filename, script='', progfile=None, **kwargs)
         Execute an AWK script on a file given by *filename*.
 
@@ -289,7 +301,7 @@ class Results(ApplyRestrict):
             cmd += [script]
         return self._process_file(filename, cmd)
 
-    def awk_output(self, script="", progfile=None, **kwargs):
+    def awk_output(self, script: str = "", progfile: Optional[str] = None, **kwargs: Any) -> List[str]:
         """awk_output(script='', progfile=None, **kwargs)
         Shortcut for :meth:`~Results.awk_file` on the output file."""
         try:
@@ -302,19 +314,28 @@ class Results(ApplyRestrict):
             raise ResultsError(f"Job {self.job.name} does not have an output")
         return self.awk_file(output, script, progfile, **kwargs)
 
-    def rename(self, old, new):
+    def rename(self, old: str, new: str) -> None:
         """rename(old, new)
         Rename a file from ``files``. In both *old* and *new* the shortcut ``$JN`` for job name can be used."""
         old = old.replace("$JN", self.job.name)
         new = new.replace("$JN", self.job.name)
         self.refresh()
         if old in self.files:
-            os.rename(opj(self.job.path, old), opj(self.job.path, new))
+            os.rename(self.job.get_path() / old, self.job.get_path() / new)
             self.files[self.files.index(old)] = new
         else:
-            raise FileError(f"File {old} not present in {self.job.path}")
+            raise FileError(f"File {old} not present in {str(self.job.get_path())}")
 
-    def get_file_chunk(self, filename, begin=None, end=None, match=0, inc_begin=False, inc_end=False, process=None):
+    def get_file_chunk(
+        self,
+        filename: str,
+        begin: Optional[str] = None,
+        end: Optional[str] = None,
+        match: int = 0,
+        inc_begin: bool = False,
+        inc_end: bool = False,
+        process: Optional[Callable[[str], T]] = None,
+    ) -> Union[List[str], List[T]]:
         """get_file_chunk(filename, begin=None, end=None, match=0, inc_begin=False, inc_end=False, process=None)
 
         Extract a chunk of a text file given by *filename*, consisting of all the lines between a line containing *begin* and a line containing *end*.
@@ -324,10 +345,12 @@ class Results(ApplyRestrict):
         The returned value is a list of strings. *process* can be used to provide a function executed on each element of this list before returning it.
         """
         current_match = 0
-        ret = []
+        ret: List[str] = []
         switch = begin is None
 
-        append = lambda x: ret.append(x.rstrip("\n")) if (match in [0, current_match]) else None
+        def append(x: str) -> None:
+            if match in [0, current_match]:
+                ret.append(x.rstrip("\n"))
 
         with open(self[filename], "r") as f:
             for line in f:
@@ -347,7 +370,15 @@ class Results(ApplyRestrict):
 
         return list(map(process, ret)) if process else ret
 
-    def get_output_chunk(self, begin=None, end=None, match=0, inc_begin=False, inc_end=False, process=None):
+    def get_output_chunk(
+        self,
+        begin: Optional[str] = None,
+        end: Optional[str] = None,
+        match: int = 0,
+        inc_begin: bool = False,
+        inc_end: bool = False,
+        process: Optional[Callable[[str], T]] = None,
+    ) -> Union[List[str], List[T]]:
         """get_output_chunk(begin=None, end=None, match=0, inc_begin=False, inc_end=False, process=None)
         Shortcut for :meth:`~Results.get_file_chunk` on the output file."""
         try:
@@ -356,29 +387,29 @@ class Results(ApplyRestrict):
             raise ResultsError(f"Job {self.job.name} is not an instance of SingleJob, it does not have an output")
         return self.get_file_chunk(output, begin, end, match, inc_begin, inc_end, process)
 
-    def recreate_molecule(self):
+    def recreate_molecule(self) -> Union[None, "Molecule", Dict[str, "Molecule"]]:
         """Recreate the input molecule for the corresponding job based on files present in the job folder. This method is used by |load_external|.
 
-        The definiton here serves as a default fall-back template preventing |load_external| from crashing when a particular |Results| subclass does not define it's own :meth:`recreate_molecule`.
+        The definition here serves as a default fall-back template preventing |load_external| from crashing when a particular |Results| subclass does not define it's own :meth:`recreate_molecule`.
         """
         return None
 
-    def recreate_settings(self):
+    def recreate_settings(self) -> Optional["Settings"]:
         """Recreate the input |Settings| instance for the corresponding job based on files present in the job folder. This method is used by |load_external|.
 
-        The definiton here serves as a default fall-back template preventing |load_external| from crashing when a particular |Results| subclass does not define it's own :meth:`recreate_settings`.
+        The definition here serves as a default fall-back template preventing |load_external| from crashing when a particular |Results| subclass does not define it's own :meth:`recreate_settings`.
         """
         return None
 
     # =======================================================================
 
-    def _clean(self, arg):
+    def _clean(self, arg: Union[str, None, List[str]]) -> None:
         """Clean the job folder. *arg* should be a string or a list of strings. See |cleaning| for details."""
         if arg == "all":
             return
 
-        path = self.job.path
-        absfiles = [opj(path, f) for f in self.files]
+        path = self.job.get_path()
+        absfiles = [path / f for f in self.files]
         childnames = [child.name for child in self.job] if hasattr(self.job, "children") else []
         if arg in ["none", [], None]:
             for f in absfiles:
@@ -405,13 +436,13 @@ class Results(ApplyRestrict):
             for f in absfiles:
                 if (f in absarg) == rev and os.path.isfile(f):
                     os.remove(f)
-                    log("Deleting file " + f, 5)
+                    log(f"Deleting file {str(f)}", 5)
 
         else:
             log(f"WARNING: {arg} is not a valid keep/save argument", 3)
         self.refresh()
 
-    def _copy_to(self, newresults):
+    def _copy_to(self, newresults: "Results") -> None:
         """_copy_to(newresults)
         Copy these results to *newresults*.
 
@@ -421,8 +452,8 @@ class Results(ApplyRestrict):
         """
         for name in self.files:
             newname = Results._replace_job_name(name, self.job.name, newresults.job.name)
-            oldpath = opj(self.job.path, name)
-            newpath = opj(newresults.job.path, newname)
+            oldpath = self.job.get_path() / name
+            newpath = newresults.job.get_path() / newname
             os.makedirs(os.path.dirname(newpath), exist_ok=True)
             if os.name == "posix" and self.job.settings.link_files is True:
                 os.link(oldpath, newpath)
@@ -434,7 +465,7 @@ class Results(ApplyRestrict):
                 continue
             newresults.__dict__[k] = self._export_attribute(v, newresults)
 
-    def _export_attribute(self, attr, other):
+    def _export_attribute(self, attr: T, other: "Results") -> T:
         """_export_attribute(attr, other)
         Export this instance's attribute to *other*. This method should be overridden in your |Results| subclass if it has some attributes that are not properly handled by :func:`python3:copy.deepcopy`.
 
@@ -443,35 +474,35 @@ class Results(ApplyRestrict):
         return copy.deepcopy(attr)
 
     @staticmethod
-    def _replace_job_name(string, oldname, newname):
+    def _replace_job_name(string: str, oldname: str, newname: str) -> str:
         """If *string* starts with *oldname*, maybe followed by some extension, replace *oldname* with *newname*."""
         return string.replace(oldname, newname) if (os.path.splitext(string)[0] == oldname) else string
 
     # =======================================================================
 
-    def __getitem__(self, name):
+    def __getitem__(self, name: str) -> str:
         """Magic method to enable bracket notation. Elements from ``files`` can be used to get absolute paths."""
         name = name.replace("$JN", self.job.name)
         if name in self.files:
-            return opj(self.job.path, name)
+            return str(self.job.get_path() / name)
         else:
-            raise FileError(f"File {name} not present in {self.job.path}")
+            raise FileError(f"File {name} not present in {str(self.job.get_path())}")
 
-    def __contains__(self, name):
+    def __contains__(self, name: str) -> bool:
         """Magic method to enable the Python ``in`` operator notation for checking if a filename with a particular name is present."""
         name = name.replace("$JN", self.job.name)
         return name in self.files
 
-    def _process_file(self, filename, command):
+    def _process_file(self, filename: str, command: List[str]) -> List[str]:
         """_process_file(filename, command)
         Skeleton for all file processing methods. Execute *command* (should be a list of strings) on *filename* and return output as a list of lines.
         """
         filename = filename.replace("$JN", self.job.name)
         if filename in self.files:
-            process = saferun(command + [filename], cwd=self.job.path, stdout=PIPE)
+            process = saferun(command + [filename], cwd=str(self.job.get_path()), stdout=PIPE)
             if process.returncode != 0:
                 return []
-            ret = process.stdout.decode().splitlines()
+            ret: List[str] = process.stdout.decode().splitlines()
             return ret
         else:
-            raise FileError(f"File {filename} not present in {self.job.path}")
+            raise FileError(f"File {filename} not present in {str(self.job.get_path())}")

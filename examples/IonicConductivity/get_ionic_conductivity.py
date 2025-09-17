@@ -19,13 +19,13 @@ def main(filename):
     job = AMSJob.load_external(filename)
     T = job.results.readrkf("MDResults", "MeanTemperature")
     kBT = Units.constants["Boltzmann"] * T
-    print("Average temperaturs %f K" % (T))
+    print(f"Average temperature {T:f} K")
 
     # Get the molecular system and extract the ions
     iontypes, ioncharges, nions, formulas = get_ions(mol)
-    print("%8s %8s %10s" % ("Ion", "N", "Charge"))
+    print(f"{'Ion':>8s} {'N':>8s} {'Charge':>10s}")
     for k, indices in iontypes.items():
-        print("%8s %8i %10.5f" % (formulas[k], len(indices), ioncharges[k]))
+        print(f"{formulas[k]:>8s} {len(indices):8d} {ioncharges[k]:10.5f}")
 
     # Compute diffusion coefficient for each ion
     diffusion_coeffs = {}

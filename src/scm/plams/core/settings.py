@@ -3,7 +3,24 @@ import textwrap
 from functools import wraps
 import threading
 import numbers
-from typing import TYPE_CHECKING, TypeVar, Union, Tuple, Type, Hashable, Any, Optional, Dict, Generator
+from typing import (
+    TYPE_CHECKING,
+    TypeVar,
+    Union,
+    Tuple,
+    Type,
+    Hashable,
+    Any,
+    Optional,
+    Dict,
+    Generator,
+    Mapping,
+    Iterable,
+    Iterator,
+    List,
+)
+from typing_extensions import Never
+
 from collections.abc import Iterable as ColIterable
 
 from scm.plams.core.threading_utils import LazyWrapper
@@ -21,6 +38,7 @@ __all__ = [
 if TYPE_CHECKING:
     from scm.plams.core.jobmanager import JobManager
     from scm.plams.core.jobrunner import JobRunner
+    from types import TracebackType
 
 TSelf = TypeVar("TSelf", bound="Settings")
 
@@ -58,7 +76,7 @@ class Settings(dict):
 
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any):
         dict.__init__(self, *args, **kwargs)
 
         for k, v in self.items():
@@ -151,7 +169,7 @@ class Settings(dict):
                 self[name] = other[name]
         return self
 
-    def update(self, other):  # type: ignore
+    def update(self, other: Mapping[Hashable, Any]):  # type: ignore
         """Update this instance with data from *other*, overwriting existing keys. Nested |Settings| instances are updated recursively.
 
         In the following example ``s`` and ``o`` are previously prepared |Settings| instances::
@@ -198,14 +216,14 @@ class Settings(dict):
         ret.soft_update(other)
         return ret
 
-    def remove(self, other: "Settings"):
+    def remove(self: TSelf, other: "Settings") -> TSelf:
         """
         Update this instance removing keys from *other*. Nested |Settings| instances are updated recursively.
 
         Shortcut ``A -= B`` can be used instead of ``A.remove(B)``.
         """
 
-        def sort_key(t):
+        def sort_key(t: Tuple[Hashable]) -> Tuple[int, Tuple[str, ...]]:
             """
             Sort tuples based on:
             - Number of elements (fewest first), this prunes larger branches of the nested settings first
@@ -238,7 +256,7 @@ class Settings(dict):
         lowkey = key.lower()
         for k in self:
             try:
-                if k.lower() == lowkey:
+                if k.lower() == lowkey:  # type: ignore
                     return k
             except (AttributeError, TypeError):
                 pass
@@ -248,7 +266,7 @@ class Settings(dict):
         """Like regular ``get``, but ignore the case."""
         return dict.get(self, self.find_case(key), default)
 
-    def pop(self, key: Hashable, *args) -> Optional[Any]:
+    def pop(self, key: Hashable, *args: Any) -> Optional[Any]:
         """Like regular ``pop``, but ignore the case."""
         # A single positional argument can be supplied `*args`,
         # functioning as a default return value in case `key` is not present in this instance
@@ -258,7 +276,7 @@ class Settings(dict):
         """Like regular ``popitem``, but ignore the case."""
         return dict.popitem(self)
 
-    def setdefault(self, key: Hashable, default: Optional[Any] = None):
+    def setdefault(self, key: Hashable, default: Optional[Any] = None) -> None:
         """Like regular ``setdefault``, but ignore the case and if the value is a dict, convert it to |Settings|."""
         if isinstance(default, dict) and not isinstance(default, Settings):
             default = Settings(default)
@@ -278,7 +296,7 @@ class Settings(dict):
         return d
 
     @classmethod
-    def suppress_missing(cls):
+    def suppress_missing(cls) -> "SuppressMissing":
         """A context manager for temporary disabling the :meth:`.Settings.__missing__` magic method: all calls now raising a :exc:`KeyError`.
 
         As a results, attempting to access keys absent from an arbitrary |Settings| instance will raise a :exc:`KeyError`, thus reverting to the default dictionary behaviour.
@@ -380,7 +398,7 @@ class Settings(dict):
 
         return s
 
-    def set_nested(self, key_tuple: Tuple[Hashable, ...], value: Optional[Any], suppress_missing: bool = False):
+    def set_nested(self, key_tuple: Tuple[Hashable, ...], value: Optional[Any], suppress_missing: bool = False) -> None:
         """Set a nested value by, recursively, iterating through this instance using the keys in *key_tuple*.
 
         The get item method followed finally by set item is called recursively on this instance until all keys in key_tuple are exhausted.
@@ -458,13 +476,13 @@ class Settings(dict):
 
         """
 
-        def iter_block(bk):
+        def iter_block(bk: Iterable) -> Iterable[Tuple[Hashable, Any]]:
             return bk.items() if isinstance(bk, Settings) else enumerate(bk)
 
         block_keys = list(self.block_keys(flatten_list, include_empty))
         for bk in block_keys:
             yield bk
-            for k, v in iter_block(self.get_nested(bk)):
+            for k, v in iter_block(self.get_nested(bk)):  # type: ignore
                 # Maintain ordering by skipping branch keys here
                 fk = bk + (k,)
                 if (include_empty or v) and fk not in block_keys:
@@ -567,7 +585,7 @@ class Settings(dict):
             nested_type = Settings
             iter_type = Settings.items
 
-        def _concatenate(key_ret, sequence):
+        def _concatenate(key_ret: Tuple, sequence: Iterable) -> None:
             # Switch from Settings.items() to enumerate() if a list is encountered
             for k, v in iter_type(sequence):  # type: ignore
                 k = key_ret + (k,)
@@ -622,11 +640,11 @@ class Settings(dict):
 
     # =======================================================================
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[Hashable]:
         """Iteration through keys follows lexicographical order. All keys are sorted as if they were strings."""
         return iter(sorted(self.keys(), key=str))
 
-    def __missing__(self, name):
+    def __missing__(self, name: Hashable) -> "Settings":
         """When requested key is not present, add it with an empty |Settings| instance as a value.
 
         This method is essential for automatic insertions in deeper levels. Without it things like::
@@ -641,45 +659,45 @@ class Settings(dict):
         self[name] = Settings()
         return self[name]
 
-    def __contains__(self, name):
+    def __contains__(self, name: Hashable) -> bool:
         """Like regular ``__contains`__``, but ignore the case."""
         return dict.__contains__(self, self.find_case(name))
 
-    def __getitem__(self, name):
+    def __getitem__(self, name: Hashable) -> Any:
         """Like regular ``__getitem__``, but ignore the case."""
         return dict.__getitem__(self, self.find_case(name))
 
-    def __setitem__(self, name, value):
+    def __setitem__(self, name: Hashable, value: Any) -> None:
         """Like regular ``__setitem__``, but ignore the case and if the value is a dict, convert it to |Settings|."""
         if isinstance(value, dict) and not isinstance(value, Settings):
             value = Settings(value)
         dict.__setitem__(self, self.find_case(name), value)
 
-    def __delitem__(self, name):
+    def __delitem__(self, name: Hashable) -> Any:
         """Like regular ``__detitem__``, but ignore the case."""
         return dict.__delitem__(self, self.find_case(name))
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         """If name is not a magic method, redirect it to ``__getattribute__``."""
         if name.startswith("__") and name.endswith("__"):
             return dict.__getattribute__(self, name)
         return self[name]
 
-    def __setattr__(self, name, value):
+    def __setattr__(self, name: str, value: Any) -> None:
         """If name is not a magic method, redirect it to ``__setattr__``."""
         if name.startswith("__") and name.endswith("__"):
             dict.__setattr__(self, name, value)
         else:
             self[name] = value
 
-    def __delattr__(self, name):
+    def __delattr__(self, name: str) -> None:
         """If name is not a magic method, redirect it to ``__delattr__``."""
         if name.startswith("__") and name.endswith("__"):
             dict.__delattr__(self, name)
         else:
             del self[name]
 
-    def _str(self, indent):
+    def _str(self, indent: int) -> str:
         """Print contents with *indent* spaces of indentation. Recursively used for printing nested |Settings| instances with proper indentation."""
         ret = ""
         for key, value in self.items():
@@ -694,10 +712,10 @@ class Settings(dict):
                 ret += textwrap.indent(str(value), indent_str)[len(indent_str) :] + "\n"
         return ret if ret else "<empty Settings>"
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self._str(0)
 
-    def __dir__(self):
+    def __dir__(self) -> List[str]:
         """
         Return standard attributes, plus dynamically added keys which can be accessed via dot notation.
         """
@@ -720,17 +738,22 @@ class SuppressMissing(contextlib.AbstractContextManager):
         self.obj = obj if isinstance(obj, type) else type(obj)
         self.missing = obj.__missing__ if hasattr(obj, "__missing__") else None
 
-    def __enter__(self):
+    def __enter__(self) -> None:
         """Enter the :class:`SuppressMissing` context manager: delete :meth:`.Settings.__missing__` at the class level."""
 
         @wraps(self.missing)  # type: ignore
-        def __missing__(self, name):
+        def __missing__(self, name: Hashable) -> Never:
             raise KeyError(name)
 
         # The __missing__ method is replaced for as long as the context manager is open
         setattr(self.obj, "__missing__", __missing__)
 
-    def __exit__(self, exc_type, exc_value, traceback):
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_value: Optional[BaseException],
+        traceback: Optional["TracebackType"],
+    ) -> None:
         """Exit the :class:`SuppressMissing` context manager: reenable :meth:`.Settings.__missing__` at the class level."""
         setattr(self.obj, "__missing__", self.missing)
 
@@ -740,7 +763,7 @@ class SafeRunSettings(Settings):
     Safe run settings for global config.
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
 
         self.repeat = 10
@@ -774,7 +797,7 @@ class LogSettings(Settings):
     Log settings for global config.
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
 
         self.file = 5
@@ -844,7 +867,7 @@ class RunScriptSettings(Settings):
     Run script settings for global config.
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
 
         self.shebang = "#!/bin/sh"
@@ -879,7 +902,7 @@ class JobSettings(Settings):
     Job settings for global config.
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
 
         self.pickle = True
@@ -962,7 +985,7 @@ class JobManagerSettings(Settings):
     Job manager settings for global config.
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
 
         self.counter_len = 3
@@ -1012,7 +1035,7 @@ class ConfigSettings(Settings):
     The default |JobRunner| and |JobManager| are lazily initialized when first accessed.
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
 
         self.init = False
@@ -1043,7 +1066,7 @@ class ConfigSettings(Settings):
         return self["init"]
 
     @init.setter
-    def init(self, value: bool):
+    def init(self, value: bool) -> None:
         self["init"] = value
 
     @property
@@ -1054,7 +1077,7 @@ class ConfigSettings(Settings):
         return self["_explicit_init"]
 
     @_explicit_init.setter
-    def _explicit_init(self, value: bool):
+    def _explicit_init(self, value: bool) -> None:
         self["_explicit_init"] = value
 
     @property
@@ -1065,7 +1088,7 @@ class ConfigSettings(Settings):
         return self["preview"]
 
     @preview.setter
-    def preview(self, value: bool):
+    def preview(self, value: bool) -> None:
         self["preview"] = value
 
     @property
@@ -1159,7 +1182,7 @@ class ConfigSettings(Settings):
         self["saferun"] = value
 
     @staticmethod
-    def _jobrunner_factory():
+    def _jobrunner_factory() -> "JobRunner":
         from scm.plams.core.jobrunner import JobRunner
 
         return JobRunner()
@@ -1177,11 +1200,11 @@ class ConfigSettings(Settings):
         return self["default_jobrunner"]
 
     @default_jobrunner.setter
-    def default_jobrunner(self, value: "JobRunner") -> None:
+    def default_jobrunner(self, value: Union["JobRunner", LazyWrapper["JobRunner"]]) -> None:
         with self.__lazylock__:
             self["default_jobrunner"] = value
 
-    def _jobmanager_factory(self):
+    def _jobmanager_factory(self) -> "JobManager":
         from scm.plams.core.jobmanager import JobManager
 
         return JobManager(self.jobmanager)
@@ -1199,7 +1222,7 @@ class ConfigSettings(Settings):
         return self["default_jobmanager"]
 
     @default_jobmanager.setter
-    def default_jobmanager(self, value: "JobManager") -> None:
+    def default_jobmanager(self, value: Union["JobManager", LazyWrapper["JobManager"]]) -> None:
         with self.__lazylock__:
             self["default_jobmanager"] = value
 

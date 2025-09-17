@@ -59,7 +59,7 @@ For example, if you find level 5 too verbose and still want to be able to switch
 .. _binding-decorators:
 
 Binding decorators
-~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~
 
 Sometimes one wants to expand the functionality of a class by adding a new method or modifying an existing one.
 It can be done in a few different ways:
@@ -69,30 +69,18 @@ It can be done in a few different ways:
 *   Creating a subclass with new or modified method definitions is usually the best solution.
     It can be done directly in your script before the work is done. The newly defined class can be then used instead of the old one.
     However, this solution fails in some rare cases when a method needs to differ for different instances or when it needs to be changed during the runtime of the script.
-*   PLAMS binding decorators (|add_to_class| and |add_to_instance|) can be used.
+*   PLAMS binding decorator |add_to_instance| can be used.
 
-Binding decorators allow to bind methods to existing classes or even directly to particular instances without having to define a subclass.
+Binding decorators associate methods to existing class instances without having to define a subclass.
 Such changes are visible only inside the script in which they are used.
 
-To fully understand how binding decorators work let us take a look at how Python handles method calling.
-Assume we have an instance of a class (let's say ``myres`` is an instance of |AMSResults|) and there is a method call in our script (let it be ``myres.somemethod(arguments)``).
-Python first looks for ``somemethod`` amongst attributes of ``myres``.
-If it is not there (which is usually the case, since methods are defined in classes), attributes of |AMSResults| class are checked.
-If ``somemethod`` is still not there, parent classes are checked in the order of inheritance (in our case it's only |Results|).
-That implies two important things:
-
-*   |add_to_instance| affects only one particular instance, but is "stronger" than |add_to_class| -- method added to instance always takes precedence before the same method added to (or just defined in) a class
-*   changes done with |add_to_class| affect all instances of that particular class, including even those created before |add_to_class| was used.
-
-The usage of binding decorators is straightforward.
-You simply define a regular function somewhere inside your script and decorate it with one of the decorators (see below).
+The usage of the PLAMS |add_to_instance| binding decorator is straightforward.
+You simply define a regular function somewhere inside your script and decorate it with |add_to_instance|.
 The function needs to have a valid method syntax, so it should have ``self`` as the first argument and use it to reference the class instance.
 
-
-.. autofunction:: add_to_class
 .. autofunction:: add_to_instance
 
 .. technical::
 
-    Each of the above decorators is in fact a decorator factory that, given an object (class or instance), produces a decorator that binds function as a method of that object.
-    Both decorators are adding instance methods only, they cannot be used for static or class methods.
+    The above decorator is in fact a decorator factory that, given an object (class or instance), produces a decorator that binds the function as a method of that object.
+    The decorator is for adding instance methods only, it cannot be used for static or class methods.

@@ -1,7 +1,7 @@
 import os
 import re
 import tempfile
-from typing import Optional
+from typing import Optional, Tuple, TYPE_CHECKING, List, Sequence
 
 from scm.plams.interfaces.molecule.ase import toASE
 from scm.plams.mol.molecule import Molecule
@@ -10,6 +10,11 @@ from scm.plams.tools.units import Units
 from scm.plams.core.functions import requires_optional_package
 from scm.plams.trajectories.rkffile import RKFTrajectoryFile
 from scm.plams.trajectories.rkfhistoryfile import RKFHistoryFile
+
+if TYPE_CHECKING:
+    from numpy import ndarray
+    from ase.cell import Cell
+    from ase import Atoms
 
 __all__ = [
     "traj_to_rkf",
@@ -23,7 +28,9 @@ __all__ = [
 
 
 @requires_optional_package("ase")
-def traj_to_rkf(trajfile, rkftrajectoryfile, task=None, timestep: float = 0.25):
+def traj_to_rkf(
+    trajfile: str, rkftrajectoryfile: str, task: Optional[str] = None, timestep: float = 0.25
+) -> Tuple[Optional["ndarray"], Optional["Cell"]]:
     """
     Convert ase .traj file to .rkf file. NOTE: The order of atoms (or the number of atoms) cannot change between frames!
 
@@ -61,7 +68,6 @@ def traj_to_rkf(trajfile, rkftrajectoryfile, task=None, timestep: float = 0.25):
     energy_converter = Units.convert(1.0, "eV", "hartree")
     gradients_converter = Units.convert(1.0, "eV/angstrom", "hartree/bohr")
     stress_converter = Units.convert(1.0, "eV/angstrom^3", "hartree/bohr^3")
-
     coords, cell = None, None
     try:
         for i, atoms in enumerate(traj):
@@ -131,7 +137,7 @@ def traj_to_rkf(trajfile, rkftrajectoryfile, task=None, timestep: float = 0.25):
 
 
 @requires_optional_package("ase")
-def file_to_traj(outfile, trajfile):
+def file_to_traj(outfile: str, trajfile: str) -> str:
     """
     outfile : str
         path to existing file (OUTCAR, qe.out, etc.)
@@ -152,7 +158,7 @@ def file_to_traj(outfile, trajfile):
     return trajfile
 
 
-def _remove_or_raise(file, overwrite):
+def _remove_or_raise(file: str, overwrite: bool) -> None:
     if os.path.exists(file):
         if overwrite:
             os.remove(file)
@@ -160,7 +166,7 @@ def _remove_or_raise(file, overwrite):
             raise RuntimeError(f"{file} already exists, specify overwrite=True to overwrite")
 
 
-def _write_engine_rkf(kffile, enginefile):
+def _write_engine_rkf(kffile: str, enginefile: str) -> None:
     kf = KFFile(kffile)
     enginerkf = KFFile(enginefile)
     # write engine.rkf
@@ -180,7 +186,7 @@ def _write_engine_rkf(kffile, enginefile):
         enginerkf["AMSResults%StressTensor"] = kf["History%StressTensor" + suffix]
 
 
-def _postprocess_vasp_amsrkf(kffile, outcar):
+def _postprocess_vasp_amsrkf(kffile: str, outcar: str) -> None:
     # add extra info to the kffile
     kf = KFFile(kffile, autosave=False)
     try:
@@ -220,7 +226,7 @@ def vasp_output_to_ams(
     write_engine_rkf: bool = True,
     task: Optional[str] = None,
     timestep: float = 0.25,
-):
+) -> str:
     """
     Converts VASP output (OUTCAR, ...) to AMS output (ams.rkf, vasp.rkf)
 
@@ -286,7 +292,7 @@ def vasp_output_to_ams(
     return wdir
 
 
-def _postprocess_qe_amsrkf(kffile, qe_outfile):
+def _postprocess_qe_amsrkf(kffile: str, qe_outfile: str) -> None:
     # add extra info to the kffile
     kf = KFFile(kffile, autosave=False)
     try:
@@ -309,7 +315,7 @@ def _postprocess_qe_amsrkf(kffile, qe_outfile):
         kf.save()
 
 
-def _postprocess_gaussian_amsrkf(kffile, gaussian_outfile):
+def _postprocess_gaussian_amsrkf(kffile: str, gaussian_outfile: str) -> None:
     # add extra info to the kffile
     kf = KFFile(kffile, autosave=False)
     try:
@@ -325,7 +331,13 @@ def _postprocess_gaussian_amsrkf(kffile, gaussian_outfile):
         kf.save()
 
 
-def text_out_file_to_ams(qe_outfile, wdir=None, overwrite=False, write_engine_rkf=True, enginename="qe"):
+def text_out_file_to_ams(
+    qe_outfile: str,
+    wdir: Optional[str] = None,
+    overwrite: bool = False,
+    write_engine_rkf: bool = True,
+    enginename: str = "qe",
+) -> str:
     """
     Converts a qe .out or gaussian .out file to ams.rkf and qe.rkf/gaussian.rkf
 
@@ -389,7 +401,9 @@ def text_out_file_to_ams(qe_outfile, wdir=None, overwrite=False, write_engine_rk
     return wdir
 
 
-def qe_output_to_ams(qe_outfile, wdir=None, overwrite=False, write_engine_rkf=True):
+def qe_output_to_ams(
+    qe_outfile: str, wdir: Optional[str] = None, overwrite: bool = False, write_engine_rkf: bool = True
+) -> str:
     """
     Converts a qe .out file to ams.rkf and qe.rkf.
 
@@ -411,7 +425,9 @@ def qe_output_to_ams(qe_outfile, wdir=None, overwrite=False, write_engine_rkf=Tr
     return wdir
 
 
-def gaussian_output_to_ams(outfile, wdir=None, overwrite=False, write_engine_rkf=True):
+def gaussian_output_to_ams(
+    outfile: str, wdir: Optional[str] = None, overwrite: bool = False, write_engine_rkf: bool = True
+) -> str:
     """
     Converts a Gaussian .out file to ams.rkf and gaussian.rkf.
 
@@ -434,7 +450,7 @@ def gaussian_output_to_ams(outfile, wdir=None, overwrite=False, write_engine_rkf
 
 
 @requires_optional_package("ase")
-def rkf_to_ase_atoms(rkf_file, get_results=True):
+def rkf_to_ase_atoms(rkf_file: str, get_results: bool = True) -> List["Atoms"]:
     """
     Convert an ams.rkf trajectory to a list of ASE atoms
 
@@ -453,13 +469,22 @@ def rkf_to_ase_atoms(rkf_file, get_results=True):
     bohr2angstrom = Units.convert(1.0, "bohr", "angstrom")
     hartree2eV = Units.convert(1.0, "hartree", "eV")
 
-    def get_ase_atoms(elements, crd, cell, energy, gradients, stress):
+    def get_ase_atoms(
+        elements: Sequence[str],
+        crd: Sequence[Sequence[float]],
+        cell: Optional[Sequence[Sequence[float]]],
+        energy: Optional[float],
+        gradients: Optional[Sequence[Sequence[float]]],
+        stress: Optional[Sequence[float]],
+    ) -> "Atoms":
 
         pbc = None
         if cell is not None:
-            cell = np.array(cell).reshape(-1, 3)
-            pbc = ["T"] * len(cell) + ["F"] * (3 - len(cell))
-        atoms = Atoms(symbols=elements, positions=np.array(crd).reshape(-1, 3), cell=cell, pbc=pbc)
+            cell_arr = np.array(cell).reshape(-1, 3)
+            pbc = ["T"] * len(cell_arr) + ["F"] * (3 - len(cell_arr))
+        else:
+            cell_arr = None
+        atoms = Atoms(symbols=elements, positions=np.array(crd).reshape(-1, 3), cell=cell_arr, pbc=pbc)
         if get_results:
             calculator = SinglePointCalculator(atoms)
             atoms.set_calculator(calculator)
@@ -472,9 +497,16 @@ def rkf_to_ase_atoms(rkf_file, get_results=True):
             if stress:
                 n = len(stress)
                 if n == 9:
-                    stress = np.array(stress).reshape(3, 3) * hartree2eV / bohr2angstrom**3
+                    stress_matrix = np.array(stress).reshape(3, 3) * hartree2eV / bohr2angstrom**3
                     atoms.calc.results["stress"] = np.array(
-                        [stress[0][0], stress[1][1], stress[2][2], stress[1][2], stress[0][2], stress[0][1]]
+                        [
+                            stress_matrix[0][0],
+                            stress_matrix[1][1],
+                            stress_matrix[2][2],
+                            stress_matrix[1][2],
+                            stress_matrix[0][2],
+                            stress_matrix[0][1],
+                        ]
                     )
 
         return atoms
@@ -509,7 +541,7 @@ def rkf_to_ase_atoms(rkf_file, get_results=True):
 
 
 @requires_optional_package("ase")
-def rkf_to_ase_traj(rkf_file, out_file, get_results=True):
+def rkf_to_ase_traj(rkf_file: str, out_file: str, get_results: bool = True) -> List["Atoms"]:
     """
     Convert an ams.rkf trajectory to a different trajectory format (.xyz, .traj, anything supported by ASE)
 

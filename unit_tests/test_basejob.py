@@ -398,9 +398,18 @@ sleep 0.0 && sed 's/input/output/g' plamsjob.in
         # Then jobs are located in the correct subdirectory
         assert len(jobs) == 18
         assert all(j.ok() for j in jobs)
+
+        def normalise_path(p):
+            s = str(p)
+            if s.startswith(("\\\\?\\", "//?/")):
+                s = s[4:]
+            return Path(s).resolve()
+
         for j in jobs:
             o, i1, i2 = j.name.split("_")
-            assert Path(j.path) == Path(config.default_jobmanager.workdir, "results", o, i1, j.name)
+            assert normalise_path(j.path) == normalise_path(
+                Path(config.default_jobmanager.workdir, "results", o, i1, j.name)
+            )
 
     def test_ok_waits_on_results_and_checks_status(self):
         # Given job and a copy

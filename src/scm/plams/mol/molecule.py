@@ -32,7 +32,34 @@ from scm.plams.tools.periodic_table import PT
 from scm.plams.tools.units import Units
 
 input_parser_available = "AMSBIN" in os.environ
-from typing import Callable, Dict, Iterable, List, Optional, Set, Tuple, Union, overload
+from typing import (
+    Callable,
+    Dict,
+    Iterable,
+    List,
+    Optional,
+    Set,
+    Tuple,
+    Union,
+    overload,
+    Literal,
+    Sequence,
+    Any,
+    TypeVar,
+    Mapping,
+    Type,
+    TYPE_CHECKING,
+    IO,
+    Iterator,
+    SupportsIndex,
+)
+
+if TYPE_CHECKING:
+    from numpy.typing import DTypeLike
+    from math import _SupportsFloatOrIndex
+
+
+TSelf = TypeVar("TSelf", bound="Molecule")
 
 __all__ = ["Molecule"]
 
@@ -128,7 +155,35 @@ class Molecule:
     However, if you feel more familiar with identifying atoms by natural numbers, you can use :meth:`set_atoms_id` to equip each atom of the molecule with ``id`` attribute equal to atom's position within ``atoms`` list. This method can also be helpful to track changes in your molecule during tasks that can reorder atoms.
     """
 
-    def __init__(self, filename=None, inputformat=None, positions=None, numbers=None, lattice=None, **other):
+    @overload
+    def __init__(
+        self,
+        filename: str = ...,
+        inputformat: str = ...,
+        positions: None = None,
+        numbers: None = None,
+        lattice: None = None,
+        **other: Any,
+    ): ...
+    @overload
+    def __init__(
+        self,
+        filename: None = None,
+        inputformat: None = None,
+        positions: object = ...,
+        numbers: Sequence[int] = ...,
+        lattice: object = ...,
+        **other: Any,
+    ): ...
+    def __init__(
+        self,
+        filename: Optional[str] = None,
+        inputformat: Optional[str] = None,
+        positions: Optional[object] = None,
+        numbers: Optional[Sequence[int]] = None,
+        lattice: Optional[object] = None,
+        **other: Any,
+    ):
         self.atoms: List[Atom] = []
         self.bonds: List[Bond] = []
         self.lattice: List[List[float]] = []
@@ -161,7 +216,7 @@ class Molecule:
     # ==== Atoms/bonds manipulation =============================================
     # ===========================================================================
 
-    def copy(self, atoms: Optional[List[Atom]] = None) -> "Molecule":
+    def copy(self: TSelf, atoms: Optional[List[Atom]] = None) -> TSelf:
         """Return a copy of the molecule. The copy has atoms, bonds and all other components distinct from the original molecule (it is so called "deep copy").
 
         By default the entire molecule is copied. It is also possible to copy only some part of the molecule, indicated by *atoms* argument. It should be a list of atoms that belong to the molecule. If used, only these atoms, together with any bonds between them, are copied and included in the returned molecule.
@@ -252,7 +307,7 @@ class Molecule:
         if error_msg is not None:
             raise MoleculeError(f"{msg} {error_msg}")
 
-    def _validate_bond(self, bond: Bond, is_new: bool = False, validate_atoms=True, msg: str = "") -> None:
+    def _validate_bond(self, bond: Bond, is_new: bool = False, validate_atoms: bool = True, msg: str = "") -> None:
         """
         Validate whether an |Bond| instance either belongs to this molecule, or is new.
         If validation fails, a |MoleculeError| is raised.
@@ -287,7 +342,7 @@ class Molecule:
             self._validate_atom(bond.atom1, is_new=is_new, msg=msg)
             self._validate_atom(bond.atom2, is_new=is_new, msg=msg)
 
-    def add_atom(self, atom: Atom, adjacent: Optional[Iterable[Union[Atom, Tuple[Atom, float]]]] = None):
+    def add_atom(self, atom: Atom, adjacent: Optional[Iterable[Union[Atom, Tuple[Atom, float]]]] = None) -> None:
         """Add a new *atom* to the molecule.
 
         *atom* should be an |Atom| instance that does not belong to any molecule. Bonds between the new atom and other atoms of the molecule can be automatically added based on *adjacent* argument. It should be a list describing atoms of the molecule that the new atom is connected to. Each element of *adjacent* list can either be a pair ``(Atom, order)`` to indicate new bond's order (use ``Bond.AR`` for aromatic bonds) or an |Atom| instance (a single bond is created in this case).
@@ -447,13 +502,13 @@ class Molecule:
         The starting value of the numbering can be set with *start* (starts at 1 by default).
         """
         for i, at in enumerate(self.atoms, start):
-            at.id = i
+            at.id = i  # type: ignore[attr-defined]
 
     def unset_atoms_id(self) -> None:
         """Delete ``id`` attributes of all atoms."""
         for at in self.atoms:
             try:
-                del at.id
+                del at.id  # type: ignore[attr-defined]
             except AttributeError:
                 pass
 
@@ -470,7 +525,7 @@ class Molecule:
         ret = np.zeros((len(self), len(self)))
         self.set_atoms_id(start=0)
         for b in self.bonds:
-            i, j = b.atom1.id, b.atom2.id
+            i, j = b.atom1.id, b.atom2.id  # type: ignore[attr-defined]
             ret[i, j] = ret[j, i] = b.order
         self.unset_atoms_id()
         return ret
@@ -523,38 +578,40 @@ class Molecule:
         frags = []
         clone = self.copy()
         for at in clone:
-            at._visited = False
+            at._visited = False  # type: ignore[attr-defined]
 
-        def dfs(start_v, mol):
+        def dfs(start_v: Atom, mol: "Molecule") -> None:
             stack = [start_v]
 
             while stack:
                 v = stack.pop()
-                if not v._visited:
-                    v._visited = True
+                if not v._visited:  # type: ignore[attr-defined]
+                    v._visited = True  # type: ignore[attr-defined]
                     v.mol = mol
                     for e in v.bonds:
                         e.mol = mol
                         u = e.other_end(v)
-                        if not u._visited:
+                        if not u._visited:  # type: ignore[attr-defined]
                             stack.append(u)
 
         for src in clone.atoms:
-            if not src._visited:
+            if not src._visited:  # type: ignore[attr-defined]
                 m = Molecule()
                 dfs(src, m)
                 frags.append(m)
                 frags[-1].lattice = self.lattice
 
         for at in clone.atoms:
-            del at._visited
+            del at._visited  # type: ignore[attr-defined]
             at.mol.atoms.append(at)
         for b in clone.bonds:
             b.mol.bonds.append(b)
 
         return frags
 
-    def guess_bonds(self, atom_subset: Optional[Iterable[Atom]] = None, dmax: float = 1.28, metal_atoms: bool = True):
+    def guess_bonds(
+        self, atom_subset: Optional[Sequence[Atom]] = None, dmax: float = 1.28, metal_atoms: bool = True
+    ) -> None:
         """Try to guess bonds in the molecule based on types and positions of atoms.
 
         All previously existing bonds are removed. New bonds are generated based on interatomic distances and information about maximal number of bonds for each atom type (``connectors`` property, taken from |PeriodicTable|).
@@ -577,7 +634,7 @@ class Molecule:
         """
 
         class HeapElement:
-            def __init__(self, order, ratio, atom1, atom2):
+            def __init__(self, order: float, ratio: float, atom1: Atom, atom2: Atom):
                 eff_ord = order
                 if order == 1.5:  # effective order for aromatic bonds
                     eff_ord = 1.15
@@ -587,44 +644,50 @@ class Molecule:
                 self.data = (value, order, ratio)
                 self.atoms = (atom1, atom2)
 
-            def unpack(self):
+            def unpack(self) -> Tuple[float, float, float, Atom, Atom]:
                 val, o, r = self.data
                 at1, at2 = self.atoms
                 return val, o, r, at1, at2
 
-            def __lt__(self, other):
+            def __lt__(self, other: "HeapElement") -> bool:
                 return self.data < other.data
 
-            def __le__(self, other):
+            def __le__(self, other: "HeapElement") -> bool:
                 return self.data <= other.data
 
-            def __eq__(self, other):
-                return self.data == other.data
+            def __eq__(self, other: object) -> bool:
+                if isinstance(other, HeapElement):
+                    return self.data == other.data
+                else:
+                    return False
 
-            def __ne__(self, other):
-                return self.data != other.data
+            def __ne__(self, other: object) -> bool:
+                if isinstance(other, HeapElement):
+                    return self.data != other.data
+                else:
+                    return True
 
-            def __gt__(self, other):
+            def __gt__(self, other: "HeapElement") -> bool:
                 return self.data > other.data
 
-            def __ge__(self, other):
+            def __ge__(self, other: "HeapElement") -> bool:
                 return self.data >= other.data
 
-        def get_neighbors(atom_list, dmax):
+        def get_neighbors(atom_list: Sequence[Atom], dmax: float) -> Dict[Tuple[int, ...], List[Atom]]:
             """adds attributes ._id, .free, and .cube to all atoms in atom_list"""
             cubesize = dmax * 2.1 * max([at.radius for at in atom_list])
 
-            cubes: Dict[Tuple[int, ...], List] = {}
+            cubes: Dict[Tuple[int, ...], List[Atom]] = {}
             for i, at in enumerate(atom_list, 1):
-                at._id = i
-                at.free = at.connectors
-                at.cube = tuple(map(lambda x: int(math.floor(x / cubesize)), at.coords))
-                if at.cube in cubes:
-                    cubes[at.cube].append(at)
+                at._id = i  # type: ignore[attr-defined]
+                at.free = at.connectors  # type: ignore[attr-defined]
+                at.cube = tuple(map(lambda x: int(math.floor(x / cubesize)), at.coords))  # type: ignore[attr-defined]
+                if at.cube in cubes:  # type: ignore[attr-defined]
+                    cubes[at.cube].append(at)  # type: ignore[attr-defined]
                 else:
-                    cubes[at.cube] = [at]
+                    cubes[at.cube] = [at]  # type: ignore[attr-defined]
 
-            neighbors: Dict[Tuple[int, ...], List] = {}
+            neighbors: Dict[Tuple[int, ...], List[Atom]] = {}
             for cube in cubes:
                 neighbors[cube] = []
                 for i in range(cube[0] - 1, cube[0] + 2):
@@ -636,8 +699,13 @@ class Molecule:
             return neighbors
 
         def find_and_add_bonds(
-            atom_list, neighbors, dmax, from_atoms_subset=None, to_atoms_subset=None, ignore_free=False
-        ):
+            atom_list: Sequence[Atom],
+            neighbors: Mapping[Tuple[int, ...], Sequence[Atom]],
+            dmax: float,
+            from_atoms_subset: Optional[Sequence[Atom]] = None,
+            to_atoms_subset: Optional[Sequence[Atom]] = None,
+            ignore_free: bool = False,
+        ) -> None:
             if from_atoms_subset is None:
                 from_atoms_subset = atom_list
             elif not all([x in atom_list for x in from_atoms_subset]):
@@ -649,16 +717,16 @@ class Molecule:
 
             heap = []
             for at1 in from_atoms_subset:
-                if at1.free > 0 or ignore_free:
-                    for at2 in neighbors[at1.cube]:
+                if at1.free > 0 or ignore_free:  # type: ignore[attr-defined]
+                    for at2 in neighbors[at1.cube]:  # type: ignore[attr-defined]
                         if not at2 in to_atoms_subset:
                             continue
                         if ignore_free:
                             if at2 in from_atoms_subset:
-                                if at2._id <= at1._id:
+                                if at2._id <= at1._id:  # type: ignore[attr-defined]
                                     continue
                         else:
-                            if at2.free <= 0 or at2._id <= at1._id:
+                            if at2.free <= 0 or at2._id <= at1._id:  # type: ignore[attr-defined]
                                 continue
                         # the bond guessing is more accurate with smaller metallic radii
                         ratio = at1.distance_to(at2) / (
@@ -671,30 +739,30 @@ class Molecule:
                                 heap.append(HeapElement(0, ratio, at1, at2))
                                 # I hate to do this, but I guess there's no other way :/ [MiHa]
                                 if at1.atnum == 16 and at2.atnum == 8:
-                                    at1.free = 6
+                                    at1.free = 6  # type: ignore[attr-defined]
                                 elif at2.atnum == 16 and at1.atnum == 8:
-                                    at2.free = 6
+                                    at2.free = 6  # type: ignore[attr-defined]
                                 elif at1.atnum == 7:
-                                    at1.free += 1
+                                    at1.free += 1  # type: ignore[attr-defined]
                                 elif at2.atnum == 7:
-                                    at2.free += 1
+                                    at2.free += 1  # type: ignore[attr-defined]
             if not ignore_free:
                 heapq.heapify(heap)
 
                 for at in atom_list:
                     if at.atnum == 7:
-                        if at.free > 6:
-                            at.free = 4
+                        if at.free > 6:  # type: ignore[attr-defined]
+                            at.free = 4  # type: ignore[attr-defined]
                         else:
-                            at.free = 3
+                            at.free = 3  # type: ignore[attr-defined]
 
                 while heap:
                     val, o, r, at1, at2 = heapq.heappop(heap).unpack()
                     step = 1 if o in [0, 2] else 0.5
-                    if at1.free >= step and at2.free >= step:
+                    if at1.free >= step and at2.free >= step:  # type: ignore[attr-defined]
                         o += step
-                        at1.free -= step
-                        at2.free -= step
+                        at1.free -= step  # type: ignore[attr-defined]
+                        at2.free -= step  # type: ignore[attr-defined]
                         if o < 3:
                             heapq.heappush(heap, HeapElement(o, r, at1, at2))
                         else:
@@ -704,36 +772,37 @@ class Molecule:
                             o = Bond.AR
                         self.add_bond(at1, at2, o)
 
-                def dfs(atom, par):
-                    atom.arom += 1000
+                def dfs(atom: Atom, par: int) -> Optional[bool]:
+                    atom.arom += 1000  # type: ignore[attr-defined]
                     for b in atom.bonds:
                         oe = b.other_end(atom)
-                        if b.is_aromatic() and oe.arom < 1000:
-                            if oe.arom > 2:
+                        if b.is_aromatic() and oe.arom < 1000:  # type: ignore[attr-defined]
+                            if oe.arom > 2:  # type: ignore[attr-defined]
                                 return False
-                            if par and oe.arom == 1:
+                            if par and oe.arom == 1:  # type: ignore[attr-defined]
                                 b.order = 2
                                 return True
                             if dfs(oe, 1 - par):
                                 b.order = 1 + par
                                 return True
+                    return None
 
                 for at in atom_list:
-                    at.arom = len(list(filter(Bond.is_aromatic, at.bonds)))
+                    at.arom = len(list(filter(Bond.is_aromatic, at.bonds)))  # type: ignore[attr-defined]
 
                 for at in atom_list:
-                    if at.arom == 1:
+                    if at.arom == 1:  # type: ignore[attr-defined]
                         dfs(at, 1)
 
-        def cleanup_atom_list(atom_list):
+        def cleanup_atom_list(atom_list: Sequence[Atom]) -> None:
             for at in atom_list:
-                del at.cube, at.free, at._id
+                del at.cube, at.free, at._id  # type: ignore[attr-defined]
                 if hasattr(at, "arom"):
-                    del at.arom
+                    del at.arom  # type: ignore[attr-defined]
                 if hasattr(at, "_metalbondcounter"):
-                    del at._metalbondcounter
+                    del at._metalbondcounter  # type: ignore[attr-defined]
                 if hasattr(at, "_electronegativebondcounter"):
-                    del at._electronegativebondcounter
+                    del at._electronegativebondcounter  # type: ignore[attr-defined]
 
         self.delete_all_bonds()
         atom_list = atom_subset or self.atoms
@@ -782,12 +851,12 @@ class Molecule:
             # delete metal-metal bonds and metal-hydrogen bonds if the metal is bonded to enough electronegative atoms and not enough metal atoms
             # (this means that the metal is a cation, so bonds should almost never be drawn unless it's a dimetal complex or a hydride/H2 ligand, but that should be rare)
             for at in metallic:
-                at._metalbondcounter = len([x for x in at.bonds if x.other_end(at).is_metallic])
-                at._electronegativebondcounter = len([x for x in at.bonds if x.other_end(at).is_electronegative])
+                at._metalbondcounter = len([x for x in at.bonds if x.other_end(at).is_metallic])  # type: ignore[attr-defined]
+                at._electronegativebondcounter = len([x for x in at.bonds if x.other_end(at).is_electronegative])  # type: ignore[attr-defined]
                 if (
-                    at._electronegativebondcounter >= 3
-                    or (at._electronegativebondcounter >= 2 >= at._metalbondcounter)
-                    or (at._electronegativebondcounter >= 1 and at._metalbondcounter <= 0)
+                    at._electronegativebondcounter >= 3  # type: ignore[attr-defined]
+                    or (at._electronegativebondcounter >= 2 >= at._metalbondcounter)  # type: ignore[attr-defined]
+                    or (at._electronegativebondcounter >= 1 and at._metalbondcounter <= 0)  # type: ignore[attr-defined]
                 ):
                     bonds_to_delete = [b for b in at.bonds if b.other_end(at).is_metallic or b.other_end(at).atnum == 1]
                     for b in bonds_to_delete:
@@ -808,7 +877,7 @@ class Molecule:
         keep_hydrogen_charged: bool = False,
         depth: int = 1,
         electronegativities: Optional[Dict[str, float]] = None,
-    ):
+    ) -> List[float]:
         """
         Return a list of guessed charges, one for each atom, based on connectivity
 
@@ -818,7 +887,7 @@ class Molecule:
         Note: Fairly basic implementation that will not always yield reliable results
         """
 
-        def get_electronegativity(atom, prevat, search_depth=None):
+        def get_electronegativity(atom: Atom, prevat: Atom, search_depth: Optional[int] = None) -> float:
             """
             Get the electronegativity of atom by searching through the molecules
             """
@@ -826,11 +895,13 @@ class Molecule:
             en = sum(ens) / len(ens) if len(ens) > 0 else 0.0
             return en
 
-        def get_electronegativities(atom, prevats=[], search_depth=None):
+        def get_electronegativities(
+            atom: Atom, prevats: List[int] = [], search_depth: Optional[int] = None
+        ) -> List[float]:
             """
             Get the electronegativities of neighbors by searching through the molecules
             """
-            en: List[Optional[float]] = []
+            en: List[float] = []
             if search_depth is not None:
                 if search_depth <= 0:
                     return en
@@ -973,34 +1044,34 @@ class Molecule:
         else:
             self._validate_bond(arg, msg="Cannot check whether in ring.")
 
-        def dfs(v, depth=0):
-            v._visited = True
+        def dfs(v: Atom, depth: int = 0) -> None:
+            v._visited = True  # type: ignore[attr-defined]
             for bond in v.bonds:
                 if bond is not arg:
                     u = bond.other_end(v)
                     if u is arg and depth > 1:
-                        u._visited = "cycle"
-                    if not u._visited:
+                        u._visited = "cycle"  # type: ignore[attr-defined]
+                    if not u._visited:  # type: ignore[attr-defined]
                         dfs(u, depth + 1)
 
         for at in self:
-            at._visited = False
+            at._visited = False  # type: ignore[attr-defined]
 
         if isinstance(arg, Atom):
             dfs(arg)
-            ret = arg._visited == "cycle"
+            ret = arg._visited == "cycle"  # type: ignore[attr-defined]
         else:
             dfs(arg.atom1)
-            ret = arg.atom2._visited
+            ret = arg.atom2._visited  # type: ignore[attr-defined]
 
         for at in self:
-            del at._visited
+            del at._visited  # type: ignore[attr-defined]
         return ret
 
-    def supercell(self, *args) -> "Molecule":
+    def supercell(self, *args: Any) -> "Molecule":
         """Return a new |Molecule| instance representing a supercell build by replicating this |Molecule| along its lattice vectors.
 
-        One should provide in input an integer matrix :math:`T_{i,j}` representing the supercell transformation (:math:`\\vec{a}_i' = \sum_j T_{i,j}\\vec{a}_j`). The size of the matrix should match the number of lattice vectors, i.e. 3x3 for 3D periodic systems, 2x2 for 2D periodic systems and one number for 1D periodic systems. The matrix can be provided in input as either a nested list or as a numpy matrix.
+        One should provide in input an integer matrix :math:`T_{i,j}` representing the supercell transformation (:math:`\\vec{a}_i' = \\sum_j T_{i,j}\\vec{a}_j`). The size of the matrix should match the number of lattice vectors, i.e. 3x3 for 3D periodic systems, 2x2 for 2D periodic systems and one number for 1D periodic systems. The matrix can be provided in input as either a nested list or as a numpy matrix.
 
         For a diagonal supercell expansion (i.e. :math:`T_{i \\neq j}=0`) one can provide in input n positive integers instead of a matrix, where n is number of lattice vectors in the molecule. e.g. This ``mol.supercell([[2,0],[0,2]])`` is equivalent to ``mol.supercell(2,2)``.
 
@@ -1061,12 +1132,12 @@ class Molecule:
                     0.0000000000     0.0000000000     3.5700000000
         """
 
-        def diagonal_supercell(*args):
+        def diagonal_supercell(*args: Any) -> Tuple[List[Tuple[float]], List[Tuple[int, ...]]]:
             supercell_lattice = [tuple(n * np.array(vec)) for n, vec in zip(args, self.lattice)]
             cell_translations = [t for t in itertools.product(*[range(arg) for arg in args])]
             return supercell_lattice, cell_translations
 
-        def general_supercell(S):
+        def general_supercell(S: np.ndarray) -> Tuple[List[Tuple[float]], List[Tuple[int, ...]]]:
             determinant = int(round(np.linalg.det(S)))
             if determinant < 1:
                 raise MoleculeError(
@@ -1134,7 +1205,7 @@ class Molecule:
             newmol.translate(sum(i * np.array(vec) for i, vec in zip(index, self.lattice)))
             ret += newmol
 
-        ret.lattice = supercell_lattice
+        ret.lattice = [list(v) for v in supercell_lattice]
         return ret
 
     def unit_cell_volume(self, unit: str = "angstrom") -> float:
@@ -1176,7 +1247,7 @@ class Molecule:
         """
         return cell_angles(self.lattice, unit=unit)
 
-    def set_integer_bonds(self, action="warn", tolerance=10**-4):
+    def set_integer_bonds(self: TSelf, action: str = "warn", tolerance: float = 10**-4) -> None:
         """Convert non-integer bond orders into integers.
 
         For example, bond orders of aromatic systems are no longer set to the non-integer
@@ -1269,36 +1340,38 @@ class Molecule:
         floor = math.floor
         func_invert = {ceil: floor, floor: ceil}
 
-        def dfs(atom, func) -> None:
+        def dfs(atom: Atom, func: Callable[["_SupportsFloatOrIndex"], int]) -> None:
             """Depth-first search algorithm for integer-ifying the bond orders."""
             for b2 in atom.bonds:
-                if b2._visited:
+                if b2._visited:  # type: ignore[attr-defined]
                     continue
 
-                b2._visited = True
+                b2._visited = True  # type: ignore[attr-defined]
                 b2.order = func(b2.order)  # func = ``math.ceil()`` or ``math.floor()``
                 del bond_dict[b2]
 
                 atom_new = b2.other_end(atom)
                 dfs(atom_new, func=func_invert[func])
 
-        def collect_and_mark_bonds(self):
-            order_before: List = []
+        def collect_and_mark_bonds(self: TSelf) -> Tuple["OrderedDict[Bond, Optional[bool]]", List[int]]:
+            order_before: List[int] = []
             order_before_append = order_before.append
 
             # Mark all non-integer bonds; floats which can be represented exactly
             # by an integer (e.g. 1.0 and 2.0) are herein treated as integers
-            bond_dict: OrderedDict = OrderedDict()  # An improvised OrderedSet (as it does not exist)
+            bond_dict: OrderedDict[Bond, Optional[bool]] = (
+                OrderedDict()
+            )  # An improvised OrderedSet (as it does not exist)
             for bond in self.bonds:
                 order = bond.order
                 order_before_append(order)
                 if (
                     hasattr(bond.order, "is_integer") and not bond.order.is_integer()
                 ):  # Checking for ``is_integer()`` catches both float and np.float
-                    bond._visited = False
+                    bond._visited = False  # type: ignore[attr-defined]
                     bond_dict[bond] = None
                 else:
-                    bond._visited = True
+                    bond._visited = True  # type: ignore[attr-defined]
             return bond_dict, order_before
 
         bond_dict, order_before = collect_and_mark_bonds(self)
@@ -1313,7 +1386,7 @@ class Molecule:
             func = ceil if abs(delta_ceil) < abs(delta_floor) else floor
 
             b1.order = func(order)
-            b1._visited = True
+            b1._visited = True  # type: ignore[attr-defined]
             dfs(b1.atom1, func=func_invert[func])
             dfs(b1.atom2, func=func_invert[func])
 
@@ -1321,7 +1394,7 @@ class Molecule:
         order_after_sum = 0.0
         for bond in self.bonds:
             order_after_sum += bond.order
-            del bond._visited
+            del bond._visited  # type: ignore[attr-defined]
 
         # Check that the total (summed) bond order has not changed
         order_before_sum = sum(order_before)
@@ -1383,7 +1456,11 @@ class Molecule:
         else:  # Raised if value is neither an Atom nor Bond
             raise MoleculeError(f"'value' expected an Atom or Bond; observed type: '{value.__class__.__name__}'")
 
-    def round_coords(self, decimals=0, inplace=True):
+    @overload
+    def round_coords(self, decimals: int, inplace: Literal[True]) -> None: ...
+    @overload
+    def round_coords(self: TSelf, decimals: int, inplace: Literal[False]) -> TSelf: ...
+    def round_coords(self: TSelf, decimals: int = 0, inplace: bool = True) -> Optional[TSelf]:
         """Round the Cartesian coordinates of this instance to *decimals*.
 
         By default, with ``inplace=True``, the coordinates of this instance are updated inplace.
@@ -1426,7 +1503,7 @@ class Molecule:
             mol_copy.from_array(xyz_round)
             return mol_copy
 
-    def get_connection_table(self):
+    def get_connection_table(self) -> List[List[int]]:
         """
         Get a connection table with atom indices (starting at 0)
         """
@@ -1436,28 +1513,28 @@ class Molecule:
             table.append(indices)
         return table
 
-    def get_molecule_indices(self):
+    def get_molecule_indices(self) -> List[List[int]]:
         """
         Use the bond information to identify submolecules
 
         Returns a list of lists of indices (e.g. for two methane molecules: [[0,1,2,3,4],[5,6,7,8,9]])
         """
-        molecule_indices = []
+        molecule_indices: List[List[int]] = []
         for at in self:
-            at._visited = False
+            at._visited = False  # type: ignore[attr-defined]
 
-        def dfs(v, indices):
+        def dfs(v: Atom, indices: List[int]) -> None:
             """
             Depth first search of self starting at atom v, extending the list of connected atoms (indices)
             """
-            v._visited = True
+            v._visited = True  # type: ignore[attr-defined]
             for e in v.bonds:
                 u = e.other_end(v)
-                if not u._visited:
+                if not u._visited:  # type: ignore[attr-defined]
                     indices.append(self.index(u, start=indices[0] + 1) - 1)
                     dfs(u, indices)
 
-        def bfs(v, indices):
+        def bfs(v: Atom, indices: List[int]) -> None:
             """
             Breadth first search of self starting at atom v, extending the list of connected atoms (indices)
             """
@@ -1465,12 +1542,12 @@ class Molecule:
             atoms = [v]
             while len(atoms) > 0:
                 for v in atoms:
-                    v._visited = True
+                    v._visited = True  # type: ignore[attr-defined]
                 res = []
                 for v in atoms:
                     for e in v.bonds:
                         other_end = e.other_end(v)
-                        if not other_end._visited and other_end not in res:
+                        if not other_end._visited and other_end not in res:  # type: ignore[attr-defined]
                             res.append(other_end)
                 atoms = res
                 # atoms = [e.other_end(v) for v in atoms for e in v.bonds if not e.other_end(v)._visited]
@@ -1478,18 +1555,18 @@ class Molecule:
                     indices.append(self.index(u, start=indices[0] + 1) - 1)
 
         for iatom, src in enumerate(self.atoms):
-            if not src._visited:
+            if not src._visited:  # type: ignore[attr-defined]
                 indices = [iatom]
                 # dfs(src, indices)
                 bfs(src, indices)
                 molecule_indices.append(sorted(indices))
 
         for at in self:
-            del at._visited
+            del at._visited  # type: ignore[attr-defined]
 
         return molecule_indices
 
-    def get_fragment(self, indices):
+    def get_fragment(self, indices: Sequence[int]) -> "Molecule":
         """
         Return a submolecule from self
         """
@@ -1516,7 +1593,7 @@ class Molecule:
 
         return ret
 
-    def get_complete_molecules_within_threshold(self, atom_indices: List[int], threshold: float):
+    def get_complete_molecules_within_threshold(self, atom_indices: List[int], threshold: float) -> "Molecule":
         """
         Returns a new molecule containing complete submolecules for any molecules
         that are closer than ``threshold`` to any of the atoms in ``atom_indices``.
@@ -1556,13 +1633,13 @@ class Molecule:
         Find the rings in the structure
         """
 
-        def bond_from_indices(ret, iat1, iat2):
+        def bond_from_indices(ret: "Molecule", iat1: int, iat2: int) -> Bond:
             """
             Return a bond object from the atom indices
             """
             bond = None
             for bond in ret.bonds:
-                indices = [i - 1 for i in ret.index(bond)]
+                indices = [i - 1 for i in ret.index(bond)]  # type: ignore
                 if iat1 in indices and iat2 in indices:
                     break
             if bond is None:
@@ -1662,7 +1739,7 @@ class Molecule:
             iat = candidates[0] if len(candidates) > 0 else atoms_to_examine[0]
         return rings
 
-    def order_ring(self, ring_indices):
+    def order_ring(self, ring_indices: Sequence[int]) -> List[int]:
         """
         Order the ring indices so that they are sequential along the ring
         """
@@ -1701,7 +1778,9 @@ class Molecule:
             rings = networkx.cycle_basis(graph)
         return rings
 
-    def shortest_path_dijkstra(self, source, target, conect=None):
+    def shortest_path_dijkstra(
+        self, source: int, target: int, conect: Optional[Sequence[Sequence[int]]] = None
+    ) -> List[List[int]]:
         """
         Find the shortest paths (can be more than 1)
         between a source atom and a target
@@ -1759,7 +1838,7 @@ class Molecule:
                             break
                     Q.insert(ind, v)
 
-        bridgelist = [[u]]
+        bridgelist: List[List[int]] = [[u]]
         d = dist[u]
         for i in range(int(d)):
             paths = []
@@ -1776,7 +1855,7 @@ class Molecule:
     # ==== Geometry operations ==================================================
     # ===========================================================================
 
-    def translate(self, vector, unit="angstrom"):
+    def translate(self, vector: object, unit: str = "angstrom") -> None:
         """Move the molecule in space by *vector*, expressed in *unit*.
 
         *vector* should be an iterable container of length 3 (usually tuple, list or numpy array). *unit* describes unit of values stored in *vector*.
@@ -1786,7 +1865,7 @@ class Molecule:
         xyz_array += np.array(vector) * ratio
         self.from_array(xyz_array)
 
-    def rotate_lattice(self, matrix):
+    def rotate_lattice(self, matrix: object) -> None:
         """Rotate **only** lattice vectors of the molecule with given rotation *matrix*.
 
         *matrix* should be a container with 9 numerical values. It can be a list (tuple, numpy array etc.) listing matrix elements row-wise, either flat (``[1,2,3,4,5,6,7,8,9]``) or in two-level fashion (``[[1,2,3],[4,5,6],[7,8,9]]``).
@@ -1798,7 +1877,7 @@ class Molecule:
         matrix = np.array(matrix).reshape(3, 3)
         self.lattice = [list(np.dot(matrix, i)) for i in self.lattice]
 
-    def rotate(self, matrix, lattice=False):
+    def rotate(self, matrix: object, lattice: bool = False) -> None:
         """Rotate the molecule with given rotation *matrix*. If *lattice* is ``True``, rotate lattice vectors too.
 
         *matrix* should be a container with 9 numerical values. It can be a list (tuple, numpy array etc.) listing matrix elements row-wise, either flat (``[1,2,3,4,5,6,7,8,9]``) or in two-level fashion (``[[1,2,3],[4,5,6],[7,8,9]]``).
@@ -1814,7 +1893,7 @@ class Molecule:
         if lattice:
             self.rotate_lattice(matrix)
 
-    def align_lattice(self, convention="AMS", zero=1e-10):
+    def align_lattice(self, convention: str = "AMS", zero: float = 1e-10) -> bool:
         """Rotate the molecule in such a way that lattice vectors are aligned with the coordinate system.
 
         This method is meant to be used with periodic systems only. Using it on a |Molecule| instance with an empty ``lattice`` attribute has no effect.
@@ -1864,7 +1943,7 @@ class Molecule:
             raise MoleculeError(f"align_lattice: unknown convention: {convention}. Possible values are 'AMS' or 'reax'")
         return rotated
 
-    def rotate_bond(self, bond, moving_atom, angle, unit="radian"):
+    def rotate_bond(self, bond: Bond, moving_atom: Atom, angle: float, unit: str = "radian") -> None:
         """Rotate part of this molecule containing *moving_atom* along axis defined by *bond* by an *angle* expressed in *unit*.
 
         *bond* should be chosen in such a way, that it divides the molecule into two parts (using a bond that forms a ring results in a |MoleculeError|). *moving_atom* has to belong to *bond* and is used to pick which part of the molecule is rotated. A positive angle denotes counterclockwise rotation (when looking along the bond, from the stationary part of the molecule).
@@ -1874,7 +1953,7 @@ class Molecule:
 
         atoms_to_rotate = {moving_atom}
 
-        def dfs(v):
+        def dfs(v: Atom) -> None:
             for e in v.bonds:
                 if e is not bond:
                     u = e.other_end(v)
@@ -1899,7 +1978,7 @@ class Molecule:
 
         self.from_array(xyz_array, atom_subset=atoms_to_rotate)
 
-    def resize_bond(self, bond, moving_atom, length, unit="angstrom"):
+    def resize_bond(self, bond: Bond, moving_atom: Atom, length: float, unit: str = "angstrom") -> None:
         """Change the length of *bond* to *length* expressed in *unit* by moving part of the molecule containing *moving_atom*
 
         *bond* should be chosen in such a way, that it divides the molecule into two parts (using a bond that forms a ring results in a |MoleculeError|). *moving_atom* has to belong to *bond* and is used to pick which part of the molecule is moved.
@@ -1909,7 +1988,7 @@ class Molecule:
 
         atoms_to_move = {moving_atom}
 
-        def dfs(v):
+        def dfs(v: Atom) -> None:
             for e in v.bonds:
                 if e is not bond:
                     u = e.other_end(v)
@@ -1929,7 +2008,7 @@ class Molecule:
         xyz_array += trans_v
         self.from_array(xyz_array, atom_subset=atoms_to_move)
 
-    def closest_atom(self, point, unit="angstrom") -> Atom:
+    def closest_atom(self, point: object, unit: str = "angstrom") -> Atom:
         """Return the atom of the molecule that is the closest one to some *point* in space.
 
         *point* should be an iterable container of length 3 (for example: tuple, |Atom|, list, numpy array). *unit* describes unit of values stored in *point*.
@@ -1944,7 +2023,7 @@ class Molecule:
         idx = dist_array.argmin()
         return self[idx + 1]
 
-    def distance_to_point(self, point, unit="angstrom", result_unit="angstrom") -> float:
+    def distance_to_point(self, point: object, unit: str = "angstrom", result_unit: str = "angstrom") -> float:
         """Calculate the distance between the molecule and some *point* in space (distance between *point* and :meth:`closest_atom`).
 
         *point* should be an iterable container of length 3 (for example: tuple, |Atom|, list, numpy array). *unit* describes unit of values stored in *point*. Returned value is expressed in *result_unit*.
@@ -1952,7 +2031,21 @@ class Molecule:
         at = self.closest_atom(point, unit)
         return at.distance_to(point, unit, result_unit)
 
-    def distance_to_mol(self, other, result_unit="angstrom", return_atoms=False):
+    @overload
+    def distance_to_mol(
+        self: TSelf, other: TSelf, result_unit: str = "angstrom", return_atoms: Literal[False] = False
+    ) -> float: ...
+    @overload
+    def distance_to_mol(
+        self: TSelf, other: TSelf, result_unit: str = "angstrom", return_atoms: Literal[True] = True
+    ) -> Tuple[float, Atom, Atom]: ...
+    @overload
+    def distance_to_mol(
+        self: TSelf, other: TSelf, result_unit: str = "angstrom", return_atoms: bool = False
+    ) -> Union[float, Tuple[float, Atom, Atom]]: ...
+    def distance_to_mol(
+        self: TSelf, other: TSelf, result_unit: str = "angstrom", return_atoms: bool = False
+    ) -> Union[float, Tuple[float, Atom, Atom]]:
         """Calculate the distance between the molecule and some *other* molecule.
 
         The distance is measured as the smallest distance between any atom of this molecule and any atom of *other* molecule. Returned distance is expressed in *result_unit*.
@@ -1972,7 +2065,9 @@ class Molecule:
             return res, atom1, atom2
         return res
 
-    def wrap(self, length, angle=2 * math.pi, length_unit="angstrom", angle_unit="radian"):
+    def wrap(
+        self, length: float, angle: float = 2 * math.pi, length_unit: str = "angstrom", angle_unit: str = "radian"
+    ) -> None:
         """wrap(self, length, angle=2*pi, length_unit='angstrom', angle_unit='radian')
 
         Transform the molecule wrapping its x-axis around z-axis. This method is useful for building nanotubes or molecular wedding rings.
@@ -2013,7 +2108,7 @@ class Molecule:
         for at, x, y in zip(self.atoms, x_array, y_array):
             at.coords = (x, y, at.coords[-1])
 
-    def get_center_of_mass(self, unit="angstrom"):
+    def get_center_of_mass(self, unit: str = "angstrom") -> Tuple[float]:
         """Return the center of mass of the molecule (as a tuple). Returned coordinates are expressed in *unit*."""
         mass_array = np.array([atom.mass for atom in self])
         xyz_array = self.as_array().T
@@ -2022,12 +2117,12 @@ class Molecule:
         center /= mass_array.sum()
         return tuple(center * Units.conversion_ratio("angstrom", unit))
 
-    def get_masses(self, unit: Optional[str] = "amu"):
+    def get_masses(self, unit: str = "amu") -> List[float]:
         """Return list of masses, by default in atomic mass units."""
         unit_conversion_coeff = Units.convert(1.0, "amu", unit)
         return [at.mass * unit_conversion_coeff for at in self.atoms]
 
-    def get_mass(self, unit="amu") -> float:
+    def get_mass(self, unit: str = "amu") -> float:
         """Return the mass of the molecule, by default in atomic mass units."""
         return sum([at.mass for at in self.atoms]) * Units.convert(1.0, "amu", unit)
 
@@ -2037,7 +2132,7 @@ class Molecule:
         mass = self.get_mass(unit="kg")
         return mass / vol
 
-    def set_density(self, density: float):
+    def set_density(self, density: float) -> None:
         """
         Applies a uniform strain so that the density becomes ``density`` kg/m^3
         """
@@ -2047,7 +2142,11 @@ class Molecule:
         strain -= 1.0
         self.apply_strain([strain, strain, strain, 0, 0, 0], voigt_form=True)
 
-    def get_formula(self, as_dict=False):
+    @overload
+    def get_formula(self, as_dict: Literal[True]) -> Dict[str, int]: ...
+    @overload
+    def get_formula(self, as_dict: Literal[False] = False) -> str: ...
+    def get_formula(self, as_dict: bool = False) -> Union[str, Dict[str, int]]:
         """Calculate the molecular formula of the molecule according to the Hill system.
 
         Here molecular formula is a dictionary with keys being atomic symbols. The value for each key is the number of atoms of that type. If *as_dict* is ``True``, that dictionary is returned. Otherwise, it is converted into a string::
@@ -2059,7 +2158,7 @@ class Molecule:
             C378H629N105O118S1
 
         """
-        occ = {}
+        occ: Dict[str, int] = {}
         for atom in self:
             if atom.symbol not in occ:
                 occ[atom.symbol] = 0
@@ -2067,7 +2166,7 @@ class Molecule:
         if as_dict:
             return occ
 
-        def string_for_sym(sym, occ):
+        def string_for_sym(sym: str, occ: Dict[str, int]) -> str:
             if sym not in occ:
                 return ""
             else:
@@ -2085,12 +2184,12 @@ class Molecule:
             # for inorganic systems the order is strictly alphabetic
             return "".join(string_for_sym(sym, occ) for sym in sorted(occ))
 
-    def get_inertia_matrix(self, length_unit: Optional[str] = "angstrom", mass_unit: Optional[str] = "amu"):
+    def get_inertia_matrix(self, length_unit: str = "angstrom", mass_unit: str = "amu") -> np.ndarray:
         """Get the moments of inertia matrix.
 
         Args:
-            length_unit (str, optional): unit for distance. Defaults to 'angstrom'.
-            mass_unit (str, optional): unit for mass. Defaults to 'amu'.
+            length_unit str: unit for distance. Defaults to 'angstrom'.
+            mass_unit str: unit for mass. Defaults to 'amu'.
 
         Returns:
             np.ndarray: 3x3 matrix with the inertia matrix
@@ -2111,12 +2210,26 @@ class Molecule:
         inertia_matrix = np.array([[I11, I12, I13], [I12, I22, I23], [I13, I23, I33]])
         return inertia_matrix
 
+    @overload
     def get_moments_of_inertia(
         self,
-        eigen_vectors: Optional[bool] = False,
-        length_unit: Optional[str] = "angstrom",
-        mass_unit: Optional[str] = "amu",
-    ):
+        eigen_vectors: Literal[False] = False,
+        length_unit: str = "angstrom",
+        mass_unit: str = "amu",
+    ) -> np.ndarray: ...
+    @overload
+    def get_moments_of_inertia(
+        self,
+        eigen_vectors: Literal[True],
+        length_unit: str = "angstrom",
+        mass_unit: str = "amu",
+    ) -> Tuple[np.ndarray, np.ndarray]: ...
+    def get_moments_of_inertia(
+        self,
+        eigen_vectors: bool = False,
+        length_unit: str = "angstrom",
+        mass_unit: str = "amu",
+    ) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
         """Get the moments of inertia along the principal axes (in amu*angstrom**2 by default). They are computed from the eigenvalues of the symmetric inertial tensor. Optionally the eigenvectors can be returned.
 
         Args:
@@ -2135,7 +2248,7 @@ class Molecule:
         else:
             return evals
 
-    def get_gyration_radius(self, unit: Optional[str] = "angstrom") -> float:
+    def get_gyration_radius(self, unit: str = "angstrom") -> float:
         """Return the gyration radius of the molecule by default in angstrom. It gives information about the overall dimensions of the rotating molecule around its center of mass.
 
         Args:
@@ -2149,7 +2262,7 @@ class Molecule:
         gyration_radius = np.sqrt(magnitude_momento_inertia / self.get_mass())
         return gyration_radius
 
-    def apply_strain(self, strain, voigt_form=False):
+    def apply_strain(self, strain: Any, voigt_form: bool = False) -> None:
         """Apply a strain deformation to a periodic system (i.e. with a non-empty ``lattice`` attribute).
         The atoms in the unit cell will be strained accordingly, keeping the fractional atomic coordinates constant.
 
@@ -2183,7 +2296,7 @@ class Molecule:
                 "apply_strain: the lattice vectors should follow the convention of AMS (i.e. for 1D-periodic systems the lattice vector should be along the x-axis, while for 2D-periodic systems the two vectors should be on the XY plane. Consider using the align_lattice function."
             )
 
-        def from_voigt_to_matrix(strain_voigt, n):
+        def from_voigt_to_matrix(strain_voigt: Any, n: int) -> np.ndarray:
             if len(strain_voigt) != n * (n + 1) / 2:
                 raise MoleculeError(
                     "apply_strain: strain for %i-dim periodic system needs %i-sized vector in Voigt format"
@@ -2225,7 +2338,7 @@ class Molecule:
         self.from_array(coords)
         self.lattice = [list(vec + [0.0] * (3 - len(vec))) for vec in strained_lattice.tolist()]
 
-    def map_to_central_cell(self, around_origin=True):
+    def map_to_central_cell(self, around_origin: bool = True) -> None:
         """Maps all atoms to the original cell. If *around_origin=True* the atoms will be mapped to the cell with fractional coordinates [-0.5,0.5], otherwise to the the cell in which all fractional coordinates are in the [0:1] interval."""
 
         n = len(self.lattice)
@@ -2281,7 +2394,9 @@ class Molecule:
                     else:
                         b.properties.suffix = " ".join(str(cs) for cs in cell_shifts_new)
 
-    def perturb_atoms(self, max_displacement=0.01, unit="angstrom", atoms=None):
+    def perturb_atoms(
+        self, max_displacement: float = 0.01, unit: str = "angstrom", atoms: Optional[Sequence[Atom]] = None
+    ) -> None:
         """Randomly perturb the coordinates of the atoms in the molecule.
 
         Each Cartesian coordinate is displaced by a random value picked out of a uniform distribution in the interval *[-max_displacement, +max_displacement]* (converted to requested *unit*).
@@ -2296,7 +2411,9 @@ class Molecule:
         for atom in atoms:
             atom.translate(np.random.uniform(-s, s, 3))
 
-    def perturb_lattice(self, max_displacement=0.01, unit="angstrom", ams_convention=True):
+    def perturb_lattice(
+        self, max_displacement: float = 0.01, unit: str = "angstrom", ams_convention: bool = True
+    ) -> None:
         """Randomly perturb the lattice vectors.
 
         The Cartesian components of the lattice vectors are changed by a random value picked out of a uniform distribution in the interval *[-max_displacement, +max_displacement]* (converted to requested *unit*).
@@ -2320,8 +2437,15 @@ class Molecule:
             self.lattice[i] = list(perturbed_vec)
 
     def substitute(
-        self, connector, ligand, ligand_connector, bond_length=None, steps=12, cost_func_mol=None, cost_func_array=None
-    ):
+        self,
+        connector: Sequence[Atom],
+        ligand: "Molecule",
+        ligand_connector: Sequence[Atom],
+        bond_length: Optional[float] = None,
+        steps: int = 12,
+        cost_func_mol: Optional[Callable[["Molecule", "Molecule"], float]] = None,
+        cost_func_array: Optional[Callable[[Any, Any], float]] = None,
+    ) -> None:
         """Substitute a part of this molecule with *ligand*.
 
         *connector* should be a pair of atoms that belong to this molecule and form a bond. The first atom of *connector* is the atom to which the  ligand will be connected. The second atom of *connector* is removed from the molecule, together with all "further" atoms connected to it (that allows, for example, to substitute the whole functional group with another). Using *connector* that is a part or a ring triggers an exception.
@@ -2338,7 +2462,7 @@ class Molecule:
 
         .. math::
 
-            \sum_{i \in mol, j\in lig} e^{-R_{ij}}
+            \\sum_{i \\in mol, j\\in lig} e^{-R_{ij}}
 
         A different cost function can be also supplied by the user, using one of the two remaining arguments: *cost_func_mol* or *cost_func_array*. *cost_func_mol* should be a function that takes two |Molecule| instances: this molecule (after removing unneeded atoms) and ligand in a particular orientation (also without unneeded atoms) and returns a single number (the lower the number, the better the fit). *cost_func_array* is analogous, but instead of |Molecule| instances it takes two numpy arrays (with dimensions: number of atoms x 3) with coordinates of this molecule and the ligand. If both are supplied, *cost_func_mol* takes precedence over *cost_func_array*.
 
@@ -2367,7 +2491,7 @@ class Molecule:
         if len(_ligand.bonds) == 0:
             _ligand.guess_bonds()
 
-        def dfs(atom, stay, go, delete, msg):
+        def dfs(atom: Atom, stay: Atom, go: Atom, delete: Set[Atom], msg: str) -> None:
             for N in atom.neighbors():
                 if N is stay:
                     if atom is go:
@@ -2438,14 +2562,16 @@ class Molecule:
         self.add_molecule(_ligand)
         self.add_bond(stay, stay_lig)
 
-    def map_atoms_to_bonds(self):
+    def map_atoms_to_bonds(self) -> None:
         """
         Corrects for lattice displacements along bonds
 
         Uses a breadth-first search to map the atoms bond by bond (wrap)
         """
 
-        def get_translation_vectors(iat, neighbors, molcoords):
+        def get_translation_vectors(
+            iat: int, neighbors: Sequence[int], molcoords: np.ndarray
+        ) -> Tuple[np.ndarray, np.ndarray]:
             """
             Compute the translation of the neighbors
             """
@@ -2454,7 +2580,9 @@ class Molecule:
             dcoords = np.rint((molcoords[neighbors] - molcoords[iat].reshape((1, 3)) * ones) / boxarray) * boxarray
             return dcoords, -np.rint(dcoords / boxarray)
 
-        def get_translated_vectors(iat, neighbors, molcoords):
+        def get_translated_vectors(
+            iat: int, neighbors: Sequence[int], molcoords: np.ndarray
+        ) -> Tuple[np.ndarray, np.ndarray]:
             """
             Compute the translation vectors for non-orthorhombic boxes
             """
@@ -2537,7 +2665,7 @@ class Molecule:
     # ==== Magic methods ========================================================
     # ===========================================================================
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         # get_formula(), but with C,H first and counts of 1 not present in the string
         syms = sorted([at.symbol for at in self])
         for at in "HC":
@@ -2547,14 +2675,14 @@ class Molecule:
         s = "".join(f"{at}{cnt}" for at, cnt in zip(uniq, cnts))
         return f"{self.__class__.__name__}('{s}' at {hex(id(self))})"
 
-    def __len__(self):
+    def __len__(self) -> int:
         """The length of the molecule is the number of atoms."""
         return len(self.atoms)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.str()
 
-    def str(self, decimal=6):
+    def str(self, decimal: int = 6) -> str:
         """Return a string representation of the molecule.
 
         Information about atoms is printed in ``xyz`` format fashion -- each atom in a separate, enumerated line. Then, if the molecule contains any bonds, they are printed. Each bond is printed in a separate line, with information about both atoms and bond order. Example:
@@ -2576,19 +2704,19 @@ class Molecule:
             s += ("%5i" % (i)) + atom.str(decimal=decimal) + "\n"
         if len(self.bonds) > 0:
             for j, atom in enumerate(self.atoms, 1):
-                atom._tmpid = j
+                atom._tmpid = j  # type: ignore[attr-defined]
             s += "  Bonds: \n"
             for bond in self.bonds:
-                s += "   (%d)--%1.1f--(%d)\n" % (bond.atom1._tmpid, bond.order, bond.atom2._tmpid)
+                s += "   (%d)--%1.1f--(%d)\n" % (bond.atom1._tmpid, bond.order, bond.atom2._tmpid)  # type: ignore[attr-defined]
             for atom in self.atoms:
-                del atom._tmpid
+                del atom._tmpid  # type: ignore[attr-defined]
         if self.lattice:
             s += "  Lattice:\n"
             for vec in self.lattice:
                 s += f"    {vec[0]:16.10f} {vec[1]:16.10f} {vec[2]:16.10f}\n"
         return s
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[Atom]:
         """Iterate over atoms."""
         return iter(self.atoms)
 
@@ -2596,7 +2724,7 @@ class Molecule:
     def __getitem__(self, key: int) -> Atom: ...
     @overload
     def __getitem__(self, key: Tuple[int, int]) -> Bond: ...
-    def __getitem__(self, key):
+    def __getitem__(self, key: Union[int, Tuple[int, int]]) -> Union[Atom, Bond]:
         """The bracket notation can be used to access atoms or bonds directly.
 
         If *key* is a single int (``mymol[i]``), return i-th atom of the molecule. If *key* is a pair of ints (``mymol[(i,j)]``), return the bond between i-th and j-th atom (``None`` if such a bond does not exist). Negative integers can be used to access atoms enumerated in the reversed order.
@@ -2605,7 +2733,7 @@ class Molecule:
 
         Numbering of atoms within a molecule starts with 1.
         """
-        if hasattr(key, "__index__"):  # Available in all "int-like" objects; see PEP 357
+        if isinstance(key, SupportsIndex):  # Available in all "int-like" objects; see PEP 357
             if key == 0:
                 raise MoleculeError("Numbering of atoms starts with 1")
             if key < 0:
@@ -2624,7 +2752,7 @@ class Molecule:
                 ex.__traceback__
             )
 
-    def __add__(self, other):
+    def __add__(self: TSelf, other: "Molecule") -> TSelf:
         """Create a new molecule that is a sum of this molecule and some *other* molecule::
 
             newmol = mol1 + mol2
@@ -2635,18 +2763,18 @@ class Molecule:
         m += other
         return m
 
-    def __iadd__(self, other):
+    def __iadd__(self: TSelf, other: "Molecule") -> TSelf:
         """Copy *other* molecule and add the copy to this one."""
         self.add_molecule(other, copy=True)
         return self
 
-    def __copy__(self):
+    def __copy__(self: TSelf) -> TSelf:
         return self.copy()
 
-    def __deepcopy__(self, memo):
+    def __deepcopy__(self: TSelf, memo: Any) -> TSelf:
         return self.copy()
 
-    def __round__(self, ndigits=None):
+    def __round__(self: TSelf, ndigits: Optional[int] = None) -> TSelf:
         """Magic method for rounding this instance's Cartesian coordinates; called by the builtin :func:`round` function."""
         ndigits = 0 if ndigits is None else ndigits
         return self.round_coords(ndigits, inplace=False)
@@ -2684,7 +2812,7 @@ class Molecule:
     # ==== Converters ===========================================================
     # ===========================================================================
 
-    def as_dict(self):
+    def as_dict(self) -> Dict[str_type, Any]:
         """Store all information about the molecule in a dictionary.
 
         The returned dictionary is, in principle, identical to ``self.__dict__`` of the current instance, apart from the fact that all |Atom| and |Bond| instances in ``atoms`` and ``bonds`` lists are replaced with dictionaries storing corresponding information.
@@ -2708,7 +2836,7 @@ class Molecule:
         return mol_dict
 
     @classmethod
-    def from_dict(cls, dictionary):
+    def from_dict(cls: Type[TSelf], dictionary: Dict[str_type, Any]) -> TSelf:
         """Generate a new |Molecule| instance based on the information stored in a *dictionary*.
 
         This method is a counterpart of :meth:`as_dict`.
@@ -2735,7 +2863,7 @@ class Molecule:
         return mol
 
     @classmethod
-    def from_elements(cls, elements):
+    def from_elements(cls: Type[TSelf], elements: List[str_type]) -> TSelf:
         """Generate a new |Molecule| instance based on a list of *elements*.
 
         By default it sets all coordinates to zero
@@ -2747,7 +2875,7 @@ class Molecule:
         return mol
 
     @property
-    def as_array(self):
+    def as_array(self) -> AsArrayContext:
         """
         Property that can either be called directly as a method: ``mol.as_array()`` or as a context manager ``with mol.as_array``. Take care of when to add the parentheses.
 
@@ -2777,7 +2905,7 @@ class Molecule:
         """
         return self._as_array
 
-    def from_array(self, xyz_array, atom_subset=None):
+    def from_array(self, xyz_array: Any, atom_subset: Optional[Iterable[Atom]] = None) -> None:
         """Update the cartesian coordinates of this |Molecule|, containing n atoms, with coordinates provided by a (≤n)*3 numpy array *xyz_array*.
 
         *atom_subset* argument can be used to specify only a subset of atoms, it should be an iterable container with atoms belonging to this molecule. It should have the same length as the first dimension of *xyz_array*.
@@ -2786,7 +2914,7 @@ class Molecule:
         for at, (x, y, z) in zip(atom_subset, xyz_array):
             at.coords = (x, y, z)
 
-    def __array__(self, dtype=None):
+    def __array__(self, dtype: Optional["DTypeLike"] = None) -> np.ndarray:
         """A magic method for constructing numpy arrays.
 
         This method ensures that passing a |Molecule| instance to numpy.array_ produces an array of Cartesian coordinates (see :meth:`.Molecule.as_array`).
@@ -2802,7 +2930,7 @@ class Molecule:
     # ==== File/format IO =======================================================
     # ===========================================================================
 
-    def readxyz(self, f, geometry=1, **other):
+    def readxyz(self, f: IO, geometry: int = 1, **other: Any) -> None:
         """XYZ Reader:
 
         The xyz format allows to store more than one geometry of a particular molecule within a single file.
@@ -2810,7 +2938,7 @@ class Molecule:
         Default is the first one (*geometry* = 1).
         """
 
-        def newatom(line):
+        def newatom(line: str) -> None:
             lst = line.split()
             shift = 1 if (len(lst) > 4 and lst[0] == str(i)) else 0
             num = lst[0 + shift]
@@ -2822,7 +2950,7 @@ class Molecule:
                 new_atom.properties.suffix = " ".join(line.split()[shift + 4 :])
             self.add_atom(new_atom)
 
-        def newlatticevec(line):
+        def newlatticevec(line: str) -> None:
             lst = line.split()
             self.lattice.append([float(lst[1]), float(lst[2]), float(lst[3])])
 
@@ -2886,7 +3014,7 @@ class Molecule:
         if not nohead and fr > 0:
             raise FileError(f"readxyz: cannot read frame from {f.name}")
 
-    def writexyz(self, f, space=16, decimal=8):
+    def writexyz(self, f: IO, space: int = 16, decimal: int = 8) -> None:
         """
         f: file
             An open file handle.
@@ -2914,7 +3042,7 @@ class Molecule:
         for i, vec in enumerate(self.lattice, 1):
             f.write(f"VEC{i} " + " ".join([f"{v:>{space}.{decimal}f}" for v in vec]) + "\n")
 
-    def readmol(self, f, **other):
+    def readmol(self, f: IO, **other: Any) -> None:
 
         comment = []
         for i in range(4):
@@ -2966,7 +3094,7 @@ class Molecule:
         if comment:
             self.properties["comment"] = comment
 
-    def writemol(self, f, **other):
+    def writemol(self, f: IO, **other: Any) -> None:
         commentblock = ["\n"] * 3
         if "comment" in self.properties:
             comment = self.properties["comment"]
@@ -2988,11 +3116,11 @@ class Molecule:
             order = bo.order
             if order == Bond.AR:
                 order = 4
-            f.write("%3i %2i %2i  0  0  0  0\n" % (bo.atom1.id, bo.atom2.id, round(order)))
+            f.write("%3i %2i %2i  0  0  0  0\n" % (bo.atom1.id, bo.atom2.id, round(order)))  # type: ignore[attr-defined]
         self.unset_atoms_id()
         f.write("M  END\n")
 
-    def readmol2(self, f, **other):
+    def readmol2(self, f: IO, **other: Any) -> None:
 
         bondorders = {"1": 1, "2": 2, "3": 3, "am": 1, "ar": Bond.AR, "du": 0, "un": 1, "nc": 0}
         mode = ("", 0)
@@ -3053,9 +3181,15 @@ class Molecule:
                         newbond.properties[flag] = True
                 self.add_bond(newbond)
 
-    def writemol2(self, f, **other):
+    def writemol2(self, f: IO, **other: Any) -> None:
 
-        def write_prop(name, obj, separator, space=0, replacement=None):
+        def write_prop(
+            name: str,
+            obj: Union["Molecule", Atom, Bond],
+            separator: str,
+            space: int = 0,
+            replacement: Optional[str] = None,
+        ) -> None:
             form_str = "%-" + str(space) + "s"
             if name in obj.properties:
                 f.write(form_str % str(obj.properties[name]))
@@ -3081,16 +3215,16 @@ class Molecule:
             write_prop("subst_name", at, " ", 7)
             write_prop("charge", at, " ", 6)
             write_prop("flags", at, "\n")
-            at.id = i
+            at.id = i  # type: ignore[attr-defined]
 
         f.write("\n@<TRIPOS>BOND\n")
         for i, bo in enumerate(self.bonds, 1):
-            f.write("%5i %5i %5i %4s" % (i, bo.atom1.id, bo.atom2.id, "ar" if bo.is_aromatic() else bo.order))
+            f.write("%5i %5i %5i %4s" % (i, bo.atom1.id, bo.atom2.id, "ar" if bo.is_aromatic() else bo.order))  # type: ignore[attr-defined]
             write_prop("flags", bo, "\n")
 
         self.unset_atoms_id()
 
-    def readpdb(self, f, geometry=1, **other):
+    def readpdb(self, f: IO, geometry: int = 1, **other: Any) -> None:
         """PDB Reader:
 
         The pdb format allows to store more than one geometry of a particular molecule within a single file.
@@ -3123,7 +3257,7 @@ class Molecule:
                     self.add_bond(atom1, atom2)
         return pdb
 
-    def writepdb(self, f, **other):
+    def writepdb(self, f: IO, **other: Any) -> None:
         """
         Write the molecule in PDB format
         """
@@ -3147,7 +3281,55 @@ class Molecule:
         pdb.set_connections(connections)
         pdb.write(f)
 
-    def hydrogen_to_deuterium(self):
+    @requires_optional_package("ase")
+    def readase(self, f: IO, **other: Any) -> None:
+        """Read Molecule using ASE engine
+
+        The ``read`` function of the |Molecule| class passes a file descriptor into here, so in this case you must specify the *format* to be read by ASE::
+
+            mol = Molecule('file.cif', inputformat='ase', format='cif')
+
+        The ASE Atoms object then gets converted to a PLAMS Molecule and returned.
+        All *other* options are passed to ``ASE.io.read()``.
+        See https://wiki.fysik.dtu.dk/ase/ase/io/io.html on how to use it.
+
+        .. note::
+
+            The nomenclature of PLAMS and ASE is incompatible for reading multiple geometries, make sure that you only read single geometries with ASE! Reading multiple geometries is not supported, each geometry needs to be read individually.
+
+        """
+        from ase import io
+        from scm.plams.interfaces.molecule.ase import fromASE
+
+        ase_mol = io.read(f, **other)
+        mol = fromASE(ase_mol)
+        # update self with the molecule read without overwriting e.g. settings
+        self += mol
+        # lattice does not survive soft update
+        self.lattice = mol.lattice
+        return
+
+    @requires_optional_package("ase")
+    def writease(self, f: IO, **other: Any) -> None:
+        """Write molecular coordinates using ASE engine.
+
+        The ``write`` function of the |Molecule| class passes a file descriptor into here, so in this case you must specify the *format* to be written by ASE.
+        All *other* options are passed to ``ASE.io.write()``.
+        See https://wiki.fysik.dtu.dk/ase/ase/io/io.html on how to use it.
+
+        These two write the same content to the respective files::
+
+            molecule.write('filename.anyextension', outputformat='ase', format='gen')
+            molecule.writease('filename.anyextension', format='gen')
+
+        """
+        from scm.plams.interfaces.molecule.ase import toASE
+
+        ase_mol = toASE(self)
+        ase_mol.write(f, **other)
+        return
+
+    def hydrogen_to_deuterium(self) -> None:
         """
         Modifies the current molecule so that all hydrogen atoms get mass 2.014 by modifying the atom.properties.mass
         """
@@ -3157,7 +3339,7 @@ class Molecule:
                 at.properties.mass = 2.014
 
     @staticmethod
-    def _mol_from_rkf_section(sectiondict):
+    def _mol_from_rkf_section(sectiondict: Dict[str_type, Any]) -> "Molecule":
         """Return a |Molecule| instance constructed from the contents of the whole ``.rkf`` file section, supplied as a dictionary returned by :meth:`KFFile.read_section<scm.plams.tools.kftools.KFFile.read_section>`."""
         from scm.plams.interfaces.adfsuite.ams import AMSJob
 
@@ -3227,7 +3409,7 @@ class Molecule:
                     at.properties.soft_update(AMSJob._atom_suffix_to_settings(suffix))
         return ret
 
-    def forcefield_params_from_rkf(self, filename):
+    def forcefield_params_from_rkf(self, filename: str_type) -> None:
         """
         Read all force field data from a forcefield.rkf file into self
 
@@ -3253,7 +3435,7 @@ class Molecule:
         if patch is not None:
             self.properties.forcefieldpatch = patch
 
-    def readrkf(self, filename: str_type, section: str_type = "Molecule", **other):
+    def readrkf(self, filename: str_type, section: str_type = "Molecule", **other: Any) -> None:
         kf = KFFile(filename)
         sectiondict = kf.read_section(section)
         self.__dict__.update(Molecule._mol_from_rkf_section(sectiondict).__dict__)
@@ -3262,13 +3444,13 @@ class Molecule:
         for bo in self.bonds:
             bo.mol = self
 
-    def readcoskf(self, filename: str_type, **other):
+    def readcoskf(self, filename: str_type, **other: Any) -> None:
         kf = KFFile(filename)
-        natom = kf.read("COSMO", "Number of Atoms")
-        atom_symbols = kf.read("COSMO", "Atom Type").split()
-        atom_coords = np.array(kf.read("COSMO", "Atom Coordinates"))
+        natom = kf.read_int("COSMO", "Number of Atoms")
+        atom_symbols = kf.read_string("COSMO", "Atom Type").split()
+        atom_coords = np.array(kf.read_reals("COSMO", "Atom Coordinates"))
         atom_coords = np.reshape(atom_coords, (natom, 3))
-        mol_charge = -np.round(np.sum(kf.read("COSMO", "Segment Charge")), 1)
+        mol_charge = -np.round(np.sum(kf.read_reals("COSMO", "Segment Charge")), 1)
         self.properties.charge = mol_charge
 
         for s, (x, y, z) in zip(atom_symbols, atom_coords):
@@ -3276,7 +3458,7 @@ class Molecule:
             self.add_atom(atom)
         self.guess_bonds()
 
-    def readin(self, f, **other):
+    def readin(self, f: IO, **other: Any) -> None:
         """Read a file containing a System block used in AMS driver input files."""
         if not input_parser_available:
             raise NotImplementedError(
@@ -3299,13 +3481,13 @@ class Molecule:
         for bo in self.bonds:
             bo.mol = self
 
-    def writein(self, f, **other):
+    def writein(self, f: IO, **other: Any) -> None:
         """Write the Molecule instance to a file as a System block from the AMS driver input files."""
         from scm.plams.interfaces.adfsuite.ams import AMSJob
 
         f.write(AMSJob(molecule={other.get("sysname", ""): self}).get_input())
 
-    def read(self, filename, inputformat=None, **other):
+    def read(self, filename: str_type, inputformat: Optional[str_type] = None, **other: Any) -> None:
         """Read molecular coordinates from a file.
 
         *filename* should be a string with a path to a file. If *inputformat* is not ``None``, it should be one of supported formats or engines (keys occurring in the class attribute ``_readformat``). Otherwise, the format is deduced from the file extension. For files without an extension the `xyz` format is used.
@@ -3328,7 +3510,9 @@ class Molecule:
         else:
             raise MoleculeError(f"read: Unsupported file format '{inputformat}'")
 
-    def write(self, filename, outputformat=None, mode="w", **other):
+    def write(
+        self, filename: str_type, outputformat: Optional[str_type] = None, mode: str_type = "w", **other: Any
+    ) -> None:
         """Write molecular coordinates to a file.
 
         *filename* should be a string with a path to a file. If *outputformat* is not ``None``, it should be one of supported formats or engines (keys occurring in the class attribute ``_writeformat``). Otherwise, the format is deduced from the file extension. For files without an extension the `xyz` format is used.
@@ -3358,13 +3542,20 @@ class Molecule:
         "pdb": readpdb,
         "rkf": readrkf,
         "coskf": readcoskf,
+        "ase": readase,
     }
-    _writeformat: Dict[str_type, Callable] = {"xyz": writexyz, "mol": writemol, "mol2": writemol2, "pdb": writepdb}
+    _writeformat: Dict[str_type, Callable] = {
+        "xyz": writexyz,
+        "mol": writemol,
+        "mol2": writemol2,
+        "pdb": writepdb,
+        "ase": writease,
+    }
     if input_parser_available:
         _readformat["in"] = readin
         _writeformat["in"] = writein
 
-    def add_hatoms(self) -> "Molecule":
+    def add_hatoms(self: TSelf) -> TSelf:
         """
         Adds missing hydrogen atoms to the current molecule.
         Returns a new Molecule instance.
@@ -3420,8 +3611,41 @@ class Molecule:
             os.remove(f_in.name)
         return retmol
 
+    @overload
     @staticmethod
-    def rmsd(mol1, mol2, ignore_hydrogen=False, return_rotmat=False, check=True):
+    def rmsd(
+        mol1: "Molecule",
+        mol2: "Molecule",
+        ignore_hydrogen: bool,
+        return_rotmat: Literal[False],
+        check: bool,
+    ) -> float: ...
+    @overload
+    @staticmethod
+    def rmsd(
+        mol1: "Molecule",
+        mol2: "Molecule",
+        ignore_hydrogen: bool,
+        return_rotmat: Literal[True],
+        check: bool,
+    ) -> Tuple[float, np.ndarray]: ...
+    @overload
+    @staticmethod
+    def rmsd(
+        mol1: "Molecule",
+        mol2: "Molecule",
+        ignore_hydrogen: bool = False,
+        return_rotmat: bool = False,
+        check: bool = True,
+    ) -> Union[float, Tuple[float, np.ndarray]]: ...
+    @staticmethod
+    def rmsd(
+        mol1: "Molecule",
+        mol2: "Molecule",
+        ignore_hydrogen: bool = False,
+        return_rotmat: bool = False,
+        check: bool = True,
+    ) -> Union[float, Tuple[float, np.ndarray]]:
         """
         Uses the
         `Kabsch algorithm <https://en.wikipedia.org/wiki/Kabsch_algorithm>`_ to align and
@@ -3438,7 +3662,13 @@ class Molecule:
             that aligns `mol2` onto `mol1`.
         """
 
-        def kabsch(x, y, rotmat=False):
+        @overload
+        def kabsch(x: np.ndarray, y: np.ndarray, rotmat: Literal[False]) -> float: ...
+        @overload
+        def kabsch(x: np.ndarray, y: np.ndarray, rotmat: Literal[True]) -> Tuple[float, np.ndarray]: ...
+        @overload
+        def kabsch(x: np.ndarray, y: np.ndarray, rotmat: bool = False) -> Union[float, Tuple[float, np.ndarray]]: ...
+        def kabsch(x: np.ndarray, y: np.ndarray, rotmat: bool = False) -> Union[float, Tuple[float, np.ndarray]]:
             """
             Rotate a set of points `y` such that they are aligned with `x`
             using the Kabsch algorithm (thanks to Toon for the idea).
@@ -3463,11 +3693,11 @@ class Molecule:
                 nums1 == nums2
             ).all(), "\nAtoms are not the same (or not in the same order). Use `check==False` if you do not care about this.\n"
         if ignore_hydrogen is True:
-            mol1 = [at.coords for at in mol1 if at.symbol != "H"]
-            mol2 = [at.coords for at in mol2 if at.symbol != "H"]
-        return kabsch(np.array(mol1), np.array(mol2), rotmat=return_rotmat)
+            coords1 = [at.coords for at in mol1 if at.symbol != "H"]
+            coords2 = [at.coords for at in mol2 if at.symbol != "H"]
+        return kabsch(np.array(coords1), np.array(coords2), rotmat=return_rotmat)
 
-    def align2mol(self, molecule_ref, ignore_hydrogen: bool = False, watch: bool = False):
+    def align2mol(self: TSelf, molecule_ref: TSelf, ignore_hydrogen: bool = False, watch: bool = False) -> None:
         """
         align the molecule to a reference molecule, they should be same molecule type and same order of atoms
         it is an wrapper of the rmsd methods
@@ -3502,13 +3732,44 @@ class Molecule:
             plot_molecule(self, ax=ax[1], keep_axis=True)
             print(f"Root mean square deviation: {rmsd_value:0.3} Ang")
 
+    def assign_chirality(self) -> None:
+        """
+        Assigns stereo-info to PLAMS molecule by invoking RDKIT
+        """
+        from scm.plams.interfaces.molecule.rdkit import to_rdmol, from_rdmol
+
+        rd_mol = to_rdmol(self, assignChirality=True)
+        pl_mol = from_rdmol(rd_mol)
+
+        # Add R/S info to self
+        for iat, pl_atom in enumerate(pl_mol.atoms):
+            # Check for R/S information
+            if pl_atom.properties.rdkit.stereo:
+                self.atoms[iat].properties.rdkit.stereo = pl_atom.properties.rdkit.stereo
+
+        # Add cis/trans information to self
+        for ibond, pl_bond in enumerate(pl_mol.bonds):
+            if pl_bond.properties.rdkit.stereo:
+                self.bonds[ibond] = pl_bond.properties.rdkit.stereo
+
+    @requires_optional_package("rdkit")
+    def get_chirality(self) -> List[Tuple[int, str_type]]:
+        """
+        Returns the chirality of the atoms
+        """
+        from rdkit import Chem
+        from scm.plams.interfaces.molecule.rdkit import to_rdmol
+
+        rd_mol = to_rdmol(self, assignChirality=True)
+        return Chem.FindMolChiralCenters(rd_mol, force=True, includeUnassigned=True)
+
     @property
     def numbers(self) -> "np.ndarray":
         """Return an array of all atomic numbers in the Molecule. Can also be used to set all numbers at once."""
         return np.array([i.atnum for i in self])
 
     @numbers.setter
-    def numbers(self, values):
+    def numbers(self, values: Sequence) -> None:
         if len(values) != len(self):
             raise ValueError(
                 f"Number of elements in array ({len(values)}) does not match the molecule size ({len(self)})."
@@ -3522,7 +3783,7 @@ class Molecule:
         return np.array([i.symbol for i in self])
 
     @symbols.setter
-    def symbols(self, values):
+    def symbols(self, values: Sequence) -> None:
         if len(values) != len(self):
             raise ValueError(
                 f"Number of elements in array ({len(values)}) does not match the molecule size ({len(self)})."
@@ -3530,7 +3791,7 @@ class Molecule:
         for at, value in zip(self, values):
             setattr(at, "symbol", value)
 
-    def _get_bond_id(self, at1, at2, id_type):
+    def _get_bond_id(self, at1: Atom, at2: Atom, id_type: str_type) -> Tuple[str_type, bool]:
         """
         at1: Atom in this molecule
         at2: Atom in this molecule
@@ -3546,7 +3807,9 @@ class Molecule:
         else:
             return at2key + "-" + at1key, True
 
-    def get_unique_bonds(self, ignore_dict=None, id_type="symbol", index_start=1):
+    def get_unique_bonds(
+        self, ignore_dict: Optional[Mapping[str_type, Any]] = None, id_type: str_type = "symbol", index_start: int = 1
+    ) -> Dict[str_type, Tuple[int, int]]:
         """
 
         Returns a dictionary of all unique bonds in this molecule, where the
@@ -3569,7 +3832,7 @@ class Molecule:
             If 1, indices are 1-based. If 0, indices are 0-based.
 
         """
-        ret = {}
+        ret: Dict[str, Tuple[int, int]] = {}
         ignore_dict = ignore_dict or {}
         for at in self:
             for b in at.bonds:
@@ -3583,7 +3846,7 @@ class Molecule:
 
         return ret
 
-    def _get_angle_id(self, at1, at2, at3, id_type):
+    def _get_angle_id(self, at1: Atom, at2: Atom, at3: Atom, id_type: str_type) -> Tuple[str_type, bool]:
         at1key = getattr(at1, id_type)
         at2key = getattr(at2, id_type)
         at3key = getattr(at3, id_type)
@@ -3592,7 +3855,9 @@ class Molecule:
         else:
             return at3key + "-" + at2key + "-" + at1key, True
 
-    def get_unique_angles(self, ignore_dict=None, id_type="symbol", index_start=1):
+    def get_unique_angles(
+        self, ignore_dict: Optional[Dict[str_type, Any]] = None, id_type: str_type = "symbol", index_start: int = 1
+    ) -> Dict[str_type, Tuple[int, int, int]]:
         """
 
         Returns a dictionary of all unique angles in this molecule, where the
@@ -3615,7 +3880,7 @@ class Molecule:
             If 1, indices are 1-based. If 0, indices are 0-based.
 
         """
-        ret = {}
+        ret: Dict[str_type, Tuple[int, int, int]] = {}
         ignore_dict = ignore_dict or {}
         for at in self:
             for b in at.bonds:
@@ -3640,3 +3905,126 @@ class Molecule:
                             )
 
         return ret
+
+    def label(
+        self,
+        level: Union[int, List[int], Tuple[int, ...]] = 1,
+        keep_labels: bool = False,
+        flags: Optional[Dict[str_type, Union[bool, float]]] = None,
+    ) -> Union[str_type, Tuple[str_type]]:
+        """Compute the label of this molecule using chosen *level* of detail.
+
+        Possible levels are:
+
+        *   **0**: does not perform any atom labeling, returns empirical formula (see :meth:`~scm.plams.mol.molecule.Molecule.get_formula`)
+        *   **1**: only direct connectivity is considered, without bond orders (in other words, treats all the bonds as single bonds)
+        *   **2**: use connectivity and bond orders
+        *   **3**: use connectivity, bond orders and some spatial information to distinguish R/S and E/Z isomers
+        *   **4**: use all above, plus more spatial information to distinguish different rotamers and different types of coordination complexes
+
+        If you need more precise control of what is taken into account while computing the label (or adjust the tolerance for geometrical operations) you can use the *flags* argument. It should be a dictionary of parameters recognized by :func:`~scm.plams.mol.identify.label_atoms`. Each of two letter boolean flags has to be present in *flags*. If you use *flags*, *level* is ignored.
+
+        The *level* argument can also be a tuple of integers. In that case the labeling algorithm is run multiple times and the returned value is a tuple (with the same length as *level*) containing labels calculated with given levels of detail.
+
+        This function, by default, erases ``IDname`` attributes of all atoms at the end. You can change this behavior with *keep_labels* argument.
+
+        If the molecule does not contain bonds, :meth:`~scm.plams.mol.molecule.Molecule.guess_bonds` is used to determine them.
+        """
+        from scm.plams.mol.identify import possible_flags, clear, label_atoms, molecule_name
+
+        if isinstance(level, (tuple, list)):
+            return tuple(self.label(i) for i in level)  # type: ignore
+
+        if flags is None:
+            if level == 0:
+                return self.get_formula()
+
+            flags = {i: False for i in possible_flags}
+            if level >= 2:
+                flags["BO"] = True
+            if level >= 3:
+                flags["RS"] = True
+                flags["EZ"] = True
+            if level >= 4:
+                flags["DH"] = True
+                flags["CO"] = True
+
+        if len(self.bonds) == 0:
+            self.guess_bonds()
+
+        clear(self)
+        label_atoms(self, **flags)
+        ret = molecule_name(self)
+        if not keep_labels:
+            clear(self)
+        return ret
+
+    def set_local_labels(self, niter: int = 2, flags: Optional[Dict[str_type, Union[bool, float]]] = None) -> None:
+        """
+        Set atomic labels (IDnames) that are unique for local structures of a molecule
+
+        * ``niter`` -- The number of iterations in the atom labeling scheme
+
+        The idea of this method is that the number of iterations can be specified.
+        If kept low (default niter), local structures over different molecules will have the same label.
+        """
+        from scm.plams.mol.identify import possible_flags, initialize, iterate
+
+        if flags is None:
+            flags = {i: False for i in possible_flags}
+        initialize(self)
+        for i in range(niter):
+            iterate(self, flags)
+
+    @requires_optional_package("networkx")
+    def find_permutation(self, other: "Molecule", level: int = 1) -> Optional[List[int]]:
+        """
+        Reorder atoms in this molecule to match the order in some *other* molecule. The reordering is applied only if the perfect match is found. Returned value is the applied permutation (as a list of integers) or ``None``, if no reordering was performed.
+        """
+        import networkx
+        from scm.plams.mol.identify import get_graph
+
+        # Get bonds and unique atomIDs if needed
+        if len(self.bonds) == 0:
+            self.guess_bonds()
+        if not hasattr(self.atoms[0], "IDname"):
+            self.label(level=1, keep_labels=True)
+
+        # Link atom IDs to integers
+        dic: Dict[str, int] = {}
+        for at in self.atoms:
+            if not at.IDname in dic.keys():  # type: ignore[attr-defined]
+                dic[at.IDname] = max([v for v in dic.values()]) + 1 if len(dic) > 0 else 1  # type: ignore[attr-defined]
+
+        # Create the graphs
+        graph = get_graph(self, dic, level=1)
+        graph2 = get_graph(other, dic, level=1)
+        if graph2 is None:
+            return None
+
+        # Match
+        GM = networkx.isomorphism.GraphMatcher(
+            graph, graph2, edge_match=networkx.isomorphism.categorical_edge_match("weight", 1)
+        )
+        isomorphic = GM.is_isomorphic()
+        if not isomorphic:
+            return None
+
+        # Invert the solution dictionary, to be able to reorder the first graph
+        dic = {}
+        for k, v in GM.mapping.items():
+            dic[v] = k
+        keys = sorted([key for key in dic.keys()])
+        indices = [dic[key] for key in keys]
+
+        return indices
+
+    def reorder(self, other: "Molecule", level: int = 1) -> Optional["Molecule"]:
+        """
+        Reorder atoms in this molecule to match the order in some *other* molecule. The reordering is applied only if the perfect match is found. Returned value is a new ``Molecule`` object, or ``None`` if no reordering was performed. See also :func:`~scm.plams.mol.identify.find_permutation`.
+        """
+        indices = self.find_permutation(other, level=level)
+        if indices is None:
+            return None
+        mol = self.get_fragment(indices)
+        return mol

@@ -278,7 +278,7 @@ class TestNiO(MoleculeTestBase):
     def test_supercell(self, mol):
         supercell = mol.supercell(2, 3, 4)
         assert supercell.get_formula() == "Ni24O24"
-        assert supercell.lattice == [(0.0, 4.17, 4.17), (6.255, 0.0, 6.255), (8.34, 8.34, 0.0)]
+        assert supercell.lattice == [[0.0, 4.17, 4.17], [6.255, 0.0, 6.255], [8.34, 8.34, 0.0]]
         with pytest.raises(MoleculeError):
             mol.supercell(2, 2)
 
