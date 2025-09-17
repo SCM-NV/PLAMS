@@ -21,7 +21,7 @@ def preoptimize(
     maxiterations: int = 100,
 ) -> Molecule: ...
 @overload
-def preoptimize(  # type: ignore[]
+def preoptimize(
     molecule: Sequence[Molecule],
     model: str = "UFF",
     settings: Optional[Settings] = None,

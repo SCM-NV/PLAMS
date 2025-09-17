@@ -845,7 +845,7 @@ class AMSResults(Results):
 
         x = np.concatenate(x).ravel()
 
-        return x, y, labels  # type: ignore[]
+        return x, y, labels  # type: ignore[return-value]
 
     def get_phonons_thermodynamic_properties(
         self, temperature_unit: str = "K", properties_unit: List[str] = ["hartree", "kB"]
@@ -1791,8 +1791,8 @@ class AMSResults(Results):
                 back_mask = [x != 1 for x in d[k]]
                 d[k] = ["Forward" if x == 1 else "Backward" if x == 2 else x for x in d[k]]
 
-            forw[k] = list(compress(d[k], forw_mask))  # type: ignore[]
-            back[k] = list(compress(d[k], back_mask))  # type: ignore[]
+            forw[k] = list(compress(d[k], forw_mask))  # type: ignore[arg-type]
+            back[k] = list(compress(d[k], back_mask))  # type: ignore[arg-type]
             back[k].reverse()
             if k == "PathLength":
                 # print backwards direction as negative numbers
@@ -1925,7 +1925,7 @@ class AMSResults(Results):
         dipole_x = self.get_history_property(history_section="BinLog", varname="DipoleMoment_x")
         dipole_y = self.get_history_property(history_section="BinLog", varname="DipoleMoment_y")
         dipole_z = self.get_history_property(history_section="BinLog", varname="DipoleMoment_z")
-        data = np.column_stack((dipole_x, dipole_y, dipole_z))  # type: ignore[]
+        data = np.column_stack((dipole_x, dipole_y, dipole_z))  # type: ignore[arg-type]
         data *= Units.convert(1.0, "e*bohr", dipole_unit)
         return data
 

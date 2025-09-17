@@ -177,10 +177,10 @@ class ViewConfig:
         if not isinstance(self.padding, (int, float)):
             raise ValueError(f"padding must be a numeric value, but was '{self.padding}'")
         if self.direction and (
-            not isinstance(self.direction, str) or self.direction not in ViewDirections.__args__
-        ):  # type: ignore[]
+            not isinstance(self.direction, str) or self.direction not in ViewDirections.__args__  # type: ignore[attr-defined]
+        ):
             raise ValueError(
-                f"direction must be one of: '{', '.join(ViewDirections.__args__)}'; but was '{self.direction}'"  # type: ignore[]
+                f"direction must be one of: '{', '.join(ViewDirections.__args__)}'; but was '{self.direction}'"  # type: ignore[attr-defined]
             )
         if self.normal and (
             not isinstance(self.normal, Sequence)
@@ -232,9 +232,9 @@ class ViewConfig:
         if not isinstance(self.show_lattice_vectors, bool):
             raise ValueError(f"show_lattice_vectors must be a boolean value, but was '{self.show_lattice_vectors}'")
 
-        if not isinstance(self.backend, str) or self.backend not in Backends.__args__:  # type: ignore[]
+        if not isinstance(self.backend, str) or self.backend not in Backends.__args__:  # type: ignore[attr-defined]
             raise ValueError(
-                f"backend must be one of: '{', '.join(Backends.__args__)}'; but was '{self.backend}'"  # type: ignore[]
+                f"backend must be one of: '{', '.join(Backends.__args__)}'; but was '{self.backend}'"  # type: ignore[attr-defined]
             )
         if self.timeout and (not isinstance(self.timeout, int) or self.timeout < 0):
             raise ValueError(f"timeout must be a positive integer, but was '{self.timeout}'")

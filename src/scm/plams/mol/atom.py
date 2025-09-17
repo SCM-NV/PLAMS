@@ -97,7 +97,7 @@ class Atom:
                 except ValueError:
                     pass
                 tmp.append(i)
-            self.coords = tuple(tmp)  # type: ignore[]
+            self.coords = tuple(tmp)  # type: ignore[assignment]
         else:
             raise TypeError("Atom: Invalid coordinates passed")
 
@@ -185,7 +185,7 @@ class Atom:
     @property
     def symbol(self) -> str_type:
         if self.atnum == 0:
-            return self._dummysymbol  # type: ignore[]
+            return self._dummysymbol  # type: ignore[return-value]
         else:
             return PT.get_symbol(self.atnum)
 

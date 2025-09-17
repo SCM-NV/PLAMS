@@ -169,7 +169,7 @@ class Settings(dict):
                 self[name] = other[name]
         return self
 
-    def update(self, other: Mapping[Hashable, Any]):  # type: ignore[]
+    def update(self, other: Mapping[Hashable, Any]):  # type: ignore[no-untyped-def,override]
         """Update this instance with data from *other*, overwriting existing keys. Nested |Settings| instances are updated recursively.
 
         In the following example ``s`` and ``o`` are previously prepared |Settings| instances::
@@ -256,7 +256,7 @@ class Settings(dict):
         lowkey = key.lower()
         for k in self:
             try:
-                if k.lower() == lowkey:  # type: ignore[]
+                if k.lower() == lowkey:  # type: ignore[attr-defined]
                     return k
             except (AttributeError, TypeError):
                 pass
@@ -280,7 +280,7 @@ class Settings(dict):
         """Like regular ``setdefault``, but ignore the case and if the value is a dict, convert it to |Settings|."""
         if isinstance(default, dict) and not isinstance(default, Settings):
             default = Settings(default)
-        return dict.setdefault(self, self.find_case(key), default)  # type: ignore[]
+        return dict.setdefault(self, self.find_case(key), default)  # type: ignore[arg-type,return-value]
 
     def as_dict(self) -> Dict:
         """Return a copy of this instance with all |Settings| replaced by regular Python dictionaries."""
@@ -482,7 +482,7 @@ class Settings(dict):
         block_keys = list(self.block_keys(flatten_list, include_empty))
         for bk in block_keys:
             yield bk
-            for k, v in iter_block(self.get_nested(bk)):  # type: ignore[]
+            for k, v in iter_block(self.get_nested(bk)):  # type: ignore[arg-type]
                 # Maintain ordering by skipping branch keys here
                 fk = bk + (k,)
                 if (include_empty or v) and fk not in block_keys:
@@ -587,7 +587,7 @@ class Settings(dict):
 
         def _concatenate(key_ret: Tuple, sequence: Iterable) -> None:
             # Switch from Settings.items() to enumerate() if a list is encountered
-            for k, v in iter_type(sequence):  # type: ignore[]
+            for k, v in iter_type(sequence):  # type: ignore[union-attr]
                 k = key_ret + (k,)
                 if isinstance(v, nested_type) and v:  # Empty lists or Settings instances will return ``False``
                     _concatenate(k, v)
@@ -741,8 +741,8 @@ class SuppressMissing(contextlib.AbstractContextManager):
     def __enter__(self) -> None:
         """Enter the :class:`SuppressMissing` context manager: delete :meth:`.Settings.__missing__` at the class level."""
 
-        @wraps(self.missing)  # type: ignore[]
-        def __missing__(self, name: Hashable) -> Never:
+        @wraps(self.missing)  # type: ignore[arg-type]
+        def __missing__(self, name: Hashable) -> Never:  # type: ignore[no-untyped-def]
             raise KeyError(name)
 
         # The __missing__ method is replaced for as long as the context manager is open

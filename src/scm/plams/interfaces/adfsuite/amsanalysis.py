@@ -185,9 +185,9 @@ class AMSAnalysisResults(SCMResults):
         """
         if not self._kfpresent():
             raise FileError("File {} not present in {}".format(self.job.name + self.__class__._kfext, self.job.path))
-        if self._kf.reader._sections is None:  # type: ignore[]
-            self._kf.reader._create_index()  # type: ignore[]
-        return self._kf.reader._sections.keys()  # type: ignore[]
+        if self._kf.reader._sections is None:  # type: ignore[union-attr]
+            self._kf.reader._create_index()  # type: ignore[union-attr]
+        return self._kf.reader._sections.keys()  # type: ignore[union-attr]
 
     def get_xy(self, section: str = "", i: int = 1) -> AMSAnalysisPlot:
         """

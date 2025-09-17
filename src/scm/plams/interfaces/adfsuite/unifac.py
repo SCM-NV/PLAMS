@@ -38,13 +38,13 @@ class UnifacResults(CRSResults):
                 for i in f:
                     if '"$AMSBIN"/unifac' in i:
                         ret = i.split()
-                        arg_list[-1] = arg_list[-1].rstrip("\\")  # type: ignore[]
+                        arg_list[-1] = arg_list[-1].rstrip("\\")  # type: ignore[index]
                     else:
                         continue
 
                     while i.endswith("\\"):  # The input might be spread over multiple lines
                         i = next(f)
-                        ret += i.split().rstrip("\\")  # type: ignore[]
+                        ret += i.split().rstrip("\\")  # type: ignore[attr-defined]
                     del ret[0]  # Delete ``"$AMSBIN"/unifac``
                     break
             return ret

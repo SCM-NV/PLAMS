@@ -202,7 +202,7 @@ class SCMResults(Results):
                 "to_input_order() got an argument with incorrect length. Length must be equal to the number of atoms"
             )
         t = np.array if type(data) is np.ndarray else type(data)
-        return t([data[mapping[i] - 1] for i in range(len(mapping))])  # type: ignore[]
+        return t([data[mapping[i] - 1] for i in range(len(mapping))])
 
     def readarray(self, section: str, subsection: str, **kwargs: Any) -> "np.ndarray":
         """Read data from *section*/*subsection* of the main KF file and return as NumPy array.

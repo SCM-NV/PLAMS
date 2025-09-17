@@ -454,7 +454,7 @@ def from_smiles(
     smiles = Chem.CanonSmiles(smiles)
     rdkit_mol = Chem.AddHs(Chem.MolFromSmiles(smiles))
     rdkit_mol.SetProp("smiles", smiles)
-    return get_conformations(rdkit_mol, nconfs, name, forcefield, rms)  # type: ignore[]
+    return get_conformations(rdkit_mol, nconfs, name, forcefield, rms)
 
 
 @overload
@@ -492,7 +492,7 @@ def from_smarts(
     Chem.SanitizeMol(mol)
     molecule = Chem.AddHs(mol)
     molecule.SetProp("smiles", smiles)
-    return get_conformations(molecule, nconfs, name, forcefield, rms)  # type: ignore[]
+    return get_conformations(molecule, nconfs, name, forcefield, rms)
 
 
 @overload
@@ -774,7 +774,7 @@ def from_sequence(
 
     rdkit_mol = Chem.AddHs(Chem.MolFromSequence(sequence))
     rdkit_mol.SetProp("sequence", sequence)
-    return get_conformations(rdkit_mol, nconfs, name, forcefield, rms)  # type: ignore[]
+    return get_conformations(rdkit_mol, nconfs, name, forcefield, rms)
 
 
 @requires_optional_package("rdkit")
@@ -1304,7 +1304,7 @@ def partition_protein(
             if (resa, resb) not in residue_bonds and (resb, resa) not in residue_bonds:
                 continue
         cap = get_fragment(mol, match[0:5])
-        cap = add_Hs(cap, return_rdmol=True)  # type: ignore[]
+        cap = add_Hs(cap, return_rdmol=True)
         caps.append(cap if return_rdmol else from_rdmol(cap))
         cap_o_ind = cap.GetSubstructMatch(Chem.MolFromSmarts("[C;X4][CX3]=O"))
         cap_o = get_fragment(cap, cap_o_ind, neutralize=False)
@@ -1317,7 +1317,7 @@ def partition_protein(
     ss_bond = Chem.MolFromSmarts("[C;X4;H1,H2]SS[C;X4;H1,H2]")
     for match in mol.GetSubstructMatches(ss_bond):
         cap = get_fragment(mol, match[0:5])
-        cap = add_Hs(cap, return_rdmol=True)  # type: ignore[]
+        cap = add_Hs(cap, return_rdmol=True)
         caps.append(cap if return_rdmol else from_rdmol(cap))
         cap_s_ind = cap.GetSubstructMatch(Chem.MolFromSmarts("[C;X4]SS[C;X4]"))
         cap_s1 = get_fragment(cap, cap_s_ind[0:2], neutralize=False)
@@ -1438,7 +1438,7 @@ def get_substructure(
     rdmol = to_rdmol(mol)
     rdmol_func_list = [_to_rdmol(i) for i in func_list]
     gen = (_get_match(mol, rdmol, i) for i in rdmol_func_list)
-    return {key: value for key, value in zip(func_list, gen) if value}  # type: ignore[]
+    return {key: value for key, value in zip(func_list, gen) if value}  # type: ignore[misc]
 
 
 def yield_coords(rdmol: "RDKitMol", id: int = -1) -> Generator[Tuple[float, float, float], None, None]:
@@ -1761,7 +1761,7 @@ def _get_reaction_image_svg(
 
     # Place the molecules in a row of images
     kwargs = {"legendFontSize": 16}  # ,"legendFraction":0.1}
-    img_text = _MolsToGridSVG(rdmols, molsPerRow=nmols, subImgSize=(width, height), **kwargs)  # type: ignore[]
+    img_text = _MolsToGridSVG(rdmols, molsPerRow=nmols, subImgSize=(width, height), **kwargs)  # type: ignore[arg-type]
     img_text = _correct_svg(img_text)
 
     # Add + and =>

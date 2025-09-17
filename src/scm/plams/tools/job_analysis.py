@@ -730,7 +730,7 @@ class JobAnalysis:
         :param job: |Job| or path to a job to remove from the analysis
         :return: copy of |JobAnalysis| with the job removed
         """
-        path = job.path if isinstance(job, Job) else str(os.path.abspath(job))  # type: ignore[]
+        path = job.path if isinstance(job, Job) else str(os.path.abspath(job))  # type: ignore[type-var,misc]
         if path not in self._jobs:
             raise KeyError(f"Job with path '{path}' is not part of the analysis.")
 
@@ -1568,7 +1568,7 @@ class JobAnalysis:
         cpy = self.copy()
         cpy = cpy.add_field(
             key,
-            lambda j, k=key_tuple: cpy._get_job_settings(j).get_nested(k),  # type: ignore[]
+            lambda j, k=key_tuple: cpy._get_job_settings(j).get_nested(k),  # type: ignore[type-var,misc]
             display_name=display_name,
             fmt=fmt,
             expansion_depth=expansion_depth,
@@ -1616,8 +1616,8 @@ class JobAnalysis:
                 field_key = "".join([str(k).title() for k in key])
                 field = cpy._Field(
                     key=field_key,
-                    value_extractor=lambda j, k=key: cpy._get_job_settings(j).get_nested(k),
-                    from_settings=True,  # type: ignore[]
+                    value_extractor=lambda j, k=key: cpy._get_job_settings(j).get_nested(k),  # type: ignore[misc]
+                    from_settings=True,
                 )
                 if field_key not in cpy._fields:
                     cpy._fields[field_key] = field

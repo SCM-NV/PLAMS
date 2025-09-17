@@ -141,8 +141,8 @@ def new_name(atom: "Atom", flags: Dict[str, Any]) -> str:
                 for k in d:
                     if k != label:
                         angles.append(
-                            sorted(bend(v1, atom.vector_to(a), flags.get("bend_tol")) for a in d[k])
-                        )  # type: ignore[]
+                            sorted(bend(v1, atom.vector_to(a), flags.get("bend_tol")) for a in d[k])  # type: ignore[arg-type]
+                        )
             more.append("CO" + str(angles))
 
     return sha256("|".join([atom.IDname] + [i[0] for i in knocks] + more))  # type: ignore[attr-defined]
