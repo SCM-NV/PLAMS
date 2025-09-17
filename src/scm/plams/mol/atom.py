@@ -212,11 +212,11 @@ class Atom:
 
     @property
     def is_metallic(self) -> bool:
-        return PT.get_metallic(self.atnum)
+        return bool(PT.get_metallic(self.atnum))
 
     @property
     def is_electronegative(self) -> bool:
-        return PT.get_electronegative(self.atnum)
+        return bool(PT.get_electronegative(self.atnum))
 
     def translate(self, vector: Iterable[float], unit: str_type = "angstrom") -> None:
         """Move this atom in space by *vector*, expressed in *unit*.
@@ -228,15 +228,15 @@ class Atom:
         ratio = Units.conversion_ratio(unit, "angstrom")
         self.coords = tuple(i + j * ratio for i, j in zip(self, vector))
 
-    def move_to(self, point: Iterable[float], unit: str_type = "angstrom") -> None:
+    def move_to(self, point: Sequence[float], unit: str_type = "angstrom") -> None:
         """Move this atom to a given *point* in space, expressed in *unit*.
 
-        *point* should be an iterable container of length 3 (for example: tuple, |Atom|, list, numpy array). *unit* describes unit of values stored in *point*.
+        *point* should be a container of length 3 (for example: tuple, |Atom|, list, numpy array). *unit* describes unit of values stored in *point*.
 
         This method requires all atomic coordinates to be numerical values, :exc:`~exceptions.TypeError` is raised otherwise.
         """
         ratio = Units.conversion_ratio(unit, "angstrom")
-        self.coords = tuple(i * ratio for i in point)
+        self.coords = (point[0] * ratio, point[1] * ratio, point[2] * ratio)
 
     def distance_to(
         self, point: Iterable[float], unit: str_type = "angstrom", result_unit: str_type = "angstrom"

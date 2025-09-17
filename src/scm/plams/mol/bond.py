@@ -31,8 +31,8 @@ class Bond:
 
     def __init__(
         self,
-        atom1: "Atom" = None,
-        atom2: "Atom" = None,
+        atom1: "Atom" = None,  # type: ignore[assignment]
+        atom2: "Atom" = None,  # type: ignore[assignment]
         order: float = 1,
         mol: Optional["Molecule"] = None,
         **other: Any,
