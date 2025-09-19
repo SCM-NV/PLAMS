@@ -78,7 +78,7 @@ def fromASE(molecule: "ASEAtoms", properties: Optional[Settings] = None, set_cha
         # loop over three booleans
         for i, boolean in enumerate(molecule.get_pbc().tolist()):
             if boolean:
-                lattice.append([molecule.get_cell()[i]])
+                lattice.append(list(molecule.get_cell()[i]))
 
         # write lattice to plams_mol
         plams_mol.lattice = lattice.copy()

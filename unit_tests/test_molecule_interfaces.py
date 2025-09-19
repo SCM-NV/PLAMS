@@ -63,6 +63,7 @@ class TestASE:
             print(f"Testing roundtrip for molecule '{name}'")
             converted_mol = toASE(orig_mol)
             final_mol = fromASE(converted_mol)
+            final_mol.str()  # check string conversion does not error
             assert final_mol.label(4) == orig_mol.label(4)
 
     def test_to_ase_requires_ase_package(self, plams_mols):
