@@ -11,7 +11,7 @@ class FCFResults(SCMResults):
     _kfext = ".t61"
     _rename_map = {"TAPE61": "$JN" + _kfext}
 
-    def get_molecule(self, *args: Any, **kwargs: Any) -> None:
+    def get_molecule(self, *args: Any, **kwargs: Any) -> None:  # type: ignore[override]
         raise PlamsError("FCFResults do not support get_molecule() method. You can get molecules from job1 or job2")
 
 

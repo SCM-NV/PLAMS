@@ -176,7 +176,7 @@ class AMSAnalysisResults(SCMResults):
     _kfext = ".kf"
     _rename_map = {"plot.kf": "$JN" + _kfext}
 
-    def get_molecule(self, *args: Any, **kwargs: Any) -> NoReturn:
+    def get_molecule(self, *args: Any, **kwargs: Any) -> NoReturn:  # type: ignore[override]
         raise PlamsError("AMSAnalysisResults does not support the get_molecule() method.")
 
     def get_sections(self) -> KeysView[str]:
@@ -185,9 +185,9 @@ class AMSAnalysisResults(SCMResults):
         """
         if not self._kfpresent():
             raise FileError("File {} not present in {}".format(self.job.name + self.__class__._kfext, self.job.path))
-        if self._kf.reader._sections is None:  # type: ignore
-            self._kf.reader._create_index()  # type: ignore
-        return self._kf.reader._sections.keys()  # type: ignore
+        if self._kf.reader._sections is None:  # type: ignore[union-attr]
+            self._kf.reader._create_index()  # type: ignore[union-attr]
+        return self._kf.reader._sections.keys()  # type: ignore[union-attr]
 
     def get_xy(self, section: str = "", i: int = 1) -> AMSAnalysisPlot:
         """
@@ -300,7 +300,7 @@ class AMSAnalysisJob(SCMJob):
         """
         from scm.plams import AMSJob
 
-        systems = AMSJob._serialize_molecule(self)
+        systems = AMSJob._serialize_molecule(self)  # type: ignore[arg-type]
         if len(systems) > 0:
             if _has_scm_pisa and isinstance(self.settings.input, DriverBlock):
                 self.settings.system = systems

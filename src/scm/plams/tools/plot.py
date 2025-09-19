@@ -355,7 +355,7 @@ def plot_grid_molecules(
     :rtype: pil.Image or plt.Axes or string
     """
     from rdkit.Chem import Draw, rdchem
-    from rdkit.Chem.Draw import IPythonConsole
+    from rdkit.Chem.Draw import IPythonConsole  # type: ignore[attr-defined]
     from scm.plams.interfaces.molecule.rdkit import _rdmol_for_image
 
     # guess bonds, the bonds will be included in the RDKit molecule

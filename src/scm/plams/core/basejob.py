@@ -67,13 +67,13 @@ def _fail_on_exception(func: Callable[Concatenate[J, P], T]) -> Callable[Concate
             return func(self, *args, **kwargs)
         except Exception as ex:
             # Mark job status as failed and the results as complete
-            log(f"Encountered exception {ex} in {self.name}, marking job as {JobStatus.FAILED}", 5)  # type: ignore
+            log(f"Encountered exception {ex} in {self.name}, marking job as {JobStatus.FAILED}", 5)
             self.status = JobStatus.FAILED
-            self.results.finished.set()  # type: ignore
-            self.results.done.set()  # type: ignore
+            self.results.finished.set()  # type: ignore[has-type]
+            self.results.done.set()  # type: ignore[has-type]
             # Notify any parent multi-job of the failure
-            if self.parent and self in self.parent:  # type: ignore
-                self.parent._notify()  # type: ignore
+            if self.parent and self in self.parent:  # type: ignore[has-type]
+                self.parent._notify()
             # Store the exception message to be accessed from get_errormsg
             self._error_msg = traceback.format_exc()
         return None
@@ -811,7 +811,9 @@ class MultiJob(Job):
         """Remove *job* from children."""
 
         rm = None
-        for i, j in self.children.items() if isinstance(self.children, dict) else enumerate(self.children):  # type: ignore
+        for i, j in (
+            self.children.items() if isinstance(self.children, dict) else enumerate(self.children)  # type: ignore[attr-defined]
+        ):
             if j == job:
                 rm = i
                 break

@@ -26,7 +26,7 @@ class CRSResults(SCMResults):
     @property
     def section(self) -> str:
         try:  # Return the cached value if possible
-            return self._section  # type: ignore
+            return self._section  # type: ignore[has-type]
         except AttributeError:
             try:
                 self._section = self.job.settings.input.property._h.upper()
@@ -279,7 +279,7 @@ class CRSResults(SCMResults):
             dict_Asson["NumReqCompAssoc"] = NumReqCompAssoc
             dict_Asson["ReqCompNameAssoc"] = ReqCompNameAssoc
         else:
-            dict_Asson = None  # type: ignore
+            dict_Asson = None  # type: ignore[assignment]
 
         if as_df:
             try:
@@ -327,7 +327,7 @@ class CRSResults(SCMResults):
                 return np.arange(array.shape[1])
 
             if isinstance(x_axis, str):
-                ret = self._prop_dict[x_axis]
+                ret = self._prop_dict[x_axis]  # type: ignore[attr-defined]
             else:
                 ret = np.array(x_axis, copy=False)
             ret = ret.ravel()  # Flatten it

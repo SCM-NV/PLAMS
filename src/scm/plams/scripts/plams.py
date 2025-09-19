@@ -66,7 +66,6 @@ def main():
     )
     parser.add_argument("file", nargs="+", type=str, help="file with PLAMS script")
     args = parser.parse_args()
-    print(args)
 
     # add -v variables to the plams_namespace
     for pair in args.vars:

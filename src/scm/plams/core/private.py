@@ -95,7 +95,9 @@ def run_with_timeout(
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         start_new_session=(os.name == "posix"),
-        creationflags=(subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0),  # type: ignore
+        creationflags=(
+            subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0  # type: ignore[attr-defined]
+        ),
         env=env,
     )
 

@@ -10,7 +10,7 @@ class DensfResults(SCMResults):
     _kfext = ".t41"
     _rename_map = {"TAPE41": "$JN" + _kfext}
 
-    def get_molecule(self, *args: Any, **kwargs: Any) -> None:
+    def get_molecule(self, *args: Any, **kwargs: Any) -> None:  # type: ignore[override]
         raise PlamsError("DensfResults do not support get_molecule() method. You can get molecule from inputjob")
 
 

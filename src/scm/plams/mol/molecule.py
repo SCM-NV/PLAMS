@@ -7,12 +7,8 @@ import os
 from collections import OrderedDict
 
 import numpy as np
-from scm.plams.core.errors import (
-    FileError,
-    MissingOptionalPackageError,
-    MoleculeError,
-    PTError,
-)
+
+from scm.plams.core.errors import FileError, MissingOptionalPackageError, MoleculeError, PTError
 from scm.plams.core.functions import log, requires_optional_package
 from scm.plams.core.private import parse_action, smart_copy
 from scm.plams.core.settings import Settings
@@ -462,6 +458,8 @@ class Molecule:
         """
         if isinstance(arg1, Atom) and isinstance(arg2, Atom):
             delbond = self.find_bond(arg1, arg2)
+            if delbond is None:
+                raise MoleculeError("Cannot delete bond as bond cannot be found between supplied atoms.")
         elif isinstance(arg1, Bond):
             delbond = arg1
         else:
@@ -603,9 +601,9 @@ class Molecule:
 
         for at in clone.atoms:
             del at._visited  # type: ignore[attr-defined]
-            at.mol.atoms.append(at)
+            at.mol.atoms.append(at)  # type: ignore[union-attr]
         for b in clone.bonds:
-            b.mol.bonds.append(b)
+            b.mol.bonds.append(b)  # type: ignore[union-attr]
 
         return frags
 
@@ -905,7 +903,7 @@ class Molecule:
             if search_depth is not None:
                 if search_depth <= 0:
                     return en
-            en = [electronegativities[atom.symbol] if atom.symbol in electronegativities else None]  # type: ignore
+            en = [electronegativities[atom.symbol] if atom.symbol in electronegativities else None]  # type: ignore[index,list-item,operator]
             en = [v for v in en if v is not None]
             if search_depth is not None:
                 search_depth -= 1
@@ -1353,8 +1351,8 @@ class Molecule:
                 atom_new = b2.other_end(atom)
                 dfs(atom_new, func=func_invert[func])
 
-        def collect_and_mark_bonds(self: TSelf) -> Tuple["OrderedDict[Bond, Optional[bool]]", List[int]]:
-            order_before: List[int] = []
+        def collect_and_mark_bonds(self: TSelf) -> Tuple["OrderedDict[Bond, Optional[bool]]", List[float]]:
+            order_before: List[float] = []
             order_before_append = order_before.append
 
             # Mark all non-integer bonds; floats which can be represented exactly
@@ -1414,7 +1412,7 @@ class Molecule:
     @overload
     def index(self, value: Atom, start: int = 1, stop: Optional[int] = None) -> int: ...
     @overload
-    def index(self, value: Bond, start: int = 1, stop: Optional[int] = None) -> Tuple[int, int]: ...  # type: ignore
+    def index(self, value: Bond, start: int = 1, stop: Optional[int] = None) -> Tuple[int, int]: ...
     def index(
         self, value: Union[Atom, Bond], start: int = 1, stop: Optional[int] = None
     ) -> Union[int, Tuple[int, int]]:
@@ -1615,7 +1613,7 @@ class Molecule:
         D = distance_array(solvated_coords, solvated_coords)[zero_based_indices]
         less_equal = np.less_equal(D, threshold)
         within_threshold = np.any(less_equal, axis=0)
-        good_indices = [i for i, value in enumerate(within_threshold) if value]  # type: ignore
+        good_indices = [i for i, value in enumerate(within_threshold) if value]
 
         complete_indices: Set[int] = set()
         for indlist in molecule_indices:
@@ -1639,7 +1637,7 @@ class Molecule:
             """
             bond = None
             for bond in ret.bonds:
-                indices = [i - 1 for i in ret.index(bond)]  # type: ignore
+                indices = [i - 1 for i in ret.index(bond)]
                 if iat1 in indices and iat2 in indices:
                     break
             if bond is None:
@@ -2023,7 +2021,7 @@ class Molecule:
         idx = dist_array.argmin()
         return self[idx + 1]
 
-    def distance_to_point(self, point: object, unit: str = "angstrom", result_unit: str = "angstrom") -> float:
+    def distance_to_point(self, point: Iterable[float], unit: str = "angstrom", result_unit: str = "angstrom") -> float:
         """Calculate the distance between the molecule and some *point* in space (distance between *point* and :meth:`closest_atom`).
 
         *point* should be an iterable container of length 3 (for example: tuple, |Atom|, list, numpy array). *unit* describes unit of values stored in *point*. Returned value is expressed in *result_unit*.
@@ -2366,7 +2364,7 @@ class Molecule:
                 # Check if the mapping has moved the bonded atoms relative to each other.
                 at1: int
                 at2: int
-                at1, at2 = self.index(b)  # type: ignore
+                at1, at2 = self.index(b)
                 at1 = at1 - 1
                 at2 = at2 - 1  # -1 because np.array is indexed from 0
                 relshift = (shift[at2, :n] - shift[at1, :n]).astype(int)
@@ -2724,7 +2722,7 @@ class Molecule:
     def __getitem__(self, key: int) -> Atom: ...
     @overload
     def __getitem__(self, key: Tuple[int, int]) -> Bond: ...
-    def __getitem__(self, key: Union[int, Tuple[int, int]]) -> Union[Atom, Bond]:
+    def __getitem__(self, key: Union[int, Tuple[int, int]]) -> Union[Atom, Optional[Bond]]:
         """The bracket notation can be used to access atoms or bonds directly.
 
         If *key* is a single int (``mymol[i]``), return i-th atom of the molecule. If *key* is a pair of ints (``mymol[(i,j)]``), return the bond between i-th and j-th atom (``None`` if such a bond does not exist). Negative integers can be used to access atoms enumerated in the reversed order.
@@ -2849,15 +2847,15 @@ class Molecule:
         mol.bonds = []
         for a_dict in atom_dicts:
             a = Atom()
-            a.__dict__ = a_dict
+            a.__dict__ = a_dict  # type: ignore[assignment]
             a.mol = None
             a.bonds = []
             mol.add_atom(a)
         for b_dict in bond_dicts:
-            b = Bond(None, None)
-            b_dict["atom1"] = mol.atoms[b_dict["atom1"]]
-            b_dict["atom2"] = mol.atoms[b_dict["atom2"]]
-            b.__dict__ = b_dict
+            b = Bond()
+            b_dict["atom1"] = mol.atoms[b_dict["atom1"]]  # type: ignore[index]
+            b_dict["atom2"] = mol.atoms[b_dict["atom2"]]  # type: ignore[index]
+            b.__dict__ = b_dict  # type: ignore[assignment]
             b.mol = None
             mol.add_bond(b)
         return mol
@@ -3063,11 +3061,12 @@ class Molecule:
                             symb = atomline[31:34].strip()
                         else:
                             tmp = atomline.split()
-                            crd = tuple(map(float, tmp[0:3]))  # type: ignore
+                            crd = tuple(map(float, tmp[0:3]))  # type: ignore[assignment]
                             symb = tmp[3]
                         self.add_atom(Atom(symbol=symb, coords=crd))
                     for j in range(nbond):
                         bondline = f.readline().rstrip()
+                        ordr: float
                         if len(bondline) == 21:
                             at1 = int(bondline[0:3])
                             at2 = int(bondline[3:6])
@@ -3224,7 +3223,7 @@ class Molecule:
 
         self.unset_atoms_id()
 
-    def readpdb(self, f: IO, geometry: int = 1, **other: Any) -> None:
+    def readpdb(self, f: IO, geometry: int = 1, **other: Any) -> PDBHandler:
         """PDB Reader:
 
         The pdb format allows to store more than one geometry of a particular molecule within a single file.
@@ -3302,6 +3301,10 @@ class Molecule:
         from scm.plams.interfaces.molecule.ase import fromASE
 
         ase_mol = io.read(f, **other)
+        if isinstance(ase_mol, list):
+            raise MoleculeError(
+                "ASE file contains multiple geometries, which cannot be converted to a single Molecule."
+            )
         mol = fromASE(ase_mol)
         # update self with the molecule read without overwriting e.g. settings
         self += mol
@@ -3387,10 +3390,7 @@ class Molecule:
             ret.properties.charge = sectiondict["Charge"]
         if "nLatticeVectors" in sectiondict:
             ret.lattice = Units.convert(
-                [
-                    tuple(sectiondict["LatticeVectors"][i : i + 3])
-                    for i in range(0, len(sectiondict["LatticeVectors"]), 3)
-                ],
+                [[sectiondict["LatticeVectors"][i : i + 3]] for i in range(0, len(sectiondict["LatticeVectors"]), 3)],
                 "bohr",
                 "angstrom",
             )
@@ -3473,7 +3473,7 @@ class Molecule:
             raise ValueError("No System block found in file.")
         sysname = other.get("sysname", "")
         mols = AMSJob.settings_to_mol(sett)
-        if sysname not in mols:
+        if mols is None or sysname not in mols:
             raise KeyError(f'No System block with id "{sysname}" found in file.')
         self.__dict__.update(mols[sysname].__dict__)
         for at in self.atoms:
@@ -3933,7 +3933,7 @@ class Molecule:
         from scm.plams.mol.identify import possible_flags, clear, label_atoms, molecule_name
 
         if isinstance(level, (tuple, list)):
-            return tuple(self.label(i) for i in level)  # type: ignore
+            return tuple(self.label(i) for i in level)  # type: ignore[return-value]
 
         if flags is None:
             if level == 0:

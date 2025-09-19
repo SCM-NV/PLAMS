@@ -174,7 +174,7 @@ class SCMResults(Results):
         """
         return hasattr(self, "_kf") and isinstance(self._kf, KFFile)
 
-    def _export_attribute(self: TSelf, attr: T, other: TSelf) -> Optional[T]:
+    def _export_attribute(self: TSelf, attr: T, other: TSelf) -> Optional[T]:  # type: ignore[override]
         """_export_attribute(attr, other)
         If *attr* is a KF file take care of a proper path. Otherwise use parent method. See :meth:`Results._copy_to<scm.plams.core.results.Results._copy_to>` for details.
         """
@@ -182,7 +182,7 @@ class SCMResults(Results):
             oldname = os.path.basename(attr.path)
             newname = Results._replace_job_name(oldname, self.job.name, other.job.name)
             newpath = str(other.job.get_path() / newname)
-            return KFFile(newpath) if os.path.isfile(newpath) else None
+            return KFFile(newpath) if os.path.isfile(newpath) else None  # type: ignore[return-value]
         else:
             return Results._export_attribute(self, attr, other)
 
@@ -202,7 +202,7 @@ class SCMResults(Results):
                 "to_input_order() got an argument with incorrect length. Length must be equal to the number of atoms"
             )
         t = np.array if type(data) is np.ndarray else type(data)
-        return t([data[mapping[i] - 1] for i in range(len(mapping))])  # type: ignore
+        return t([data[mapping[i] - 1] for i in range(len(mapping))])
 
     def readarray(self, section: str, subsection: str, **kwargs: Any) -> "np.ndarray":
         """Read data from *section*/*subsection* of the main KF file and return as NumPy array.
@@ -308,7 +308,7 @@ class SCMJob(SingleJob):
                     i += 1
 
                 for el in value:
-                    if not el.startswith("_"):
+                    if isinstance(el, str) and not el.startswith("_"):
                         ret += serialize(el, value[el], indent + 2)
 
                 if indent == 0:
@@ -361,11 +361,11 @@ class SCMJob(SingleJob):
             self._remove_mol()
         return inp
 
-    def _serialize_mol(self) -> NoReturn:
+    def _serialize_mol(self) -> None:
         """Process |Molecule| instance stored in ``molecule`` attribute and add it as relevant entries of ``settings.input`` branch. Abstract method."""
         raise PlamsError("Trying to run an abstract method SCMJob._serialize_mol()")
 
-    def _remove_mol(self) -> NoReturn:
+    def _remove_mol(self) -> None:
         """Remove from ``settings.input`` all entries added by :meth:`_serialize_mol`. Abstract method."""
         raise PlamsError("Trying to run an abstract method SCMJob._remove_mol()")
 

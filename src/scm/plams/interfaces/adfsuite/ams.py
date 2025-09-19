@@ -272,6 +272,8 @@ class AMSResults(Results):
         sectiondict = self.read_rkf_section(section, file)
         if sectiondict:
             return Molecule._mol_from_rkf_section(sectiondict)
+        else:
+            raise ValueError(f"Could not retrieve molecule from rkf section '{section}' for file '{file}.rkf'")
 
     @requires_optional_package("scm.libbase")
     def get_system(self, section: str, file: str = "ams") -> "ChemicalSystem":
@@ -413,8 +415,8 @@ class AMSResults(Results):
         main = self.rkfs["ams"]
         if not self.is_valid_stepnumber(main, step):
             return None
-        coords = main.read_reals("History", f"Coords({step})")
-        coords = [coords[i : i + 3] for i in range(0, len(coords), 3)]
+        flat_coords = main.read_reals("History", f"Coords({step})")
+        coords = [flat_coords[i : i + 3] for i in range(0, len(flat_coords), 3)]
         if ("History", f"SystemVersion({step})") in main:
             system = self.get_system_version(main, step)
             mol = self.get_molecule(f"ChemicalSystem({system})")
@@ -432,7 +434,7 @@ class AMSResults(Results):
 
         if ("History", "LatticeVectors(" + str(step) + ")") in main:
             lattice = Units.convert(main.read_reals("History", "LatticeVectors(" + str(step) + ")"), "bohr", "angstrom")
-            mol.lattice = [tuple(lattice[j : j + 3]) for j in range(0, len(lattice), 3)]
+            mol.lattice = [lattice[j : j + 3] for j in range(0, len(lattice), 3)]
 
         # Bonds from the reference molecule are probably outdated. Let us never use them ...
         mol.delete_all_bonds()
@@ -843,7 +845,7 @@ class AMSResults(Results):
 
         x = np.concatenate(x).ravel()
 
-        return x, y, labels  # type: ignore
+        return x, y, labels  # type: ignore[return-value]
 
     def get_phonons_thermodynamic_properties(
         self, temperature_unit: str = "K", properties_unit: List[str] = ["hartree", "kB"]
@@ -1063,8 +1065,9 @@ class AMSResults(Results):
 
         The *engine* argument should be the identifier of the file you wish to read. To access a file called ``something.rkf`` you need to call this function with ``engine='something'``. The *engine* argument can be omitted if there's only one engine results file in the job folder.
         """
-        freqs = self._process_engine_results(lambda x: x.read_reals("Vibrations", "Frequencies[cm-1]"), engine)
-        freqs = np.array(freqs)
+        freqs = np.array(
+            self._process_engine_results(lambda x: x.read_reals("Vibrations", "Frequencies[cm-1]"), engine)
+        )
         return freqs * Units.conversion_ratio("cm^-1", unit)
 
     def get_frequency_spectrum(
@@ -1104,8 +1107,9 @@ class AMSResults(Results):
 
         The *engine* argument should be the identifier of the file you wish to read. To access a file called ``something.rkf`` you need to call this function with ``engine='something'``. The *engine* argument can be omitted if there's only one engine results file in the job folder.
         """
-        forceConstants = self._process_engine_results(lambda x: x.read_reals("Vibrations", "ForceConstants"), engine)
-        forceConstants = np.array(forceConstants)
+        forceConstants = np.array(
+            self._process_engine_results(lambda x: x.read_reals("Vibrations", "ForceConstants"), engine)
+        )
         return forceConstants
 
     def get_pvdos(self, engine: Optional[str] = None) -> np.ndarray:
@@ -1116,8 +1120,7 @@ class AMSResults(Results):
         pvdos = self._process_engine_results(lambda x: x.read_reals("Vibrations", "PVDOS"), engine)
         nNormalModes = self._process_engine_results(lambda x: x.read_int("Vibrations", "nNormalModes"), engine)
         nAtoms = len(self.get_main_molecule())
-        pvdos = np.array(pvdos).reshape(nNormalModes, nAtoms)
-        return pvdos
+        return np.array(pvdos).reshape(nNormalModes, nAtoms)
 
     def get_reduced_masses(self, engine: Optional[str] = None) -> np.ndarray:
         """Return a numpy array of reduced masses, expressed in amu units.
@@ -1292,7 +1295,7 @@ class AMSResults(Results):
             broadening_width=broadening_width,
             broadening_type=broadening_type,
             x_data=(min_x, max_x, x_spacing),
-            post_process=post_process,
+            post_process=post_process if post_process == "max_to_1" else None,
         )
 
         if post_process == "max_to_1":
@@ -1788,8 +1791,8 @@ class AMSResults(Results):
                 back_mask = [x != 1 for x in d[k]]
                 d[k] = ["Forward" if x == 1 else "Backward" if x == 2 else x for x in d[k]]
 
-            forw[k] = list(compress(d[k], forw_mask))  # type: ignore
-            back[k] = list(compress(d[k], back_mask))  # type: ignore
+            forw[k] = list(compress(d[k], forw_mask))  # type: ignore[arg-type]
+            back[k] = list(compress(d[k], back_mask))  # type: ignore[arg-type]
             back[k].reverse()
             if k == "PathLength":
                 # print backwards direction as negative numbers
@@ -1922,7 +1925,7 @@ class AMSResults(Results):
         dipole_x = self.get_history_property(history_section="BinLog", varname="DipoleMoment_x")
         dipole_y = self.get_history_property(history_section="BinLog", varname="DipoleMoment_y")
         dipole_z = self.get_history_property(history_section="BinLog", varname="DipoleMoment_z")
-        data = np.column_stack((dipole_x, dipole_y, dipole_z))  # type: ignore
+        data = np.column_stack((dipole_x, dipole_y, dipole_z))  # type: ignore[arg-type]
         data *= Units.convert(1.0, "e*bohr", dipole_unit)
         return data
 
@@ -2851,7 +2854,7 @@ class AMSJob(SingleJob):
     ):
         def copy_mol(mol: T) -> T:
             if isinstance(mol, Molecule):
-                return mol.copy()
+                return mol.copy()  # type: ignore[return-value]
             elif _has_scm_chemsys and isinstance(mol, ChemicalSystem):
                 return mol.copy()
             else:
@@ -2859,7 +2862,7 @@ class AMSJob(SingleJob):
 
         if molecule is not None:
             molecule = (
-                {k: copy_mol(m) for k, m in molecule.items()} if isinstance(molecule, dict) else copy_mol(molecule)
+                {k: copy_mol(m) for k, m in molecule.items()} if isinstance(molecule, dict) else copy_mol(molecule)  # type: ignore[arg-type]
             )
         super().__init__(molecule, *args, **kwargs)
 
@@ -2888,7 +2891,7 @@ class AMSJob(SingleJob):
             observer.start()
 
             try:
-                results = super().run(jobrunner=jobrunner, jobmanager=jobmanager, **kwargs)
+                results = cast(AMSResults, super().run(jobrunner=jobrunner, jobmanager=jobmanager, **kwargs))
                 results.wait()
                 event_handler.trigger()
             finally:
@@ -2896,7 +2899,7 @@ class AMSJob(SingleJob):
                 observer.join()
 
         else:
-            results = super().run(jobrunner=jobrunner, jobmanager=jobmanager, **kwargs)
+            results = cast(AMSResults, super().run(jobrunner=jobrunner, jobmanager=jobmanager, **kwargs))
 
         return results
 
@@ -3128,7 +3131,9 @@ class AMSJob(SingleJob):
                             children.append((ckey, value[ckey]))
                 else:
                     # Unordered block: normal Python order when iterating over a dict/Settings
-                    children = [(ckey, value[ckey]) for ckey in value if not ckey.startswith("_")]
+                    children = [
+                        (ckey, value[ckey]) for ckey in value if isinstance(ckey, str) and not ckey.startswith("_")
+                    ]
 
                 # Serialize all children
                 for ckey, cvalue in children:
@@ -3280,7 +3285,7 @@ class AMSJob(SingleJob):
             # and then engines
             for engine in input_settings:
                 if engine != ams:
-                    txtinp += "\n" + serialize("Engine " + engine, input_settings[engine], 0, end="EndEngine") + "\n"
+                    txtinp += "\n" + serialize(f"Engine {engine}", input_settings[engine], 0, end="EndEngine") + "\n"
 
         return txtinp
 
@@ -3461,7 +3466,7 @@ class AMSJob(SingleJob):
         settings: Optional[Settings] = None,
         molecule: Optional[Molecule] = None,
         finalize: bool = False,
-        fmt: str = "ams",
+        fmt: str = "ams",  # type: ignore[override]
     ) -> "AMSJob":
         """Load an external job from *path*.
 
@@ -3547,7 +3552,7 @@ class AMSJob(SingleJob):
             else:
                 raise FileError("Path {} does not exist, cannot load from it.".format(path))
 
-        job = super(AMSJob, cls).load_external(path, settings, molecule, finalize)
+        job = cast(AMSJob, super(AMSJob, cls).load_external(path, settings, molecule, finalize))
 
         if preferred_name is not None:
             job.name = preferred_name
@@ -3656,7 +3661,7 @@ class AMSJob(SingleJob):
                             _, symbol = symbol.split(".", maxsplit=1)
                         if "." in symbol:  # Atom with a custom name
                             symbol, kwargs["name"] = symbol.split(".", maxsplit=1)
-                        at = Atom(symbol=symbol, coords=coords, **kwargs)
+                        at = Atom(symbol=symbol, coords=coords, **kwargs)  # type: ignore[arg-type]
                     if suffix:
                         at.properties.soft_update(AMSJob._atom_suffix_to_settings(suffix[0]))
                     mol.add_atom(at)
@@ -3667,7 +3672,7 @@ class AMSJob(SingleJob):
                         conv = Units.conversion_ratio(settings_block.lattice._h.strip("[]"), "Angstrom")
                     else:
                         conv = 1.0
-                    mol.lattice = [tuple(conv * float(j) for j in i.split()) for i in get_list(settings_block.lattice)]
+                    mol.lattice = [[conv * float(j) for j in i.split()] for i in get_list(settings_block.lattice)]
 
             # Add bonds
             for bond in get_list(settings_block.bondorders):
@@ -3713,7 +3718,7 @@ class AMSJob(SingleJob):
                 return None
 
         # Create a new dictionary with system headers as keys and molecules as values
-        moldict: Dict[str, Molecule] = {}
+        moldict: Dict[str, Optional[Molecule]] = {}
         for settings_block in settings_list:
             key = (
                 str(settings_block._h) if ("_h" in settings_block) else ""
@@ -3729,7 +3734,7 @@ class AMSJob(SingleJob):
         if not len(s.input.ams.System):
             del s.input.ams.System
 
-        return moldict
+        return {k: v for k, v in moldict.items() if v is not None}
 
     @staticmethod
     def _atom_suffix_to_settings(suffix: str) -> Settings:
@@ -3795,7 +3800,7 @@ class AMSJob(SingleJob):
                     else:
                         # Anything else will come out as a list of strings
                         val = elem
-            properties.set_nested(key.split("."), val)
+            properties.set_nested(tuple(key.split(".")), val)
 
         return properties
 
