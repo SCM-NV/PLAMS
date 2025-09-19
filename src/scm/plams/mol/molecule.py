@@ -3390,7 +3390,10 @@ class Molecule:
             ret.properties.charge = sectiondict["Charge"]
         if "nLatticeVectors" in sectiondict:
             ret.lattice = Units.convert(
-                [[sectiondict["LatticeVectors"][i : i + 3]] for i in range(0, len(sectiondict["LatticeVectors"]), 3)],
+                [
+                    list(sectiondict["LatticeVectors"][i : i + 3])
+                    for i in range(0, len(sectiondict["LatticeVectors"]), 3)
+                ],
                 "bohr",
                 "angstrom",
             )

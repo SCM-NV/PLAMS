@@ -154,7 +154,7 @@ End
     graphene_mol.add_atom(Atom(symbol="C", coords=(-1.2300000000000000, -0.7101408299999999, 0.0)))
     graphene_mol.add_atom(Atom(symbol="C", coords=(0.0, 0.0, 0.0)))
     graphene_mol.add_atom(Atom(symbol="C", coords=(0.0, 1.4202816700000001, 0.0)))
-    graphene_mol.lattice = [(2.46, 0.0, 0.0), (0.0, 4.2608449999999998, 0.0), (0.0, 0.0, 80.0)]
+    graphene_mol.lattice = [[2.46, 0.0, 0.0], [0.0, 4.2608449999999998, 0.0], [0.0, 0.0, 80.0]]
 
     yield [
         (water_system_input, water_system_settings, water_mol),
