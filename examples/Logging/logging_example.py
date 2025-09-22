@@ -54,9 +54,6 @@ job.run(watch=True)
 
 # For AMS2025+, PLAMS also writes summaries of jobs to a CSV file, the location of which by default is also determined by the job manager. It is called `job_logfile.csv`.
 
-from scm.plams import MultiJob
-
-
 jobs = [get_test_job() for _ in range(3)]
 jobs[2].settings.input.ams.Task = "Not a task!"
 
@@ -75,3 +72,57 @@ try:
             print(f"{row['job_name']} {row['job_status']}: {row['job_get_errormsg']}")
 except AttributeError:
     pass
+
+
+# ### Job Status Change Callback Logging
+
+# For AMS2026+, PLAMS also supports users adding a custom callback which fires when a job status changes.
+#
+# This is very flexible and can be used to set up custom notifications, for instance sending a desktop prompt, email or messaging app notification.
+
+# For example, below we show how to raise a desktop notification when a job finishes. Note that this requires the external library `plyer`, which needs to be installed into your python environment.
+
+# First we set up our notification function:
+
+try:
+    import plyer
+except ImportError:
+    print(
+        "Install plyer into your python environment to run this example. For example, with 'pip install plyer' or 'pip install plyer[macosx]' for Mac users."
+    )
+
+
+def send_desktop_notification(name, path, status, at, **_):
+    if status == "successful":
+        plyer.notification.notify(
+            title=f"PLAMS job {name}",
+            message=f"Completed successfully at {at}",
+            timeout=5,
+        )
+    elif status in ["crashed", "failed"]:
+        plyer.notification.notify(
+            title=f"PLAMS job {name}",
+            message=f"Errored at {at}",
+            timeout=5,
+        )
+
+
+# Then we apply it to all jobs using the global config:
+
+config.job.on_status_change = send_desktop_notification
+
+
+# When jobs are run, notifications should then be raised to the desktop.
+
+jobs = [get_test_job() for _ in range(3)]
+jobs[2].settings.input.ams.Task = "Not a task!"
+
+for job in jobs:
+    job.run()
+
+
+# Note that the given callbacks will never block job execution.
+#
+# However, if many notifications are being sent, or there is a significant overhead to sending a notification, you may need to customize the wait time at the end of the script to allow all notifications to be sent successfully. To do this set the number of seconds for `config.atexit_timeout`:
+
+config.atexit_timeout = 120
