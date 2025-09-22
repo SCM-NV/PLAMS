@@ -148,7 +148,7 @@ class JobManager:
         def setstate(job: "Job", path: str, parent: Optional["MultiJob"] = None) -> None:
             job.parent = parent
             job.jobmanager = self
-            job.default_settings = [config.job]
+            job.default_settings = []
             job.path = path
             if isinstance(job, MultiJob):
                 job._lock = threading.Lock()

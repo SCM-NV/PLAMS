@@ -18,6 +18,8 @@ from typing import (
     Iterable,
     Iterator,
     List,
+    Callable,
+    Protocol,
 )
 from typing_extensions import Never
 
@@ -39,6 +41,7 @@ if TYPE_CHECKING:
     from scm.plams.core.jobmanager import JobManager
     from scm.plams.core.jobrunner import JobRunner
     from types import TracebackType
+    from datetime import datetime
 
 TSelf = TypeVar("TSelf", bound="Settings")
 
@@ -911,6 +914,7 @@ class JobSettings(Settings):
         self.save = "all"
         self.runscript = RunScriptSettings()
         self.link_files = True
+        self.on_status_change = None
 
     @property
     def pickle(self) -> bool:
@@ -978,6 +982,43 @@ class JobSettings(Settings):
     @link_files.setter
     def link_files(self, value: bool) -> None:
         self["link_files"] = value
+
+    class OnStatusChangeCallback(Protocol):
+        """
+        Definition for a callback which is fired on a |Job| status change.
+        """
+
+        def __call__(
+            self,
+            *,
+            name: str = ...,
+            path: Optional[str] = ...,
+            status: str = ...,
+            at: "datetime" = ...,
+            **kwargs: Any,
+        ) -> Any: ...
+
+    @property
+    def on_status_change(self) -> Optional[OnStatusChangeCallback]:
+        """
+        Callback function which is called whenever the status of a job changes.
+        This can be used for example to send a notification whenever a job is complete or errors.
+
+        The callback should adhere to the :class:`~scm.plams.core.settings.JobSettings.OnStatusChangeCallback` protocol.
+        Example usage:
+
+        .. code-block:: python
+
+            >>> def notify(name: str, status: str, **kwargs) -> None:
+            >>>     ...
+            >>> config.job.on_status_change = notify
+
+        """
+        return self["on_status_change"]
+
+    @on_status_change.setter
+    def on_status_change(self, value: Optional[OnStatusChangeCallback]) -> None:
+        self["on_status_change"] = value
 
 
 class JobManagerSettings(Settings):
@@ -1049,6 +1090,7 @@ class ConfigSettings(Settings):
         self.job = JobSettings()
         self.log = LogSettings()
         self.saferun = SafeRunSettings()
+        self.atexit_timeout = 30
 
         # Default job runner and job manager are lazily initialised on first access
         # This is to allow users to change their settings before initialisation (due to side effects in init)
@@ -1124,6 +1166,18 @@ class ConfigSettings(Settings):
     @daemon_threads.setter
     def daemon_threads(self, value: bool) -> None:
         self["daemon_threads"] = value
+
+    @property
+    def atexit_timeout(self) -> int:
+        """
+        Maximum seconds to wait in atexit function calls, to allow threads to finish up before shutting them down.
+        Defaults to ``30`` seconds.
+        """
+        return self["atexit_timeout"]
+
+    @atexit_timeout.setter
+    def atexit_timeout(self, value: int) -> None:
+        self["atexit_timeout"] = value
 
     @property
     def erase_workdir(self) -> bool:

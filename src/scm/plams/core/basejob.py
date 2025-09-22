@@ -20,17 +20,21 @@ from typing import (
     TypeVar,
     Any,
     Iterator,
+    Set,
 )
 from typing_extensions import ParamSpec, ParamSpecKwargs, Concatenate
 from abc import ABC, abstractmethod
 import traceback
+from concurrent.futures import ThreadPoolExecutor, wait, ALL_COMPLETED
+from threading import Lock
+import atexit
 
 from scm.plams.core.enums import JobStatus, JobStatusType
 from scm.plams.core.errors import FileError, JobError, PlamsError, ResultsError
 from scm.plams.core.functions import get_config, log
 from scm.plams.core.private import sha256, retry
 from scm.plams.core.results import Results
-from scm.plams.core.settings import Settings
+from scm.plams.core.settings import Settings, JobSettings
 from scm.plams.mol.molecule import Molecule
 
 try:
@@ -56,7 +60,7 @@ K = ParamSpecKwargs
 T = TypeVar("T")
 J = TypeVar("J", bound="Job")
 
-__all__ = ["SingleJob", "MultiJob"]
+__all__ = ["SingleJob", "MultiJob", "wait_for_status_change_callbacks"]
 
 
 def _fail_on_exception(func: Callable[Concatenate[J, P], T]) -> Callable[Concatenate[J, P], Optional[T]]:
@@ -79,6 +83,40 @@ def _fail_on_exception(func: Callable[Concatenate[J, P], T]) -> Callable[Concate
         return None
 
     return wrapper
+
+
+# Threadpool and related variables for sending notifications on Job status changes
+_status_change_callback_threadpool = ThreadPoolExecutor(max_workers=8, thread_name_prefix="job-status-change")
+_status_change_callback_futures: Set = set()
+_status_change_callback_lock: Lock = Lock()
+
+
+@atexit.register
+def _dispose_status_change_callback_threadpool(timeout: Optional[int] = None) -> None:
+    """
+    On exit, waits for all status callbacks to finish, before shutting down the threadpool.
+    If no timeout is given, defaults to the value in |config|.
+
+    :param timeout: maximum number of seconds to wait for status callbacks to finish
+    """
+    try:
+        wait_for_status_change_callbacks(timeout=timeout or get_config().atexit_timeout)
+        _status_change_callback_threadpool.shutdown(wait=False, cancel_futures=True)
+    except Exception:
+        pass
+
+
+def wait_for_status_change_callbacks(timeout: int) -> None:
+    """
+    Block until all pending status-change callbacks have finished, or until the provided timeout is reached.
+    This waits on the global status callback threadpool. If the timeout expires, some callbacks may still be running or queued.
+
+    :param timeout: maximum seconds to wait.
+    """
+    with _status_change_callback_lock:
+        pending = set(_status_change_callback_futures)
+    if pending:
+        wait(pending, timeout=timeout, return_when=ALL_COMPLETED)
 
 
 class Job(ABC):
@@ -126,14 +164,13 @@ class Job(ABC):
         if os.path.sep in name:
             raise PlamsError(f"Job name cannot contain {os.path.sep}")
         self._status_log: List[Tuple[datetime.datetime, str]] = []
-        self.status: JobStatus = JobStatus.CREATED  # type: ignore[assignment] # Python3.8 only - can be removed when support dropped
         self.results = self.__class__._result_type(self)
         self.name: str = name
         self.path: Optional[str] = None
         self.jobmanager: Optional["JobManager"] = None
         self.parent: Optional["MultiJob"] = None
         self.settings = Settings()
-        self.default_settings = [get_config().job]
+        self.default_settings = []
         self.depend = depend or []
         self._dont_pickle: List[str] = []
         self._error_msg: Optional[str] = None
@@ -152,6 +189,7 @@ class Job(ABC):
                         self.settings.input = copy.deepcopy(settings.input)
                     elif isinstance(settings, Job):
                         self.settings.input = copy.deepcopy(settings.settings.input)
+        self.status: JobStatus = JobStatus.CREATED  # type: ignore[assignment] # Python3.8 only - can be removed when support dropped
 
     # =======================================================================
 
@@ -166,8 +204,36 @@ class Job(ABC):
     def status(self, value: JobStatusType) -> None:
         # This setter should really be private i.e. internally should use self._status
         # But for backwards compatibility it is exposed and set by e.g. the JobManager
+        at = datetime.datetime.now(datetime.timezone.utc)
         self._status = value
-        self._status_log.append((datetime.datetime.now(), str(value)))
+        self._status_log.append((at, str(value)))
+
+        # Send notification via callback if needed
+        on_status_change = (
+            getattr(getattr(self, "settings", JobSettings()), "on_status_change", None)
+            or get_config().job.on_status_change
+        )
+        if on_status_change is None:
+            return
+
+        def safe_on_status_change(
+            cb: JobSettings.OnStatusChangeCallback, name: str, path: Optional[str], status: str, at: datetime.datetime
+        ) -> None:
+            try:
+                cb(name=name, path=path, status=status, at=at)
+            except Exception as e:
+                log(f"on_status_change callback execution raised {e}", 5)
+
+        try:
+            future = _status_change_callback_threadpool.submit(
+                safe_on_status_change, on_status_change, self.name, self.path, str(value), at
+            )
+            with _status_change_callback_lock:
+                _status_change_callback_futures.add(future)
+            future.add_done_callback(lambda f: _status_change_callback_futures.discard(f))
+
+        except Exception as e:
+            log(f"on_status_change callback submission raised {e}", 5)
 
     @property
     def status_log(self) -> List[Tuple[datetime.datetime, str]]:
@@ -300,7 +366,7 @@ class Job(ABC):
         self.prerun()
         log(f"{self.name}.prerun() finished", 5)
 
-        for i in reversed(self.default_settings):
+        for i in reversed([get_config().job] + self.default_settings):
             self.settings.soft_update(i)
 
         prev = jobmanager._check_hash(self)

@@ -11,12 +11,12 @@ from functools import wraps
 import time
 from pathlib import Path
 
-from scm.plams.core.settings import Settings
+from scm.plams.core.settings import Settings, JobSettings
 from scm.plams.core.basejob import SingleJob, MultiJob
 from scm.plams.core.errors import PlamsError, FileError, ResultsError
 from scm.plams.core.jobrunner import JobRunner
 from scm.plams.core.jobmanager import JobManager
-from scm.plams.core.functions import add_to_instance, jobs_in_directory
+from scm.plams.core.functions import add_to_instance, jobs_in_directory, config_context
 from scm.plams.core.enums import JobStatus
 
 LogEntry = namedtuple("LogEntry", ["method", "args", "kwargs", "start", "end"])
@@ -561,6 +561,84 @@ sleep 0.0 && sed 's/input/output/g' plamsjob.in
                     re.DOTALL,
                 )
         logger.close()
+
+    def test_job_status_change_callback_fires(self, config):
+        from scm.plams.core.basejob import wait_for_status_change_callbacks
+        import threading
+
+        # Given on_status_change callback which logs finished jobs to set
+        finished_jobs = set()
+        lock = threading.Lock()
+
+        def log_finish(name, path, status, at):
+            if status == "finished":
+                with lock:
+                    finished_jobs.add(name)
+
+        # When create a job with the callback
+        sett = JobSettings()
+        sett.on_status_change = log_finish
+        job = DummySingleJob(settings=sett)
+        job.run()
+
+        # Then the callback fires and adds job to set
+        job.results.wait()
+        wait_for_status_change_callbacks(1)
+        assert job.name in finished_jobs
+
+        # And when create many jobs with global callback
+        runner = JobRunner(parallel=True, maxjobs=16)
+        with config_context() as cfg:
+            cfg.job.on_status_change = log_finish
+            jobs = [DummySingleJob() for _ in range(64)]
+            for j in jobs:
+                j.run(job_runner=runner)
+
+        # Then callbacks fire and add all jobs to set
+        for j in jobs:
+            j.results.wait()
+        wait_for_status_change_callbacks(10)
+        for j in jobs:
+            assert j.name in finished_jobs
+
+    def test_job_status_change_callback_does_not_block(self, config):
+        from scm.plams.core.basejob import wait_for_status_change_callbacks
+        import threading
+
+        # Given on_status_change callback which waits on a flag, initially set to False
+        finished_jobs = set()
+        lock = threading.Lock()
+        flag = False
+
+        def log_finish(name, path, status, at):
+            if status == "finished":
+                with lock:
+                    while not flag:
+                        time.sleep(0.1)
+                    finished_jobs.add(name)
+
+        # When create jobs with the callback
+        runner = JobRunner(parallel=True, maxjobs=16)
+        with config_context() as cfg:
+            cfg.job.on_status_change = log_finish
+            jobs = [DummySingleJob() for _ in range(10)]
+            for j in jobs:
+                j.run(job_runner=runner)
+
+        # Then callbacks block but jobs still finish as expected
+        for j in jobs:
+            j.results.wait()
+        wait_for_status_change_callbacks(1)
+        for j in jobs:
+            assert j.name not in finished_jobs
+
+        # When flag set to True and callback unblocked
+        flag = True
+        wait_for_status_change_callbacks(5)
+
+        # Then callbacks fire
+        for j in jobs:
+            assert j.name in finished_jobs
 
     def test_full_name(self):
         job = DummySingleJob(name="dummy_job")
