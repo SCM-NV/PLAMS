@@ -74,7 +74,7 @@ except AttributeError:
     pass
 
 
-# ### Job Status Change Callback Logging
+# ### Job Status Change Callback
 
 # For AMS2026+, PLAMS also supports users adding a custom callback which fires when a job status changes.
 #
@@ -96,13 +96,13 @@ def send_desktop_notification(name, path, status, at, **_):
     if status == "successful":
         plyer.notification.notify(
             title=f"PLAMS job {name}",
-            message=f"Completed successfully at {at}",
+            message=f"Completed successfully at {at:%H:%M:%S UTC}",
             timeout=5,
         )
     elif status in ["crashed", "failed"]:
         plyer.notification.notify(
             title=f"PLAMS job {name}",
-            message=f"Errored at {at}",
+            message=f"Errored at {at:%H:%M:%S UTC}",
             timeout=5,
         )
 

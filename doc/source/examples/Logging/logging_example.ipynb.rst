@@ -51,10 +51,10 @@ The level of logging that is written to stdout and the logfile can be changed th
 
 ::
 
-   [22.09|15:19:16] JOB test1 STARTED
-   [22.09|15:19:16] JOB test1 RUNNING
-   [22.09|15:19:17] JOB test1 FINISHED
-   [22.09|15:19:17] JOB test1 SUCCESSFUL
+   [22.09|15:41:06] JOB test1 STARTED
+   [22.09|15:41:06] JOB test1 RUNNING
+   [22.09|15:41:06] JOB test1 FINISHED
+   [22.09|15:41:06] JOB test1 SUCCESSFUL
 
 .. code:: ipython3
 
@@ -63,17 +63,17 @@ The level of logging that is written to stdout and the logfile can be changed th
 
 ::
 
-   [22.09|15:19:16] JOB test1 STARTED
-   [22.09|15:19:16] Starting test1.prerun()
-   [22.09|15:19:16] test1.prerun() finished
-   [22.09|15:19:16] JOB test1 RUNNING
-   [22.09|15:19:16] Executing test1.run
-   [22.09|15:19:17] Execution of test1.run finished with returncode 0
-   [22.09|15:19:17] JOB test1 FINISHED
-   [22.09|15:19:17] Starting test1.postrun()
-   [22.09|15:19:17] test1.postrun() finished
-   [22.09|15:19:17] JOB test1 SUCCESSFUL
-   [22.09|15:19:17] Test job finished
+   [22.09|15:41:06] JOB test1 STARTED
+   [22.09|15:41:06] Starting test1.prerun()
+   [22.09|15:41:06] test1.prerun() finished
+   [22.09|15:41:06] JOB test1 RUNNING
+   [22.09|15:41:06] Executing test1.run
+   [22.09|15:41:06] Execution of test1.run finished with returncode 0
+   [22.09|15:41:06] JOB test1 FINISHED
+   [22.09|15:41:06] Starting test1.postrun()
+   [22.09|15:41:06] test1.postrun() finished
+   [22.09|15:41:06] JOB test1 SUCCESSFUL
+   [22.09|15:41:06] Test job finished
 
 Note that the logs from an AMS calculation can also be forwarded to the progress logs using the ``watch = True`` flag.
 
@@ -84,27 +84,27 @@ Note that the logs from an AMS calculation can also be forwarded to the progress
 
 ::
 
-   [22.09|15:19:17] JOB test2 STARTED
-   [22.09|15:19:17] JOB test2 RUNNING
-   [22.09|15:19:17] test2: AMS 2025.205  RunTime: Sep22-2025 15:19:17  ShM Nodes: 1  Procs: 6
-   [22.09|15:19:18] test2: DFTB: SCC cycle
-   [22.09|15:19:18] test2: cyc=  1 err=1.1E+00 method=1 nvec= 1 mix=0.075 e=    0.0000
-   [22.09|15:19:18] test2: cyc=  2 err=1.1E+00 method=1 nvec= 1 mix=0.154 e=    0.0000
-   [22.09|15:19:18] test2: cyc=  3 err=8.9E-01 method=1 nvec= 2 mix=0.201 e=    0.0000
-   [22.09|15:19:18] test2: cyc=  4 err=1.7E-02 method=1 nvec= 3 mix=0.207 e=    0.0000
-   [22.09|15:19:18] test2: cyc=  5 err=6.8E-03 method=1 nvec= 4 mix=0.213 e=    0.0000
-   [22.09|15:19:18] test2: cyc=  6 err=2.6E-03 method=1 nvec= 5 mix=0.219 e=    0.0000
-   [22.09|15:19:18] test2: cyc=  7 err=7.2E-05 method=1 nvec= 6 mix=0.226 e=    0.0000
-   [22.09|15:19:18] test2: cyc=  8 err=6.8E-05 method=1 nvec= 1 mix=0.233 e=    0.0000
-   [22.09|15:19:18] test2: cyc=  9 err=4.2E-05 method=1 nvec= 2 mix=0.240 e=    0.0000
-   [22.09|15:19:18] test2: cyc= 10 err=6.2E-07 method=1 nvec= 3 mix=0.247 e=    0.0000
-   [22.09|15:19:18] test2: cyc= 11 err=5.8E-08 method=1 nvec= 3 mix=0.254 e=    0.0000
-   [22.09|15:19:18] test2: cyc= 12 err=3.6E-08 method=1 nvec= 4 mix=0.262 e=    0.0000
-   [22.09|15:19:18] test2: cyc= 13 err=9.0E-11 method=1 nvec= 4 mix=0.270 e=    0.0000
-   [22.09|15:19:18] test2: SCC cycle converged!
-   [22.09|15:19:18] test2: NORMAL TERMINATION
-   [22.09|15:19:18] JOB test2 FINISHED
-   [22.09|15:19:18] JOB test2 SUCCESSFUL
+   [22.09|15:41:06] JOB test2 STARTED
+   [22.09|15:41:06] JOB test2 RUNNING
+   [22.09|15:41:07] test2: AMS 2025.205  RunTime: Sep22-2025 15:41:07  ShM Nodes: 1  Procs: 6
+   [22.09|15:41:07] test2: DFTB: SCC cycle
+   [22.09|15:41:07] test2: cyc=  1 err=1.1E+00 method=1 nvec= 1 mix=0.075 e=    0.0000
+   [22.09|15:41:07] test2: cyc=  2 err=1.1E+00 method=1 nvec= 1 mix=0.154 e=    0.0000
+   [22.09|15:41:07] test2: cyc=  3 err=8.9E-01 method=1 nvec= 2 mix=0.201 e=    0.0000
+   [22.09|15:41:07] test2: cyc=  4 err=1.7E-02 method=1 nvec= 3 mix=0.207 e=    0.0000
+   [22.09|15:41:07] test2: cyc=  5 err=6.8E-03 method=1 nvec= 4 mix=0.213 e=    0.0000
+   [22.09|15:41:07] test2: cyc=  6 err=2.6E-03 method=1 nvec= 5 mix=0.219 e=    0.0000
+   [22.09|15:41:07] test2: cyc=  7 err=7.2E-05 method=1 nvec= 6 mix=0.226 e=    0.0000
+   [22.09|15:41:07] test2: cyc=  8 err=6.8E-05 method=1 nvec= 1 mix=0.233 e=    0.0000
+   [22.09|15:41:07] test2: cyc=  9 err=4.2E-05 method=1 nvec= 2 mix=0.240 e=    0.0000
+   [22.09|15:41:07] test2: cyc= 10 err=6.2E-07 method=1 nvec= 3 mix=0.247 e=    0.0000
+   [22.09|15:41:07] test2: cyc= 11 err=5.8E-08 method=1 nvec= 3 mix=0.254 e=    0.0000
+   [22.09|15:41:07] test2: cyc= 12 err=3.6E-08 method=1 nvec= 4 mix=0.262 e=    0.0000
+   [22.09|15:41:07] test2: cyc= 13 err=9.0E-11 method=1 nvec= 4 mix=0.270 e=    0.0000
+   [22.09|15:41:07] test2: SCC cycle converged!
+   [22.09|15:41:07] test2: NORMAL TERMINATION
+   [22.09|15:41:07] JOB test2 FINISHED
+   [22.09|15:41:07] JOB test2 SUCCESSFUL
 
 Job Summary Logger
 ~~~~~~~~~~~~~~~~~~
@@ -121,24 +121,24 @@ For AMS2025+, PLAMS also writes summaries of jobs to a CSV file, the location of
 
 ::
 
-   [22.09|15:19:18] JOB test3 STARTED
-   [22.09|15:19:18] JOB test3 RUNNING
-   [22.09|15:19:19] JOB test3 FINISHED
-   [22.09|15:19:19] JOB test3 SUCCESSFUL
-   [22.09|15:19:19] JOB test4 STARTED
-   [22.09|15:19:19] JOB test4 RUNNING
-   [22.09|15:19:20] JOB test4 FINISHED
-   [22.09|15:19:20] JOB test4 SUCCESSFUL
-   [22.09|15:19:20] JOB test5 STARTED
-   [22.09|15:19:20] JOB test5 RUNNING
-   [22.09|15:19:28] WARNING: Job test5 finished with nonzero return code
-   [22.09|15:19:28] WARNING: Main KF file ams.rkf not present in /path/plams/examples/Logging/plams_workdir/test5
+   [22.09|15:41:07] JOB test3 STARTED
+   [22.09|15:41:07] JOB test3 RUNNING
+   [22.09|15:41:08] JOB test3 FINISHED
+   [22.09|15:41:08] JOB test3 SUCCESSFUL
+   [22.09|15:41:08] JOB test4 STARTED
+   [22.09|15:41:08] JOB test4 RUNNING
+   [22.09|15:41:09] JOB test4 FINISHED
+   [22.09|15:41:09] JOB test4 SUCCESSFUL
+   [22.09|15:41:09] JOB test5 STARTED
+   [22.09|15:41:09] JOB test5 RUNNING
+   [22.09|15:41:17] WARNING: Job test5 finished with nonzero return code
+   [22.09|15:41:17] WARNING: Main KF file ams.rkf not present in /path/plams/examples/Logging/plams_workdir/test5
    ... (PLAMS log lines truncated) ...
-   [22.09|15:19:28] File ams.rkf not present in /path/plams/examples/Logging/plams_workdir/test5
-   [22.09|15:19:28] Error message for job test5 was:
+   [22.09|15:41:17] File ams.rkf not present in /path/plams/examples/Logging/plams_workdir/test5
+   [22.09|15:41:17] Error message for job test5 was:
        Input error: value "Not a task!" found in line 1 for multiple choice key "Task" is not an allowed choice
-   [22.09|15:19:28] File ams.rkf not present in /path/plams/examples/Logging/plams_workdir/test5
-   [22.09|15:19:28] File ams.rkf not present in /path/plams/examples/Logging/plams_workdir/test5
+   [22.09|15:41:17] File ams.rkf not present in /path/plams/examples/Logging/plams_workdir/test5
+   [22.09|15:41:17] File ams.rkf not present in /path/plams/examples/Logging/plams_workdir/test5
 
 These CSVs give overall information on the status of all jobs run by a given job manager.
 
@@ -162,8 +162,8 @@ These CSVs give overall information on the status of all jobs run by a given job
    test4 successful: 
    test5 crashed: Input error: value "Not a task!" found in line 1 for multiple choice key "Task" is not an allowed choice
 
-Job Status Change Callback Logging
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Job Status Change Callback
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 For AMS2026+, PLAMS also supports users adding a custom callback which fires when a job status changes.
 
@@ -187,13 +187,13 @@ First we set up our notification function:
        if status == "successful":
            plyer.notification.notify(
                title=f"PLAMS job {name}",
-               message=f"Completed successfully at {at}",
+               message=f"Completed successfully at {at:%H:%M:%S UTC}",
                timeout=5,
            )
        elif status in ["crashed", "failed"]:
            plyer.notification.notify(
                title=f"PLAMS job {name}",
-               message=f"Errored at {at}",
+               message=f"Errored at {at:%H:%M:%S UTC}",
                timeout=5,
            )
 
@@ -215,24 +215,24 @@ When jobs are run, notifications should then be raised to the desktop.
 
 ::
 
-   [22.09|15:19:28] JOB test6 STARTED
-   [22.09|15:19:28] JOB test6 RUNNING
-   [22.09|15:19:29] JOB test6 FINISHED
-   [22.09|15:19:29] JOB test6 SUCCESSFUL
-   [22.09|15:19:29] JOB test7 STARTED
-   [22.09|15:19:29] JOB test7 RUNNING
-   [22.09|15:19:29] JOB test7 FINISHED
-   [22.09|15:19:29] JOB test7 SUCCESSFUL
-   [22.09|15:19:29] JOB test8 STARTED
-   [22.09|15:19:29] JOB test8 RUNNING
-   [22.09|15:19:37] WARNING: Job test8 finished with nonzero return code
-   [22.09|15:19:37] WARNING: Main KF file ams.rkf not present in /path/plams/examples/Logging/plams_workdir/test8
+   [22.09|15:41:17] JOB test6 STARTED
+   [22.09|15:41:17] JOB test6 RUNNING
+   [22.09|15:41:17] JOB test6 FINISHED
+   [22.09|15:41:17] JOB test6 SUCCESSFUL
+   [22.09|15:41:17] JOB test7 STARTED
+   [22.09|15:41:17] JOB test7 RUNNING
+   [22.09|15:41:18] JOB test7 FINISHED
+   [22.09|15:41:18] JOB test7 SUCCESSFUL
+   [22.09|15:41:18] JOB test8 STARTED
+   [22.09|15:41:18] JOB test8 RUNNING
+   [22.09|15:41:26] WARNING: Job test8 finished with nonzero return code
+   [22.09|15:41:26] WARNING: Main KF file ams.rkf not present in /path/plams/examples/Logging/plams_workdir/test8
    ... (PLAMS log lines truncated) ...
-   [22.09|15:19:37] File ams.rkf not present in /path/plams/examples/Logging/plams_workdir/test8
-   [22.09|15:19:37] Error message for job test8 was:
+   [22.09|15:41:26] File ams.rkf not present in /path/plams/examples/Logging/plams_workdir/test8
+   [22.09|15:41:26] Error message for job test8 was:
        Input error: value "Not a task!" found in line 1 for multiple choice key "Task" is not an allowed choice
-   [22.09|15:19:37] File ams.rkf not present in /path/plams/examples/Logging/plams_workdir/test8
-   [22.09|15:19:37] File ams.rkf not present in /path/plams/examples/Logging/plams_workdir/test8
+   [22.09|15:41:26] File ams.rkf not present in /path/plams/examples/Logging/plams_workdir/test8
+   [22.09|15:41:26] File ams.rkf not present in /path/plams/examples/Logging/plams_workdir/test8
 
 Note that the given callbacks will never block job execution.
 

@@ -170,7 +170,7 @@ class Job(ABC):
         self.jobmanager: Optional["JobManager"] = None
         self.parent: Optional["MultiJob"] = None
         self.settings = Settings()
-        self.default_settings = []
+        self.default_settings: List[Settings] = []
         self.depend = depend or []
         self._dont_pickle: List[str] = []
         self._error_msg: Optional[str] = None

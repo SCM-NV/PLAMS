@@ -1008,7 +1008,7 @@ class JobSettings(Settings):
 
         .. code-block:: python
 
-            >>> def notify(name: str, status: str, **kwargs) -> None:
+            >>> def notify(name: str, path: Optional[str], status: str, at: datetime, **_) -> None:
             >>>     ...
             >>> config.job.on_status_change = notify
 
