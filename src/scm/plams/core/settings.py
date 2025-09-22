@@ -18,7 +18,6 @@ from typing import (
     Iterable,
     Iterator,
     List,
-    Callable,
     Protocol,
 )
 from typing_extensions import Never
