@@ -1638,7 +1638,7 @@ class AMSResults(Results):
 
         ret["Properties"] = []
         for key in natsorted(title for title in self.rkfs.keys() if title.startswith("PESPoint")):
-            amsresults = self.rkfs[key].read_section("AMSResults")
+            amsresults = self.rkfs[key].read_section("AMSResults")  # type: ignore[index] # Python3.8 only - can be removed when support dropped
             ret["Properties"].append(amsresults)
 
         return ret
