@@ -53,14 +53,16 @@ def broaden_results(
         "lorentzian": _lorentzian,
     }
     if isinstance(x_data, tuple) and len(x_data) == 3:
-        x_data = np.arange(*x_data)
+        x_array = np.arange(*x_data)
+    else:
+        x_array = x_data
 
-    y_data: np.ndarray = x_data * 0
-    sigmas = _generate_broadening_widths(x_data, broadening_width, centers)
+    y_data: np.ndarray = x_array * 0
+    sigmas = _generate_broadening_widths(x_array, broadening_width, centers)
 
     for freq_i, Abs_i, sigma_i in zip(centers, areas, sigmas):
-        y_data += Function_Broaden[broadening_type](x_data, A=Abs_i, x0=freq_i, sigma=sigma_i)
+        y_data += Function_Broaden[broadening_type](x_array, A=Abs_i, x0=freq_i, sigma=sigma_i)
 
     if post_process == "max_to_1":
         y_data /= np.max(y_data)
-    return x_data, y_data
+    return x_array, y_data
