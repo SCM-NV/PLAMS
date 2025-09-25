@@ -1,5 +1,6 @@
 import numpy as np
 
+from typing import Union, Tuple, List, Sequence, Optional
 
 try:
     from scipy.spatial.distance import cdist
@@ -9,6 +10,9 @@ except ImportError:
     scipy_present = False
 
 from scm.plams.tools.units import Units
+
+Vector = Union[np.ndarray, Tuple[float, float, float], Sequence[float]]
+Matrix = Union[np.ndarray, Sequence[Sequence[float]]]
 
 __all__ = [
     "rotation_matrix",
@@ -22,8 +26,7 @@ __all__ = [
 
 HALF_PI = np.pi / 2
 
-
-def rotation_matrix(vec1, vec2):
+def rotation_matrix(vec1: Vector, vec2: Vector) -> np.ndarray:
     """
     Calculate the rotation matrix rotating *vec1* to *vec2*. Vectors can be any containers with 3 numerical values. They don't need to be normalized. Returns 3x3 numpy array.
     """
@@ -40,7 +43,7 @@ def rotation_matrix(vec1, vec2):
     return np.identity(3) + M + np.dot(M, M) / (1 + np.dot(a, b))
 
 
-def axis_rotation_matrix(vector, angle, unit="radian"):
+def axis_rotation_matrix(vector: Vector, angle: float, unit: str="radian") -> np.ndarray:
     """
     Calculate the rotation matrix rotating along the *vector* by *angle* expressed in *unit*.
 
@@ -59,7 +62,7 @@ def axis_rotation_matrix(vector, angle, unit="radian"):
     return np.identity(3) + a1 * W + a2 * W @ W
 
 
-def distance_array(array1, array2):
+def distance_array(array1: np.ndarray, array2: np.ndarray) -> np.ndarray:
     """Calculates distance between each pair of points in *array1* and *array2*. Returns 2D ``numpy`` array.
 
     Uses fast ``cdist`` function if ``scipy`` is present, otherwise falls back to slightly slower ``numpy`` loop. Arguments should be 2-dimensional ``numpy`` arrays with the same second dimension. If *array1* is A x N and *array2* is B x N, the returned array is A x B.
@@ -67,7 +70,7 @@ def distance_array(array1, array2):
     return cdist(array1, array2) if scipy_present else np.array([np.linalg.norm(i - array2, axis=1) for i in array1])
 
 
-def angle(vec1, vec2, result_unit="radian"):
+def angle(vec1: Vector, vec2: Vector, result_unit:str="radian") -> float:
     """Calculate an angle between vectors *vec1* and *vec2*.
 
     *vec1* and *vec2* should be iterable containers of length 3 (for example: tuple, list, numpy array). Values stored in them are expressed in Angstrom. Returned value is expressed in *result_unit*.
@@ -82,7 +85,7 @@ def angle(vec1, vec2, result_unit="radian"):
     return Units.convert(np.arccos(num / den), "radian", result_unit)
 
 
-def dihedral(p1, p2, p3, p4, unit="radian"):
+def dihedral(p1: Vector, p2: Vector, p3: Vector, p4: Vector, unit: str="radian") -> np.ndarray:
     """Calculate the value of diherdal angle formed by points *p1*, *p2*, *p3* and *p4* in a 3D space. Arguments can be any containers with 3 numerical values, also instances of |Atom|. Returned value is always non-negative, measures the angle clockwise (looking along *p2-p3* vector) and is expressed in *unit*."""
     p1 = np.array([*p1], dtype=float)
     p2 = np.array([*p2], dtype=float)
@@ -104,7 +107,7 @@ def dihedral(p1, p2, p3, p4, unit="radian"):
     return Units.convert(ret, "radian", unit)
 
 
-def cell_shape(lattice):
+def cell_shape(lattice: Matrix) -> Optional[List[float]]:
     """
     Converts lattice vectors to lengths and angles (in radians)
     Sets internal cell size data, based on set of cell vectors.
@@ -115,7 +118,7 @@ def cell_shape(lattice):
     a, b, c = np.sqrt((lattice**2).sum(axis=1))
 
     if a == 0.0 and b == 0.0 and c == 0.0:
-        return
+        return None
 
     alpha, beta, gamma = (90.0, 90.0, 90.0)
 
@@ -128,7 +131,7 @@ def cell_shape(lattice):
     return [a, b, c, alpha, beta, gamma]
 
 
-def cell_lengths(lattice, unit="angstrom"):
+def cell_lengths(lattice: Matrix, unit: str="angstrom") -> List[float]:
     """Return the lengths of the lattice vector. Returns a list with the same length as the number of lattice vector."""
 
     if lattice is None or len(lattice) == 0:
@@ -138,7 +141,7 @@ def cell_lengths(lattice, unit="angstrom"):
     return ret.tolist()
 
 
-def cell_angles(lattice, unit="degree"):
+def cell_angles(lattice: Matrix, unit: str="degree") -> List[float]: #type: ignore[return]
     """Return the angles between lattice vectors.
 
     unit : str
@@ -166,7 +169,7 @@ def cell_angles(lattice, unit="degree"):
         return [alpha, beta, gamma]
 
 
-def cellvectors_from_shape(box):
+def cellvectors_from_shape(box: Sequence[float]) -> List[List[float]]:
     """
     Converts lengths and angles (in radians) of lattice vectors to the lattice vectors.
 

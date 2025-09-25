@@ -4,6 +4,7 @@ import io
 import itertools
 import math
 import os
+import operator
 from collections import OrderedDict
 
 import numpy as np
@@ -2720,10 +2721,10 @@ class Molecule:
         return iter(self.atoms)
 
     @overload
-    def __getitem__(self, key: int) -> Atom: ...
+    def __getitem__(self, key: SupportsIndex) -> Atom: ...
     @overload
-    def __getitem__(self, key: Tuple[int, int]) -> Bond: ...
-    def __getitem__(self, key: Union[int, Tuple[int, int]]) -> Union[Atom, Optional[Bond]]:
+    def __getitem__(self, key: Tuple[SupportsIndex, SupportsIndex]) -> Bond: ...
+    def __getitem__(self, key: Union[SupportsIndex, Tuple[SupportsIndex, SupportsIndex]]) -> Union[Atom, Optional[Bond]]:
         """The bracket notation can be used to access atoms or bonds directly.
 
         If *key* is a single int (``mymol[i]``), return i-th atom of the molecule. If *key* is a pair of ints (``mymol[(i,j)]``), return the bond between i-th and j-th atom (``None`` if such a bond does not exist). Negative integers can be used to access atoms enumerated in the reversed order.
@@ -2733,14 +2734,15 @@ class Molecule:
         Numbering of atoms within a molecule starts with 1.
         """
         if isinstance(key, SupportsIndex):  # Available in all "int-like" objects; see PEP 357
-            if key == 0:
+            i = operator.index(key)
+            if i == 0:
                 raise MoleculeError("Numbering of atoms starts with 1")
-            if key < 0:
-                return self.atoms[key]
-            return self.atoms[key - 1]
+            if i < 0:
+                return self.atoms[i]
+            return self.atoms[i - 1]
 
         try:
-            i, j = key
+            i, j = map(operator.index, key)
             return self.find_bond(self[i], self[j])
         except TypeError as ex:
             raise MoleculeError(f"Molecule: argument ({repr(key)}) of invalid type inside []").with_traceback(
