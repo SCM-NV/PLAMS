@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import itertools
-from typing import TYPE_CHECKING, Optional, Sequence, Type
+from typing import TYPE_CHECKING, Optional, Sequence, Type, Collection
 from types import TracebackType
 
 import numpy as np
@@ -18,7 +18,7 @@ class AsArrayContext:
         self._atoms = mol.atoms
         self._from_array = mol.from_array
 
-    def __call__(self, atom_subset: Optional[Sequence["Atom"]] = None) -> np.ndarray:
+    def __call__(self, atom_subset: Optional[Collection["Atom"]] = None) -> np.ndarray:
         """Return cartesian coordinates of this molecule's atoms as a numpy array.
 
         *atom_subset* argument can be used to specify only a subset of atoms, it should be an iterable container with atoms belonging to this molecule.
@@ -54,7 +54,7 @@ class AsArrayContext:
             count = at_len * 3
             shape = at_len, 3
 
-        atom_iterator = itertools.chain.from_iterable(at.coords for at in atom_subset)
+        atom_iterator = itertools.chain.from_iterable(at.coords for at in atom_subset)  # type: ignore[has-type]
         xyz_array: np.ndarray = np.fromiter(atom_iterator, count=count, dtype=float)
         xyz_array.shape = shape
         return xyz_array

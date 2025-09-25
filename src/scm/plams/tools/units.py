@@ -307,11 +307,11 @@ class Units:
         if isinstance(value, collections.abc.Iterable):
             t = type(value)
             if t == np.ndarray:
-                t = np.array  # type: ignore
+                t = np.array  # type: ignore[assignment]
             v = [cls.convert(i, inp, out) for i in value]
-            return t(v)  # type: ignore
+            return t(v)  # type: ignore[call-arg,return-value]
         if isinstance(value, (int, float, np.generic)):
-            return value * cls.conversion_ratio(inp, out)  # type: ignore
+            return value * cls.conversion_ratio(inp, out)  # type: ignore[operator,return-value]
         return value
 
     @classmethod

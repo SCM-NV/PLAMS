@@ -291,23 +291,23 @@ class GridRunner(JobRunner):
 
     # N.B. these SLURM/PBS functions are always used in a static way
     # but as stored and accessed via Settings, cannot be decorated as such
-    def __slurm_get_jobid(output: str) -> Optional[str]:  # type: ignore
+    def __slurm_get_jobid(output: str) -> Optional[str]:  # type: ignore[misc]
         s = output.split()
         if len(s) > 0 and all([ch.isdigit() for ch in s[-1]]):
             return s[-1]
         return None
 
-    def __slurm_running(output: str) -> List[str]:  # type: ignore
+    def __slurm_running(output: str) -> List[str]:  # type: ignore[misc]
         lines = output.splitlines()[1:]
         return [line.split()[0] for line in lines]
 
-    def __pbs_get_jobid(output: str) -> Optional[str]:  # type: ignore
+    def __pbs_get_jobid(output: str) -> Optional[str]:  # type: ignore[misc]
         s = output.split(".")
         if len(s) > 0 and all([ch.isdigit() for ch in s[0]]):
             return s[0]
         return None
 
-    def __pbs_running(output: str) -> List[str]:  # type: ignore
+    def __pbs_running(output: str) -> List[str]:  # type: ignore[misc]
         lines = output.splitlines()[2:]
         return [line.split()[0].split(".")[0] for line in lines]
 

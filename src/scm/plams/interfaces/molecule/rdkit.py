@@ -368,7 +368,7 @@ def prop_to_rdmol(rd_obj: Union["RDKitMol", "RDKitAtom", "RDKitBond"], propkey: 
     obj = type(propvalue)
     obj_dict = {bool: rd_obj.SetBoolProp, float: rd_obj.SetDoubleProp, int: rd_obj.SetIntProp, str: rd_obj.SetProp}
     if obj_dict.get(obj):
-        obj_dict[obj](propkey, propvalue)
+        obj_dict[obj](propkey, propvalue)  # type: ignore[operator]
     else:
         name = propkey + "_pickled"
         try:
@@ -381,9 +381,9 @@ def prop_to_rdmol(rd_obj: Union["RDKitMol", "RDKitAtom", "RDKitBond"], propkey: 
 @overload
 def prop_from_rdmol(pl_obj: Bond, rd_obj: "RDKitBond") -> None: ...
 @overload
-def prop_from_rdmol(pl_obj: Atom, rd_obj: "RDKitAtom") -> None: ...  # type: ignore
+def prop_from_rdmol(pl_obj: Atom, rd_obj: "RDKitAtom") -> None: ...
 @overload
-def prop_from_rdmol(pl_obj: Molecule, rd_obj: "RDKitMol") -> None: ...  # type: ignore
+def prop_from_rdmol(pl_obj: Molecule, rd_obj: "RDKitMol") -> None: ...
 def prop_from_rdmol(pl_obj: Union[Molecule, Atom, Bond], rd_obj: Union["RDKitMol", "RDKitAtom", "RDKitBond"]) -> None:
     """
     Convert one or more RDKit properties into PLAMS properties.
@@ -454,7 +454,7 @@ def from_smiles(
     smiles = Chem.CanonSmiles(smiles)
     rdkit_mol = Chem.AddHs(Chem.MolFromSmiles(smiles))
     rdkit_mol.SetProp("smiles", smiles)
-    return get_conformations(rdkit_mol, nconfs, name, forcefield, rms)  # type: ignore
+    return get_conformations(rdkit_mol, nconfs, name, forcefield, rms)
 
 
 @overload
@@ -492,7 +492,7 @@ def from_smarts(
     Chem.SanitizeMol(mol)
     molecule = Chem.AddHs(mol)
     molecule.SetProp("smiles", smiles)
-    return get_conformations(molecule, nconfs, name, forcefield, rms)  # type: ignore
+    return get_conformations(molecule, nconfs, name, forcefield, rms)
 
 
 @overload
@@ -606,7 +606,7 @@ def get_conformations(
         return cids
 
     def MMFFenergy(cid: int) -> float:
-        ff = AllChem.MMFFGetMoleculeForceField(rdkit_mol, AllChem.MMFFGetMoleculeProperties(rdkit_mol), confId=cid)
+        ff = AllChem.MMFFGetMoleculeForceField(rdkit_mol, AllChem.MMFFGetMoleculeProperties(rdkit_mol), confId=cid)  # type: ignore[attr-defined]
         try:
             energy = ff.CalcEnergy()
         except:
@@ -620,7 +620,7 @@ def get_conformations(
         return energy
 
     def UFFenergy(cid: int) -> float:
-        ff = AllChem.UFFGetMoleculeForceField(rdkit_mol, confId=cid)
+        ff = AllChem.UFFGetMoleculeForceField(rdkit_mol, confId=cid)  # type: ignore[attr-defined]
         try:
             energy = ff.CalcEnergy()
         except:
@@ -676,27 +676,27 @@ def get_conformations(
             cids = constrained_embedding(rdkit_mol, nconfs, param_obj, template_mol, randomSeed)
         else:
             param_obj.randomSeed = randomSeed if randomSeed is not None else random.getrandbits(31)
-            cids = list(AllChem.EmbedMultipleConfs(rdkit_mol, nconfs, param_obj))
+            cids = list(AllChem.EmbedMultipleConfs(rdkit_mol, nconfs, param_obj))  # type: ignore[attr-defined]
     except Exception:
         # ``useRandomCoords = True`` prevents (poorly documented) crash for large systems
         param_obj.useRandomCoords = True
         if constraint_ats is not None:
             cids = constrained_embedding(rdkit_mol, nconfs, param_obj, template_mol, randomSeed)
         else:
-            cids = list(AllChem.EmbedMultipleConfs(rdkit_mol, nconfs, param_obj))
+            cids = list(AllChem.EmbedMultipleConfs(rdkit_mol, nconfs, param_obj))  # type: ignore[attr-defined]
     if len(cids) == 0:
         # Sometimes rdkit does not crash (for large systems), but simply doe snot create conformers
         param_obj.useRandomCoords = True
         if constraint_ats is not None:
             cids = constrained_embedding(rdkit_mol, nconfs, param_obj, template_mol, randomSeed)
         else:
-            cids = list(AllChem.EmbedMultipleConfs(rdkit_mol, nconfs, param_obj))
+            cids = list(AllChem.EmbedMultipleConfs(rdkit_mol, nconfs, param_obj))  # type: ignore[attr-defined]
 
     if forcefield:
         # Select the forcefield (UFF or MMFF)
         optimize_molecule, energy = {
-            "uff": [AllChem.UFFOptimizeMolecule, UFFenergy],
-            "mmff": [AllChem.MMFFOptimizeMolecule, MMFFenergy],
+            "uff": [AllChem.UFFOptimizeMolecule, UFFenergy],  # type: ignore[attr-defined]
+            "mmff": [AllChem.MMFFOptimizeMolecule, MMFFenergy],  # type: ignore[attr-defined]
         }[forcefield]
 
         # Optimize and sort conformations
@@ -707,11 +707,11 @@ def get_conformations(
     # Remove duplicate conformations based on RMS
     if best_rms > 0 or forcefield:
         rdmol_local = rdkit_mol
-        rms_function = AllChem.AlignMol
+        rms_function = AllChem.AlignMol  # type: ignore[attr-defined]
         if best_rms > 0:
             # Remove the H atoms, and prepare to use the more expensive RDKit function
             rdmol_local = remove_some_Hs(rdkit_mol)
-            rms_function = AllChem.GetBestRMS
+            rms_function = AllChem.GetBestRMS  # type: ignore[attr-defined]
         keep = [cids[0]]
         for cid in cids[1:]:
             for idx in keep:
@@ -774,7 +774,7 @@ def from_sequence(
 
     rdkit_mol = Chem.AddHs(Chem.MolFromSequence(sequence))
     rdkit_mol.SetProp("sequence", sequence)
-    return get_conformations(rdkit_mol, nconfs, name, forcefield, rms)  # type: ignore
+    return get_conformations(rdkit_mol, nconfs, name, forcefield, rms)
 
 
 @requires_optional_package("rdkit")
@@ -794,7 +794,7 @@ def calc_rmsd(mol1: Molecule, mol2: Molecule) -> float:
     rdkit_mol1 = to_rdmol(mol1)
     rdkit_mol2 = to_rdmol(mol2)
     try:
-        return AllChem.GetBestRMS(rdkit_mol1, rdkit_mol2)
+        return AllChem.GetBestRMS(rdkit_mol1, rdkit_mol2)  # type: ignore[attr-defined]
     except:
         return -999
 
@@ -930,7 +930,7 @@ def apply_reaction_smarts(
         return products
 
     mol = to_rdmol(mol)
-    reaction = AllChem.ReactionFromSmarts(reaction_smarts)
+    reaction = AllChem.ReactionFromSmarts(reaction_smarts)  # type: ignore[attr-defined]
     # RDKit removes fragments that are disconnected from the reaction center
     # In order to keep these, the molecule is first split in separate fragments
     # and the results, including non-reacting parts, are re-combined afterwards
@@ -947,8 +947,9 @@ def apply_reaction_smarts(
     # that are identical to those
     # in the reactants. This list can be used in subsequent partial optimization of the molecule
     if not return_rdmol:
-        product = from_rdmol(product)
-        product.properties.orig_atoms = [a + 1 for a in unchanged]
+        product_mol = from_rdmol(product)
+        product_mol.properties.orig_atoms = [a + 1 for a in unchanged]
+        return product_mol
     return product
 
 
@@ -960,9 +961,9 @@ def gen_coords(plamsmol: Molecule) -> List[int]:
     for a in range(len(plamsmol.atoms)):
         pos = conf.GetAtomPosition(a)
         atom = plamsmol.atoms[a]
-        atom._setx(pos.x)
-        atom._sety(pos.y)
-        atom._setz(pos.z)
+        atom._setx(pos.x)  # type: ignore[attr-defined]
+        atom._sety(pos.y)  # type: ignore[attr-defined]
+        atom._setz(pos.z)  # type: ignore[attr-defined]
     return [a + 1 for a in unchanged]
 
 
@@ -989,9 +990,9 @@ def gen_coords_rdmol(rdmol: "RDKitMol") -> List[int]:
     # repeat embedding and alignment until the rms of mapped atoms is sufficiently small
     if rdmol.GetNumAtoms() > len(maps):
         while rms > 0.1:
-            AllChem.EmbedMolecule(rdmol, coordMap=coordDict, randomSeed=rs, useBasicKnowledge=True)
+            AllChem.EmbedMolecule(rdmol, coordMap=coordDict, randomSeed=rs, useBasicKnowledge=True)  # type: ignore[attr-defined]
             # align new molecule to original coordinates
-            rms = AllChem.AlignMol(rdmol, ref, atomMap=maps)
+            rms = AllChem.AlignMol(rdmol, ref, atomMap=maps)  # type: ignore[attr-defined]
             rs += 1
     return unchanged
 
@@ -1002,7 +1003,7 @@ def optimize_coordinates(rdkit_mol: "RDKitMol", forcefield: str, fixed: Sequence
     from rdkit.Chem import AllChem
 
     def MMFFminimize() -> None:
-        ff = AllChem.MMFFGetMoleculeForceField(rdkit_mol, AllChem.MMFFGetMoleculeProperties(rdkit_mol))
+        ff = AllChem.MMFFGetMoleculeForceField(rdkit_mol, AllChem.MMFFGetMoleculeProperties(rdkit_mol))  # type: ignore[attr-defined]
         for f in fixed:
             ff.AddFixedPoint(f)
         try:
@@ -1011,7 +1012,7 @@ def optimize_coordinates(rdkit_mol: "RDKitMol", forcefield: str, fixed: Sequence
             warn("MMFF geometry optimization failed for molecule: " + Chem.MolToSmiles(rdkit_mol))
 
     def UFFminimize() -> None:
-        ff = AllChem.UFFGetMoleculeForceField(rdkit_mol, ignoreInterfragInteractions=True)
+        ff = AllChem.UFFGetMoleculeForceField(rdkit_mol, ignoreInterfragInteractions=True)  # type: ignore[attr-defined]
         for f in fixed:
             ff.AddFixedPoint(f)
         try:
@@ -1303,7 +1304,7 @@ def partition_protein(
             if (resa, resb) not in residue_bonds and (resb, resa) not in residue_bonds:
                 continue
         cap = get_fragment(mol, match[0:5])
-        cap = add_Hs(cap, return_rdmol=True)  # type: ignore
+        cap = add_Hs(cap, return_rdmol=True)
         caps.append(cap if return_rdmol else from_rdmol(cap))
         cap_o_ind = cap.GetSubstructMatch(Chem.MolFromSmarts("[C;X4][CX3]=O"))
         cap_o = get_fragment(cap, cap_o_ind, neutralize=False)
@@ -1316,7 +1317,7 @@ def partition_protein(
     ss_bond = Chem.MolFromSmarts("[C;X4;H1,H2]SS[C;X4;H1,H2]")
     for match in mol.GetSubstructMatches(ss_bond):
         cap = get_fragment(mol, match[0:5])
-        cap = add_Hs(cap, return_rdmol=True)  # type: ignore
+        cap = add_Hs(cap, return_rdmol=True)
         caps.append(cap if return_rdmol else from_rdmol(cap))
         cap_s_ind = cap.GetSubstructMatch(Chem.MolFromSmarts("[C;X4]SS[C;X4]"))
         cap_s1 = get_fragment(cap, cap_s_ind[0:2], neutralize=False)
@@ -1324,9 +1325,9 @@ def partition_protein(
         em.RemoveBond(match[1], match[2])
         add_fragment(em, cap_s1, match[2], 1, 1)
         add_fragment(em, cap_s2, match[1], 0, 1)
-    frags: Union[List[Molecule], List["RDKitMol"]] = Chem.GetMolFrags(em.GetMol(), asMols=True, sanitizeFrags=False)
+    frags: List["RDKitMol"] = [f for f in Chem.GetMolFrags(em.GetMol(), asMols=True, sanitizeFrags=False)]
     if not return_rdmol:
-        frags = [from_rdmol(frag) for frag in frags]
+        return [from_rdmol(frag) for frag in frags], caps
     return frags, caps
 
 
@@ -1345,7 +1346,7 @@ def charge_AAs(mol: Molecule, return_rdmol: bool = False) -> Union[Molecule, "RD
 
     ionizations = {"ARG_NH2": 1, "LYS_NZ": 1, "GLU_OE2": -1, "ASP_OD2": -1}
     mol = to_rdmol(mol)
-    for atom in mol.GetAtoms():
+    for atom in mol.GetAtoms():  # type: ignore[attr-defined]
         resinfo = atom.GetPDBResidueInfo()
         res_atom = resinfo.GetResidueName() + "_" + resinfo.GetName().strip()
         try:
@@ -1368,7 +1369,8 @@ def get_backbone_atoms(mol: Union[Molecule, "RDKitMol"]) -> List[int]:
     :return: a list of atom indices
     :rtype: list
     """
-    mol = from_rdmol(mol)
+    if not isinstance(mol, Molecule):
+        mol = from_rdmol(mol)
     backbone = ["N", "CA", "C", "O"]
     return [a for a in range(1, len(mol) + 1) if str(mol[a].properties.pdb_info.Name).strip() in backbone]
 
@@ -1428,7 +1430,7 @@ def get_substructure(
         """Perform a substructure match on "mol".
         If a match is found, return a list of n-tuples consisting PLAMS |Atom|.
         Otherwise return False."""
-        matches = rdmol.GetSubstructMatches(functional_group)
+        matches = rdmol.GetSubstructMatches(functional_group)  # type: ignore[arg-type]
         if matches:
             return [tuple(mol[j + 1] for j in idx_tup) for idx_tup in matches]
         return False
@@ -1436,7 +1438,7 @@ def get_substructure(
     rdmol = to_rdmol(mol)
     rdmol_func_list = [_to_rdmol(i) for i in func_list]
     gen = (_get_match(mol, rdmol, i) for i in rdmol_func_list)
-    return {key: value for key, value in zip(func_list, gen) if value}  # type: ignore
+    return {key: value for key, value in zip(func_list, gen) if value}  # type: ignore[misc]
 
 
 def yield_coords(rdmol: "RDKitMol", id: int = -1) -> Generator[Tuple[float, float, float], None, None]:
@@ -1759,7 +1761,7 @@ def _get_reaction_image_svg(
 
     # Place the molecules in a row of images
     kwargs = {"legendFontSize": 16}  # ,"legendFraction":0.1}
-    img_text = _MolsToGridSVG(rdmols, molsPerRow=nmols, subImgSize=(width, height), **kwargs)  # type: ignore
+    img_text = _MolsToGridSVG(rdmols, molsPerRow=nmols, subImgSize=(width, height), **kwargs)  # type: ignore[arg-type]
     img_text = _correct_svg(img_text)
 
     # Add + and =>
@@ -1866,8 +1868,8 @@ def _get_reaction_image_pil(
 
         # Get the image (with arrow)
         nreactants = len(reactants)
-        all_images = rimages + [blanc] + pimages
-        img = join_pil_images(all_images)
+        all_images = rimages + [blanc] + pimages  # type: ignore[arg-type]
+        img = join_pil_images(all_images)  # type: ignore[arg-type]
 
     else:
         # We have a later version of RDKit that can regulate the font sizes
@@ -1961,7 +1963,7 @@ def _kekulize(
         return rdmol, {}, {}
 
     # Set the bond orders along the chain to 2, 1, 2, 1,...
-    altered_bonds: Dict[tuple[int, int], int] = {}
+    altered_bonds: Dict[Tuple[int, int], int] = {}
     if len(indices) > 1:
         emol = Chem.RWMol(rdmol)
         if use_dfs:
@@ -2222,7 +2224,7 @@ def _rdmol_for_image(mol: Molecule, remove_hydrogens: bool = True) -> "RDKitMol"
     rdmol = to_rdmol(mol, presanitize=True)
 
     # Flatten the molecule
-    AllChem.Compute2DCoords(rdmol)
+    AllChem.Compute2DCoords(rdmol)  # type: ignore[attr-defined]
     # Remove the Hs only if there are carbon atoms in this system
     # Otherwise this will turn an OH radical into a water molecule.
     carbons = [i for i, at in enumerate(mol.atoms) if at.symbol in ["C", "Si"]]

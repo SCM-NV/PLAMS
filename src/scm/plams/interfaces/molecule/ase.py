@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING, List
 
 from scm.plams.core.functions import requires_optional_package
 from scm.plams.core.settings import Settings
@@ -74,11 +74,11 @@ def fromASE(molecule: "ASEAtoms", properties: Optional[Settings] = None, set_cha
 
     # add Lattice if any
     if any(molecule.get_pbc()):
-        lattice = []
+        lattice: List[List[float]] = []
         # loop over three booleans
         for i, boolean in enumerate(molecule.get_pbc().tolist()):
             if boolean:
-                lattice.append(tuple(molecule.get_cell()[i]))
+                lattice.append(list(molecule.get_cell()[i]))
 
         # write lattice to plams_mol
         plams_mol.lattice = lattice.copy()

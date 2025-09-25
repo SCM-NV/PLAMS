@@ -5,6 +5,7 @@ from scm.plams.interfaces.adfsuite.ams import AMSJob
 from scm.plams.tools.units import Units
 from scm.plams.core.errors import FileError
 from scm.plams.mol.molecule import Molecule
+from scm.plams.core.enums import JobStatus
 
 import numpy as np
 
@@ -292,7 +293,7 @@ class ADFFragmentJob(MultiJob):
 
         job = cls(name=jobname)
         job.path = path
-        job.status = "copied"
+        job.status = JobStatus.COPIED
 
         job.f1 = AMSJob.load_external(opj(path, "frag1"))
         job.f2 = AMSJob.load_external(opj(path, "frag2"))

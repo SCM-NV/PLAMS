@@ -11,7 +11,7 @@ from scm.plams.mol.molecule import Molecule
 from test_helpers import skip_if_windows
 
 try:
-    from scm.libbase import UnifiedChemicalSystem as ChemicalSystem, UnifiedLattice as Lattice
+    from scm.libbase import ChemicalSystem, Lattice
 
     _has_scm_chemsys = True
 except ImportError:
@@ -29,7 +29,9 @@ class TestView:
 
     def test_backends_cache(self, water):
         # Given backend cache with no successful backends
-        view._backends = {
+        import scm.plams.tools.view as viewer
+
+        viewer._view_backends_cache = {
             "amsview": (_AmsViewBackend(), False, RuntimeError("something went wrong")),
             "amsview_xvfb": (_AmsViewXvfbBackend(), False, RuntimeError("something also went wrong")),
             "ase_plot": (_AsePlotBackend(), False, RuntimeError("something else went wrong")),
@@ -43,11 +45,13 @@ class TestView:
             view(water, backend="amsview")
 
         # Given backend cache with successful backend
-        view._backends["ase_plot"] = (_AsePlotBackend(), True, None)
+        viewer._view_backends_cache["ase_plot"] = (_AsePlotBackend(), True, None)
 
         # When view
         # Then succeeds
         view(water, backend="auto")
+
+        viewer._view_backends_cache = None
 
 
 class TestAmsViewBackend:

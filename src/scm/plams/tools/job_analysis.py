@@ -19,7 +19,7 @@ from scm.plams.mol.molecule import Molecule
 from scm.plams.interfaces.adfsuite.inputparser import input_to_settings
 
 try:
-    from scm.libbase import UnifiedChemicalSystem as ChemicalSystem
+    from scm.libbase import ChemicalSystem
     from scm.utils.conversions import chemsys_to_plams_molecule
 
     _has_scm_libbase = True
@@ -405,7 +405,10 @@ class JobAnalysis:
             vfmt = self._fields[f].fmt
             return [safe_format_value(v, vfmt) for v in vs]
 
-        data = {self._fields[f].display_name: safe_format_values(f, v) for f, v in self.get_analysis().items()}
+        data = {
+            self._fields[f].display_name or self._fields[f].key: safe_format_values(f, v)
+            for f, v in self.get_analysis().items()
+        }
         return format_in_table(data, max_col_width=max_col_width, max_rows=max_rows, fmt=fmt)
 
     @requires_optional_package("IPython")
@@ -595,18 +598,18 @@ class JobAnalysis:
 
             job_timelines = []
             use_html = fmt == "html"
-            for job, statuses in ordered_job_statuses:
+            for job, timestamped_statuses in ordered_job_statuses:
                 job_timeline = [
                     ["&nbsp;" if use_html else " " for _ in range(num_positions)] for _ in range(num_intervals)
                 ]
-                if statuses:
-                    for i, status in enumerate(statuses):
+                if timestamped_statuses:
+                    for i, status in enumerate(timestamped_statuses):
                         symbol = status_symbols.get(status[1], "?")
-                        if i == (len(statuses) - 1):
+                        if i == (len(timestamped_statuses) - 1):
                             col, pos = get_col_and_position(status[0])
                             job_timeline[col][pos] = symbol
                         else:
-                            next_status = statuses[i + 1]
+                            next_status = timestamped_statuses[i + 1]
                             col_start, pos_start = get_col_and_position(status[0])
                             col_end, pos_end = get_col_and_position(next_status[0])
                             for col in range(col_start, col_end + 1):
@@ -686,9 +689,10 @@ class JobAnalysis:
 
         :param job: |Job| to add to the analysis
         """
-        if job.path in self._jobs:
-            raise KeyError(f"Job with path '{job.path}' has already been added to the analysis.")
-        self._jobs[job.path] = job
+        path = str(job.get_path())
+        if path in self._jobs:
+            raise KeyError(f"Job with path '{path}' has already been added to the analysis.")
+        self._jobs[path] = job
 
     def add_job(self, job: Job) -> "JobAnalysis":
         """
@@ -726,7 +730,7 @@ class JobAnalysis:
         :param job: |Job| or path to a job to remove from the analysis
         :return: copy of |JobAnalysis| with the job removed
         """
-        path = job.path if isinstance(job, Job) else str(os.path.abspath(job))
+        path = job.path if isinstance(job, Job) else str(os.path.abspath(job))  # type: ignore[type-var,misc]
         if path not in self._jobs:
             raise KeyError(f"Job with path '{path}' is not part of the analysis.")
 
@@ -764,7 +768,7 @@ class JobAnalysis:
         use_loaders = not dill_file.exists()
         if not use_loaders:
             try:
-                job = load(dill_file)
+                job = load(str(dill_file))
             except Exception:
                 use_loaders = True
 
@@ -1564,7 +1568,7 @@ class JobAnalysis:
         cpy = self.copy()
         cpy = cpy.add_field(
             key,
-            lambda j, k=key_tuple: cpy._get_job_settings(j).get_nested(k),  # type: ignore
+            lambda j, k=key_tuple: cpy._get_job_settings(j).get_nested(k),  # type: ignore[type-var,misc]
             display_name=display_name,
             fmt=fmt,
             expansion_depth=expansion_depth,
@@ -1611,7 +1615,9 @@ class JobAnalysis:
             if key not in all_blocks and predicate(key):
                 field_key = "".join([str(k).title() for k in key])
                 field = cpy._Field(
-                    key=field_key, value_extractor=lambda j, k=key: cpy._get_job_settings(j).get_nested(k), from_settings=True  # type: ignore
+                    key=field_key,
+                    value_extractor=lambda j, k=key: cpy._get_job_settings(j).get_nested(k),  # type: ignore[misc]
+                    from_settings=True,
                 )
                 if field_key not in cpy._fields:
                     cpy._fields[field_key] = field

@@ -1,4 +1,4 @@
-from typing import List, Optional, Tuple, Union, TYPE_CHECKING, Dict, Any, Literal
+from typing import List, Optional, Tuple, Union, TYPE_CHECKING, Dict, Any, Literal, cast
 import numpy as np
 
 from scm.plams.core.errors import MissingOptionalPackageError
@@ -355,7 +355,7 @@ def plot_grid_molecules(
     :rtype: pil.Image or plt.Axes or string
     """
     from rdkit.Chem import Draw, rdchem
-    from rdkit.Chem.Draw import IPythonConsole
+    from rdkit.Chem.Draw import IPythonConsole  # type: ignore[attr-defined]
     from scm.plams.interfaces.molecule.rdkit import _rdmol_for_image
 
     # guess bonds, the bonds will be included in the RDKit molecule
@@ -426,19 +426,21 @@ def get_correlation_xy(
     data2 = []
     for j1, j2 in zip(job1, job2):
         try:
-            d1 = j1.results.readrkf(section, variable, file=file)
+            d1 = cast(Union[List[float], float], j1.results.readrkf(section, variable, file=file))
         except KeyError:
-            d1 = j1.results.get_history_property(variable, history_section=section)
-        d1 = np.ravel(d1) * multiplier
+            d1 = cast(Union[List[float], float], j1.results.get_history_property(variable, history_section=section))
+        d1a = np.ravel(d1) * multiplier
 
         try:
-            d2 = j2.results.readrkf(alt_section, alt_variable, file=file)
+            d2 = cast(Union[List[float], float], j2.results.readrkf(alt_section, alt_variable, file=file))
         except KeyError:
-            d2 = j2.results.get_history_property(alt_variable, history_section=alt_section)
-        d2 = np.ravel(d2) * multiplier
+            d2 = cast(
+                Union[List[float], float], j2.results.get_history_property(alt_variable, history_section=alt_section)
+            )
+        d2a = np.ravel(d2) * multiplier
 
-        data1.extend(list(d1))
-        data2.extend(list(d2))
+        data1.extend(list(d1a))
+        data2.extend(list(d2a))
 
     return np.array(data1), np.array(data2)
 

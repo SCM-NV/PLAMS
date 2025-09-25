@@ -37,7 +37,7 @@ from scm.plams.core.private import run_with_timeout
 from scm.plams.tools.units import Units
 
 try:
-    from scm.libbase import UnifiedChemicalSystem as ChemicalSystem
+    from scm.libbase import ChemicalSystem
 
     _has_scm_chemsys = True
 except ImportError:
@@ -176,9 +176,11 @@ class ViewConfig:
             raise ValueError(f"height must be a positive integer, but was '{self.height}'")
         if not isinstance(self.padding, (int, float)):
             raise ValueError(f"padding must be a numeric value, but was '{self.padding}'")
-        if self.direction and (not isinstance(self.direction, str) or self.direction not in ViewDirections.__args__):  # type: ignore
+        if self.direction and (
+            not isinstance(self.direction, str) or self.direction not in ViewDirections.__args__  # type: ignore[attr-defined]
+        ):
             raise ValueError(
-                f"direction must be one of: '{', '.join(ViewDirections.__args__)}'; but was '{self.direction}'"  # type: ignore
+                f"direction must be one of: '{', '.join(ViewDirections.__args__)}'; but was '{self.direction}'"  # type: ignore[attr-defined]
             )
         if self.normal and (
             not isinstance(self.normal, Sequence)
@@ -230,14 +232,17 @@ class ViewConfig:
         if not isinstance(self.show_lattice_vectors, bool):
             raise ValueError(f"show_lattice_vectors must be a boolean value, but was '{self.show_lattice_vectors}'")
 
-        if not isinstance(self.backend, str) or self.backend not in Backends.__args__:  # type: ignore
+        if not isinstance(self.backend, str) or self.backend not in Backends.__args__:  # type: ignore[attr-defined]
             raise ValueError(
-                f"backend must be one of: '{', '.join(Backends.__args__)}'; but was '{self.backend}'"  # type: ignore
+                f"backend must be one of: '{', '.join(Backends.__args__)}'; but was '{self.backend}'"  # type: ignore[attr-defined]
             )
         if self.timeout and (not isinstance(self.timeout, int) or self.timeout < 0):
             raise ValueError(f"timeout must be a positive integer, but was '{self.timeout}'")
         if not isinstance(self.open_window, bool):
             raise ValueError(f"open_window must be a boolean value, but was '{self.open_window}'")
+
+
+_view_backends_cache: Optional[Dict[str, Tuple["_ViewBackend", bool, Optional[Exception]]]] = None
 
 
 @requires_optional_package("PIL")
@@ -279,6 +284,7 @@ def view(
     :param open_window: override to open AMSview in a dedicated window
     :return: image of the molecule generated using AMSView
     """
+    global _view_backends_cache
     # Set up config objects, applying any config overrides from the keyword args
     config = config or ViewConfig()
     if width is not None:
@@ -314,7 +320,7 @@ def view(
         config.timeout = 10 if not config.open_window else None
 
     # On first call check which backends are available
-    if not hasattr(view, "_backends"):
+    if _view_backends_cache is None:
 
         def check_backend_available(b: TBackend) -> Tuple[TBackend, bool, Optional[Exception]]:
             try:
@@ -328,9 +334,9 @@ def view(
             "amsview_xvfb": check_backend_available(_AmsViewXvfbBackend()),
             "ase_plot": check_backend_available(_AsePlotBackend()),
         }
-        view._backends = backends
+        _view_backends_cache = backends
     else:
-        backends = view._backends
+        backends = _view_backends_cache
 
     # On subsequent calls get the available backend
     if config.backend != "auto" and config.backend not in backends:

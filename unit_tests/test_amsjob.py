@@ -309,7 +309,7 @@ class TestAMSJobWithChemicalSystem(TestAMSJob):
         Instance of the Molecule class passed to the AMSJob
         """
         skip_if_no_scm_libbase()
-        from scm.libbase import UnifiedChemicalSystem as ChemicalSystem
+        from scm.libbase import ChemicalSystem
 
         molecule = ChemicalSystem()
         molecule.add_atom("O", coords=[0, 0, 0])
@@ -355,7 +355,7 @@ class TestAMSJobWithChemicalSystemAndPisa(TestAMSJobWithPisa):
         Instance of the Molecule class passed to the AMSJob
         """
         skip_if_no_scm_libbase()
-        from scm.libbase import UnifiedChemicalSystem as ChemicalSystem
+        from scm.libbase import ChemicalSystem
 
         molecule = ChemicalSystem()
         molecule.add_atom("O", coords=[0, 0, 0])
@@ -615,7 +615,7 @@ class TestAMSJobWithMultipleChemicalSystems(TestAMSJobWithMultipleMolecules):
         Instance of the Molecule class passed to the AMSJob
         """
         skip_if_no_scm_libbase()
-        from scm.libbase import UnifiedChemicalSystem as ChemicalSystem
+        from scm.libbase import ChemicalSystem
 
         main_molecule = ChemicalSystem()
         main_molecule.add_atom("C", coords=(0, 0, 0))
@@ -676,7 +676,7 @@ class TestAMSJobWithMultipleChemicalSystemsAndPisa(TestAMSJobWithMultipleMolecul
         Instance of the Molecule class passed to the AMSJob
         """
         skip_if_no_scm_libbase()
-        from scm.libbase import UnifiedChemicalSystem as ChemicalSystem
+        from scm.libbase import ChemicalSystem
 
         main_molecule = ChemicalSystem()
         main_molecule.add_atom("C", coords=(0, 0, 0))
@@ -976,7 +976,7 @@ class TestAMSJobWithSystemBlockSettingsAndChemicalSystem(TestAMSJobWithSystemBlo
         Get instance of the Molecule class passed to the AMSJob
         """
         skip_if_no_scm_libbase()
-        from scm.libbase import UnifiedChemicalSystem as ChemicalSystem, UnifiedLattice as Lattice
+        from scm.libbase import ChemicalSystem, Lattice
 
         molecule = ChemicalSystem()
         molecule.add_atom("Ar", coords=(0, 0, 0))
@@ -1039,7 +1039,7 @@ class TestAMSJobWithSystemBlockSettingsAndChemicalSystemAndPisa(TestAMSJobWithSy
         Get instance of the Molecule class passed to the AMSJob
         """
         skip_if_no_scm_libbase()
-        from scm.libbase import UnifiedChemicalSystem as ChemicalSystem, UnifiedLattice as Lattice
+        from scm.libbase import ChemicalSystem, Lattice
 
         molecule = ChemicalSystem()
         molecule.add_atom("Ar", coords=(0, 0, 0))
@@ -1416,7 +1416,7 @@ class TestAMSJobWithSystemBlockSettingsAndMultipleChemicalSystems(
         Get instance of the Molecule class passed to the AMSJob
         """
         skip_if_no_scm_libbase()
-        from scm.libbase import UnifiedChemicalSystem as ChemicalSystem
+        from scm.libbase import ChemicalSystem
 
         main_molecule = ChemicalSystem()
         main_molecule.add_atom("C", coords=(-0.13949723, -0.08053322, -0.12698191))

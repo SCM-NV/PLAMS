@@ -96,7 +96,7 @@ def run_crs_ams(settings_ams, settings_crs, solvents, solutes=None, return_amsre
     :type return_amsresults: :class:`bool`
     :parameter return_amsresults: If ``True``, return both the solvent and solute AMS results in addition to the final COSMO-RS.
 
-    :parameter \**kwargs, optional:
+    :parameter \\*\\*kwargs, optional:
         Optional keyword arguments that will be passed to all calls of :meth:`.Job.run`.
         For example, one could consider passing a custom :ref:`job_runners` or :ref:`job_manager`.
 
