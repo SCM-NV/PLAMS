@@ -48,6 +48,7 @@ from typing import (
     IO,
     Iterator,
     SupportsIndex,
+    cast,
 )
 
 if TYPE_CHECKING:
@@ -1144,7 +1145,7 @@ class Molecule:
 
             supercell_lattice = [tuple(vec) for vec in S @ np.array(self.lattice)]
 
-            max_supercell_index = np.max(abs(S))
+            max_supercell_index = cast(int, np.max(abs(S)))
             all_possible_translations = itertools.product(
                 range(-max_supercell_index, max_supercell_index + 1), repeat=len(self.lattice)
             )

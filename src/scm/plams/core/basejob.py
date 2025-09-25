@@ -68,7 +68,7 @@ def _fail_on_exception(func: Callable[Concatenate[J, P], T]) -> Callable[Concate
         except Exception as ex:
             # Mark job status as failed and the results as complete
             log(f"Encountered exception {ex} in {self.name}, marking job as {JobStatus.FAILED}", 5)
-            self.status = JobStatus.FAILED
+            self.status = JobStatus.FAILED  # type: ignore[assignment] # Python3.8 only - can be removed when support dropped
             self.results.finished.set()  # type: ignore[has-type]
             self.results.done.set()  # type: ignore[has-type]
             # Notify any parent multi-job of the failure
@@ -126,7 +126,7 @@ class Job(ABC):
         if os.path.sep in name:
             raise PlamsError(f"Job name cannot contain {os.path.sep}")
         self._status_log: List[Tuple[datetime.datetime, str]] = []
-        self.status: JobStatus = JobStatus.CREATED
+        self.status: JobStatus = JobStatus.CREATED  # type: ignore[assignment] # Python3.8 only - can be removed when support dropped
         self.results = self.__class__._result_type(self)
         self.name: str = name
         self.path: Optional[str] = None
@@ -193,7 +193,7 @@ class Job(ABC):
         if self.status != JobStatus.CREATED:
             raise JobError(f"Trying to run previously started job {self.name}")
         self._error_msg = None
-        self.status = JobStatus.STARTED
+        self.status = JobStatus.STARTED  # type: ignore[assignment] # Python3.8 only - can be removed when support dropped
         self._log_status(1)
 
         self.settings.run.soft_update(Settings(kwargs))
@@ -294,7 +294,7 @@ class Job(ABC):
             raise JobError(f"Path for job {self.name} is not set")
         os.makedirs(self.path)
 
-        self.status = JobStatus.REGISTERED
+        self.status = JobStatus.REGISTERED  # type: ignore[assignment] # Python3.8 only - can be removed when support dropped
 
         log(f"Starting {self.name}.prerun()", 5)
         self.prerun()
@@ -307,7 +307,7 @@ class Job(ABC):
         if prev is not None:
             try:
                 prev.results._copy_to(self.results)
-                self.status = JobStatus.COPIED
+                self.status = JobStatus.COPIED  # type: ignore[assignment] # Python3.8 only - can be removed when support dropped
             except ResultsError as re:
                 log(f"Copying results of {prev.name} failed because of the following error: {str(re)}", 1)
                 self.status = prev.status
@@ -318,7 +318,7 @@ class Job(ABC):
             if self.parent and self in self.parent:
                 self.parent._notify()
         else:
-            self.status = JobStatus.RUNNING
+            self.status = JobStatus.RUNNING  # type: ignore[assignment] # Python3.8 only - can be removed when support dropped
             log(f"Starting {self.name}._get_ready()", 7)
             self._get_ready()
             log(f"{self.name}._get_ready() finished", 7)
@@ -345,7 +345,7 @@ class Job(ABC):
             self.results.collect()
             self.results.finished.set()
             if self.status != JobStatus.CRASHED and self.status != JobStatus.FAILED:
-                self.status = JobStatus.FINISHED
+                self.status = JobStatus.FINISHED  # type: ignore[assignment] # Python3.8 only - can be removed when support dropped
                 self._log_status(3)
                 if self.check():
                     log(f"{self.name}.check() success. Cleaning results with keep = {self.settings.keep}", 7)
@@ -353,15 +353,15 @@ class Job(ABC):
                     log(f"Starting {self.name}.postrun()", 5)
                     self.postrun()
                     log(f"{self.name}.postrun() finished", 5)
-                    self.status = JobStatus.SUCCESSFUL
+                    self.status = JobStatus.SUCCESSFUL  # type: ignore[assignment] # Python3.8 only - can be removed when support dropped
                     log(f"Pickling {self.name}", 7)
                     if self.settings.pickle:
                         self.pickle()
                 else:
                     log(f"{self.name}.check() failed", 7)
-                    self.status = JobStatus.FAILED
+                    self.status = JobStatus.FAILED  # type: ignore[assignment] # Python3.8 only - can be removed when support dropped
         else:
-            self.status = JobStatus.PREVIEW
+            self.status = JobStatus.PREVIEW  # type: ignore[assignment] # Python3.8 only - can be removed when support dropped
             self.results.finished.set()
         self.results.done.set()
 
@@ -392,7 +392,7 @@ class Job(ABC):
         if self.path is not None:
             shutil.rmtree(self.path)
 
-        self.status = JobStatus.DELETED
+        self.status = JobStatus.DELETED  # type: ignore[assignment] # Python3.8 only - can be removed when support dropped
         self.path = None
         self._log_status(5)
 
@@ -621,7 +621,7 @@ class SingleJob(Job):
             )
             if retcode != 0:
                 log(f"WARNING: Job {self.name} finished with nonzero return code", 3)
-                self.status = JobStatus.CRASHED
+                self.status = JobStatus.CRASHED  # type: ignore[assignment] # Python3.8 only - can be removed when support dropped
         log(f"{self.name}._execute() finished", 7)
 
     def _filename(self, t: str) -> str:
@@ -719,7 +719,7 @@ class SingleJob(Job):
 
         job = cls(name=jobname)
         job.path = path
-        job.status = JobStatus.COPIED
+        job.status = JobStatus.COPIED  # type: ignore[assignment] # Python3.8 only - can be removed when support dropped
         job.results.collect()
 
         job._filenames = {}

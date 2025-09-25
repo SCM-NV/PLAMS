@@ -1346,7 +1346,7 @@ def charge_AAs(mol: Molecule, return_rdmol: bool = False) -> Union[Molecule, "RD
 
     ionizations = {"ARG_NH2": 1, "LYS_NZ": 1, "GLU_OE2": -1, "ASP_OD2": -1}
     mol = to_rdmol(mol)
-    for atom in mol.GetAtoms():
+    for atom in mol.GetAtoms():  # type: ignore[attr-defined]
         resinfo = atom.GetPDBResidueInfo()
         res_atom = resinfo.GetResidueName() + "_" + resinfo.GetName().strip()
         try:
@@ -1963,7 +1963,7 @@ def _kekulize(
         return rdmol, {}, {}
 
     # Set the bond orders along the chain to 2, 1, 2, 1,...
-    altered_bonds: Dict[tuple[int, int], int] = {}
+    altered_bonds: Dict[Tuple[int, int], int] = {}
     if len(indices) > 1:
         emol = Chem.RWMol(rdmol)
         if use_dfs:

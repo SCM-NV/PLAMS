@@ -2,7 +2,7 @@ from typing import Literal, Union
 
 # Import StrEnum for Python >=3.11, otherwise use backwards compatible class
 try:
-    from enum import StrEnum
+    from enum import StrEnum  # type: ignore[attr-defined]
 except ImportError:
     from enum import Enum
 
