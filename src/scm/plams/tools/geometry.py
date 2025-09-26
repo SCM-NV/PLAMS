@@ -26,6 +26,7 @@ __all__ = [
 
 HALF_PI = np.pi / 2
 
+
 def rotation_matrix(vec1: Vector, vec2: Vector) -> np.ndarray:
     """
     Calculate the rotation matrix rotating *vec1* to *vec2*. Vectors can be any containers with 3 numerical values. They don't need to be normalized. Returns 3x3 numpy array.
@@ -43,7 +44,7 @@ def rotation_matrix(vec1: Vector, vec2: Vector) -> np.ndarray:
     return np.identity(3) + M + np.dot(M, M) / (1 + np.dot(a, b))
 
 
-def axis_rotation_matrix(vector: Vector, angle: float, unit: str="radian") -> np.ndarray:
+def axis_rotation_matrix(vector: Vector, angle: float, unit: str = "radian") -> np.ndarray:
     """
     Calculate the rotation matrix rotating along the *vector* by *angle* expressed in *unit*.
 
@@ -70,7 +71,7 @@ def distance_array(array1: np.ndarray, array2: np.ndarray) -> np.ndarray:
     return cdist(array1, array2) if scipy_present else np.array([np.linalg.norm(i - array2, axis=1) for i in array1])
 
 
-def angle(vec1: Vector, vec2: Vector, result_unit:str="radian") -> float:
+def angle(vec1: Vector, vec2: Vector, result_unit: str = "radian") -> float:
     """Calculate an angle between vectors *vec1* and *vec2*.
 
     *vec1* and *vec2* should be iterable containers of length 3 (for example: tuple, list, numpy array). Values stored in them are expressed in Angstrom. Returned value is expressed in *result_unit*.
@@ -85,7 +86,7 @@ def angle(vec1: Vector, vec2: Vector, result_unit:str="radian") -> float:
     return Units.convert(np.arccos(num / den), "radian", result_unit)
 
 
-def dihedral(p1: Vector, p2: Vector, p3: Vector, p4: Vector, unit: str="radian") -> np.ndarray:
+def dihedral(p1: Vector, p2: Vector, p3: Vector, p4: Vector, unit: str = "radian") -> np.ndarray:
     """Calculate the value of diherdal angle formed by points *p1*, *p2*, *p3* and *p4* in a 3D space. Arguments can be any containers with 3 numerical values, also instances of |Atom|. Returned value is always non-negative, measures the angle clockwise (looking along *p2-p3* vector) and is expressed in *unit*."""
     p1 = np.array([*p1], dtype=float)
     p2 = np.array([*p2], dtype=float)
@@ -131,7 +132,7 @@ def cell_shape(lattice: Matrix) -> Optional[List[float]]:
     return [a, b, c, alpha, beta, gamma]
 
 
-def cell_lengths(lattice: Matrix, unit: str="angstrom") -> List[float]:
+def cell_lengths(lattice: Matrix, unit: str = "angstrom") -> List[float]:
     """Return the lengths of the lattice vector. Returns a list with the same length as the number of lattice vector."""
 
     if lattice is None or len(lattice) == 0:
@@ -141,7 +142,7 @@ def cell_lengths(lattice: Matrix, unit: str="angstrom") -> List[float]:
     return ret.tolist()
 
 
-def cell_angles(lattice: Matrix, unit: str="degree") -> List[float]: #type: ignore[return]
+def cell_angles(lattice: Matrix, unit: str = "degree") -> List[float]:  # type: ignore[return]
     """Return the angles between lattice vectors.
 
     unit : str
