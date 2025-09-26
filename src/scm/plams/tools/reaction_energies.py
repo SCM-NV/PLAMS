@@ -12,29 +12,31 @@ __all__ = ["get_stoichiometry", "balance_equation", "reaction_energy"]
 
 @overload
 def get_stoichiometry(
-    job_or_molecule_or_path: Union[AMSJob, Molecule, str], as_dict: Literal[True] = True
+    job_or_molecule_or_path: Union[AMSJob, Molecule, str, Dict[str, int]], as_dict: Literal[True] = True
 ) -> Dict[str, int]: ...
 @overload
-def get_stoichiometry(job_or_molecule_or_path: Union[AMSJob, Molecule, str], as_dict: Literal[False]) -> str: ...
 def get_stoichiometry(
-    job_or_molecule_or_path: Union[AMSJob, Molecule, str], as_dict: bool = True
+    job_or_molecule_or_path: Union[AMSJob, Molecule, str, Dict[str, int]], as_dict: Literal[False]
+) -> str: ...
+def get_stoichiometry(
+    job_or_molecule_or_path: Union[AMSJob, Molecule, str, Dict[str, int]], as_dict: bool = True
 ) -> Union[str, Dict[str, int]]:
     r = job_or_molecule_or_path
     d = None
     if isinstance(r, AMSJob):
-        d = r.molecule.get_formula(as_dict=as_dict)
+        d = r.molecule.get_formula(as_dict=as_dict)  # type: ignore[union-attr]
     elif isinstance(r, Molecule):
         d = r.get_formula(as_dict=as_dict)
     elif isinstance(r, dict):
         d = r.copy()
     elif isinstance(r, str):
         if os.path.isdir(r):
-            d = AMSJob.load_external(r).molecule.get_formula(as_dict=as_dict)
+            d = AMSJob.load_external(r).molecule.get_formula(as_dict=as_dict)  # type: ignore[union-attr]
         elif os.path.exists(r):
             try:
                 d = Molecule(r).get_formula(as_dict=as_dict)
             except:
-                d = AMSJob.load_external(r).molecule.get_formula(as_dict=as_dict)
+                d = AMSJob.load_external(r).molecule.get_formula(as_dict=as_dict)  # type: ignore[union-attr]
         else:
             raise ValueError(f"The path {r} does not exist.")
 
@@ -109,17 +111,17 @@ def balance_equation_new(
 
     # Set up the input, which can be lists of formulas, or lists of PLAMS molecule objects
     num_reactants = len(reactants)
-    reactants = get_formulas(reactants)
+    reactant_formulas = get_formulas(reactants)
     num_products = len(products)
-    products = get_formulas(products)
+    product_formulas = get_formulas(products)
 
     # Set up the minimal numbers of the coefficients
     ind = get_normalization_index(normalization)
-    min_coeffs = np.zeros(num_reactants + len(products))
+    min_coeffs = np.zeros(num_reactants + len(product_formulas))
     min_coeffs[ind] = 1
 
     # Solve
-    reaction = ReactionEquation(reactants, products)
+    reaction = ReactionEquation(reactant_formulas, product_formulas)
     coeffs = reaction.balance(min_coeffs)
 
     if coeffs is None:
@@ -186,7 +188,9 @@ def balance_equation(
 
     """
 
-    def get_stoichiometries_and_elements(list_of_jobs: Sequence[AMSJob]) -> Tuple[List[Dict[str, int]], Set[str]]:
+    def get_stoichiometries_and_elements(
+        list_of_jobs: Sequence[Union[AMSJob, Molecule, str, Dict[str, int]]]
+    ) -> Tuple[List[Dict[str, int]], Set[str]]:
         stoich = []
         elements = set()
         for r in list_of_jobs:
@@ -309,8 +313,8 @@ def reaction_energy(
 
     """
 
-    my_reactants = [AMSJob.load_external(x) for x in reactants]
-    my_products = [AMSJob.load_external(x) for x in products]
+    my_reactants = [AMSJob.load_external(x) if isinstance(x, str) else x for x in reactants]
+    my_products = [AMSJob.load_external(x) if isinstance(x, str) else x for x in products]
     coeffs_r, coeffs_p = balance_equation(my_reactants, my_products, normalization)
 
     energies = np.array([job.results.get_energy(unit=unit) for job in my_reactants + my_products])

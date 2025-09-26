@@ -2146,6 +2146,8 @@ class Molecule:
     def get_formula(self, as_dict: Literal[True]) -> Dict[str, int]: ...
     @overload
     def get_formula(self, as_dict: Literal[False] = False) -> str: ...
+    @overload
+    def get_formula(self, as_dict: bool) -> Union[str, Dict[str, int]]: ...
     def get_formula(self, as_dict: bool = False) -> Union[str, Dict[str, int]]:
         """Calculate the molecular formula of the molecule according to the Hill system.
 
@@ -2724,7 +2726,9 @@ class Molecule:
     def __getitem__(self, key: SupportsIndex) -> Atom: ...
     @overload
     def __getitem__(self, key: Tuple[SupportsIndex, SupportsIndex]) -> Bond: ...
-    def __getitem__(self, key: Union[SupportsIndex, Tuple[SupportsIndex, SupportsIndex]]) -> Union[Atom, Optional[Bond]]:
+    def __getitem__(
+        self, key: Union[SupportsIndex, Tuple[SupportsIndex, SupportsIndex]]
+    ) -> Union[Atom, Optional[Bond]]:
         """The bracket notation can be used to access atoms or bonds directly.
 
         If *key* is a single int (``mymol[i]``), return i-th atom of the molecule. If *key* is a pair of ints (``mymol[(i,j)]``), return the bond between i-th and j-th atom (``None`` if such a bond does not exist). Negative integers can be used to access atoms enumerated in the reversed order.
