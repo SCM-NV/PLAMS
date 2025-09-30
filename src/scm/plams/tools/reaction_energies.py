@@ -48,7 +48,7 @@ def get_stoichiometry(
 
 def balance_equation_new(
     reactants: List[AMSJob], products: List[AMSJob], normalization: str = "r0", normalization_value: float = 1.0
-) -> Tuple[List[float], List[float]]:
+) -> Tuple[np.ndarray, np.ndarray]:
     """
     Calculate stoichiometric coefficients (meant to replace balance_equation method)
 

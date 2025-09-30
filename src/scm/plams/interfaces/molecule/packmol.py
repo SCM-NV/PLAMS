@@ -708,7 +708,7 @@ def packmol(
     if fix_first:
         if n_molecules is None or np.isscalar(n_molecules) or (isinstance(n_molecules, List) and n_molecules[0] != 1):
             raise ValueError(
-                f"Illegal combination of arguments: fix_first requires that n_molecules is a list where the first element is 1. Received n_molecules={n_molecules}"
+                f"Illegal combination of arguments: fix_first requires that n_molecules is a list where the first element is 1. Received n_molecules={n_molecules}"  # type: ignore[str-bytes-safe]
             )
     if isinstance(molecules, list):
         if n_molecules is not None:
@@ -820,7 +820,7 @@ def packmol(
         coeffs = np.int_(np.round(coeffs_floats))
 
     if (n_atoms or n_molecules) and not box_bounds:
-        mass = np.dot(coeffs, masses)
+        mass = np.dot(coeffs, masses)  # type: ignore[arg-type]
         if density is not None:
             volume_cm3 = mass / density
         else:
