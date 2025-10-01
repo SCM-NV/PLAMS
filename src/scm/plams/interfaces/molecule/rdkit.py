@@ -1036,7 +1036,7 @@ def write_molblock(plams_mol: Molecule, file: IO = sys.stdout) -> None:
 @overload
 @requires_optional_package("rdkit")
 def readpdb(
-    pdb_file: str,
+    pdb_file: Union[str, IO],
     sanitize: bool = True,
     removeHs: bool = False,
     proximityBonding: bool = False,
@@ -1045,7 +1045,7 @@ def readpdb(
 @overload
 @requires_optional_package("rdkit")
 def readpdb(
-    pdb_file: str,
+    pdb_file: Union[str, IO],
     sanitize: bool = True,
     removeHs: bool = False,
     proximityBonding: bool = False,
@@ -1054,7 +1054,7 @@ def readpdb(
 @overload
 @requires_optional_package("rdkit")
 def readpdb(
-    pdb_file: str,
+    pdb_file: Union[str, IO],
     sanitize: bool = True,
     removeHs: bool = False,
     proximityBonding: bool = False,
