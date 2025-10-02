@@ -19,13 +19,18 @@ def main():
     ams_settings.input.ams.task = "SinglePoint"
     ams_settings.input.band.Unrestricted = "yes"
     ams_settings.input.band.XC.GGA = "BP86"
-    ams_settings.input.band.Basis.Type = "DZP"
-    ams_settings.input.band.KSpace.Quality = "Basic"
+    ams_settings.input.band.Basis.Type = "TZP"
+    ams_settings.input.band.KSpace.Type = "Symmetric"
+    ams_settings.input.band.KSpace.Symmetric = "KInteg=3"
     ams_settings.input.band.NumericalQuality = "Normal"
-    ams_settings.input.band.DOS.CalcPDOS = "Yes"
     ams_settings.input.band.HubbardU.Enabled = "Yes"
-    ams_settings.input.band.HubbardU.UValue = "0.6 0.0"
-    ams_settings.input.band.HubbardU.LValue = "2 -1"
+    ams_settings.input.band.HubbardU.PrintOccupations = "Yes"
+    ams_settings.input.band.HubbardU.Atom = [plams.Settings()]
+    ams_settings.input.band.HubbardU.Atom[0].Element = "Ni"
+    ams_settings.input.band.HubbardU.Atom[0].UValue = 0.3
+    ams_settings.input.band.HubbardU.Atom[0].LValue = "d"
+    ams_settings.input.band.Print = "AtomicChargesDetails"
+    ams_settings.input.band.DOS.CalcPDOS = "Yes"
 
     job = plams.AMSJob(settings=ams_settings, molecule=mol, name="NiO")
     job.run()

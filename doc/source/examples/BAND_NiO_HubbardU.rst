@@ -15,6 +15,6 @@ Results
 
 .. parsed-literal::
 
-   Top of valence band:       -6.21 eV
-   Bottom of conduction band: -4.30 eV
-   Band gap:                  1.91 eV
+   Top of valence band:       -6.67 eV
+   Bottom of conduction band: -5.41 eV
+   Band gap:                  1.25 eV
