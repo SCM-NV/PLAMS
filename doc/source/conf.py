@@ -8,8 +8,10 @@ from datetime import date
 from docutils.parsers.rst.directives.admonitions import Danger, Important
 from sphinx.locale import admonitionlabels
 import os
+import sys
 from scm.plams.version import __version__
 
+sys.path.append(os.path.abspath("_ext"))
 admonitionlabels["important"] = "Technical"
 admonitionlabels["danger"] = "Warning"
 
@@ -193,6 +195,7 @@ extensions += [
     "sphinx.ext.viewcode",
     "sphinx.ext.napoleon",
     "sphinx_copybutton",
+    "docstring_check",
 ]
 
 exclude_patterns += ["examples/example.template*.rst"]
