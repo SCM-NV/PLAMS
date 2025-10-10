@@ -13,7 +13,7 @@ class TrajectoryFile(object):
     Abstract class that represents a generic trajectory file
     """
 
-    def __init__(self, filename, mode="r", fileobject=None, ntap=None):
+    def __init__(self, filename=None, mode="r", fileobject=None, ntap=None):
         """
         Would create a generic trajectory  file object
 
@@ -25,6 +25,8 @@ class TrajectoryFile(object):
         self.position = 0
         if filename is not None:
             fileobject = open(filename, mode)
+        elif fileobject is None:
+            raise PlamsError("Either a fileobject or a filename need to be provided")
         self.file_object = fileobject
         if self.file_object is not None:
             self.mode = self.file_object.mode
@@ -149,6 +151,8 @@ class TrajectoryFile(object):
         coords, cell = self.read_next()
         plamsmol = Molecule.from_elements(self.elements)
         plamsmol.from_array(coords)
+        if cell is not None:
+            plamsmol.lattice = cell
 
         # Return to original position
         self.rewind()

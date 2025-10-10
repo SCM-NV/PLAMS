@@ -83,7 +83,7 @@ class XYZHistoryFile(XYZTrajectoryFile):
         >>> xyzout.write_next(molecule=mol, step=0, energy=5.)
     """
 
-    def __init__(self, filename, mode="r", fileobject=None, ntap=None):
+    def __init__(self, filename=None, mode="r", fileobject=None, ntap=None):
         """
         Initiates an XYZHistoryFile object
 
@@ -202,6 +202,10 @@ class XYZHistoryFile(XYZTrajectoryFile):
             coords, cell, elements = self._read_plamsmol(molecule)[:3]
         self.elements = elements
         cell = self._convert_cell(cell)
+
+        if self.firsttime and self.style == "scm":
+            self.nveclines = len(cell)
+            self.firsttime = False
 
         self._write_moldata(coords, cell, historydata)
 
