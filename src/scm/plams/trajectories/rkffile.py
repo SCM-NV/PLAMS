@@ -1,14 +1,24 @@
 #!/usr/bin/env python
 
 import numpy
-from typing import Optional, Dict
+from typing import Optional
+from typing import Dict
 
 from scm.plams.core.errors import PlamsError
 from scm.plams.mol.molecule import Molecule
-from scm.plams.tools.kftools import KFFile
 from scm.plams.tools.periodic_table import PeriodicTable
 from scm.plams.tools.units import Units
 from scm.plams.trajectories.trajectoryfile import TrajectoryFile
+
+try:
+    from scm.libbase import KFFile
+
+    _has_libbase = True
+
+except ImportError:
+    from scm.plams.tools.kftools import KFFile
+
+    _has_libbase = False
 
 __all__ = ["RKFTrajectoryFile", "write_general_section", "write_molecule_section"]
 
@@ -109,7 +119,7 @@ class RKFTrajectoryFile(TrajectoryFile):
         >>> rkf_out.close()
     """
 
-    def __init__(self, filename, mode="rb", fileobject=None, ntap=None):
+    def __init__(self, filename=None, mode="rb", fileobject=None, ntap=None):
         """
         Initiates an RKFTrajectoryFile object
 
@@ -121,30 +131,10 @@ class RKFTrajectoryFile(TrajectoryFile):
         # TODO: If the mddata option is set to True, then the file created here works with AMSMovie and the analysis tools.
         #      To also make is work for restarts, two things have to be added:
         #      1. The final velocities have to be converted from bohr/fs to bohr/au (1/41.341373336493)
-        #         and stored in MDResuts%EndVelocities
+        #         and stored in MDResults%EndVelocities
         #      2. The final coordinates need to be copied to the Molecule section.
 
-        self.position = 0
-        if filename is not None:
-            # fileobject = KFFile(filename,autosave=False,keep_file_open=True)
-            fileobject = KFFile(filename, autosave=False)
-            # fileobject = KFFile(filename,autosave=False,fastsave=True)
-            # This fastsave option (no copying) was not worth it, so I removed it.
-            if fileobject is None:
-                raise PlamsError("KFFile %s not found." % (filename))
-        self.file_object = fileobject
-        self.mode = mode
-
-        self.ntap = 0
-        if ntap is not None:
-            self.ntap = ntap
-        self.firsttime = True
-        self.coords = numpy.zeros((self.ntap, 3))  # Only for reading purposes,
-        # to avoid creating the array each time
-        # PLAMS molecule related settings
-        self.elements = ["H"] * self.ntap
-        self.current_molecule = None
-        self.store_molecule = True  # Even if True, the molecule attribute is only stored during iteration
+        super().__init__(filename, mode, fileobject, ntap)
 
         # RKF specific attributes
         self.program = "trajectory"
@@ -184,7 +174,27 @@ class RKFTrajectoryFile(TrajectoryFile):
         elif self.mode == "ab":
             self._move_cursor_to_append_pos()
         else:
-            raise PlamsError('Mode %s is invalid. Only "rb" and "wb" are allowed.' % (self.mode))
+            raise PlamsError('Mode %s is invalid. Only "rb", "wb" and "ab" are allowed.' % (self.mode))
+
+    def _set_fileobject(self, filename, fileobject, mode):
+        """
+        Set the file object and mode (read/write)
+        """
+        if filename is not None:
+            if _has_libbase:
+                fileobject = KFFile(filename)
+            else:
+                fileobject = KFFile(filename, autosave=False)
+                # fileobject = KFFile(filename,autosave=False,fastsave=True) # Not worth it
+            if fileobject is None:
+                raise PlamsError("KFFile %s not found." % (filename))
+        elif fileobject is None:
+            raise PlamsError("Either a fileobject or a filename need to be provided")
+        self.file_object = fileobject
+
+        if len(mode) == 1:
+            mode = "".join(mode, "b")
+        self.mode = mode
 
     def store_mddata(self, rkf=None):
         """

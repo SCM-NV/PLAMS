@@ -106,7 +106,7 @@ class RKFHistoryFile(RKFTrajectoryFile):
         >>> rkf_out.close()
     """
 
-    def __init__(self, filename, mode="rb", fileobject=None, ntap=None):
+    def __init__(self, filename=None, mode="rb", fileobject=None, ntap=None):
         """
         Initializes the RKFHistoryFile object
 
@@ -147,10 +147,11 @@ class RKFHistoryFile(RKFTrajectoryFile):
         """
         Extracts a PLAMS molecule object from the RKF file
         """
-        section_dict = self.file_object.read_section("ChemicalSystem(1)")
-        if len(section_dict) == 0:
+        if "ChemicalSystem(1)" in self.file_object:
+            section_dict = self.file_object.read_section("ChemicalSystem(1)")
+        elif "InputMolecule" in self.file_object:
             section_dict = self.file_object.read_section("InputMolecule")
-        if len(section_dict) == 0:
+        else:
             section_dict = self.file_object.read_section("Molecule")
         plamsmol = Molecule._mol_from_rkf_section(section_dict)
         return plamsmol

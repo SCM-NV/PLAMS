@@ -82,7 +82,7 @@ class SDFHistoryFile(SDFTrajectoryFile):
         >>> sdfout.write_next(molecule=mol, step=0, energy=5.)
     """
 
-    def __init__(self, filename, mode="r", fileobject=None, ntap=None):
+    def __init__(self, filename=None, mode="r", fileobject=None, ntap=None):
         """
         Initiates an SDFHistoryFile object
 
@@ -117,8 +117,6 @@ class SDFHistoryFile(SDFTrajectoryFile):
 
         # Get the coordinates and cell
         cell = mol.lattice
-        if len(cell) == 0:
-            cell = None
         if len(mol.bonds) > 0:
             conect = {}
             for bond in mol.bonds:
@@ -144,25 +142,15 @@ class SDFHistoryFile(SDFTrajectoryFile):
         else:
             self.coords[:, :] = mol.as_array()
 
-        # Read the additional data
+        # Get the additional data
+        historydata, lattice = self._read_properties(restlines)
         if self.include_historydata:
-            historydata = {}
-            # First find all entries (entries can run over multiple lines)
-            entries = [i for i, line in enumerate(restlines[:-1]) if line[:4] == ">  <"] + [len(restlines) - 1]
-            for i, iline in enumerate(entries[:-1]):
-                key = restlines[iline].split("<")[1].split(">")[0]
-                value = "".join(restlines[iline + 1 : entries[i + 1] - 1])
-                value = value.strip()
-                # Try to turn this into a float or integer?
-                if value.isdigit():
-                    value = int(value)
-                else:
-                    try:
-                        value = float(value)
-                    except ValueError:
-                        pass
-                historydata[key] = value
             self.historydata = historydata
+        if lattice is not None:
+            cell = lattice
+
+        if len(cell) == 0:
+            cell = None
 
         if isinstance(molecule, Molecule):
             self._set_plamsmol(self.coords, cell, molecule)
