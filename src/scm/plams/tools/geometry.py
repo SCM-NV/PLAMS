@@ -51,7 +51,7 @@ def axis_rotation_matrix(vector: Vector, angle: float, unit: str = "radian") -> 
     *vector* can be any container with 3 numerical values. They don't need to be normalized. A positive angle denotes counterclockwise rotation, when looking along *vector*. Returns 3x3 numpy array.
     """
 
-    vector /= np.linalg.norm(vector)  # type: ignore[call-overload]
+    vector /= np.linalg.norm(vector)  # type: ignore[call-overload, operator]
     v0, v1, v2 = vector
 
     W = np.array([[0, -v2, v1], [v2, 0, -v0], [-v1, v0, 0]])
