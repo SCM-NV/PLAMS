@@ -23,13 +23,7 @@ class TrajectoryFile(object):
         * ``ntap``       -- If the file is in write mode, the number of atoms needs to be passed here
         """
         self.position = 0
-        if filename is not None:
-            fileobject = open(filename, mode)
-        elif fileobject is None:
-            raise PlamsError("Either a fileobject or a filename need to be provided")
-        self.file_object = fileobject
-        if self.file_object is not None:
-            self.mode = self.file_object.mode
+        self._set_fileobject(filename, fileobject, mode)
 
         self.ntap = 0
         if ntap is not None:
@@ -41,6 +35,21 @@ class TrajectoryFile(object):
         self.elements = ["H"] * self.ntap
         self.current_molecule = None
         self.store_molecule = True  # Even if True, the molecule attribute is only stored during iteration
+
+    def _set_fileobject(self, filename, fileobject, mode):
+        """
+        Set the file object and mode (read/write)
+        """
+        if filename is not None:
+            fileobject = open(filename, mode)
+        elif fileobject is None:
+            raise PlamsError("Either a fileobject or a filename need to be provided")
+        self.file_object = fileobject
+        if self.file_object is not None:
+            if hasattr(self.file_object, "mode"):
+                self.mode = self.file_object.mode
+            else:
+                self.mode = mode
 
     def __iter__(self):
         """

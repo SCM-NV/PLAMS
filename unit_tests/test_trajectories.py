@@ -4,12 +4,15 @@ import numpy as np
 
 from scm.plams.mol.molecule import Molecule
 from scm.plams.trajectories.rkfhistoryfile import RKFHistoryFile
+from scm.plams.trajectories.rkffile import RKFTrajectoryFile
 from scm.plams.trajectories.xyzfile import XYZTrajectoryFile
-from scm.plams.trajectories.xyzhistoryfile import XYZHistoryFile
+from scm.plams.trajectories.sdffile import SDFTrajectoryFile
+
 
 @pytest.fixture
 def conformers_rkf(rkf_folder):
     return str(Path(rkf_folder) / "conformers" / "conformers.rkf")
+
 
 @pytest.fixture
 def trajectory_xyz(xyz_folder):
@@ -39,42 +42,52 @@ class TestRKFHistoryFile:
             assert mol.label(3) == input_mol.label(3)
 
 
-class TestXYZFiles:
+class TestTrajectoryFileFormats:
 
-    # def test_historyfile(self, trajectory_xyz):
-    #
-    #     xyz = XYZHistoryFile(trajectory_xyz)
-    #     mol = xyz.get_plamsmol()
-    #
-    #     xyzout = XYZHistoryFile('new.xyz',mode='w')
-    #     for i in range(xyz.get_length()) :
-    #         crd,cell = xyz.read_frame(i,molecule=mol)
-    #         xyzout.write_next(molecule=mol)
-    #     xyzout.close()
+    def test_trajectoryfile(self, conformers_rkf):
+        """
+        Check that XYZ trajectory files in SCM format can be read and written
+        """
+        from io import StringIO
 
+        classes = [XYZTrajectoryFile, SDFTrajectoryFile]
 
-    def test_trajectoryfile(self, trajectory_xyz):
+        rkf = RKFTrajectoryFile(conformers_rkf)
+        mol = rkf.get_plamsmol()
+        nats = len(mol)
+        nframes = len(rkf)
 
-        trajectory_file = XYZTrajectoryFile(trajectory_xyz)
-        mol = trajectory_file.get_plamsmol()
+        # Add periodic boundary
+        cell = np.zeros((3, 3))
+        np.fill_diagonal(cell, 10)
+        mol.lattice = cell.tolist()
 
-        xyzout = XYZTrajectoryFile('new.xyz',mode='w')
-        xyzout.style = "scm"
-        for i in range(trajectory_file.get_length()) :
-            crd,cell = trajectory_file.read_frame(i,molecule=mol)
-            xyzout.write_next(molecule=mol)
-        xyzout.close()
+        for trajcls in classes:
+            # Write periodic SCM style trajectory
+            fileobj = StringIO()
+            outfile = trajcls(fileobject=fileobj, mode="w")
+            outfile.style = "scm"
 
-        with open('new.xyz') as f: output = f.read()
-        expectedOutput = """\
-3
+            for i in range(nframes):
+                rkf.read_frame(i, molecule=mol)
+                outfile.write_next(molecule=mol)
 
-       O        -0.1995727721        -0.2577814972        -0.0000000000 
-       H        -0.4018214824        -0.2097333578        -0.9372229380 
-       H         0.7422877088        -0.4019259155         0.1171376168 
-VEC0         6.0000000000         0.0000000000         0.0000000000 
-VEC1         3.0000000000         5.2000000000         0.0000000000 
-VEC2         0.0000000000         0.0000000000         6.0000000000 \
-"""
+            # Read the XYZ file into a string
+            fileobj.seek(0)
+            lines = fileobj.readlines()
+            fileobj.seek(0)
 
-        assert output[0:428] == expectedOutput
+            if trajcls is XYZTrajectoryFile:
+                assert len(lines) == nframes * (nats + 5)
+                for i in range(3):
+                    iline = i + nats + 2
+                    assert lines[iline].split()[0] == "VEC%i" % (i + 1)
+            else:
+                assert "VEC1" in "\n".join(lines)
+
+            # Read the XYZ file, and check that the periodicity is retained
+            infile = trajcls(fileobject=fileobj)
+            mol_pbc = infile.get_plamsmol()
+            assert hasattr(mol_pbc, "lattice")
+
+            outfile.close()

@@ -131,33 +131,10 @@ class RKFTrajectoryFile(TrajectoryFile):
         # TODO: If the mddata option is set to True, then the file created here works with AMSMovie and the analysis tools.
         #      To also make is work for restarts, two things have to be added:
         #      1. The final velocities have to be converted from bohr/fs to bohr/au (1/41.341373336493)
-        #         and stored in MDResuts%EndVelocities
+        #         and stored in MDResults%EndVelocities
         #      2. The final coordinates need to be copied to the Molecule section.
 
-        self.position = 0
-
-        if filename is not None:
-            if _has_libbase:
-                fileobject = KFFile(filename)
-            else:
-                fileobject = KFFile(filename, autosave=False)
-                # fileobject = KFFile(filename,autosave=False,fastsave=True) # Not worth it
-            if fileobject is None:
-                raise PlamsError("KFFile %s not found." % (filename))
-        elif fileobject is None:
-            raise PlamsError("Either a fileobject or a filename need to be provided")
-        self.file_object = fileobject
-
-        self.ntap = 0
-        if ntap is not None:
-            self.ntap = ntap
-        self.firsttime = True
-        self.coords = numpy.zeros((self.ntap, 3))  # Only for reading purposes,
-        # to avoid creating the array each time
-        # PLAMS molecule related settings
-        self.elements = ["H"] * self.ntap
-        self.current_molecule = None
-        self.store_molecule = True  # Even if True, the molecule attribute is only stored during iteration
+        super().__init__(filename, mode, fileobject, ntap)
 
         # RKF specific attributes
         self.program = "trajectory"
@@ -183,10 +160,6 @@ class RKFTrajectoryFile(TrajectoryFile):
         self.historyitems = None
 
         # Skip to the trajectory part of the file (only if in read mode, because coords are required in header)
-        if len(mode) == 1:
-            mode = "".join(mode, "b")
-        self.mode = mode
-
         if self.mode == "rb":
             self._read_header()
         elif self.mode == "wb":
@@ -202,6 +175,26 @@ class RKFTrajectoryFile(TrajectoryFile):
             self._move_cursor_to_append_pos()
         else:
             raise PlamsError('Mode %s is invalid. Only "rb", "wb" and "ab" are allowed.' % (self.mode))
+
+    def _set_fileobject(self, filename, fileobject, mode):
+        """
+        Set the file object and mode (read/write)
+        """
+        if filename is not None:
+            if _has_libbase:
+                fileobject = KFFile(filename)
+            else:
+                fileobject = KFFile(filename, autosave=False)
+                # fileobject = KFFile(filename,autosave=False,fastsave=True) # Not worth it
+            if fileobject is None:
+                raise PlamsError("KFFile %s not found." % (filename))
+        elif fileobject is None:
+            raise PlamsError("Either a fileobject or a filename need to be provided")
+        self.file_object = fileobject
+
+        if len(mode) == 1:
+            mode = "".join(mode, "b")
+        self.mode = mode
 
     def store_mddata(self, rkf=None):
         """
