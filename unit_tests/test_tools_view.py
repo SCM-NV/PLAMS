@@ -72,11 +72,11 @@ class TestAmsViewBackend:
         [
             (
                 ViewConfig(),
-                "foo.in -transparent -scmgeometry 800x400 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 1.000000 -fixedatomsize -hideregions -showunitcell thickness 0.05 -save bar.png -batch",
+                "foo.in -transparent -scmgeometry 800x400 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 1.000000 -fixedatomsize -hideregions -showunitcell 0.05 -save bar.png -batch",
             ),
             (
                 ViewConfig(width=100, height=100, normal=(1.0, 0.0, 0.0)),
-                "foo.in -transparent -scmgeometry 100x100 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 1.000000 0.000000 0.000000 -fixedatomsize -hideregions -showunitcell thickness 0.05 -save bar.png -batch",
+                "foo.in -transparent -scmgeometry 100x100 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 1.000000 0.000000 0.000000 -fixedatomsize -hideregions -showunitcell 0.05 -save bar.png -batch",
             ),
             (
                 ViewConfig(
@@ -86,11 +86,11 @@ class TestAmsViewBackend:
                     atom_label_size=2,
                     show_regions=True,
                 ),
-                "foo.in -transparent -scmgeometry 800x400 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 1.000000 -atomlabel Element -labelcolor #FFFFFF -labelsize 2 -showunitcell thickness 0.05 -save bar.png -batch",
+                "foo.in -transparent -scmgeometry 800x400 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 1.000000 -atomlabel Element -labelcolor #FFFFFF -labelsize 2 -showunitcell 0.05 -save bar.png -batch",
             ),
             (
                 ViewConfig(show_unit_cell_edges=True, unit_cell_edge_thickness=0.2),
-                "foo.in -transparent -scmgeometry 800x400 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 1.000000 -fixedatomsize -hideregions -showunitcell thickness 0.2 -save bar.png -batch",
+                "foo.in -transparent -scmgeometry 800x400 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 1.000000 -fixedatomsize -hideregions -showunitcell 0.2 -save bar.png -batch",
             ),
             (
                 ViewConfig(show_unit_cell_faces=True, show_lattice_vectors=True),
@@ -98,7 +98,7 @@ class TestAmsViewBackend:
             ),
             (
                 ViewConfig(dpi=600),
-                "foo.in -transparent -scmgeometry 800x400 -dpi 600 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 1.000000 -fixedatomsize -hideregions -showunitcell thickness 0.05 -save bar.png -batch",
+                "foo.in -transparent -scmgeometry 800x400 -dpi 600 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 1.000000 -fixedatomsize -hideregions -showunitcell 0.05 -save bar.png -batch",
             ),
         ],
         ids=[
