@@ -563,7 +563,7 @@ class _AmsViewBackend(_ViewBackend):
         if config.show_unit_cell_faces:
             command += ["-showunitcell", "faces"]
         elif config.show_unit_cell_edges:
-            command += ["-showunitcell", f"thickness {config.unit_cell_edge_thickness}"]
+            command += ["-showunitcell", f"{config.unit_cell_edge_thickness}"]
         else:
             command += ["-showunitcell", "hide"]
 
