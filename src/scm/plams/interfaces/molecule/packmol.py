@@ -1162,7 +1162,7 @@ def packmol_around(
         the density will be lower than what you request.
 
     """
-    from scm.libbase import UnifiedChemicalSystem as ChemicalSystem
+    from scm.libbase import ChemicalSystem
     from scm.utils.conversions import plams_molecule_to_chemsys, chemsys_to_plams_molecule
 
     if isinstance(current, Molecule):
@@ -1503,10 +1503,7 @@ def packmol_around_md(
 
     In the returned ``Molecule``, the system will be mapped to ``[0..1]``. It has the same lattice has ``current``.
     """
-    from scm.libbase import (
-        UnifiedChemicalSystem as ChemicalSystem,
-        UnifiedLattice as Lattice,
-    )
+    from scm.libbase import ChemicalSystem, Lattice
     from scm.utils.conversions import plams_molecule_to_chemsys, chemsys_to_plams_molecule
 
     loglevel = 7
