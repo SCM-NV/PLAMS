@@ -80,6 +80,7 @@ Workflows
    RedoxPotential
    ExcitationsWorkflow/ExcitationsWorkflow
    AMSTSWorkflow/AMSTSWorkflow
+   ZieglerNattaCatalyst/ZieglerNattaCatalyst
    ChargeTransferIntegralsADF/ChargeTransferIntegralsADF
    TuningRangeSeparation/TuningRangeSeparation
    ConformersGeneration/ConformersGeneration
