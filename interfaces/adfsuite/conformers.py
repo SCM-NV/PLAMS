@@ -230,5 +230,6 @@ class ConformersJob(SingleJob):
         """
         if os.path.basename(path)[-4:] == ".rkf":
             path = os.path.dirname(path)
+        # molecule = molecule or Molecule.read_userin(path + "/conformers.rkf", program="conformers")
         ret = super().load_external(path, settings, molecule, finalize, jobname)
         return ret
