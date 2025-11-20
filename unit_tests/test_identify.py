@@ -1,5 +1,6 @@
 import pytest
 
+from scm.plams.mol.molecule import Atom
 from scm.plams.mol.molecule import Molecule
 
 
@@ -48,3 +49,14 @@ class TestIdentify:
         chl3 = chl1.reorder(chl2)
         assert chl3.label(4) == chl1.label(4) != chl2.label(4)
         assert [at.symbol for at in chl3] == [at.symbol for at in chl2] != [at.symbol for at in chl1]
+
+        # Try with the simplest molecule (OH)
+        o = Atom(symbol="O", coords=(0.0, 0.0, 0.0))
+        h = Atom(symbol="H", coords=(1.0, 0.0, 0.0))
+        oh = Molecule()
+        oh.add_atom(o)
+        oh.add_atom(h)
+        oh.add_bond(o, h)
+        ho = oh.get_fragment([1, 0])
+        mol = ho.reorder(oh)
+        assert [at.symbol for at in mol] == [at.symbol for at in oh] != [at.symbol for at in ho]
