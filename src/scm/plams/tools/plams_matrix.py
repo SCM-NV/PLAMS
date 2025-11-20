@@ -146,7 +146,7 @@ class PLAMSMatrix(numpy.ndarray):
             # try to find one by shifting icol to the right.
             found = False
             for icol in range(irow, max_col):
-                for iswap in range(nrows + 1 - irow):
+                for iswap in range(nrows - irow):
                     A = self.copy()
                     A._set_row_to_echolon_form(irow, icol)
                     # The intension here is that self[irow,icol] becomes zero
@@ -210,7 +210,7 @@ class PLAMSMatrix(numpy.ndarray):
         """
         Shift row k to a later row l, and have the rest shift up
         """
-        if l <= k:
+        if l < k:
             raise Exception("Bad choice of rows")
         row = self[k].copy()
         self[k:l] = self[k + 1 : l + 1]

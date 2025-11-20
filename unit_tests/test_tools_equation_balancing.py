@@ -73,6 +73,11 @@ class TestEquationBalancing:
                 "pformulas": ["Fe2S4O12N10H6"],
                 "coeffs": [2, 1],
             },
+            {
+                "rformulas": ["KNO3", "C"],
+                "pformulas": ["Fe"],
+                "coeffs": None,
+            },
         ]
 
     @pytest.fixture
