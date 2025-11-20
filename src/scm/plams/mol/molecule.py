@@ -3998,7 +3998,7 @@ class Molecule:
         if len(self.bonds) == 0:
             self.guess_bonds()
         if not hasattr(self.atoms[0], "IDname"):
-            self.label(level=1, keep_labels=True)
+            self.label(level=level, keep_labels=True)
 
         # Link atom IDs to integers
         dic: Dict[str, int] = {}
@@ -4007,8 +4007,8 @@ class Molecule:
                 dic[at.IDname] = max([v for v in dic.values()]) + 1 if len(dic) > 0 else 1  # type: ignore[attr-defined]
 
         # Create the graphs
-        graph = get_graph(self, dic, level=1)
-        graph2 = get_graph(other, dic, level=1)
+        graph = get_graph(self, dic, level=level)
+        graph2 = get_graph(other, dic, level=level)
         if graph2 is None:
             return None
 

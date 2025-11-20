@@ -242,7 +242,7 @@ def get_graph(mol: "Molecule", dic: Dict[str, Any], level: int = 1) -> Optional[
     if len(mol.bonds) == 0:
         mol.guess_bonds()
     if not hasattr(mol.atoms[0], "IDname"):
-        mol.label(level=1, keep_labels=True)
+        mol.label(level=level, keep_labels=True)
 
     # Get the connectivity matrix (remove bond orders)
     matrix = mol.bond_matrix()
@@ -256,6 +256,7 @@ def get_graph(mol: "Molecule", dic: Dict[str, Any], level: int = 1) -> Optional[
     identifiers = identifiers.astype(np.int32)
     matrix *= identifiers.reshape((1, nats))
     matrix *= identifiers.reshape((nats, 1))
+    np.fill_diagonal(matrix, identifiers)
 
     # Create the graph
     graph = networkx.from_numpy_array(matrix)
