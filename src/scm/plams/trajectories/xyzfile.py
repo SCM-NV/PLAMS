@@ -279,7 +279,7 @@ class XYZTrajectoryFile(TrajectoryFile):
             raise PlamsError("The coordinates do not match the rest of the trajectory")
 
         if self.style == "scm" and self.firsttime:
-            self.nveclines = len(cell)
+            self.nveclines = 0 if cell is None else len(cell)
             self.firsttime = False
 
         self._write_moldata(coords, cell, historydata)
@@ -353,6 +353,8 @@ def create_xyz_string(elements, coords, cell, energy=None, step=None, name="Plam
         block += "\n"
     if cell is not None and write_vecs:
         for i, vec in enumerate(cell):
+            if (vec**2).sum() < 1e-10:
+                break
             block += "VEC%i " % (i + 1)
             for x in vec:
                 block += "%20.10f " % (x)

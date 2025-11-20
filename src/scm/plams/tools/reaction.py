@@ -122,13 +122,16 @@ class ReactionEquation:
         # Exclude basis vectors based on the provided min_coeffs
         basis = self.get_reduced_basis()
         if len(basis) == 0:
+            self.message = "Empty nullspace"
             return None
 
         # If the basis containt no coefficients for either products or reactants, it also fails
         nreactants = len(self._rformulas)
         if abs(basis[:, :nreactants]).sum() == 0:
+            self.message = "Empty nullspace"
             return None
         if abs(basis[:, nreactants:]).sum() == 0:
+            self.message = "Empty nullspace"
             return None
 
         # Now we work with the basis to get the coefficients
