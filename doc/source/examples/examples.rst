@@ -50,6 +50,7 @@ Molecule analysis
    MapMoleculesAndConvertToDCD
    HydrogenBondsFromMD
    PlotReaction2D/PlotReaction2D
+   BalanceReactionEquations/BalanceReactionEquations
 
 MD trajectory analysis
 ----------------------
