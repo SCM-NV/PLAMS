@@ -32,7 +32,7 @@ By default, a native method is used to compute the nullspace. Optionally, this c
 
 .. code:: ipython3
 
-   reaction.method = 'sympy'
+   reaction.method = "sympy"
 
 .. code:: ipython3
 
@@ -142,7 +142,7 @@ Example of a reaction that cannot be balanced
    coeffs = reaction.balance()
    print(reaction)
    print("Coefficients: ", coeffs)
-   print (reaction.message)
+   print(reaction.message)
 
 ::
 
@@ -212,7 +212,7 @@ Example of a reaction with non-matching elements
    coeffs = reaction.balance()
    print(reaction)
    print("Coefficients: ", coeffs)
-   print (reaction.message)
+   print(reaction.message)
 
 ::
 
@@ -269,39 +269,40 @@ Aspirin can react with water to form a very wide range of products, but most lik
 .. code:: ipython3
 
    import numpy
+
    reactant_smiles = ["O", "CC(=O)Oc1ccccc1C(=O)O"]
    product_smiles = [
-               "CC(=O)O",
-               "O=C(O)c1ccccc1O", 
-               "OO",
-               "O=C(O)O",
-               "O=C=O",
-               "CO",
-               "C",
-               "O=C(O)C1=CC(O)C=CC1=O", 
-               "O=C(O)C1=CC(O)C(O)C=C1O",
-               "O=C(O)C(C=CO)=C(O)C=CO",
-               "O=C(CO)Oc1ccccc1",
-               "Oc1ccccc1", 
-               "O=C1C=CC=CC1", 
-               "OC1=CC(O)C=CC1",
-               "C=CC=CC=C=O",
-               "C1=C=CC=CC=1",
-               "O=C=CO",
-               "O=CO",
-               "O=C=C(O)O",
-               "O=C=C=O",
-               "O=C1OC1=O",
-               "O=COc1ccccc1",
-               "O=C1CC=CC(O)C1",
-               "C=CC(O)C(O)C=C=O",
-               "OC1=CC=CC(O)C1=C(O)O",
-               "O=C(O)C12C(=O)C1C=CC2O",
-               "O=C(O)CO",
-               "O=CC(=O)O",
-               "O=C1C=CC(O)=C(C1)C(=O)O",
-               "C=CC=CC(=O)O",
-           ]
+       "CC(=O)O",
+       "O=C(O)c1ccccc1O",
+       "OO",
+       "O=C(O)O",
+       "O=C=O",
+       "CO",
+       "C",
+       "O=C(O)C1=CC(O)C=CC1=O",
+       "O=C(O)C1=CC(O)C(O)C=C1O",
+       "O=C(O)C(C=CO)=C(O)C=CO",
+       "O=C(CO)Oc1ccccc1",
+       "Oc1ccccc1",
+       "O=C1C=CC=CC1",
+       "OC1=CC(O)C=CC1",
+       "C=CC=CC=C=O",
+       "C1=C=CC=CC=1",
+       "O=C=CO",
+       "O=CO",
+       "O=C=C(O)O",
+       "O=C=C=O",
+       "O=C1OC1=O",
+       "O=COc1ccccc1",
+       "O=C1CC=CC(O)C1",
+       "C=CC(O)C(O)C=C=O",
+       "OC1=CC=CC(O)C1=C(O)O",
+       "O=C(O)C12C(=O)C1C=CC2O",
+       "O=C(O)CO",
+       "O=CC(=O)O",
+       "O=C1C=CC(O)=C(C1)C(=O)O",
+       "C=CC=CC(=O)O",
+   ]
 
 .. code:: ipython3
 
