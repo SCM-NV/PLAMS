@@ -616,17 +616,6 @@ class Species:
         )
 
     @classmethod
-    @requires_optional_package("scm.libbase")
-    def from_system(cls, system: "ChemicalSystem", min_coeff: int = 0, smiles: Optional[str] = None) -> "Species":
-        """Initialize a Species from a PLAMS Molecule."""
-        return cls(
-            formula=system.get_formula(),
-            charge=int(system.charge),
-            min_coeff=min_coeff,
-            smiles=smiles,
-        )
-
-    @classmethod
     def from_smiles(cls, smiles: str, min_coeff: int = 0) -> "Species":
         """Initialize a Species from a SMILES string."""
         from scm.plams import from_smiles as plams_from_smiles
