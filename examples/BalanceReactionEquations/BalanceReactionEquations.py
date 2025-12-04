@@ -1,166 +1,167 @@
 #!/usr/bin/env amspython
 # coding: utf-8
 
-# ## Test 1. Balance simple reactions
+# ## Balance simple reactions
 # Here we present eleven different sets of reactants and products, not necessarily based on real reactions.
 # The molecules can be passed as formulas, or as PLAMS Molecule objects.
 
-from scm.plams import ReactionEquation
-from scm.plams import from_smiles
+from scm.plams.tools.reaction import ReactionEquation, balance
 
 
-# ### Aspirin in water
-
-reactants = ["C9H8O4", from_smiles("O")]
-products = ["C2H4O2", "C7H6O3"]
-reaction = ReactionEquation(reactants, products)
-coeffs = reaction.balance()
-print(reaction)
-print("Coefficients: ", coeffs)
-
-
-# By default, a native method is used to compute the nullspace. Optionally, this can be done with sympy. The result should be the same
-
-reaction.method = "sympy"
-
-
-reaction = ReactionEquation(reactants, products)
-coeffs = reaction.balance()
-print(reaction)
-
-
-# ### Aspirin in water with additional reactants
-
-reactants = ["C9H8O4", "H2O", "HO", "HO"]
-products = ["C2H4O2", "C7H6O3", "H2O2"]
-reaction = ReactionEquation(reactants, products)
-coeffs = reaction.balance()
-print(reaction)
-print("Coefficients: ", coeffs)
-
-
-# ### Aspirin in water with different products
+# ### Example: Aspirin in water
 
 reactants = ["C9H8O4", "H2O"]
-products = ["CH2O", "C7H6O3"]
-reaction = ReactionEquation(reactants, products)
-coeffs = reaction.balance()
+products = ["C2H4O2", "C7H6O3"]
+
+reaction = balance(reactants, products)
 print(reaction)
-print("Coefficients: ", coeffs)
 
 
-# ### Oxydation of ethane
+# ``reaction`` is of type ``ReactionEquation`` and has the following attributes:
 
-reactants = ["C2H6", "O2"]
-products = ["CO2", "H2O"]
-reaction = ReactionEquation(reactants, products)
-coeffs = reaction.balance()
+print(f"{reaction.coeffs=}")
+print(f"{reaction.message=}")
+print(f"{reaction.reactants=}")
+print(f"{reaction.products=}")
+
+
+# ### Specify reactants/products as Species
+#
+# An alternative to the string representation of reactants and products is to use Species, which also allows you to set the molecular charges and minimum coefficients (see later examples):
+
+from scm.plams.tools.reaction import Species as S
+
+reactants = [S("C9H8O4", charge=0), S("H2O", charge=0)]
+products = [S("C2H4O2", charge=0), S("C7H6O3", charge=0)]
+reaction = balance(reactants, products)
 print(reaction)
-print("Coefficients: ", coeffs)
+
+
+# ### Initialize species from SMILES
+
+from scm.plams.tools.reaction import Species as S
+
+reactants = [S.from_smiles("C"), S.from_smiles("O=O")]
+products = [S.from_smiles("O=C=O"), S.from_smiles("O")]
+reaction = balance(reactants, products)
+print(reaction)
+
+
+# You can also format the reaction with the SMILES strings (requires that all reactants and products have the ``smiles`` attribute set):
+
+print(f"{reaction:smiles}")
+
+
+# ### Superfluous reactants and products (multiple possible solutions)
+#
+# When there are multiple possible solutions, a single one is chosen.
+
+reactants = ["C9H8O4", "H2O", "HO", "HO2"]
+products = ["C2H4O2", "C7H6O3", "H2O2"]
+reaction = balance(reactants, products)
+print(reaction)
+print("Some coefficients are zero:")
+print(f"{reaction.coeffs=}")
 
 
 # ### Exampe that is not easily balanced
-# An example SMILES string for the reactant is O=CC(=O)c1cccc(c1)C(=O)O
 
 reactants = ["C9O4H6", "OH"]
 products = ["C2O2H3", "C7O3H2"]
-reaction = ReactionEquation(reactants, products)
-coeffs = reaction.balance()
+reaction = balance(reactants, products)
 print(reaction)
-print("Coefficients: ", coeffs)
 
 
-# ### Carbonmonoxide with carbondioxide and hydrogen
-
-reactants = ["CO", "CO2", "H2"]
-products = ["CH4", "H2O"]
-reaction = ReactionEquation(reactants, products)
-coeffs = reaction.balance()
-print(reaction)
-print("Coefficients: ", coeffs)
-
-
-# ### Example of a reaction that cannot be balanced
+# ### Reaction that cannot be balanced
 
 reactants = ["FeS2", "HNO3"]
 products = ["Fe2S3O12", "NO", "H2SO4"]
-reaction = ReactionEquation(reactants, products)
-coeffs = reaction.balance()
+reaction = balance(reactants, products)
 print(reaction)
-print("Coefficients: ", coeffs)
-print(reaction.message)
+print(f"{reaction.coeffs=}")
+print(f"{reaction.message=}")
 
 
-# ### Potassiumnitrate and methane
+# ### Sympy method
+#
+# By default, a native method is used to compute the nullspace. Optionally, this can be done with sympy. The result should be the same.
 
-reactants = ["KNO3", "C"]
-products = ["K2CO3", "CO", "N2"]
-reaction = ReactionEquation(reactants, products)
-coeffs = reaction.balance()
+reactants = ["C9H8O4", "H2O"]
+products = ["C2H4O2", "C7H6O3"]
+
+reaction = balance(reactants, products, method="sympy")
 print(reaction)
-print("Coefficients: ", coeffs)
 
 
-# ### Pyrite and nitric acid
+# ## Balance reactions with charged species
+#
+# Charges are printed within square brackets:
 
-reactants = ["FeS2", "HNO3"]
-products = ["Fe2S4O12", "N2H2"]
-reaction = ReactionEquation(reactants, products)
-coeffs = reaction.balance()
+from scm.plams.tools.reaction import Species as S
+
+reactants = [S("OH", charge=-1), S("H3O", charge=+1)]
+products = [S("H2O", charge=0)]
+reaction = balance(reactants, products)
 print(reaction)
-print("Coefficients: ", coeffs)
 
 
-# ### Reacting iron ligands
+# If the charges cannot be balanced, no solution will be found:
 
-reactants = ["FeS2O6N5H3"]
-products = ["Fe2S4O12N10H6"]
-reaction = ReactionEquation(reactants, products)
-coeffs = reaction.balance()
+from scm.plams.tools.reaction import Species as S
+
+reactants = [S("OH", charge=-1), S("H3O", charge=0)]  # "neutral" H3O!
+products = [S("H2O", charge=0)]
+reaction = balance(reactants, products)
 print(reaction)
-print("Coefficients: ", coeffs)
 
 
-# ### Example of a reaction with non-matching elements
+# The charges are also inferred from the SMILES strings:
 
-reactants = ["KNO3", "C"]
-products = ["Fe"]
-reaction = ReactionEquation(reactants, products)
-coeffs = reaction.balance()
+from scm.plams.tools.reaction import Species as S
+
+reactants = [S.from_smiles("[H+]"), S.from_smiles("[OH-]")]
+products = [S.from_smiles("O")]
+reaction = balance(reactants, products)
 print(reaction)
-print("Coefficients: ", coeffs)
-print(reaction.message)
 
 
-# ## Test 2. Balance charged reactions
+print(f"{reaction:smiles}")
 
-# ### Aspirin and hydroxide ion
 
-reactants = ["C9H8O4", "OH"]
-products = ["C2H3O2", "C7H6O3"]
-reaction = ReactionEquation(reactants, products)
-rcharges = [0, -1]
-pcharges = [-1, 0]
-reaction.set_charges(rcharges, pcharges)
+# ## Reaction with many possible products: Set minimum coefficients
+#
+# You can set minimum values for the coefficients with the ``min_coeff`` attribute for a ``Species``. This is useful if you have a list of many possible products, and want to find a balanced reaction that includes one or more specific products:
 
-coeffs = reaction.balance()
+from scm.plams.tools.reaction import Species as S
+
+reactant_smiles = ["O", "CC(=O)Oc1ccccc1C(=O)O"]
+product_smiles = [
+    "CC(=O)O",
+    "O=C(O)c1ccccc1O",
+    "OO",
+    "O=C(O)O",
+    "O=C=O",
+    "CO",
+    "C",
+    "O=C(O)C1=CC(O)C=CC1=O",
+]
+
+reactants = [S.from_smiles(x, min_coeff=1) for x in reactant_smiles]  # both reactants must appear
+products = [S.from_smiles(x) for x in product_smiles]
+products[1].min_coeff = 1  # the second product must appear
+products[2].min_coeff = 3  # the third product must have a coefficient of at least 3
+reaction = balance(reactants, products)
 print(reaction)
-print("Coefficients: ", coeffs)
 
 
-# If the charges provided cannot result in a neutral reaction equation, no solution will be found
-
-rcharges = [0, -1]
-pcharges = [0, 0]
-reaction.set_charges(rcharges, pcharges)
-
-coeffs = reaction.balance()
-print(reaction)
-print("Coefficients: ", coeffs)
+print(f"{reaction:smiles}")
 
 
-# ## Test 3. Reaction with many possible products
-# Aspirin can react with water to form a very wide range of products, but most likely not all in the same reaction. Here, we supply many possible products at once, and then balance the equation towards each product in turn.
+# ## Direct usage of the ReactionEquation class
+#
+# You can also directly use the ReactionEquation class. This can be useful and save some time if you want to loop over many possible values of ``min_coeffs``, for example.
+#
+# In this case, do not use ``Species`` but provide formulas or PLAMS Molecules directly, use the ``set_charges`` method to set charges, and set the ``min_coeffs`` array:
 
 import numpy
 
@@ -199,8 +200,10 @@ product_smiles = [
 ]
 
 
-reactants = [from_smiles(smiles) for smiles in reactant_smiles]
-products = [from_smiles(smiles) for smiles in product_smiles]
+from scm.plams import from_smiles
+
+reactants = [from_smiles(smiles) for smiles in reactant_smiles]  # PLAMS Molecules
+products = [from_smiles(smiles) for smiles in product_smiles]  # PLAMS Molecules
 
 # Create the Reaction object with all the molecules
 reaction = ReactionEquation(reactants, products)
@@ -209,8 +212,8 @@ print("Starting loop over products..")
 nmols = len(reactants) + len(products)
 nreactants = len(reactants)
 for iprod, _ in enumerate(products):
-    print(f"{iprod:8d} {product_smiles[iprod]:30s}: ", end="")
+    print(f"{product_smiles[iprod]:>25s}: ", end="")
     min_coeffs = numpy.zeros(nmols)
     min_coeffs[nreactants + iprod] = 1
-    coeffs = reaction.balance(min_coeffs)
-    print(reaction)
+    reaction.balance(min_coeffs=min_coeffs)
+    print(f"{reaction:smiles}")
