@@ -6,7 +6,7 @@ from scm.plams.core.functions import requires_optional_package
 from scm.plams.core.errors import PlamsError
 from dataclasses import dataclass
 
-from typing import Union, Optional, Iterable, Sequence, List, Dict, Set, Mapping, Literal
+from typing import Union, Optional, Iterable, Sequence, List, Dict, Set, Mapping, Literal, Any
 import numpy.typing
 import numpy as np
 
@@ -610,7 +610,7 @@ class Species:
         """Initialize a Species from a PLAMS Molecule."""
         return cls(
             formula=mol.get_formula(as_dict=False),
-            charge=int(mol.properties.get("charge", 0)),
+            charge=int(mol.properties.get("charge", 0) or 0),
             min_coeff=min_coeff,
             smiles=smiles,
         )
@@ -665,7 +665,7 @@ def balance(
 
     """
 
-    def to_species(x) -> Species:
+    def to_species(x: Any) -> Species:
         if isinstance(x, str):
             return Species(formula=x)
         if isinstance(x, Species):
@@ -675,7 +675,7 @@ def balance(
     r = [to_species(x) for x in reactants]
     p = [to_species(x) for x in products]
 
-    min_coeffs = np.array([x.min_coeff for x in r] + [x.min_coeff for x in p])
+    min_coeffs: Optional[numpy.typing.NDArray] = np.array([x.min_coeff for x in r] + [x.min_coeff for x in p])
     if all(x == 0 for x in min_coeffs):
         min_coeffs = None
     ret = ReactionEquation([x.formula for x in r], [x.formula for x in p])
