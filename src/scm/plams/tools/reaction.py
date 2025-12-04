@@ -47,8 +47,8 @@ class ReactionEquation:
         self._pformulas = [m.get_formula() if isinstance(m, Molecule) else m for m in products]
         rsmiles = [to_smiles(m) if isinstance(m, Molecule) else None for m in reactants]
         psmiles = [to_smiles(m) if isinstance(m, Molecule) else None for m in products]
-        self.rsmiles: Optional[List[str]] = None if None in rsmiles else rsmiles  # type: ignore[assignment]
-        self.psmiles: Optional[List[str]] = None if None in psmiles else psmiles  # type: ignore[assignment]
+        self.rsmiles: Optional[List[Union[str, None]]] = None if None in rsmiles else rsmiles  # type: ignore[assignment]
+        self.psmiles: Optional[List[Union[str, None]]] = None if None in psmiles else psmiles  # type: ignore[assignment]
 
         # Set the charges
         self._rcharges = []
