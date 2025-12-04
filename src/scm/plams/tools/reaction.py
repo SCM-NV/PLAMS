@@ -676,7 +676,7 @@ def balance(
     p = [to_species(x) for x in products]
 
     min_coeffs: Optional[numpy.typing.NDArray] = np.array([x.min_coeff for x in r] + [x.min_coeff for x in p])
-    if all(x == 0 for x in min_coeffs):
+    if min_coeffs is not None and all(x == 0 for x in min_coeffs):
         min_coeffs = None
     ret = ReactionEquation([x.formula for x in r], [x.formula for x in p])
     ret.method = method
