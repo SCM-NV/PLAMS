@@ -660,6 +660,7 @@ def balance(
 
     Example:
 
+    >>> from scm.plams.tools.reaction import balance, Species
     >>> balance(reactants=["CH4", "O2"], products=["CO2", "H2O"])
     >>> balance(reactants=[Species("H", charge=1), Species("OH", charge=-1)], products=[Species("H2O")])
 
