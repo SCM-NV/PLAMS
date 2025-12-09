@@ -369,11 +369,15 @@ class _ViewBackend(ABC):
     """
 
     @classmethod
-    @abstractmethod
     def check_available(cls) -> None:
         """
         Check whether this backend is available on the current system, otherwise raise an error
         """
+        try:
+            he_atom = Molecule(positions=[[0, 0, 0]], numbers=[2])
+            cls.generate_image(he_atom, ViewConfig())
+        except Exception as ex:
+            raise AMSExecutionError("Could not generate test image", ex)
 
     @classmethod
     @abstractmethod
@@ -514,11 +518,7 @@ class _AmsViewBackend(_ViewBackend):
     @classmethod
     @requires_ams(minimum_version="2025.204")
     def check_available(cls) -> None:
-        canary_call = [os.path.expandvars("$AMSBIN/amsview"), "-h", "-batch"]
-        try:
-            subprocess.run(canary_call, capture_output=True, check=True, text=True)
-        except (subprocess.CalledProcessError, FileNotFoundError) as ex:
-            raise AMSExecutionError(" ".join(canary_call), ex)
+        super().check_available()
 
     @classmethod
     def get_command(
@@ -636,7 +636,7 @@ class _AmsViewXvfbBackend(_AmsViewBackend):
     @classmethod
     def check_available(cls) -> None:
         _XvfbManager.check_xvfb()
-        cls.run_command([os.path.expandvars("$AMSBIN/amsview"), "-h", "-batch"], ViewConfig())
+        super().check_available()
 
     @classmethod
     def run_command(cls, command: List[str], config: ViewConfig) -> None:
@@ -894,7 +894,7 @@ class _AsePlotBackend(_ViewBackend):
     @requires_optional_package("matplotlib")
     @requires_optional_package("scipy")
     def check_available(cls) -> None:
-        return
+        super().check_available()
 
     @classmethod
     def generate_image(cls, system: Union[Molecule, "ChemicalSystem"], config: ViewConfig) -> "PilImage.Image":
