@@ -47,7 +47,7 @@ view(cs)
 #
 # 3. An ``$AMSBIN/nmr`` calculation. This program reads ``TAPE10`` and *modifies* ``adf.rkf``.
 #
-# In the end, all results are stored on ``adfk.rkf``.
+# In the end, all results are stored on ``adf.rkf``.
 #
 # There is no PLAMS job for the ``$AMSBIN/cpl`` and ``$AMSBIN/nmr`` programs. Instead, we set up the calculation explicitly in the ``settings.runscript.postamble_lines`` option.
 
