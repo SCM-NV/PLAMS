@@ -81,6 +81,7 @@ Workflows
    ExcitationsWorkflow/ExcitationsWorkflow
    AMSTSWorkflow/AMSTSWorkflow
    ZieglerNattaCatalyst/ZieglerNattaCatalyst
+   H-NMRSpinSpinCoupling/H-NMRSpinSpinCoupling
    ChargeTransferIntegralsADF/ChargeTransferIntegralsADF
    TuningRangeSeparation/TuningRangeSeparation
    ConformersGeneration/ConformersGeneration
