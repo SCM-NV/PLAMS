@@ -3,7 +3,7 @@
 H-NMR spectrum with spin-spin coupling
 ========================================
 
-**See also**: `Corresponding GUI tutorial <../../../../Tutorials/NMR/H-NMRSpectrumSpin-SpinCoupling.html>`__
+**See also**: `Corresponding GUI tutorial <../../../Tutorials/NMR/H-NMRSpectrumSpin-SpinCoupling.html>`__
 
 In this Python example, you will learn
 
