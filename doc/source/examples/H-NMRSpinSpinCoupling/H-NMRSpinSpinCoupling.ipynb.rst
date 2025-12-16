@@ -39,8 +39,10 @@ System
 
 .. code:: ipython3
 
-   # cs.guess_bonds()  # make visualization nicer
-   view(cs)
+   # visualize system with bonds
+   cs_with_bonds = cs.copy()
+   cs_with_bonds.guess_bonds()
+   view(cs_with_bonds)
 
 .. figure:: H-NMRSpinSpinCoupling_files/H-NMRSpinSpinCoupling_4_0.png
 
@@ -189,16 +191,10 @@ Inspect the job
 
 ::
 
-   [12.12|10:25:04] JOB ethyl_acetate_nmr STARTED
-   [12.12|10:25:04] JOB ethyl_acetate_nmr RUNNING
-   [12.12|10:42:59] JOB ethyl_acetate_nmr FINISHED
-   [12.12|10:42:59] JOB ethyl_acetate_nmr SUCCESSFUL
-
-
-
-
-
-   <scm.plams.interfaces.adfsuite.ams.AMSResults at 0x78250e70f940>
+   [16.12|15:44:51] JOB ethyl_acetate_nmr STARTED
+   [16.12|15:44:51] JOB ethyl_acetate_nmr RUNNING
+   [16.12|15:51:33] JOB ethyl_acetate_nmr FINISHED
+   [16.12|15:51:33] JOB ethyl_acetate_nmr SUCCESSFUL
 
 Results (basic)
 ~~~~~~~~~~~~~~~
@@ -214,7 +210,7 @@ Let’s see which NMR results are available on adf.rkf:
 
 ::
 
-   ['NMR Coupling K tens InputOrder', 'NMR Coupling K const InputOrder', 'NMR Shieldings InputOrder', 'NMR Shielding Tensor InputOrder', 'NMR Coupling J tens InputOrder', 'NMR Coupling J const InputOrder']
+   ['NMR Coupling J tens InputOrder', 'NMR Coupling K tens InputOrder', 'NMR Coupling K const InputOrder', 'NMR Coupling J const InputOrder', 'NMR Shielding Tensor InputOrder', 'NMR Shieldings InputOrder']
 
 .. code:: ipython3
 

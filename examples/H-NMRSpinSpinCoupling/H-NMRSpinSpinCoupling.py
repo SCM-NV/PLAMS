@@ -33,8 +33,10 @@ End
 )
 
 
-# cs.guess_bonds()  # make visualization nicer
-view(cs)
+# visualize system with bonds
+cs_with_bonds = cs.copy()
+cs_with_bonds.guess_bonds()
+view(cs_with_bonds)
 
 
 # ## Job settings: DFT and NMR
