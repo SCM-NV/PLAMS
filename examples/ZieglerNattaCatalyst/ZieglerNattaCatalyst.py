@@ -15,7 +15,7 @@
 # ## Initial imports
 
 from scm.libbase import ChemicalSystem
-from scm.plams import view, Settings, AMSJob
+from scm.plams import view, Settings, AMSJob, Units
 
 
 # ## Initial system
@@ -185,10 +185,8 @@ view(ts_mol, direction="along_y")
 
 
 def get_gibbs_energy(job: AMSJob, unit="hartree"):
-    from scm.libbase import Units
-
     gibbs_energy = job.results.readrkf("Thermodynamics", "Gibbs free Energy", file="engine")
-    gibbs_energy *= Units.convert("hartree", unit, 1.0)
+    gibbs_energy *= Units.convert(1.0, "hartree", unit)
     return gibbs_energy
 
 

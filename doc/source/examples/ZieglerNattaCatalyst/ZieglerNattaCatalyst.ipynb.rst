@@ -19,7 +19,7 @@ Initial imports
 .. code:: ipython3
 
    from scm.libbase import ChemicalSystem
-   from scm.plams import view, Settings, AMSJob
+   from scm.plams import view, Settings, AMSJob, Units
 
 Initial system
 ~~~~~~~~~~~~~~
@@ -120,10 +120,10 @@ Geometry optimization of reactant state
 
 ::
 
-   [11.11|14:48:22] JOB reactants_frequencies STARTED
-   [11.11|14:48:22] JOB reactants_frequencies RUNNING
-   [11.11|14:48:25] JOB reactants_frequencies FINISHED
-   [11.11|14:48:25] JOB reactants_frequencies SUCCESSFUL
+   [16.12|15:06:37] JOB reactants_frequencies STARTED
+   [16.12|15:06:37] JOB reactants_frequencies RUNNING
+   [16.12|15:06:40] JOB reactants_frequencies FINISHED
+   [16.12|15:06:40] JOB reactants_frequencies SUCCESSFUL
 
 Set up PES Scan to find approximate transition state
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -156,10 +156,10 @@ Set up PES Scan to find approximate transition state
 
 ::
 
-   [11.11|14:48:25] JOB pes_scan STARTED
-   [11.11|14:48:25] JOB pes_scan RUNNING
-   [11.11|14:48:54] JOB pes_scan FINISHED
-   [11.11|14:48:54] JOB pes_scan SUCCESSFUL
+   [16.12|15:06:40] JOB pes_scan STARTED
+   [16.12|15:06:40] JOB pes_scan RUNNING
+   [16.12|15:07:13] JOB pes_scan FINISHED
+   [16.12|15:07:13] JOB pes_scan SUCCESSFUL
 
 PESScan results
 ~~~~~~~~~~~~~~~
@@ -256,20 +256,18 @@ Transition state search
 
 ::
 
-   [11.11|14:48:56] JOB ts_search STARTED
-   [11.11|14:48:56] JOB ts_search RUNNING
-   [11.11|14:49:07] JOB ts_search FINISHED
-   [11.11|14:49:07] JOB ts_search SUCCESSFUL
+   [16.12|15:07:15] JOB ts_search STARTED
+   [16.12|15:07:15] JOB ts_search RUNNING
+   [16.12|15:07:26] JOB ts_search FINISHED
+   [16.12|15:07:26] JOB ts_search SUCCESSFUL
 
 .. figure:: ZieglerNattaCatalyst_files/ZieglerNattaCatalyst_16_1.png
 
 .. code:: ipython3
 
    def get_gibbs_energy(job: AMSJob, unit="hartree"):
-       from scm.libbase import Units
-
        gibbs_energy = job.results.readrkf("Thermodynamics", "Gibbs free Energy", file="engine")
-       gibbs_energy *= Units.convert("hartree", unit, 1.0)
+       gibbs_energy *= Units.convert(1.0, "hartree", unit)
        return gibbs_energy
 
 
@@ -329,4 +327,4 @@ Free energy barrier
    Reactants Gibbs Energy: -98216.185 kJ/mol
    TS Gibbs Energy:        -98160.461 kJ/mol
    Free energy barrier:    55.724 kJ/mol
-   Rate constant:          1073.256 s⁻¹ at 298.15 K
+   Rate constant:          1073.251 s⁻¹ at 298.15 K
