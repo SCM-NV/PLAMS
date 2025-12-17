@@ -320,6 +320,9 @@ class RKFTrajectoryFile(TrajectoryFile):
             self.mdblocksize = 100
             return
         blocksize = self.file_object.read(section, "blockSize")
+        nblocks = 0
+        if (section, "nBlocks") in self.file_object:
+            nblocks = self.file_object.read(section, "nBlocks")
         item_keys = [kn for kn in sections[section] if "ItemName" in kn]
         items = [self.file_object.read(section, kn) for kn in item_keys]
         blockitems = []
@@ -329,6 +332,12 @@ class RKFTrajectoryFile(TrajectoryFile):
                 is_blockitem = True
                 if (section, "%s(1)" % (item)) in self.file_object:
                     if isinstance(self.file_object.read(section, "%s(1)" % (item)), str):
+                        is_blockitem = False
+                    # If this is a block item, the correct amount of blocks need to be there
+                    # Still not full proof. Should check that the number of items is correct.
+                    elif not (section, "%s(%i)" % (item, nblocks)) in self.file_object:
+                        is_blockitem = False
+                    elif (section, "%s(%i)" % (item, nblocks + 1)) in self.file_object:
                         is_blockitem = False
                 else:
                     is_blockitem = False
@@ -857,6 +866,11 @@ class RKFTrajectoryFile(TrajectoryFile):
                         old_values = self.file_object.read(section, "%s(%i)" % (key, iblock))
                         if not isinstance(old_values, list):
                             old_values = [old_values]
+                if len(old_values) != step % self.mdblocksize - 1:
+                    # This will mess up the RKF, so should throw an error
+                    msg = "Introducing new block value '%s' at step %i." % (key, step - 1)
+                    msg += " Block values should be written every step!"
+                    raise PlamsError(msg)
                 values = old_values + [values]  # Values is a scalar
             else:
                 self.file_object.write(section, "nBlocks", iblock)
