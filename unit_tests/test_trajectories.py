@@ -51,6 +51,7 @@ class TestRKFHistoryFile:
         """
         Write RKFHistoryFile with properties NOT stored as blocks
         """
+        skip_if_no_ams_installation()
         rkfname = (tmp_path_factory.mktemp("data") / "molecules.rkf").as_posix()
         rkf = RKFHistoryFile(rkfname, mode="wb")
         rkf.store_historydata()
@@ -90,7 +91,6 @@ class TestRKFHistoryFile:
         """
         Test reading of properties from the RKFHistoryFile
         """
-        skip_if_no_ams_installation()
         assert os.path.isfile(rkffilename)
 
         rkf = RKFHistoryFile(rkffilename)
