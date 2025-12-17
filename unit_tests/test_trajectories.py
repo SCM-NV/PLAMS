@@ -92,6 +92,7 @@ class TestRKFHistoryFile:
         Test reading of properties from the RKFHistoryFile
         """
         assert os.path.isfile(rkffilename)
+        print("Temporary file: ", rkffilename)
 
         rkf = RKFHistoryFile(rkffilename)
         rkf.store_mddata()
