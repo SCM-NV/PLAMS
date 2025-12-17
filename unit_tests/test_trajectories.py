@@ -10,6 +10,8 @@ from scm.plams.trajectories.rkffile import RKFTrajectoryFile
 from scm.plams.trajectories.xyzfile import XYZTrajectoryFile
 from scm.plams.trajectories.sdffile import SDFTrajectoryFile
 
+from test_helpers import skip_if_no_ams_installation
+
 
 @pytest.fixture
 def conformers_rkf(rkf_folder):
@@ -88,6 +90,7 @@ class TestRKFHistoryFile:
         """
         Test reading of properties from the RKFHistoryFile
         """
+        skip_if_no_ams_installation()
         assert os.path.isfile(rkffilename)
 
         rkf = RKFHistoryFile(rkffilename)
