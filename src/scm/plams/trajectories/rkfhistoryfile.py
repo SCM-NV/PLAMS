@@ -190,36 +190,36 @@ class RKFHistoryFile(RKFTrajectoryFile):
         version = 1
         self._set_system_version_elements()
         for i in range(self.get_length()):
-            if not ("History", "SystemVersion(%i)" % (i + 1)) in self.file_object:
+            if not ("History", f"SystemVersion({i + 1})") in self.file_object:
                 continue
-            new_version = self.file_object.read("History", "SystemVersion(%i)" % (i + 1))
+            new_version = self.file_object.read("History", f"SystemVersion({i + 1})")
             if new_version == version:
                 continue
             self.added_atoms[i] = {}
             self.removed_atoms[i] = {}
             # Now look for the added and removed atoms
             removed_atoms = []
-            if ("SystemVersionHistory", "RemovedAtoms(%i)" % (new_version)) in self.file_object:
-                removed_atoms = self.file_object.read("SystemVersionHistory", "RemovedAtoms(%i)" % (new_version))
+            if ("SystemVersionHistory", f"RemovedAtoms({new_version})") in self.file_object:
+                removed_atoms = self.file_object.read("SystemVersionHistory", f"RemovedAtoms({new_version})")
             if not isinstance(removed_atoms, list):
                 removed_atoms = [removed_atoms]
             added_atoms = []
-            if ("SystemVersionHistory", "AddedAtoms(%i)" % (new_version)) in self.file_object:
-                added_atoms = self.file_object.read("SystemVersionHistory", "AddedAtoms(%i)" % (new_version))
+            if ("SystemVersionHistory", f"AddedAtoms({new_version})") in self.file_object:
+                added_atoms = self.file_object.read("SystemVersionHistory", f"AddedAtoms({new_version})")
             if not isinstance(added_atoms, list):
                 added_atoms = [added_atoms]
             # Now find the corresponding elements
-            chemSysNum = self.file_object.read("SystemVersionHistory", "SectionNum(%i)" % (new_version))
+            chemSysNum = self.file_object.read("SystemVersionHistory", f"SectionNum({new_version})")
             # Compare to the previous chemical system
             # prev_version = new_version - 1
             # prevChemSysNum = self.file_object.read('SystemVersionHistory','SectionNum(%i)'%(prev_version))
             prevChemSysNum = self.chemical_systems[max(self.chemical_systems.keys())]
-            sectionname = "ChemicalSystem(%i)" % (prevChemSysNum)
+            sectionname = f"ChemicalSystem({prevChemSysNum})"
             atnums = self.file_object.read(sectionname, "AtomicNumbers")
             if isinstance(atnums, int):
                 atnums = [atnums]
             prev_elements = [PT.get_symbol(atnum) for atnum in atnums]
-            sectionname = "ChemicalSystem(%i)" % (chemSysNum)
+            sectionname = f"ChemicalSystem({chemSysNum})"
             atnums = self.file_object.read(sectionname, "AtomicNumbers")
             if isinstance(atnums, int):
                 atnums = [atnums]
@@ -259,7 +259,7 @@ class RKFHistoryFile(RKFTrajectoryFile):
             chemSysNum = self._check_for_chemical_system(new_elements, compare_elements=False)
             if chemSysNum is None:
                 raise Exception("Chemical system with this number of atoms does not exist")
-        sectionname = "ChemicalSystem(%i)" % (chemSysNum)
+        sectionname = f"ChemicalSystem({chemSysNum})"
         elements = [PT.get_symbol(atnum) for atnum in self.file_object.read(sectionname, "AtomicNumbers")]
         ###################
         # Check the regions
@@ -334,7 +334,7 @@ class RKFHistoryFile(RKFTrajectoryFile):
             # Rebuild the molecule (bonds will disappear for now)
             if isinstance(molecule, Molecule):
                 # self.props = props
-                secname = "ChemicalSystem(%i)" % (self.chemical_systems[ifr])
+                secname = f"ChemicalSystem({self.chemical_systems[ifr]})"
                 if not "SystemVersionHistory" in self.file_object.sections():
                     secname = "InputMolecule"
                 section_dict = self.file_object.read_section(secname)
@@ -359,7 +359,7 @@ class RKFHistoryFile(RKFTrajectoryFile):
                     for iat, atnum in enumerate(atnums):
                         molecule.atoms[iat].atnum = atnum
 
-        coords[:] = self.file_object.read("History", "Coords(%i)" % (i + 1))
+        coords[:] = self.file_object.read("History", f"Coords({i + 1})")
         coords *= bohr_to_angstrom
         # This changes self.coords behind the scenes
 
@@ -475,7 +475,7 @@ class RKFHistoryFile(RKFTrajectoryFile):
             if chemsysversion is None:
                 chemsysversion = len(self.system_version_elements)
                 self._write_molecule_section(
-                    coords, cell, section="ChemicalSystem(%i)" % (chemsysversion), molecule=molecule
+                    coords, cell, section=f"ChemicalSystem({chemsysversion})", molecule=molecule
                 )
             self.chemical_systems[self.position] = chemsysversion
         counter = self._write_system_version_history_entry(counter)
