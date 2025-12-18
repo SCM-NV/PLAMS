@@ -101,7 +101,7 @@ def _dispose_status_change_callback_threadpool(timeout: Optional[int] = None) ->
     """
     try:
         wait_for_status_change_callbacks(timeout=timeout or get_config().atexit_timeout)
-        _status_change_callback_threadpool.shutdown(wait=False, cancel_futures=True)
+        _status_change_callback_threadpool.shutdown(wait=False)
     except Exception:
         pass
 
