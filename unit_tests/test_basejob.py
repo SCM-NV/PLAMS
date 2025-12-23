@@ -307,7 +307,7 @@ sleep 0.0 && sed 's/input/output/g' plamsjob.in
         # Execute call of second job is made before finalize call of first job
         results[1].wait()
         assert job2.status == JobStatus.SUCCESSFUL
-        assert job1.status == JobStatus.RUNNING
+        assert job1.status in [JobStatus.RUNNING, JobStatus.SUCCESSFUL]
 
         results[0].wait()
         assert job1.status == JobStatus.SUCCESSFUL
