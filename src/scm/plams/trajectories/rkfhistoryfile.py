@@ -289,8 +289,9 @@ class RKFHistoryFile(RKFTrajectoryFile):
         self.chemical_systems = {}
         if self.include_mddata:
             # Start setting up the MDHistory section as well
-            self.mdblocksize = 100
-            self.file_object.write(self.mdhistory_name, "blockSize", 100)
+            if self.mdblocksize is None:
+                self.mdblocksize = 100
+            self.file_object.write(self.mdhistory_name, "blockSize", self.mdblocksize)
 
         self.added_atoms = {}
         self.removed_atoms = {}
