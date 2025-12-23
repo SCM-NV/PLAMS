@@ -24,6 +24,8 @@ This changelog is effective from the 2025 releases.
 * `AMSResults.get_normal_modes` now explicitly give the option to return the mass_weighted_hessian_eigenvectors
 * `BANDFragment` and updated `ADFFragment` recipes for automatic EDA calculations
 * `Job.delete` and `Job.rename` methods for deleting/renaming job files and directories
+* `view` function to visualize molecules/chemical systems using AMSView
+* `config.job.on_status_change` callback which fires any time a job status is updated
 
 ### Changed
 * `JobAnalysis` returns an updated copy on modification instead of performing the operation in-place

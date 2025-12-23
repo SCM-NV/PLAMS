@@ -680,18 +680,18 @@ class AMSResults(Results):
             complete_spinup_data.append(spinup_data)
             complete_spindown_data.append(spindown_data)
 
-        complete_spinup_data = np.concatenate(complete_spinup_data)
-        complete_spinup_data = Units.convert(complete_spinup_data, "hartree", unit)
+        complete_spinup_data_ret = np.concatenate(complete_spinup_data)
+        complete_spinup_data_ret = Units.convert(complete_spinup_data_ret, "hartree", unit)
 
-        complete_spindown_data = np.concatenate(complete_spindown_data)
-        complete_spindown_data = Units.convert(complete_spindown_data, "hartree", unit)
+        complete_spindown_data_ret = np.concatenate(complete_spindown_data)
+        complete_spindown_data_ret = Units.convert(complete_spindown_data_ret, "hartree", unit)
 
-        x = np.concatenate(x).ravel()
+        x_ret = np.concatenate(x).ravel()
 
         fermi_energy = cast(float, self.readrkf("BandStructure", "FermiEnergy", file="engine"))
         fermi_energy = Units.convert(fermi_energy, "hartree", unit)
 
-        return x, complete_spinup_data, complete_spindown_data, labels, fermi_energy  # type: ignore[return-value]
+        return x_ret, complete_spinup_data_ret, complete_spindown_data_ret, labels, fermi_energy  # type: ignore[return-value]
 
     def get_phonons_dos(
         self, unit: str = "hartree"
@@ -840,12 +840,12 @@ class AMSResults(Results):
 
             y.append(spinup_data)
 
-        y = np.concatenate(y)
-        y = Units.convert(y, "hartree", unit)
+        y_ret = np.concatenate(y)
+        y_ret = Units.convert(y_ret, "hartree", unit)
 
-        x = np.concatenate(x).ravel()
+        x_ret = np.concatenate(x).ravel()
 
-        return x, y, labels  # type: ignore[return-value]
+        return x_ret, y_ret, labels  # type: ignore[return-value]
 
     def get_phonons_thermodynamic_properties(
         self, temperature_unit: str = "K", properties_unit: List[str] = ["hartree", "kB"]
