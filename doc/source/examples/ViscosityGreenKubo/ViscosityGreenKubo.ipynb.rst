@@ -10,13 +10,21 @@ Initial imports
    import os
    import numpy as np
 
+   try:
+       from scm.plams import view  # view molecule using AMSview in a Jupyter Notebook in AMS2026+
+   except ImportError:
+       from scm.plams import plot_molecule  # plot molecule in a Jupyter Notebook in AMS2023+
+
+       def view(molecule, **kwargs):
+           plot_molecule(molecule)
+
 Create initial benzene system
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code:: ipython3
 
    benzene_box = plams.packmol(plams.from_smiles("c1ccccc1", forcefield="uff"), density=0.875, n_molecules=40)
-   plams.plot_molecule(benzene_box);
+   view(benzene_box, width=300, height=300, direction="tilt_z", padding=-2)
 
 .. figure:: ViscosityGreenKubo_files/ViscosityGreenKubo_3_0.png
 
@@ -43,10 +51,10 @@ Short equilibration MD simulation at 300 K for 5 ps with the GAFF force field an
 
 ::
 
-   [17.03|17:48:37] JOB equilibration STARTED
-   [17.03|17:48:37] JOB equilibration RUNNING
-   [17.03|17:49:35] JOB equilibration FINISHED
-   [17.03|17:49:35] JOB equilibration SUCCESSFUL
+   [24.12|16:10:09] JOB equilibration STARTED
+   [24.12|16:10:09] JOB equilibration RUNNING
+   [24.12|16:10:51] JOB equilibration FINISHED
+   [24.12|16:10:51] JOB equilibration SUCCESSFUL
 
 Production MD simulation
 ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -77,16 +85,16 @@ The time step is quite large at 1 fs. You may want to decrease it (and increase 
 
 ::
 
-   [17.03|17:49:35] JOB production STARTED
-   [17.03|17:49:35] JOB production RUNNING
-   [17.03|18:35:10] JOB production FINISHED
-   [17.03|18:35:11] JOB production SUCCESSFUL
+   [24.12|16:10:51] JOB production STARTED
+   [24.12|16:10:51] JOB production RUNNING
+   [24.12|16:37:59] JOB production FINISHED
+   [24.12|16:38:00] JOB production SUCCESSFUL
 
 
 
 
 
-   <scm.plams.interfaces.adfsuite.ams.AMSResults at 0x799ddc0bbcd0>
+   <scm.plams.interfaces.adfsuite.ams.AMSResults at 0x328d62730>
 
 Calculate the viscosity autocorrelation integral
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -100,16 +108,16 @@ Calculate the viscosity autocorrelation integral
 
 ::
 
-   [17.03|18:35:11] JOB plamsjob STARTED
-   [17.03|18:35:11] JOB plamsjob RUNNING
-   [17.03|18:35:29] JOB plamsjob FINISHED
-   [17.03|18:35:30] JOB plamsjob SUCCESSFUL
+   [24.12|16:38:00] JOB plamsjob STARTED
+   [24.12|16:38:00] JOB plamsjob RUNNING
+   [24.12|16:38:24] JOB plamsjob FINISHED
 
 
+   /path/plams/recipes/md/trajectoryanalysis.py:275: RuntimeWarning: overflow encountered in exp
+     return A * (lam * (1 - np.exp(-x / tau1)) + (1 - lam) * (1 - np.exp(-x / tau2)))
 
 
-
-   <scm.plams.recipes.md.trajectoryanalysis.AMSViscosityFromBinLogResults at 0x799ddbe9c730>
+   [24.12|16:38:25] JOB plamsjob SUCCESSFUL
 
 Plot the results
 ~~~~~~~~~~~~~~~~
@@ -128,6 +136,11 @@ The parameters :math:`A`, :math:`\lambda`, :math:`\tau _1`, and :math:`\tau _2` 
 
    x, viscosity_integral = job.results.get_viscosity_integral()
    popt, x_fit, fit_viscosity_integral = job.results.get_double_exponential_fit()
+
+::
+
+   /path/plams/recipes/md/trajectoryanalysis.py:275: RuntimeWarning: overflow encountered in exp
+     return A * (lam * (1 - np.exp(-x / tau1)) + (1 - lam) * (1 - np.exp(-x / tau2)))
 
 .. code:: ipython3
 
