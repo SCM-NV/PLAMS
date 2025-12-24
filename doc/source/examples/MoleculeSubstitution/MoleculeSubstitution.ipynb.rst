@@ -6,19 +6,19 @@ Initial imports
 
 .. code:: ipython3
 
-   from scm.plams import *
+   import scm.plams as plams
    import matplotlib.pyplot as plt
    from rdkit import Chem
    from rdkit.Chem import Draw
    from rdkit.Chem.Draw import IPythonConsole
    from rdkit.Chem import AllChem
-   from typing import List
+   from typing import List, Tuple
 
    IPythonConsole.ipython_useSVG = True
    IPythonConsole.molSize = 250, 250
 
    # this line is not required in AMS2025+
-   init()
+   plams.init()
 
 ::
 
@@ -65,11 +65,11 @@ The ``MoleculeConnector`` class and ``substitute()`` method below are convenient
        return rdmol
 
 
-   def to_lewis(molecule: Molecule, template=None, regenerate: bool = True):
+   def to_lewis(molecule: plams.Molecule, template=None, regenerate: bool = True):
        if isinstance(molecule, Chem.rdchem.Mol):
            rdmol = molecule
        else:
-           rdmol = to_rdmol(molecule)
+           rdmol = plams.to_rdmol(molecule)
        if regenerate:
            rdmol = Chem.RemoveHs(rdmol)
            smiles = Chem.MolToSmiles(rdmol)
@@ -91,7 +91,7 @@ The ``MoleculeConnector`` class and ``substitute()`` method below are convenient
 
 
    def draw_lewis_grid(
-       molecules: List[Molecule],
+       molecules: List[plams.Molecule],
        molsPerRow: int = 4,
        template_smiles: str = None,
        regenerate: bool = False,
@@ -115,38 +115,77 @@ The ``MoleculeConnector`` class and ``substitute()`` method below are convenient
 
        return Draw.MolsToGridImage(rdmols, molsPerRow=molsPerRow, legends=legends)
 
+
+   def view_molecules(molecules: List[plams.Molecule], titles: List[str], figsize: Tuple[int], **kwargs):
+       fig, axes = plt.subplots(1, len(molecules), figsize=figsize)
+       if len(molecules) == 1:
+           axes = [axes]
+       try:
+           from scm.plams import view  # view molecule using AMSView in a Jupyter Notebook in AMS2026+
+
+           imgs = [view(m, **kwargs) for m in molecules]
+           for ax, img, title in zip(axes, imgs, titles):
+               ax.imshow(img)
+               ax.axis("off")
+               ax.set_title(title)
+           plt.show()
+       except ImportError:
+           from scm.plams import plot_molecule  # plot molecule in a Jupyter Notebook in AMS2023+
+
+           for ax, mol, title in zip(axes, molecules, titles):
+               plot_molecule(mol, ax=ax)
+               ax.set_title(title)
+
+
+   def view_molecule(molecule: plams.Molecule, title: str, figsize: Tuple[int] = (8, 8), **kwargs):
+       view_molecules([molecule], [title], figsize, **kwargs)
+
 Generate substrate molecule
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code:: ipython3
 
    substrate_smiles = "c1ccccc1"
-   substrate = from_smiles(substrate_smiles, forcefield="uff")
+   substrate = plams.from_smiles(substrate_smiles, forcefield="uff")
    substrate.properties.name = "benzene"
-
-   plot_molecule(substrate)
-   plt.title(substrate.properties.name);
-
-.. figure:: MoleculeSubstitution_files/MoleculeSubstitution_5_0.png
 
 Find out which bond to cleave
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-In the molecule you need to define which bond to cleave. To find out, run for example
+In the molecule you need to define which bond to cleave. To find out the bonds, run for example:
 
 .. code:: ipython3
 
-   substrate.write("substrate.xyz")
+   for b in substrate.bonds:
+       el1 = b.atom1.symbol
+       el2 = b.atom2.symbol
+       idx1, idx2 = substrate.index(b)
+       print(f"{el1}({idx1})--{el2}({idx2})")
 
-Then open ``substrate.xyz`` in the AMS GUI and find that atoms 6 (C) and 12 (H) are bonded. We will choose this bond to cleave.
+::
 
-Alternatively, we can plot the molecule inside a Jupyter notebook with RDkit to also find that atoms 6 (C) and 12 (H) are bonded.
+   C(1)--C(2)
+   C(2)--C(3)
+   C(3)--C(4)
+   C(4)--C(5)
+   C(5)--C(6)
+   C(6)--C(1)
+   C(1)--H(7)
+   C(2)--H(8)
+   C(3)--H(9)
+   C(4)--H(10)
+   C(5)--H(11)
+   C(6)--H(12)
+
+to find that atoms 6 (C) and 12 (H) are bonded. We will choose this bond to cleave.
+
+Alternatively, we can inspect the molecule inside a Jupyter notebook, visualizing with AMSView, to also find that atoms 6 (C) and 12 (H) are bonded.
 
 .. code:: ipython3
 
-   draw_lewis_grid([substrate], draw_atom_indices=True, draw_legend=False)
+   view_molecule(substrate, substrate.properties.name, padding=-0.5, show_atom_labels=True, atom_label_type="Name")
 
-.. figure:: MoleculeSubstitution_files/MoleculeSubstitution_10_0.svg
+.. figure:: MoleculeSubstitution_files/MoleculeSubstitution_10_0.png
 
 .. code:: ipython3
 
@@ -157,9 +196,7 @@ Alternatively, we can plot the molecule inside a Jupyter notebook with RDkit to 
 Define ligands
 ~~~~~~~~~~~~~~
 
-Similarly for the ligand, if you do not know which bond to cleave, write the molecule to a .xyz file and find out.
-
-Or plot it with rdkit in the Jupyter notebook.
+Perform the same steps for the ligands.
 
 **Note**: The ligands below have an extra hydrogen or even more atoms compared to the name that they’re given.
 
@@ -167,32 +204,31 @@ Or plot it with rdkit in the Jupyter notebook.
 
    ligands = [
        MoleculeConnector(
-           from_smiles("CCOC(=O)C", forcefield="uff"), (3, 2), "acetate"
+           plams.from_smiles("CCOC(=O)C", forcefield="uff"), (3, 2), "acetate"
        ),  # ethyl acetate, bond from O to C cleaved
        MoleculeConnector(
-           from_smiles("O=NO", forcefield="uff"), (3, 4), "nitrite"
+           plams.from_smiles("O=NO", forcefield="uff"), (3, 4), "nitrite"
        ),  # nitrous acid, bond from O to H cleaved
        MoleculeConnector(
-           from_smiles("Cl", forcefield="uff"), (1, 2), "chloride"
+           plams.from_smiles("Cl", forcefield="uff"), (1, 2), "chloride"
        ),  # hydrogen chloride, bond from Cl to H cleaved
-       MoleculeConnector(from_smiles("c1ccccc1", forcefield="uff"), (6, 12), "phenyl"),  # benzene, bond to C to H cleaved
+       MoleculeConnector(
+           plams.from_smiles("c1ccccc1", forcefield="uff"), (6, 12), "phenyl"
+       ),  # benzene, bond to C to H cleaved
    ]
 
    ligand_molecules = [ligand.molecule for ligand in ligands]
 
-   fig, axes = plt.subplots(1, len(ligands), figsize=(15, 3))
-
-   for ax, ligand in zip(axes, ligands):
-       plot_molecule(ligand.molecule, ax=ax)
-       ax.set_title(ligand.name)
+   view_molecules(
+       ligand_molecules,
+       [ligand.name for ligand in ligands],
+       figsize=(15, 4),
+       width=400,
+       show_atom_labels=True,
+       atom_label_type="Name",
+   )
 
 .. figure:: MoleculeSubstitution_files/MoleculeSubstitution_14_0.png
-
-.. code:: ipython3
-
-   draw_lewis_grid(ligand_molecules, draw_atom_indices=True, draw_legend=False, molsPerRow=4)
-
-.. figure:: MoleculeSubstitution_files/MoleculeSubstitution_15_0.svg
 
 Above we see that cleaving the bonds from O(3)-C(2), O(3)-H(4), Cl(1)-H(2), and C(6)-H(12) will give the acetate, nitrite, chloride, and phenyl substituents, respectively.
 
@@ -222,18 +258,14 @@ Generate substituted molecules
    Writing phenyl--phenyl.xyz
    phenyl--phenyl formula: {'C': 12, 'H': 10}
 
-Plot 3D structures with PLAMS / ASE
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Plot 3D structures with PLAMS
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code:: ipython3
 
-   fig, axes = plt.subplots(1, len(mols), figsize=(15, 3))
+   view_molecules(mols, [mol.properties.name for mol in mols], figsize=(15, 4), width=400, padding=-0.3)
 
-   for ax, mol in zip(axes, mols):
-       plot_molecule(mol, ax=ax)
-       ax.set_title(mol.properties.name)
-
-.. figure:: MoleculeSubstitution_files/MoleculeSubstitution_20_0.png
+.. figure:: MoleculeSubstitution_files/MoleculeSubstitution_19_0.png
 
 Plot 2D Lewis structures with RDKit
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -244,4 +276,4 @@ The molecules can be aligned by using a benzene template. The ``regenerate`` opt
 
    draw_lewis_grid(mols, template_smiles=substrate_smiles, regenerate=True)
 
-.. figure:: MoleculeSubstitution_files/MoleculeSubstitution_22_0.svg
+.. figure:: MoleculeSubstitution_files/MoleculeSubstitution_21_0.svg

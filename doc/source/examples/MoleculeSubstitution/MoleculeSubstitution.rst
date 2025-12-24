@@ -3,9 +3,9 @@
 Molecule substitution: Attach ligands to substrates
 =============================================================
 
-.. image:: MoleculeSubstitution_files/MoleculeSubstitution_20_0.png
+.. image:: MoleculeSubstitution_files/MoleculeSubstitution_19_0.png
 
-.. image:: MoleculeSubstitution_files/MoleculeSubstitution_22_0.svg
+.. image:: MoleculeSubstitution_files/MoleculeSubstitution_21_0.svg
 
 
 Script showing how to created substituted benzene molecules using PLAMS, by
