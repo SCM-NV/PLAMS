@@ -3,25 +3,40 @@
 
 # ## Initial imports
 
-from scm.plams import *
+import scm.plams as plams
+
+try:
+    from scm.plams import view  # view molecule using AMSView in a Jupyter Notebook in AMS2026+
+except ImportError:
+    from scm.plams import plot_molecule  # plot molecule in a Jupyter Notebook in AMS2023+
+
+    def view(molecule, **kwargs):
+        plot_molecule(molecule)
+
 
 # this line is not required in AMS2025+
-init()
+plams.init()
 
 
 # ## Elements, coordinates, lattice vectors, and charge
 
 # ### Manual molecule definition
 
-molecule = Molecule()
-molecule.add_atom(Atom(symbol="O", coords=(0, 0, 0)))
-molecule.add_atom(Atom(symbol="H", coords=(1, 0, 0)))
-molecule.add_atom(Atom(symbol="H", coords=(0, 1, 0)))
+molecule = plams.Molecule()
+molecule.add_atom(plams.Atom(symbol="O", coords=(0, 0, 0)))
+molecule.add_atom(plams.Atom(symbol="H", coords=(1, 0, 0)))
+molecule.add_atom(plams.Atom(symbol="H", coords=(0, 1, 0)))
 
 
 # To see the input that will be passed to AMS, create an AMSJob and print the input:
 
-print(AMSJob(molecule=molecule).get_input())
+
+def print_ams_input(molecule):
+    print(plams.AMSJob(molecule=molecule).get_input())
+
+
+print_ams_input(molecule)
+view(molecule, guess_bonds=True, width=200, height=200)
 
 
 # ### Lattice vectors: 1D-periodic
@@ -29,7 +44,10 @@ print(AMSJob(molecule=molecule).get_input())
 # For periodic systems in 1 dimension, the lattice vector must be along the x direction (with 0 components along y and z)
 
 molecule.lattice = [[10, 0, 0]]
-print(AMSJob(molecule=molecule).get_input())
+print_ams_input(molecule)
+view(
+    molecule, guess_bonds=True, show_lattice_vectors=True, show_unit_cell_edges=False, padding=-3, width=600, height=300
+)
 
 
 # ### Lattice vectors: 2D-periodic
@@ -40,25 +58,32 @@ molecule.lattice = [
     [10, 0, 0],
     [0, 11, 0],
 ]
-print(AMSJob(molecule=molecule).get_input())
+print_ams_input(molecule)
+view(
+    molecule, guess_bonds=True, show_lattice_vectors=True, show_unit_cell_edges=False, padding=-1, width=300, height=300
+)
 
 
 # ### Lattice vectors: 3D-periodic
 
 molecule.lattice = [[10, 0, 0], [0, 11, 0], [-1, 0, 12]]
-print(AMSJob(molecule=molecule).get_input())
+print_ams_input(molecule)
+view(
+    molecule, guess_bonds=True, show_lattice_vectors=True, show_unit_cell_edges=False, padding=-2, width=300, height=300
+)
 
 
 # ### Delete lattice vectors
 
 molecule.lattice = []
-print(AMSJob(molecule=molecule).get_input())
+print_ams_input(molecule)
+view(molecule, guess_bonds=True, width=200, height=200)
 
 
 # ### Charge
 
 molecule.properties.charge = -1
-print(AMSJob(molecule=molecule).get_input())
+print_ams_input(molecule)
 
 
 # To get the charge of a molecule, use ``molecule.properties.get("charge", 0)``. If the charge is not defined you will then get 0 as the charge.
@@ -85,7 +110,7 @@ print(f"The charge is {my_charge}")
 # ### Isotopes (atomic masses)
 
 molecule[2].properties.mass = 2.014
-print(AMSJob(molecule=molecule).get_input())
+print_ams_input(molecule)
 
 
 # ### Regions
@@ -102,7 +127,8 @@ print(AMSJob(molecule=molecule).get_input())
 molecule[1].properties.region = {"region1"}
 molecule[2].properties.region = {"region1"}
 molecule[3].properties.region = {"region1", "region2"}
-print(AMSJob(molecule=molecule).get_input())
+print_ams_input(molecule)
+view(molecule, guess_bonds=True, width=200, height=200, show_regions=True)
 
 
 # ### Force field types
@@ -112,16 +138,16 @@ print(AMSJob(molecule=molecule).get_input())
 molecule[1].properties.ForceField.Type = "OW"  # these types would depend on what type of force field you use!
 molecule[2].properties.ForceField.Type = "HW"
 molecule[3].properties.ForceField.Type = "HW"
-print(AMSJob(molecule=molecule).get_input())
+print_ams_input(molecule)
 
 
 # ### Delete all atom-specific options
 # Loop over the atoms and set ``atom.properties`` to an empty ``Settings()``:
 
 for at in molecule:
-    at.properties = Settings()
+    at.properties = plams.Settings()
 
-print(AMSJob(molecule=molecule).get_input())
+print_ams_input(molecule)
 
 
 # ## Bonds
@@ -141,7 +167,8 @@ print(AMSJob(molecule=molecule).get_input())
 
 molecule.add_bond(molecule[1], molecule[2], order=1.0)
 molecule.add_bond(molecule[1], molecule[3], order=1.0)
-print(AMSJob(molecule=molecule).get_input())
+print_ams_input(molecule)
+view(molecule, guess_bonds=True, width=200, height=200)
 
 
 # ## Multiple systems
@@ -156,15 +183,15 @@ print(AMSJob(molecule=molecule).get_input())
 #
 # Let's first define two ``Molecule`` in the normal way:
 
-molecule1 = Molecule()
-molecule1.add_atom(Atom(symbol="O", coords=(0, 0, 0)))
-molecule1.add_atom(Atom(symbol="H", coords=(1, 0, 0)))
-molecule1.add_atom(Atom(symbol="H", coords=(0, 1, 0)))
+molecule1 = plams.Molecule()
+molecule1.add_atom(plams.Atom(symbol="O", coords=(0, 0, 0)))
+molecule1.add_atom(plams.Atom(symbol="H", coords=(1, 0, 0)))
+molecule1.add_atom(plams.Atom(symbol="H", coords=(0, 1, 0)))
 
-molecule2 = Molecule()
-molecule2.add_atom(Atom(symbol="O", coords=(0, 0, 0)))
-molecule2.add_atom(Atom(symbol="H", coords=(3.33333, 0, 0)))
-molecule2.add_atom(Atom(symbol="H", coords=(0, 5.555555, 0)))
+molecule2 = plams.Molecule()
+molecule2.add_atom(plams.Atom(symbol="O", coords=(0, 0, 0)))
+molecule2.add_atom(plams.Atom(symbol="H", coords=(3.33333, 0, 0)))
+molecule2.add_atom(plams.Atom(symbol="H", coords=(0, 5.555555, 0)))
 
 
 # Then create the ``mol_dict`` dictionary:
@@ -177,7 +204,7 @@ mol_dict = {
 
 # Pass the ``mol_dict`` as the ``molecule`` argument to ``AMSJob``:
 
-print(AMSJob(molecule=mol_dict).get_input())
+print_ams_input(mol_dict)
 
 
 # Above we see that the main system is printed just as before. A second system block "system final" is also added with ``molecule2``.
