@@ -11,7 +11,7 @@ Complete guide to storing and converting PLAMS Molecules between Python librarie
    from pathlib import Path
 
    try:
-       from scm.plams import view  # view molecule using AMSView in a Jupyter Notebook in AMS2026+
+       from scm.plams import view  # view molecule using AMSview in a Jupyter Notebook in AMS2026+
    except ImportError:
        from scm.plams import plot_molecule  # plot molecule in a Jupyter Notebook in AMS2023+
 

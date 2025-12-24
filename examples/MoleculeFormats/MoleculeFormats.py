@@ -8,7 +8,7 @@ from os.path import expandvars
 from pathlib import Path
 
 try:
-    from scm.plams import view  # view molecule using AMSView in a Jupyter Notebook in AMS2026+
+    from scm.plams import view  # view molecule using AMSview in a Jupyter Notebook in AMS2026+
 except ImportError:
     from scm.plams import plot_molecule  # plot molecule in a Jupyter Notebook in AMS2023+
 
@@ -22,7 +22,7 @@ except ImportError:
 AMSHOME = os.environ["AMSHOME"]
 cif_file = f"{AMSHOME}/atomicdata/Molecules/IZA-Zeolites/ABW.cif"
 xyz_file = f"{AMSHOME}/scripting/scm/params/examples/benchmark/ISOL6/e_13.xyz"
-badxyz_file = f"{AMSHOME}/scripting/scm/plams/unit_tests/xyz/reactant2.xyz"
+badxyz_file = f"{AMSHOME}/path/plams/unit_tests/xyz/reactant2.xyz"
 
 assert Path(cif_file).exists(), f"{cif_file} does not exist."
 assert Path(xyz_file).exists(), f"{xyz_file} does not exist."

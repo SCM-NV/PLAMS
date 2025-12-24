@@ -113,7 +113,7 @@ def view_molecules(molecules: List[plams.Molecule], titles: List[str], figsize: 
     if len(molecules) == 1:
         axes = [axes]
     try:
-        from scm.plams import view  # view molecule using AMSView in a Jupyter Notebook in AMS2026+
+        from scm.plams import view  # view molecule using AMSview in a Jupyter Notebook in AMS2026+
 
         imgs = [view(m, **kwargs) for m in molecules]
         for ax, img, title in zip(axes, imgs, titles):

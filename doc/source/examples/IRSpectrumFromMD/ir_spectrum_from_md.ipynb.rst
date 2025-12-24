@@ -10,8 +10,17 @@ Initial imports
    import matplotlib.pyplot as plt
    import numpy as np
 
+   try:
+       from scm.plams import view  # view molecule using AMSview in a Jupyter Notebook in AMS2026+
+   except ImportError:
+       from scm.plams import plot_molecule  # plot molecule in a Jupyter Notebook in AMS2023+
+
    # this line is not required in AMS2025+
    plams.init()
+
+::
+
+   PLAMS working folder: /path/plams/examples/IRSpectrumFromMD/plams_workdir
 
 Molecule
 ~~~~~~~~

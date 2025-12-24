@@ -7,6 +7,11 @@ import scm.plams as plams
 import matplotlib.pyplot as plt
 import numpy as np
 
+try:
+    from scm.plams import view  # view molecule using AMSview in a Jupyter Notebook in AMS2026+
+except ImportError:
+    from scm.plams import plot_molecule  # plot molecule in a Jupyter Notebook in AMS2023+
+
 # this line is not required in AMS2025+
 plams.init()
 
@@ -38,7 +43,7 @@ max_dt_fs = 2000  # maximum correlation in fs for dipole derivative acf
 
 # ## Equilibration
 #
-# ``temperature=(500, T, T)`` means that in the first half the simulation the system is cooled from 500 K to the gievn temperature, and then kept constant at that temperature.
+# ``temperature=(500, T, T)`` means that in the first half the simulation the system is cooled from 500 K to the given temperature, and then kept constant at that temperature.
 #
 # The initial temperature of 500 K does some preliminary conformer search.
 
