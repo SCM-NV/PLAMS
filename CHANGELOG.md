@@ -25,6 +25,8 @@ This changelog is effective from the 2025 releases.
 * `BANDFragment` and updated `ADFFragment` recipes for automatic EDA calculations
 * `Job.delete` and `Job.rename` methods for deleting/renaming job files and directories
 * Added a `balance` function to `scm.plams.tools.reaction` which returns a `ReactionEquation`
+* `view` function to visualize molecules/chemical systems using AMSView
+* `config.job.on_status_change` callback which fires any time a job status is updated
 
 ### Changed
 * `JobAnalysis` returns an updated copy on modification instead of performing the operation in-place

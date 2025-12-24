@@ -1,4 +1,6 @@
 import pytest
+import os
+import random
 from pathlib import Path
 import numpy as np
 
@@ -7,6 +9,8 @@ from scm.plams.trajectories.rkfhistoryfile import RKFHistoryFile
 from scm.plams.trajectories.rkffile import RKFTrajectoryFile
 from scm.plams.trajectories.xyzfile import XYZTrajectoryFile
 from scm.plams.trajectories.sdffile import SDFTrajectoryFile
+
+from test_helpers import skip_if_no_ams_installation
 
 
 @pytest.fixture
@@ -19,7 +23,50 @@ def trajectory_xyz(xyz_folder):
     return str(Path(xyz_folder) / "water_box_traj.xyz")
 
 
+@pytest.fixture
+def molecules(xyz_folder):
+    """
+    Return set of single molecules
+    """
+    path = str(Path(xyz_folder))
+    filenames = [os.path.join(path, fn) for fn in os.listdir(path)]
+
+    molecules = []
+    for i, fn in enumerate(filenames):
+        mol = Molecule(fn)
+        mol.guess_bonds()
+        if len(mol.lattice) > 0:
+            continue
+        nmols = len(mol.separate())
+        if nmols > 1:
+            continue
+        molecules.append(mol)
+    return molecules
+
+
 class TestRKFHistoryFile:
+
+    @pytest.fixture
+    def rkffilename(self, tmp_path_factory, molecules):
+        """
+        Write RKFHistoryFile with properties NOT stored as blocks
+        """
+        skip_if_no_ams_installation()
+        rkfname = (tmp_path_factory.mktemp("data") / "molecules.rkf").as_posix()
+        rkf = RKFHistoryFile(rkfname, mode="wb")
+        rkf.mdblocksize = 5
+        rkf.store_historydata()
+        rkf.store_mddata()
+
+        # Store iframe as a list of integers, but not every step
+        for iframe, mol in enumerate(molecules):
+            historydata = {"Step": iframe, "Energy": 0.0}
+            mddata = {"PotentialEnergy": 0.0}
+            if iframe % 2 != 0:
+                mddata = {"PotentialEnergy": 0.0, "ListOfInts": [iframe]}
+            rkf.write_next(molecule=mol, historydata=historydata, mddata=mddata)
+        rkf.close()
+        return rkfname
 
     def test_frames(self, conformers_rkf):
         # Given rkf file with multiple conformers
@@ -40,6 +87,28 @@ class TestRKFHistoryFile:
             # But the labels still match considering bond connectivity
             assert not np.allclose(crds, input_mol.as_array())
             assert mol.label(3) == input_mol.label(3)
+
+    def test_property_reading(self, rkffilename):
+        """
+        Test reading of properties from the RKFHistoryFile
+        """
+        assert os.path.isfile(rkffilename)
+        print("Temporary file: ", rkffilename)
+
+        rkf = RKFHistoryFile(rkffilename)
+        rkf.store_mddata()
+        assert len(rkf) >= 23
+
+        indices = [i for i in range(len(rkf))]
+        indices = random.sample(indices, len(rkf))
+        results = []
+        for iframe in indices:
+            crd, cell = rkf.read_frame(iframe)
+            if "ListOfInts" in rkf.mddata:
+                results.append(rkf.mddata["ListOfInts"])
+                assert rkf.mddata["ListOfInts"] == iframe
+        assert len(results) > 0
+        assert len(results) < len(rkf)
 
 
 class TestTrajectoryFileFormats:
