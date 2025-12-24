@@ -37,7 +37,7 @@ molecule.add_atom(plams.Atom(symbol="H", coords=(1, 0, 0)))
 molecule.add_atom(plams.Atom(symbol="H", coords=(0, 1, 0)))
 
 
-view(molecule, guess_bonds=True, width=300, height=300)
+view(molecule, guess_bonds=True, width=200, height=200)
 
 
 # ## Calculation settings
@@ -86,7 +86,7 @@ print(optimized_molecule)
 print("---------------------")
 
 
-view(optimized_molecule, guess_bonds=True, width=300, height=300)
+view(optimized_molecule, guess_bonds=True, width=200, height=200)
 
 
 # ## Optimized bond lengths and angle

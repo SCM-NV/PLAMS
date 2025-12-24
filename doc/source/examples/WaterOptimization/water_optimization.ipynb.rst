@@ -44,7 +44,7 @@ Initial structure
 
 .. code:: ipython3
 
-   view(molecule, guess_bonds=True, width=300, height=300)
+   view(molecule, guess_bonds=True, width=200, height=200)
 
 .. figure:: water_optimization_files/water_optimization_5_0.png
 
@@ -109,10 +109,10 @@ Run the job
 
 ::
 
-   [24.12|15:30:49] JOB water_optimization STARTED
-   [24.12|15:30:49] JOB water_optimization RUNNING
-   [24.12|15:30:50] JOB water_optimization FINISHED
-   [24.12|15:30:50] JOB water_optimization SUCCESSFUL
+   [24.12|15:33:23] JOB water_optimization STARTED
+   [24.12|15:33:23] JOB water_optimization RUNNING
+   [24.12|15:33:24] JOB water_optimization FINISHED
+   [24.12|15:33:24] JOB water_optimization SUCCESSFUL
 
 Main results files: ams.rkf and dftb.rkf
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -154,7 +154,7 @@ Optimized coordinates
 
 .. code:: ipython3
 
-   view(optimized_molecule, guess_bonds=True, width=300, height=300)
+   view(optimized_molecule, guess_bonds=True, width=200, height=200)
 
 .. figure:: water_optimization_files/water_optimization_18_0.png
 
@@ -198,9 +198,9 @@ Calculation timing
 
    Timings
    -------
-   elapsed             : 0.785 seconds
-   system              : 0.043 seconds
-   cpu                 : 0.666 seconds
+   elapsed             : 0.737 seconds
+   system              : 0.038 seconds
+   cpu                 : 0.636 seconds
    -------
 
 Energy
