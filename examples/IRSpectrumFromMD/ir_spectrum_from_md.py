@@ -12,6 +12,10 @@ try:
 except ImportError:
     from scm.plams import plot_molecule  # plot molecule in a Jupyter Notebook in AMS2023+
 
+    def view(molecule, **kwargs):
+        plot_molecule(molecule)
+
+
 # this line is not required in AMS2025+
 plams.init()
 
@@ -19,7 +23,7 @@ plams.init()
 # ## Molecule
 
 mol = plams.from_smiles("NC(CO)OCC=O")
-plams.plot_molecule(mol)
+view(mol, width=200, height=200)
 
 
 # ## Engine settings
@@ -157,7 +161,7 @@ plt.xlim(500, max_freq)
 #
 # For example, the peak for the MD at 3600 cm^-1 corresponds to the "free" OH stretch of the hydroxyl group, but in conformer used for the  harmonic approximation the hydroxyl donates a hydrogen bond to the aldehyde oxygen (giving a lower vibrational frequency):
 
-plams.plot_molecule(harmonic_job.results.get_main_molecule())
+view(harmonic_job.results.get_main_molecule(), width=200, height=200)
 
 
 # ## View the trajectory in AMSmovie

@@ -15,6 +15,10 @@ Initial imports
    except ImportError:
        from scm.plams import plot_molecule  # plot molecule in a Jupyter Notebook in AMS2023+
 
+       def view(molecule, **kwargs):
+           plot_molecule(molecule)
+
+
    # this line is not required in AMS2025+
    plams.init()
 
@@ -28,7 +32,7 @@ Molecule
 .. code:: ipython3
 
    mol = plams.from_smiles("NC(CO)OCC=O")
-   plams.plot_molecule(mol);
+   view(mol, width=200, height=200)
 
 .. figure:: ir_spectrum_from_md_files/ir_spectrum_from_md_3_0.png
 
@@ -81,10 +85,10 @@ The initial temperature of 500 K does some preliminary conformer search.
 
 ::
 
-   [18.02|08:09:28] JOB nvt_eq STARTED
-   [18.02|08:09:28] JOB nvt_eq RUNNING
-   [18.02|08:09:31] JOB nvt_eq FINISHED
-   [18.02|08:09:31] JOB nvt_eq SUCCESSFUL
+   [24.12|16:21:08] JOB nvt_eq STARTED
+   [24.12|16:21:08] JOB nvt_eq RUNNING
+   [24.12|16:21:10] JOB nvt_eq FINISHED
+   [24.12|16:21:10] JOB nvt_eq SUCCESSFUL
 
 NVE production simulation
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -106,10 +110,10 @@ The ``binlog_dipolemoment`` option stores the dipole moment at every time step.
 
 ::
 
-   [18.02|08:09:31] JOB nve_single_prod STARTED
-   [18.02|08:09:31] JOB nve_single_prod RUNNING
-   [18.02|08:09:48] JOB nve_single_prod FINISHED
-   [18.02|08:09:48] JOB nve_single_prod SUCCESSFUL
+   [24.12|16:21:10] JOB nve_single_prod STARTED
+   [24.12|16:21:10] JOB nve_single_prod RUNNING
+   [24.12|16:21:19] JOB nve_single_prod FINISHED
+   [24.12|16:21:19] JOB nve_single_prod SUCCESSFUL
 
 Dipole derivative autocorrelation function
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -201,10 +205,10 @@ Let’s compare to an IR spectrum calculated with a geometry optimization + freq
 
 ::
 
-   [18.02|08:09:49] JOB harmonic STARTED
-   [18.02|08:09:49] JOB harmonic RUNNING
-   [18.02|08:09:49] JOB harmonic FINISHED
-   [18.02|08:09:49] JOB harmonic SUCCESSFUL
+   [24.12|16:21:20] JOB harmonic STARTED
+   [24.12|16:21:20] JOB harmonic RUNNING
+   [24.12|16:21:20] JOB harmonic FINISHED
+   [24.12|16:21:20] JOB harmonic SUCCESSFUL
 
 .. code:: ipython3
 
@@ -225,7 +229,7 @@ For example, the peak for the MD at 3600 cm^-1 corresponds to the “free” OH 
 
 .. code:: ipython3
 
-   plams.plot_molecule(harmonic_job.results.get_main_molecule());
+   view(harmonic_job.results.get_main_molecule(), width=200, height=200)
 
 .. figure:: ir_spectrum_from_md_files/ir_spectrum_from_md_30_0.png
 
@@ -266,10 +270,10 @@ Let’s make this more explicit with another NVT simulation, followed by multipl
 
 ::
 
-   [18.02|08:10:03] JOB nvt_prod STARTED
-   [18.02|08:10:03] JOB nvt_prod RUNNING
-   [18.02|08:10:18] JOB nvt_prod FINISHED
-   [18.02|08:10:18] JOB nvt_prod SUCCESSFUL
+   [24.12|16:21:31] JOB nvt_prod STARTED
+   [24.12|16:21:31] JOB nvt_prod RUNNING
+   [24.12|16:21:40] JOB nvt_prod FINISHED
+   [24.12|16:21:40] JOB nvt_prod SUCCESSFUL
 
 .. code:: ipython3
 
@@ -286,16 +290,16 @@ Let’s make this more explicit with another NVT simulation, followed by multipl
 
 ::
 
-   [18.02|08:10:18] JOB nvespawner-nvt_prod STARTED
-   [18.02|08:10:18] JOB nvespawner-nvt_prod RUNNING
-   [18.02|08:10:18] JOB nvespawner-nvt_prod/nve1 STARTED
-   [18.02|08:10:18] JOB nvespawner-nvt_prod/nve1 RUNNING
-   [18.02|08:10:25] JOB nvespawner-nvt_prod/nve1 FINISHED
-   [18.02|08:10:25] JOB nvespawner-nvt_prod/nve1 SUCCESSFUL
-   [18.02|08:10:25] JOB nvespawner-nvt_prod/nve2 STARTED
-   [18.02|08:10:25] JOB nvespawner-nvt_prod/nve2 RUNNING
-   [18.02|08:10:31] JOB nvespawner-nvt_prod/nve2 FINISHED
-   [18.02|08:10:32] JOB nvespawner-nvt_prod/nve2 SUCCESSFUL
+   [24.12|16:21:40] JOB nvespawner-nvt_prod STARTED
+   [24.12|16:21:40] JOB nvespawner-nvt_prod RUNNING
+   [24.12|16:21:40] JOB nvespawner-nvt_prod/nve1 STARTED
+   [24.12|16:21:40] JOB nvespawner-nvt_prod/nve1 RUNNING
+   [24.12|16:21:44] JOB nvespawner-nvt_prod/nve1 FINISHED
+   [24.12|16:21:44] JOB nvespawner-nvt_prod/nve1 SUCCESSFUL
+   [24.12|16:21:44] JOB nvespawner-nvt_prod/nve2 STARTED
+   [24.12|16:21:44] JOB nvespawner-nvt_prod/nve2 RUNNING
+   [24.12|16:21:48] JOB nvespawner-nvt_prod/nve2 FINISHED
+   [24.12|16:21:48] JOB nvespawner-nvt_prod/nve2 SUCCESSFUL
    ... (PLAMS log lines truncated) ...
 
 Let’s check that the temperature during the NVE is not too far from the requested temperature.
@@ -310,7 +314,7 @@ Let’s check that the temperature during the NVE is not too far from the reques
 ::
 
    Set temperature during NVT: 298.0 K
-   Mean temperature during NVE: 277.8
+   Mean temperature during NVE: 335.6
 
 Calculate the average dipole derivative autocorrelation function.
 
