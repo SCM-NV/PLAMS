@@ -54,15 +54,16 @@ class TestRKFHistoryFile:
         skip_if_no_ams_installation()
         rkfname = (tmp_path_factory.mktemp("data") / "molecules.rkf").as_posix()
         rkf = RKFHistoryFile(rkfname, mode="wb")
+        rkf.mdblocksize = 5
         rkf.store_historydata()
         rkf.store_mddata()
 
         # Store iframe as a list of integers, but not every step
         for iframe, mol in enumerate(molecules):
             historydata = {"Step": iframe, "Energy": 0.0}
-            mddata = {}
+            mddata = {"PotentialEnergy": 0.0}
             if iframe % 2 != 0:
-                mddata = {"ListOfInts": [iframe]}
+                mddata = {"PotentialEnergy": 0.0, "ListOfInts": [iframe]}
             rkf.write_next(molecule=mol, historydata=historydata, mddata=mddata)
         rkf.close()
         return rkfname
