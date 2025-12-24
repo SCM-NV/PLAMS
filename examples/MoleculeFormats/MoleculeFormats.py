@@ -7,6 +7,15 @@ import os
 from os.path import expandvars
 from pathlib import Path
 
+try:
+    from scm.plams import view  # view molecule using AMSView in a Jupyter Notebook in AMS2026+
+except ImportError:
+    from scm.plams import plot_molecule  # plot molecule in a Jupyter Notebook in AMS2023+
+
+    def view(molecule, **kwargs):
+        plot_molecule(molecule)
+
+
 # Make sure to source amsbashrc.sh before launching this example so that
 # the AMSHOME environment variable is set. Requires AMS2025+ to run this example.
 
@@ -35,7 +44,7 @@ from scm.plams import from_smiles, Molecule, plot_molecule
 
 mol = from_smiles("CCCCO")
 print(f"{type(mol)=}")
-plot_molecule(mol)
+view(mol, padding=-0.5, width=300, height=300, picture_path="example_mol.png")
 
 
 # #### Convert PLAMS Molecule to SMILES string
@@ -56,7 +65,7 @@ from scm.plams import Molecule, plot_molecule
 
 mol = Molecule(xyz_file)
 print(f"{type(mol)=}")
-plot_molecule(mol)
+view(mol, guess_bonds=True, padding=-2, width=500, height=300)
 
 
 # #### Write PLAMS Molecule to .xyz file
@@ -79,7 +88,7 @@ from scm.plams import fromASE
 
 mol: Molecule = fromASE(read(cif_file))
 print(f"{type(mol)=}")
-plot_molecule(mol)
+view(mol, fixed_atom_size=False, padding=-2, width=400, height=300)
 
 
 # #### Write PLAMS Molecule to .cif file
@@ -107,7 +116,7 @@ head("ams_system_block.in")
 from scm.plams import Molecule
 
 mol = Molecule("ams_system_block.in")
-plot_molecule(mol)
+view(mol, fixed_atom_size=False, padding=-2, width=400, height=300)
 
 
 # ### POSCAR/CONTCAR (VASP input format)
@@ -130,7 +139,7 @@ from ase.io import read
 mol: Molecule = fromASE(read("POSCAR"))
 
 print(f"{type(mol)=}")
-plot_molecule(mol)
+view(mol, fixed_atom_size=False, padding=-2, width=400, height=300)
 
 
 # ### ASE Atoms Python class
@@ -159,7 +168,7 @@ from scm.plams import fromASE, plot_molecule, Molecule
 
 mol: Molecule = fromASE(ase_atoms)
 print(f"{type(mol)=}")
-plot_molecule(mol, rotation="-85x,5y,0z")
+view(mol, direction="tilt_z", show_lattice_vectors=True, padding=-1, fixed_atom_size=False, width=400, height=400)
 
 
 # ### RDKit Mol Python class
@@ -190,14 +199,14 @@ mol: Molecule = from_rdmol(rdkit_mol)
 
 print(f"{type(rdkit_mol)=}")
 print(f"{type(mol)=}")
-plot_molecule(mol)
+view(mol, padding=-2, width=500, height=300)
 
 
 # #### Convert problematic PLAMS Molecule to RDKit Mol
 
 mol = Molecule(badxyz_file)
 mol.guess_bonds()
-plot_molecule(mol)
+view(mol, padding=-0.5, width=300, height=300)
 
 
 # This molecule will fail to convert to an RDKit Mol object, because RDKit does not like the AMS assignment of double bonds.
@@ -237,7 +246,7 @@ from scm.libbase import ChemicalSystem
 mol = chemsys_to_plams_molecule(chemsys)
 print(f"{type(chemsys)=}")
 print(f"{type(mol)=}")
-plot_molecule(mol)
+view(mol, guess_bonds=True, padding=-2, width=500, height=300)
 
 
 # ### pymatgen Structure and Molecule Python classes
@@ -332,4 +341,4 @@ print(f"{type(pymatgen_molecule)=}")
 
 mol = pymatgen_molecule_to_plams_molecule(pymatgen_molecule)
 print(f"{type(mol)=}")
-plot_molecule(mol)
+view(mol, guess_bonds=True, padding=-2, width=500, height=300, picture_path="example_mol.png")
