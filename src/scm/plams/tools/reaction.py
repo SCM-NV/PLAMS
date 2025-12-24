@@ -4,9 +4,11 @@ from scm.plams.mol.molecule import Molecule
 from scm.plams.interfaces.molecule.rdkit import to_smiles
 from scm.plams.core.functions import requires_optional_package
 from scm.plams.core.errors import PlamsError
+from dataclasses import dataclass
 
-from typing import Union, Optional, Iterable, Sequence, List, Dict, Set
+from typing import Union, Optional, Iterable, Sequence, List, Dict, Set, Mapping, Literal, Any
 import numpy.typing
+import numpy as np
 
 
 class ReactionEquationError(PlamsError):
@@ -45,8 +47,8 @@ class ReactionEquation:
         self._pformulas = [m.get_formula() if isinstance(m, Molecule) else m for m in products]
         rsmiles = [to_smiles(m) if isinstance(m, Molecule) else None for m in reactants]
         psmiles = [to_smiles(m) if isinstance(m, Molecule) else None for m in products]
-        self.rsmiles: Optional[List[str]] = None if None in rsmiles else rsmiles  # type: ignore[assignment]
-        self.psmiles: Optional[List[str]] = None if None in psmiles else psmiles  # type: ignore[assignment]
+        self.rsmiles: Optional[List[Union[str, None]]] = None if None in rsmiles else rsmiles  # type: ignore[assignment]
+        self.psmiles: Optional[List[Union[str, None]]] = None if None in psmiles else psmiles  # type: ignore[assignment]
 
         # Set the charges
         self._rcharges = []
@@ -425,9 +427,15 @@ class ReactionEquation:
             raise UninitializedReactionError("Model not properly initialized. Call balance() method first.")
         self.coeffs = self.equivalent_coeffs[icoeffs]
 
-    def __str__(self) -> str:
-        """
-        Write the balanced reaction
+    def __format__(self, fmt: Optional[str] = None) -> str:
+        """Formats the chemical reaction.
+
+        fmt: str
+            If 'smiles', will print the reaction using SMILES if possible.
+
+        Example:
+
+        >>> print(f"{reaction:smiles}")
         """
         if self.message == "Unsolved":
             return "Equation not yet balanced"
@@ -444,23 +452,33 @@ class ReactionEquation:
 
         reactants = self._rformulas
         products = self._pformulas
-        if self.print_as_smiles and self.rsmiles is not None:
+        if (fmt == "smiles" or self.print_as_smiles) and self.rsmiles is not None:
             reactants = self.rsmiles
-        if self.print_as_smiles and self.psmiles is not None:
+        if (fmt == "smiles" or self.print_as_smiles) and self.psmiles is not None:
             products = self.psmiles
 
-        # Molecule strings
-        block = [" + ".join(["%i %s" % (self.coeffs[i], reactants[i]) for i in rindices])]
-        block += [" + ".join(["%i %s" % (pcoeffs[i], products[i]) for i in pindices])]
-        strings = [" => ".join(block)]
-        # Charges
-        # block = [" + ".join(["%i %.1f"%(self.coeffs[i],self._rcharges[i]) for i in rindices])]
-        # block += [" + ".join(["%i %.1f"%(pcoeffs[i],self._pcharges[i]) for i in pindices])]
-        # strings += [" => ".join(block)]
-        reaction_charge = sum([-self.coeffs[i] * self._rcharges[i] for i in rindices])
-        reaction_charge += sum([pcoeffs[i] * self._pcharges[i] for i in pindices])
-        strings += ["Charge = %.2f" % (reaction_charge)]
-        return " | ".join(strings)
+        def chargestring(arr, i) -> str:
+            if not arr:
+                return ""
+            if fmt == "smiles" or self.print_as_smiles:
+                return ""
+            val = arr[i]
+            if val == 0:
+                return ""
+            return f"[{val:+}]"
+
+        ret = (
+            " + ".join(f"{self.coeffs[i]} {reactants[i]}{chargestring(self._rcharges, i)}" for i in rindices)
+            + " => "
+            + " + ".join(f"{pcoeffs[i]} {products[i]}{chargestring(self._pcharges, i)}" for i in pindices)
+        )
+        return ret
+
+    def __str__(self) -> str:
+        """
+        Write the balanced reaction
+        """
+        return f"{self}"
 
     @property
     def reaction_charge(self) -> Union[int, str]:
@@ -578,3 +596,94 @@ class ReactionEquation:
         # Create a dictionary
         element_numbers = {el: i for el, i in zip(elements, numbers)}
         return element_numbers
+
+
+@dataclass
+class Species:
+    formula: str
+    charge: int = 0
+    min_coeff: int = 0
+    smiles: Optional[str] = None
+
+    @classmethod
+    def from_molecule(cls, mol: Molecule, min_coeff: int = 0, smiles: Optional[str] = None) -> "Species":
+        """Initialize a Species from a PLAMS Molecule."""
+        return cls(
+            formula=mol.get_formula(as_dict=False),
+            charge=int(mol.properties.get("charge", 0) or 0),
+            min_coeff=min_coeff,
+            smiles=smiles,
+        )
+
+    @classmethod
+    def from_smiles(cls, smiles: str, min_coeff: int = 0) -> "Species":
+        """Initialize a Species from a SMILES string."""
+        from scm.plams import from_smiles as plams_from_smiles
+
+        return cls.from_molecule(plams_from_smiles(smiles), min_coeff=min_coeff, smiles=smiles)
+
+    @classmethod
+    def from_dict(
+        cls, d: Mapping[str, int], charge: int = 0, min_coeff: int = 0, smiles: Optional[str] = None
+    ) -> "Species":
+        """Initialize a Species from a dictionary.
+
+        Example:
+
+        >>> x = Species.from_dict({"H": 4, "C": 1}, min_coeff=0)
+        """
+
+        formula = "".join(f"{k}{v}" for k, v in d.items())
+        return cls(formula=formula, charge=charge, min_coeff=min_coeff, smiles=smiles)
+
+
+def balance(
+    reactants: Sequence[Union[str, Species]],
+    products: Sequence[Union[str, Species]],
+    method: Literal["plams", "sympy"] = "plams",
+) -> ReactionEquation:
+    """Method to find balanced reaction converting reactants into products.
+
+    reactants: sequence of str | Species
+        The reactants. If string, should be the summary formula like "C2H6O". Note: an element may only appear once in the string, "HCOOH" is not allowed.
+
+        To set charges or min_coeff, use a Species.
+
+    products: sequence of str | Species
+        The products.
+
+    method: "plams" or "sympy" (default "plams")
+        Which method to use. "sympy" requires that sympy is installed.
+
+    Returns: ReactionEquation
+        A balanced reaction equation.
+
+    Example:
+
+    >>> from scm.plams.tools.reaction import balance, Species
+    >>> balance(reactants=["CH4", "O2"], products=["CO2", "H2O"])
+    >>> balance(reactants=[Species("H", charge=1), Species("OH", charge=-1)], products=[Species("H2O")])
+
+    """
+
+    def to_species(x: Any) -> Species:
+        if isinstance(x, str):
+            return Species(formula=x)
+        if isinstance(x, Species):
+            return x
+        raise ValueError(f"Cannot handle {x} of type {type(x)}")
+
+    r = [to_species(x) for x in reactants]
+    p = [to_species(x) for x in products]
+
+    min_coeffs: Optional[numpy.typing.NDArray] = np.array([x.min_coeff for x in r] + [x.min_coeff for x in p])
+    if min_coeffs is not None and all(x == 0 for x in min_coeffs):
+        min_coeffs = None
+    ret = ReactionEquation([x.formula for x in r], [x.formula for x in p])
+    ret.method = method
+    if all(x.smiles for x in r) and all(x.smiles for x in p):
+        ret.rsmiles = [x.smiles for x in r]
+        ret.psmiles = [x.smiles for x in p]
+    ret.set_charges([x.charge for x in r], [x.charge for x in p])
+    ret.balance(min_coeffs=min_coeffs)
+    return ret

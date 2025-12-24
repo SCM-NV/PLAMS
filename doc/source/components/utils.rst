@@ -52,6 +52,14 @@ A small module for converting VASP output to AMS-like output, and for converting
 Reaction energies
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+*New in AMS2026*: The ``balance`` function is new in AMS2026. For usage, see
+the :ref:`BalanceReactionEquationsExample` example.
+
+.. autofunction:: scm.plams.tools.reaction.balance
+
+
+Older functions:
+
 .. automodule:: scm.plams.tools.reaction_energies
 
 .. _PlottingTools:
