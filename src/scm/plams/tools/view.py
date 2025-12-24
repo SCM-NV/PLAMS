@@ -119,6 +119,7 @@ class ViewConfig:
     :param atom_label_type: property used for atom labels, defaults to ``Element``
     :param atom_label_color: hexadecimal color code for atom labels, defaults to ``#000000`` i.e. black
     :param atom_label_size: scale atom labels by the given factor, to make them larger or smaller, defaults to ``1.0``
+    :param guess_bonds: guess bonds before viewing, defaults to ``False``
     :param show_regions: display translucent spheres on atoms according to their regions, defaults to ``False``
     :param show_unit_cell_edges: display unit cell for periodic systems using semi-transparent edges, defaults to ``True``
     :param unit_cell_edge_thickness: specify thickness of the displayed unit cell boundary, defaults to ``0.05``
@@ -147,6 +148,7 @@ class ViewConfig:
     atom_label_type: Literal["Element", "AtomType", "Name"] = "Element"
     atom_label_color: str = "#000000"
     atom_label_size: float = 1.0
+    guess_bonds: bool = False
     show_regions: bool = False
 
     # Periodic
@@ -257,6 +259,7 @@ def view(
     fixed_atom_size: Optional[bool] = None,
     show_atom_labels: Optional[bool] = None,
     atom_label_type: Optional[Literal["Element", "AtomType", "Name"]] = None,
+    guess_bonds: Optional[bool] = None,
     show_regions: Optional[bool] = None,
     show_unit_cell_edges: Optional[bool] = None,
     show_lattice_vectors: Optional[bool] = None,
@@ -276,6 +279,7 @@ def view(
     :param fixed_atom_size: override to use the same radius for all elements (except Hydrogen)
     :param show_atom_labels: override to display text label on each atom
     :param atom_label_type: override for property used for atom labels
+    :param guess_bonds: override for guessing bonds before viewing
     :param show_regions: override to display translucent spheres on atoms according to their regions
     :param show_unit_cell_edges: override to display unit cell for periodic systems using semi-transparent edges
     :param show_lattice_vectors: override to display the lattice vectors for periodic systems
@@ -302,6 +306,8 @@ def view(
         config.show_atom_labels = show_atom_labels
     if atom_label_type is not None:
         config.atom_label_type = atom_label_type
+    if guess_bonds is not None:
+        config.guess_bonds = guess_bonds
     if show_regions is not None:
         config.show_regions = show_regions
 
@@ -356,6 +362,10 @@ def view(
 
     # Validation to help prevent crashing due to bad options
     config.validate()
+
+    if config.guess_bonds:
+        system = system.copy()
+        system.guess_bonds()
 
     # Render image with backend
     img = selected_backend.generate_image(system, config)
