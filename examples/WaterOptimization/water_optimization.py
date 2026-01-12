@@ -10,35 +10,41 @@
 
 # ## Initial imports
 
-from scm.plams import *
+import scm.plams as plams
+
+try:
+    from scm.plams import view  # view molecule using AMSview in a Jupyter Notebook in AMS2026+
+except ImportError:
+    from scm.plams import plot_molecule  # plot molecule in a Jupyter Notebook in AMS2023+
+
+    def view(molecule, **kwargs):
+        plot_molecule(molecule)
+
 
 # this line is not required in AMS2025+
-init()
+plams.init()
 
 
 # ## Initial structure
 
 # You could also load the geometry from an xyz file:
-# molecule = Molecule('path/my_molecule.xyz')
+# molecule = plams.Molecule('path/my_molecule.xyz')
 # or generate a molecule from SMILES:
-# molecule = from_smiles('O')
-molecule = Molecule()
-molecule.add_atom(Atom(symbol="O", coords=(0, 0, 0)))
-molecule.add_atom(Atom(symbol="H", coords=(1, 0, 0)))
-molecule.add_atom(Atom(symbol="H", coords=(0, 1, 0)))
+# molecule = plams.from_smiles('O')
+molecule = plams.Molecule()
+molecule.add_atom(plams.Atom(symbol="O", coords=(0, 0, 0)))
+molecule.add_atom(plams.Atom(symbol="H", coords=(1, 0, 0)))
+molecule.add_atom(plams.Atom(symbol="H", coords=(0, 1, 0)))
 
 
-try:
-    plot_molecule(molecule)  # plot molecule in a Jupyter Notebook in AMS2023+
-except NameError:
-    pass
+view(molecule, guess_bonds=True, width=200, height=200)
 
 
 # ## Calculation settings
 #
 # The calculation settings are stored in a ``Settings`` object, which is a type of nested dictionary.
 
-settings = Settings()
+settings = plams.Settings()
 settings.input.ams.Task = "GeometryOptimization"
 settings.input.ams.Properties.NormalModes = "Yes"
 settings.input.DFTB.Model = "GFN1-xTB"
@@ -47,7 +53,7 @@ settings.input.DFTB.Model = "GFN1-xTB"
 
 # ## Create an AMSJob
 
-job = AMSJob(molecule=molecule, settings=settings, name="water_optimization")
+job = plams.AMSJob(molecule=molecule, settings=settings, name="water_optimization")
 
 
 # You can check the input to AMS by calling the ``get_input()`` method:
@@ -80,10 +86,7 @@ print(optimized_molecule)
 print("---------------------")
 
 
-try:
-    plot_molecule(optimized_molecule)  # plot molecule in a Jupyter Notebook in AMS2023+
-except NameError:
-    pass
+view(optimized_molecule, guess_bonds=True, width=200, height=200)
 
 
 # ## Optimized bond lengths and angle
@@ -96,7 +99,7 @@ print("O-H bond length: {:.3f} angstrom".format(bond_length))
 
 
 bond_angle = optimized_molecule[1].angle(optimized_molecule[2], optimized_molecule[3])
-print("Bond angle  : {:.1f} degrees".format(Units.convert(bond_angle, "rad", "degree")))
+print("Bond angle  : {:.1f} degrees".format(plams.Units.convert(bond_angle, "rad", "degree")))
 
 
 # ## Calculation timing
@@ -134,7 +137,7 @@ import numpy as np
 
 try:
     dipole_moment = np.linalg.norm(np.array(job.results.get_dipolemoment()))
-    dipole_moment *= Units.convert(1.0, "au", "debye")
+    dipole_moment *= plams.Units.convert(1.0, "au", "debye")
     print("Dipole moment: {:.3f} debye".format(dipole_moment))
 except KeyError:
     print("Couldn't extract the dipole moment")

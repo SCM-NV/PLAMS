@@ -12,6 +12,15 @@ The ``AMSWorker`` class allows geometry optimization of multiple molecules witho
    from scm.plams import Molecule
    from scm.plams import plot_grid_molecules
 
+   try:
+       from scm.plams import view  # view molecule using AMSview in a Jupyter Notebook in AMS2026+
+   except ImportError:
+       from scm.plams import plot_molecule  # plot molecule in a Jupyter Notebook in AMS2023+
+
+       def view(molecule, **kwargs):
+           plot_molecule(molecule)
+
+
    path = os.path.join(os.environ["AMSRESOURCES"], "Molecules", "TestMols", "PLAMS")
    filenames = ["tbut_benzene.in", "o_di_tbut_benzene.in", "tri_tbut_benzene.in"]
    filenames = [os.path.join(path, fn) for fn in filenames]
@@ -25,9 +34,7 @@ The structures are unoptimized, as the crowded geometry of the third structure d
 
 .. code:: ipython3
 
-   from scm.plams import plot_molecule
-
-   plot_molecule(molecules[2]);
+   view(molecules[2], width=300, height=300)
 
 .. figure:: ConstrainedGOAMSWorker_files/ConstrainedGOAMSWorker_3_0.png
 
@@ -47,7 +54,7 @@ The geometry of the three structures can be optimized with the AMSWorker as foll
        results = worker.GeometryOptimization("go%i" % (i), mol)
        stackmol += results.get_main_molecule()
 
-   plot_molecule(stackmol);
+   view(stackmol, width=300, height=300)
 
 .. figure:: ConstrainedGOAMSWorker_files/ConstrainedGOAMSWorker_5_0.png
 
@@ -63,7 +70,7 @@ We may prefer to perform the optimization while constraining the positions of th
        results = worker.GeometryOptimization("constrained%i" % (i), mol, constraints=s)
        stackmol += results.get_main_molecule()
 
-   plot_molecule(stackmol);
+   view(stackmol, width=300, height=300)
 
 .. figure:: ConstrainedGOAMSWorker_files/ConstrainedGOAMSWorker_7_0.png
 

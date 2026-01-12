@@ -10,6 +10,15 @@ Complete guide to storing and converting PLAMS Molecules between Python librarie
    from os.path import expandvars
    from pathlib import Path
 
+   try:
+       from scm.plams import view  # view molecule using AMSview in a Jupyter Notebook in AMS2026+
+   except ImportError:
+       from scm.plams import plot_molecule  # plot molecule in a Jupyter Notebook in AMS2023+
+
+       def view(molecule, **kwargs):
+           plot_molecule(molecule)
+
+
    # Make sure to source amsbashrc.sh before launching this example so that
    # the AMSHOME environment variable is set. Requires AMS2025+ to run this example.
 
@@ -41,7 +50,7 @@ Load PLAMS Molecule from SMILES string
 
    mol = from_smiles("CCCCO")
    print(f"{type(mol)=}")
-   plot_molecule(mol);
+   view(mol, padding=-0.5, width=300, height=300, picture_path="example_mol.png")
 
 ::
 
@@ -77,7 +86,7 @@ Load PLAMS Molecule from .xyz file
 
    mol = Molecule(xyz_file)
    print(f"{type(mol)=}")
-   plot_molecule(mol);
+   view(mol, guess_bonds=True, padding=-2, width=500, height=300)
 
 ::
 
@@ -119,7 +128,7 @@ PLAMS cannot natively read .cif files. Instead, go through another library, for 
 
    mol: Molecule = fromASE(read(cif_file))
    print(f"{type(mol)=}")
-   plot_molecule(mol);
+   view(mol, fixed_atom_size=False, padding=-2, width=400, height=300)
 
 ::
 
@@ -174,7 +183,7 @@ Load PLAMS Molecule from AMS .in system file
    from scm.plams import Molecule
 
    mol = Molecule("ams_system_block.in")
-   plot_molecule(mol);
+   view(mol, fixed_atom_size=False, padding=-2, width=400, height=300)
 
 .. figure:: MoleculeFormats_files/MoleculeFormats_21_0.png
 
@@ -217,7 +226,7 @@ Load PLAMS Molecule from POSCAR/CONTCAR (VASP input format)
    mol: Molecule = fromASE(read("POSCAR"))
 
    print(f"{type(mol)=}")
-   plot_molecule(mol);
+   view(mol, fixed_atom_size=False, padding=-2, width=400, height=300)
 
 ::
 
@@ -266,7 +275,7 @@ Convert ASE Atoms to PLAMS Molecule
 
    mol: Molecule = fromASE(ase_atoms)
    print(f"{type(mol)=}")
-   plot_molecule(mol, rotation="-85x,5y,0z");
+   view(mol, direction="tilt_z", show_lattice_vectors=True, padding=-1, fixed_atom_size=False, width=400, height=400)
 
 ::
 
@@ -314,7 +323,7 @@ Convert RDKit Mol to PLAMS Molecule
 
    print(f"{type(rdkit_mol)=}")
    print(f"{type(mol)=}")
-   plot_molecule(mol);
+   view(mol, padding=-2, width=500, height=300)
 
 ::
 
@@ -330,7 +339,7 @@ Convert problematic PLAMS Molecule to RDKit Mol
 
    mol = Molecule(badxyz_file)
    mol.guess_bonds()
-   plot_molecule(mol);
+   view(mol, padding=-0.5, width=300, height=300)
 
 .. figure:: MoleculeFormats_files/MoleculeFormats_38_0.png
 
@@ -345,15 +354,16 @@ This molecule will fail to convert to an RDKit Mol object, because RDKit does no
 
 ::
 
-   [25.02|10:29:13] RDKit Sanitization Error.
-   [25.02|10:29:13] Most likely this is a problem with the assigned bond orders: Use chemical insight to adjust them.
-   [25.02|10:29:13] Note that the atom indices below start at zero, while the AMS-GUI indices start at 1.
+   [24.12|15:45:11] RDKit Sanitization Error.
+   [24.12|15:45:11] Most likely this is a problem with the assigned bond orders: Use chemical insight to adjust them.
+   [24.12|15:45:11] Note that the atom indices below start at zero, while the AMS-GUI indices start at 1.
    Failed to convert
 
 
-   RDKit ERROR: [10:29:13] Can't kekulize mol.  Unkekulized atoms: 10 11 12 13 14
+   RDKit ERROR: [15:45:11] Can't kekulize mol.  Unkekulized atoms: 10 11 12 13 14
+   [15:45:11] Can't kekulize mol.  Unkekulized atoms: 10 11 12 13 14
+
    RDKit ERROR: 
-   [10:29:13] Can't kekulize mol.  Unkekulized atoms: 10 11 12 13 14
 
 The problem can be fixed by passing the argument ``presanitize`` to the ``to_rdmol`` function.
 
@@ -364,9 +374,9 @@ The problem can be fixed by passing the argument ``presanitize`` to the ``to_rdm
 
 ::
 
-   RDKit ERROR: [10:29:13] Can't kekulize mol.  Unkekulized atoms: 10 11 12 13 14
+   RDKit ERROR: [15:45:11] Can't kekulize mol.  Unkekulized atoms: 10 11 12 13 14
    RDKit ERROR: 
-   [10:29:13] Can't kekulize mol.  Unkekulized atoms: 10 11 12 13 14
+   [15:45:11] Can't kekulize mol.  Unkekulized atoms: 10 11 12 13 14
 
 .. figure:: MoleculeFormats_files/MoleculeFormats_42_1.svg
 
@@ -389,7 +399,7 @@ Convert PLAMS Molecule to ChemicalSystem
 
 ::
 
-   type(chemsys)=<class 'scm_libbase_internal.ChemicalSystem'>
+   type(chemsys)=<class 'scm.libbase._internal.ChemicalSystem'>
    System
       Atoms
          C -1.47627 -1.15316 -0.292796
@@ -433,11 +443,11 @@ Convert ChemicalSystem to PLAMS Molecule
    mol = chemsys_to_plams_molecule(chemsys)
    print(f"{type(chemsys)=}")
    print(f"{type(mol)=}")
-   plot_molecule(mol);
+   view(mol, guess_bonds=True, padding=-2, width=500, height=300)
 
 ::
 
-   type(chemsys)=<class 'scm_libbase_internal.ChemicalSystem'>
+   type(chemsys)=<class 'scm.libbase._internal.ChemicalSystem'>
    type(mol)=<class 'scm.plams.mol.molecule.Molecule'>
 
 .. figure:: MoleculeFormats_files/MoleculeFormats_46_1.png
@@ -518,7 +528,6 @@ There is no builtin converter between PLAMS Molecule and pymatgen Structure (per
     22  Si    0.3428  0.75  0.5993
     23  Si    0.8428  0.25  0.0993
 
-   /Users/ormrodmorley/Documents/code/ams/amshome_fix2025/bin.auto/python3.8/lib/python3.8/site-packages/ase/io/cif.py:401: UserWarning: crystal system 'orthorhombic' is not interpreted for space group Spacegroup(74, setting=1). This may result in wrong setting!
      warnings.warn(
 
 Convert pymatgen Structure (periodic) to PLAMS Molecule
@@ -631,7 +640,7 @@ Convert pymatgen Molecule (non-periodic) to PLAMS Molecule
 
    mol = pymatgen_molecule_to_plams_molecule(pymatgen_molecule)
    print(f"{type(mol)=}")
-   plot_molecule(mol);
+   view(mol, guess_bonds=True, padding=-2, width=500, height=300, picture_path="example_mol.png")
 
 ::
 

@@ -7,6 +7,15 @@ import scm.plams as plams
 import matplotlib.pyplot as plt
 import numpy as np
 
+try:
+    from scm.plams import view  # view molecule using AMSview in a Jupyter Notebook in AMS2026+
+except ImportError:
+    from scm.plams import plot_molecule  # plot molecule in a Jupyter Notebook in AMS2023+
+
+    def view(molecule, **kwargs):
+        plot_molecule(molecule)
+
+
 # this line is not required in AMS2025+
 plams.init()
 
@@ -14,7 +23,7 @@ plams.init()
 # ## Molecule
 
 mol = plams.from_smiles("NC(CO)OCC=O")
-plams.plot_molecule(mol)
+view(mol, width=200, height=200)
 
 
 # ## Engine settings
@@ -38,7 +47,7 @@ max_dt_fs = 2000  # maximum correlation in fs for dipole derivative acf
 
 # ## Equilibration
 #
-# ``temperature=(500, T, T)`` means that in the first half the simulation the system is cooled from 500 K to the gievn temperature, and then kept constant at that temperature.
+# ``temperature=(500, T, T)`` means that in the first half the simulation the system is cooled from 500 K to the given temperature, and then kept constant at that temperature.
 #
 # The initial temperature of 500 K does some preliminary conformer search.
 
@@ -152,7 +161,7 @@ plt.xlim(500, max_freq)
 #
 # For example, the peak for the MD at 3600 cm^-1 corresponds to the "free" OH stretch of the hydroxyl group, but in conformer used for the  harmonic approximation the hydroxyl donates a hydrogen bond to the aldehyde oxygen (giving a lower vibrational frequency):
 
-plams.plot_molecule(harmonic_job.results.get_main_molecule())
+view(harmonic_job.results.get_main_molecule(), width=200, height=200)
 
 
 # ## View the trajectory in AMSmovie

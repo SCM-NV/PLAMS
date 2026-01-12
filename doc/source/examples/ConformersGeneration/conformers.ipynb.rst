@@ -15,6 +15,19 @@ Initial imports
    from scm.conformers import ConformersJob
    from scm.plams import *
 
+   try:
+       from scm.plams import view  # view molecule using AMSview in a Jupyter Notebook in AMS2026+
+
+       _has_view = True
+   except ImportError:
+       from scm.plams import plot_molecule  # plot molecule in a Jupyter Notebook in AMS2023+
+
+       _has_view = False
+
+       def view(molecule, ax=None, **kwargs):
+           plot_molecule(molecule, ax=ax)
+
+
    # this line is not required in AMS2025+
    init();
 
@@ -28,7 +41,7 @@ Initial structure
 .. code:: ipython3
 
    molecule = from_smiles("OC(CC1c2ccccc2Sc2ccccc21)CN1CCCC1")
-   plot_molecule(molecule);
+   view(molecule, width=300, height=300)
 
 .. figure:: conformers_files/conformers_3_0.png
 
@@ -83,10 +96,10 @@ Run conformer generation
 
 ::
 
-   [04.02|15:07:47] JOB generate STARTED
-   [04.02|15:07:47] JOB generate RUNNING
-   [04.02|15:08:56] JOB generate FINISHED
-   [04.02|15:08:56] JOB generate SUCCESSFUL
+   [12.01|12:38:41] JOB generate STARTED
+   [12.01|12:38:41] JOB generate RUNNING
+   [12.01|12:40:18] JOB generate FINISHED
+   [12.01|12:40:18] JOB generate SUCCESSFUL
 
 Conformer generation results
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -130,7 +143,7 @@ Some helper functions
        if indices is None:
            indices = list(range(min(3, len(energies))))
 
-       fig, axes = plt.subplots(1, len(indices), figsize=(12, 3))
+       fig, axes = plt.subplots(1, len(indices), figsize=(12, 4))
        if len(indices) == 1:
            axes = [axes]
 
@@ -139,8 +152,14 @@ Some helper functions
            E = energies[i]
            population = populations[i]
 
-           plot_molecule(mol, ax=ax)
-           ax.set_title(f"#{i+1}\nΔE = {E:.2f} kcal/mol\nPop.: {population:.3f} (T = {temperature} K)")
+           if _has_view:
+               img = view(mol, width=300, height=300)
+               ax.imshow(img)
+               ax.axis("off")
+               ax.set_title(f"#{i+1}\nΔE = {E:.2f} kcal/mol\nPop.: {population:.3f} (T = {temperature} K)")
+           else:
+               view(mol, ax=ax)
+               ax.set_title(f"#{i+1}\nΔE = {E:.2f} kcal/mol\nPop.: {population:.3f} (T = {temperature} K)")
 
 .. code:: ipython3
 
@@ -203,22 +222,21 @@ You can also see the **relative populations** of these conformers at the specifi
 ============ ============= ================
 Conformer Id ΔE [kcal/mol] Pop. (T = 298 K)
 ============ ============= ================
-1            0.00          0.557
-2            0.57          0.214
-3            1.00          0.102
-4            1.18          0.076
-5            2.12          0.015
-6            2.22          0.013
-7            2.40          0.010
-8            2.50          0.008
-9            3.44          0.002
-10           3.53          0.001
-11           3.76          0.001
-12           5.50          0.000
-13           6.78          0.000
-14           12.85         0.000
-15           15.70         0.000
-16           18.79         0.000
+1            0.00          0.703
+2            1.00          0.129
+3            1.01          0.128
+4            1.85          0.031
+5            2.89          0.005
+6            3.14          0.003
+7            5.02          0.000
+8            5.30          0.000
+9            5.67          0.000
+10           7.62          0.000
+11           15.59         0.000
+12           16.98         0.000
+13           17.27         0.000
+14           19.96         0.000
+15           21.08         0.000
 ============ ============= ================
 
 .. code:: ipython3
@@ -249,7 +267,7 @@ Below, the most stable conformers (within 8 kcal/mol of the most stable conforme
 
 ::
 
-   InputConformersSet /path/plams/examples/ConformersGeneration/plams_workdir.006/generate/conformers.rkf
+   InputConformersSet /path/plams/examples/ConformersGeneration/plams_workdir/generate/conformers.rkf
 
    InputMaxEnergy 8.0
 
@@ -265,10 +283,10 @@ Below, the most stable conformers (within 8 kcal/mol of the most stable conforme
 
 ::
 
-   [04.02|15:08:56] JOB reoptimize STARTED
-   [04.02|15:08:56] JOB reoptimize RUNNING
-   [04.02|15:09:01] JOB reoptimize FINISHED
-   [04.02|15:09:01] JOB reoptimize SUCCESSFUL
+   [12.01|12:40:23] JOB reoptimize STARTED
+   [12.01|12:40:23] JOB reoptimize RUNNING
+   [12.01|12:40:28] JOB reoptimize FINISHED
+   [12.01|12:40:28] JOB reoptimize SUCCESSFUL
 
 .. code:: ipython3
 
@@ -277,17 +295,16 @@ Below, the most stable conformers (within 8 kcal/mol of the most stable conforme
 ============ ============= ================
 Conformer Id ΔE [kcal/mol] Pop. (T = 298 K)
 ============ ============= ================
-1            0.00          0.270
-2            0.11          0.225
-3            0.41          0.134
-4            0.63          0.093
-5            0.91          0.058
-6            0.97          0.052
-7            1.02          0.048
-8            1.14          0.039
-9            1.19          0.036
-10           1.41          0.025
-11           1.57          0.019
+1            0.00          0.253
+2            0.04          0.237
+3            0.29          0.154
+4            0.51          0.106
+5            0.60          0.091
+6            0.94          0.052
+7            0.96          0.050
+8            1.05          0.043
+9            1.97          0.009
+10           2.37          0.005
 ============ ============= ================
 
 .. code:: ipython3
@@ -318,10 +335,10 @@ The **Score** task runs **SinglePoint** jobs on the conformers in a set. This le
 
 ::
 
-   [04.02|15:09:02] JOB score STARTED
-   [04.02|15:09:02] JOB score RUNNING
-   [04.02|15:09:05] JOB score FINISHED
-   [04.02|15:09:05] JOB score SUCCESSFUL
+   [12.01|12:40:33] JOB score STARTED
+   [12.01|12:40:33] JOB score RUNNING
+   [12.01|12:40:37] JOB score FINISHED
+   [12.01|12:40:37] JOB score SUCCESSFUL
 
 .. code:: ipython3
 
@@ -330,17 +347,16 @@ The **Score** task runs **SinglePoint** jobs on the conformers in a set. This le
 ============ ============= ================
 Conformer Id ΔE [kcal/mol] Pop. (T = 298 K)
 ============ ============= ================
-1            0.00          0.373
-2            0.34          0.209
-3            0.40          0.188
-4            0.70          0.114
-5            1.06          0.063
-6            1.85          0.016
-7            1.89          0.015
-8            2.41          0.006
-9            2.48          0.006
-10           2.59          0.005
-11           2.73          0.004
+1            0.00          0.386
+2            0.28          0.241
+3            0.68          0.123
+4            0.88          0.087
+5            1.00          0.071
+6            1.35          0.039
+7            1.49          0.031
+8            1.84          0.017
+9            3.02          0.002
+10           3.36          0.001
 ============ ============= ================
 
 .. code:: ipython3
@@ -372,10 +388,10 @@ Below, we filter the conformers set to only the conformers within 1 kcal/mol of 
 
 ::
 
-   [04.02|15:09:05] JOB filter STARTED
-   [04.02|15:09:05] JOB filter RUNNING
-   [04.02|15:09:06] JOB filter FINISHED
-   [04.02|15:09:06] JOB filter SUCCESSFUL
+   [12.01|12:40:41] JOB filter STARTED
+   [12.01|12:40:41] JOB filter RUNNING
+   [12.01|12:40:42] JOB filter FINISHED
+   [12.01|12:40:42] JOB filter SUCCESSFUL
 
 .. code:: ipython3
 
@@ -384,10 +400,11 @@ Below, we filter the conformers set to only the conformers within 1 kcal/mol of 
 ============ ============= ================
 Conformer Id ΔE [kcal/mol] Pop. (T = 298 K)
 ============ ============= ================
-1            0.00          0.421
-2            0.34          0.236
-3            0.40          0.213
-4            0.70          0.129
+1            0.00          0.425
+2            0.28          0.265
+3            0.68          0.136
+4            0.88          0.096
+5            1.00          0.079
 ============ ============= ================
 
 .. code:: ipython3

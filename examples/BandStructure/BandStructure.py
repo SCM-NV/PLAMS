@@ -8,6 +8,15 @@ from ase.build import bulk as ase_build_bulk
 import matplotlib.pyplot as plt
 import numpy as np
 
+try:
+    from scm.plams import view  # view molecule using AMSview in a Jupyter Notebook in AMS2026+
+except ImportError:
+    from scm.plams import plot_molecule  # plot molecule in a Jupyter Notebook in AMS2023+
+
+    def view(molecule, **kwargs):
+        plot_molecule(molecule)
+
+
 # this line is not required in AMS2025+
 init()
 
@@ -15,7 +24,7 @@ init()
 # ## Metal band structure relative to Fermi energy
 
 Cu = fromASE(ase_build_bulk("Cu", "fcc", a=3.6))  # primitive cell
-plot_molecule(Cu)
+view(Cu, width=300, height=300, show_atom_labels=True)
 
 
 s = Settings()
@@ -66,7 +75,7 @@ else:
 # For a semiconductor like ZnO you can also choose to put the zero at the VBM ('vbm') or CBM ('cbm')
 
 ZnO = fromASE(ase_build_bulk("ZnO", "wurtzite", a=3.2, c=5.3, u=0.375))
-plot_molecule(ZnO, rotation=("60x,60y,80z"))
+view(ZnO, direction="corner_z", width=300, height=300, show_atom_labels=True)
 
 
 s = Settings()
@@ -105,7 +114,7 @@ mol = Molecule()
 mol.add_atom(Atom(symbol="Ni", coords=(0, 0, 0)))
 mol.add_atom(Atom(symbol="O", coords=(d, d, d)))
 mol.lattice = [[0.0, d, d], [d, 0.0, d], [d, d, 0.0]]
-plot_molecule(mol)
+view(mol, width=300, height=300, show_atom_labels=True)
 
 
 s = Settings()

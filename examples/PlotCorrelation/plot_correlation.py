@@ -7,6 +7,15 @@ import scm.plams as plams
 from scm.plams.tools.plot import plot_correlation, get_correlation_xy
 import matplotlib.pyplot as plt
 
+try:
+    from scm.plams import view  # view molecule using AMSview in a Jupyter Notebook in AMS2026+
+except ImportError:
+    from scm.plams import plot_molecule  # plot molecule in a Jupyter Notebook in AMS2023+
+
+    def view(molecule, **kwargs):
+        plot_molecule(molecule)
+
+
 # this line is not required in AMS2025+
 plams.init()
 
@@ -25,7 +34,7 @@ e2.input.DFTB.Model = "GFN1-xTB"
 # Let's use a glycine molecule generated from SMILES:
 
 glycine = plams.from_smiles("C(C(=O)O)N")
-plams.plot_molecule(glycine)
+view(glycine, width=200, height=200, padding=-0.5)
 
 
 # Run a single-point calculation storing the Gradients (negative forces):
@@ -67,8 +76,18 @@ print(y)
 smiles_list = ["CC=C", "CCCO", "C(C(=O)O)N"]
 names = ["propene", "propanol", "glycine"]
 molecules = [plams.from_smiles(x) for x in smiles_list]
+imgs = []
 for mol in molecules:
-    plams.plot_molecule(mol)
+    imgs.append(view(mol, width=200, height=200))
+
+
+imgs[0]
+
+
+imgs[1]
+
+
+imgs[2]
 
 
 jobs1 = [plams.AMSJob(settings=sp + e1, name="e1" + name, molecule=mol) for name, mol in zip(names, molecules)]
