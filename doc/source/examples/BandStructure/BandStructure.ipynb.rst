@@ -11,6 +11,15 @@ Initial imports
    import matplotlib.pyplot as plt
    import numpy as np
 
+   try:
+       from scm.plams import view  # view molecule using AMSview in a Jupyter Notebook in AMS2026+
+   except ImportError:
+       from scm.plams import plot_molecule  # plot molecule in a Jupyter Notebook in AMS2023+
+
+       def view(molecule, **kwargs):
+           plot_molecule(molecule)
+
+
    # this line is not required in AMS2025+
    init()
 
@@ -24,7 +33,7 @@ Metal band structure relative to Fermi energy
 .. code:: ipython3
 
    Cu = fromASE(ase_build_bulk("Cu", "fcc", a=3.6))  # primitive cell
-   plot_molecule(Cu);
+   view(Cu, width=300, height=300, show_atom_labels=True)
 
 .. figure:: BandStructure_files/BandStructure_3_0.png
 
@@ -44,10 +53,10 @@ Metal band structure relative to Fermi energy
 
 ::
 
-   [10.02|14:57:41] JOB Cu STARTED
-   [10.02|14:57:41] JOB Cu RUNNING
-   [10.02|14:57:46] JOB Cu FINISHED
-   [10.02|14:57:46] JOB Cu SUCCESSFUL
+   [12.01|15:43:52] JOB Cu STARTED
+   [12.01|15:43:52] JOB Cu RUNNING
+   [12.01|15:43:58] JOB Cu FINISHED
+   [12.01|15:43:58] JOB Cu SUCCESSFUL
 
 .. code:: ipython3
 
@@ -92,7 +101,7 @@ For a semiconductor like ZnO you can also choose to put the zero at the VBM (‘
 .. code:: ipython3
 
    ZnO = fromASE(ase_build_bulk("ZnO", "wurtzite", a=3.2, c=5.3, u=0.375))
-   plot_molecule(ZnO, rotation=("60x,60y,80z"));
+   view(ZnO, direction="corner_z", width=300, height=300, show_atom_labels=True)
 
 .. figure:: BandStructure_files/BandStructure_9_0.png
 
@@ -108,10 +117,10 @@ For a semiconductor like ZnO you can also choose to put the zero at the VBM (‘
 
 ::
 
-   [10.02|14:57:46] JOB ZnO STARTED
-   [10.02|14:57:46] JOB ZnO RUNNING
-   [10.02|14:57:48] JOB ZnO FINISHED
-   [10.02|14:57:48] JOB ZnO SUCCESSFUL
+   [12.01|15:43:59] JOB ZnO STARTED
+   [12.01|15:43:59] JOB ZnO RUNNING
+   [12.01|15:44:02] JOB ZnO FINISHED
+   [12.01|15:44:02] JOB ZnO SUCCESSFUL
 
 The below call to ``plot_band_structure`` plots both the spin up and spin down. The spin-down bands are plotted as dashed lines. Note that in this case there is no spin polarization so the spin-down bands perfectly overlap the spin-up bands.
 
@@ -147,7 +156,7 @@ If you perform a spin-polarized calculation you get both spin-up and spin-down b
    mol.add_atom(Atom(symbol="Ni", coords=(0, 0, 0)))
    mol.add_atom(Atom(symbol="O", coords=(d, d, d)))
    mol.lattice = [[0.0, d, d], [d, 0.0, d], [d, d, 0.0]]
-   plot_molecule(mol);
+   view(mol, width=300, height=300, show_atom_labels=True)
 
 .. figure:: BandStructure_files/BandStructure_14_0.png
 
@@ -169,10 +178,10 @@ If you perform a spin-polarized calculation you get both spin-up and spin-down b
 
 ::
 
-   [10.02|14:57:49] JOB NiO STARTED
-   [10.02|14:57:49] JOB NiO RUNNING
-   [10.02|14:58:33] JOB NiO FINISHED
-   [10.02|14:58:33] JOB NiO SUCCESSFUL
+   [12.01|15:44:03] JOB NiO STARTED
+   [12.01|15:44:03] JOB NiO RUNNING
+   [12.01|15:44:38] JOB NiO FINISHED
+   [12.01|15:44:38] JOB NiO SUCCESSFUL
 
 .. code:: ipython3
 
