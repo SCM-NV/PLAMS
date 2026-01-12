@@ -11,13 +11,29 @@ Initial imports
    import scm.plams as plams
    import sys
    from scm.conformers import ConformersJob
-   from scm.conformers.plams.plot import plot_conformers
    import numpy as np
    import matplotlib.pyplot as plt
    import os
 
+   try:
+       from scm.plams import view  # view molecule using AMSview in a Jupyter Notebook in AMS2026+
+
+       _has_view = True
+   except ImportError:
+       from scm.plams import plot_molecule  # plot molecule in a Jupyter Notebook in AMS2023+
+
+       _has_view = False
+
+       def view(molecule, ax=None, **kwargs):
+           plot_molecule(molecule, ax=ax)
+
+
    # this line is not required in AMS2025+
    plams.init();
+
+::
+
+   PLAMS working folder: /path/plams/examples/ConformersMultipleMolecules/plams_workdir
 
 Single alanine molecule
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -26,7 +42,7 @@ Single alanine molecule
 
    smiles = "CC(N)C(=O)O"
    alanine = plams.from_smiles(smiles)
-   plams.plot_molecule(alanine);
+   view(alanine, height=300, width=300)
 
 .. figure:: conformers_files/conformers_4_0.png
 
@@ -48,7 +64,7 @@ Translate the molecule to be centered around the origin (needed for SphericalWal
 
 .. code:: ipython3
 
-   plams.plot_molecule(mol, rotation="0x,0y,90z");
+   view(mol, direction="along_pca3")
 
 .. figure:: conformers_files/conformers_10_0.png
 
@@ -68,8 +84,8 @@ To determine the radius of the ``SphericalWall`` we measure the size of the init
 
 ::
 
-   Largest distance between atoms: 8.397 ang.
-   Radius: 5.584 ang.
+   Largest distance between atoms: 8.361 ang.
+   Radius: 5.560 ang.
 
 Now we can set up the Crest conformer generation job, with the appropriate spherical wall constraining the molecules close together.
 
@@ -97,16 +113,16 @@ Now we can run the conformer generation job.
 
 ::
 
-   [04.02|15:45:58] JOB conformers STARTED
-   [04.02|15:45:58] JOB conformers RUNNING
-   [04.02|15:57:08] JOB conformers FINISHED
-   [04.02|15:57:08] JOB conformers SUCCESSFUL
+   [12.01|12:36:00] JOB conformers STARTED
+   [12.01|12:36:00] JOB conformers RUNNING
+   [12.01|12:41:35] JOB conformers FINISHED
+   [12.01|12:41:35] JOB conformers SUCCESSFUL
 
 
 
 
 
-   <scm.conformers.plams.interface.ConformersResults at 0x16786fb20>
+   <scm.conformers.plams.interface.ConformersResults at 0x1731ef880>
 
 .. code:: ipython3
 
@@ -126,9 +142,43 @@ Here we plot the three lowest-energy conformers.
 
 .. code:: ipython3
 
-   plot_conformers(job);
+   def plot_conformers(job: ConformersJob, indices=None, temperature=298, unit="kcal/mol", lowest=True):
+       molecules = job.results.get_conformers()
+       energies = job.results.get_relative_energies(unit)
+       populations = job.results.get_boltzmann_distribution(temperature)
 
-.. figure:: conformers_files/conformers_22_0.png
+       if isinstance(indices, int):
+           N_plot = min(indices, len(energies))
+           if lowest:
+               indices = list(range(N_plot))
+           else:
+               indices = np.linspace(0, len(energies) - 1, N_plot, dtype=np.int32)
+       if indices is None:
+           indices = list(range(min(3, len(energies))))
+
+       fig, axes = plt.subplots(1, len(indices), figsize=(12, 4))
+       if len(indices) == 1:
+           axes = [axes]
+
+       for ax, i in zip(axes, indices):
+           mol = molecules[i]
+           E = energies[i]
+           population = populations[i]
+
+           if _has_view:
+               img = view(mol, width=300, height=300)
+               ax.imshow(img)
+               ax.axis("off")
+               ax.set_title(f"#{i+1}\nΔE = {E:.2f} kcal/mol\nPop.: {population:.3f} (T = {temperature} K)")
+           else:
+               view(mol, ax=ax)
+               ax.set_title(f"#{i+1}\nΔE = {E:.2f} kcal/mol\nPop.: {population:.3f} (T = {temperature} K)")
+
+.. code:: ipython3
+
+   plot_conformers(job)
+
+.. figure:: conformers_files/conformers_23_0.png
 
 You can also open the conformers in AMSmovie to browse all conformers 1000+ conformers:
 
@@ -180,25 +230,25 @@ Finally in AMS2025+, you can also inspect the conformer data using the JobAnalys
 ============ ====== =====
 Conformer Id E      P
 ============ ====== =====
-1            0.00   0.036
-2            0.01   0.035
-3            0.03   0.034
-4            0.03   0.034
-5            0.08   0.031
-6            0.13   0.029
-7            0.15   0.028
-8            0.18   0.026
-9            0.22   0.024
-10           0.23   0.024
+1            0.00   0.175
+2            0.01   0.173
+3            0.31   0.104
+4            0.33   0.100
+5            0.59   0.065
+6            0.87   0.040
+7            0.89   0.039
+8            1.10   0.028
+9            1.14   0.026
+10           1.36   0.018
 …            …      …
-1807         135.93 0.000
-1808         137.12 0.000
-1809         138.93 0.000
-1810         139.38 0.000
-1811         140.51 0.000
-1812         143.04 0.000
-1813         148.33 0.000
-1814         152.45 0.000
-1815         164.99 0.000
-1816         201.42 0.000
+1062         256.89 0.000
+1063         306.67 0.000
+1064         326.40 0.000
+1065         369.67 0.000
+1066         371.07 0.000
+1067         415.00 0.000
+1068         415.08 0.000
+1069         470.42 0.000
+1070         502.31 0.000
+1071         666.28 0.000
 ============ ====== =====
