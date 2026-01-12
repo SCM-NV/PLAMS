@@ -16,6 +16,15 @@ from scm.plams import init, packmol, Settings, AMSJob, from_smiles, plot_molecul
 # this line is not required in AMS2025+
 init()
 
+try:
+    from scm.plams import view  # view molecule using AMSview in a Jupyter Notebook in AMS2026+
+except ImportError:
+    from scm.plams import plot_molecule  # plot molecule in a Jupyter Notebook in AMS2023+
+
+    def view(molecule, **kwargs):
+        plot_molecule(molecule)
+
+
 mol = packmol(from_smiles("O"), n_molecules=16, density=1.0)
 s = Settings()
 s.input.ams.Task = "MolecularDynamics"
@@ -31,7 +40,7 @@ job = AMSJob(settings=s, molecule=mol, name="md")
 job.run()
 
 
-plot_molecule(mol, rotation=("80x,10y,0z"))
+view(mol, direction="tilt_z", width=300, height=300, padding=-1)
 
 
 # Or alternatively, load a previously run MD job:
