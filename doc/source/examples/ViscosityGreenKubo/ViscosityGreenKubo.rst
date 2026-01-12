@@ -6,8 +6,10 @@ Viscosity from Green-Kubo relation
 This example sets up a short MD simulation of liquid benzene and calculates the viscosity using the Green-Kubo relation. The experimental value is about 0.5 mPa s at room temperature.
 
 .. image:: ViscosityGreenKubo_files/ViscosityGreenKubo_3_0.png
+   :width: 200px
 
 .. image:: ViscosityGreenKubo_files/ViscosityGreenKubo_13_0.png
+   :width: 400px
 
 .. seealso::
 
