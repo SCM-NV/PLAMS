@@ -10,10 +10,22 @@
 import scm.plams as plams
 import sys
 from scm.conformers import ConformersJob
-from scm.conformers.plams.plot import plot_conformers
 import numpy as np
 import matplotlib.pyplot as plt
 import os
+
+try:
+    from scm.plams import view  # view molecule using AMSview in a Jupyter Notebook in AMS2026+
+
+    _has_view = True
+except ImportError:
+    from scm.plams import plot_molecule  # plot molecule in a Jupyter Notebook in AMS2023+
+
+    _has_view = False
+
+    def view(molecule, ax=None, **kwargs):
+        plot_molecule(molecule, ax=ax)
+
 
 # this line is not required in AMS2025+
 plams.init()
@@ -23,7 +35,7 @@ plams.init()
 
 smiles = "CC(N)C(=O)O"
 alanine = plams.from_smiles(smiles)
-plams.plot_molecule(alanine)
+view(alanine, height=300, width=300)
 
 
 # ## Initial system: alanine dimer
@@ -39,7 +51,7 @@ mol = plams.packmol(alanine, n_molecules=2, density=density, sphere=True)
 mol.translate(-np.array(mol.get_center_of_mass()))
 
 
-plams.plot_molecule(mol, rotation="0x,0y,90z")
+view(mol, direction="along_pca3")
 
 
 # ## Calculation setup
@@ -83,6 +95,40 @@ print(f"Conformers stored in {rkf}")
 
 # ## Results
 # Here we plot the three lowest-energy conformers.
+
+
+def plot_conformers(job: ConformersJob, indices=None, temperature=298, unit="kcal/mol", lowest=True):
+    molecules = job.results.get_conformers()
+    energies = job.results.get_relative_energies(unit)
+    populations = job.results.get_boltzmann_distribution(temperature)
+
+    if isinstance(indices, int):
+        N_plot = min(indices, len(energies))
+        if lowest:
+            indices = list(range(N_plot))
+        else:
+            indices = np.linspace(0, len(energies) - 1, N_plot, dtype=np.int32)
+    if indices is None:
+        indices = list(range(min(3, len(energies))))
+
+    fig, axes = plt.subplots(1, len(indices), figsize=(12, 4))
+    if len(indices) == 1:
+        axes = [axes]
+
+    for ax, i in zip(axes, indices):
+        mol = molecules[i]
+        E = energies[i]
+        population = populations[i]
+
+        if _has_view:
+            img = view(mol, width=300, height=300)
+            ax.imshow(img)
+            ax.axis("off")
+            ax.set_title(f"#{i+1}\nΔE = {E:.2f} kcal/mol\nPop.: {population:.3f} (T = {temperature} K)")
+        else:
+            view(mol, ax=ax)
+            ax.set_title(f"#{i+1}\nΔE = {E:.2f} kcal/mol\nPop.: {population:.3f} (T = {temperature} K)")
+
 
 plot_conformers(job)
 
