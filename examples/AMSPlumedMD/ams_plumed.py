@@ -8,6 +8,19 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 
+try:
+    from scm.plams import view  # view molecule using AMSview in a Jupyter Notebook in AMS2026+
+
+    _has_view = True
+except ImportError:
+    from scm.plams import plot_molecule  # plot molecule in a Jupyter Notebook in AMS2023+
+
+    _has_view = False
+
+    def view(molecule, ax=None, **kwargs):
+        plot_molecule(molecule, ax=ax)
+
+
 # this line is not required in AMS2025+
 init()
 
@@ -40,10 +53,7 @@ def get_molecule():
 
 mol = get_molecule()
 
-try:
-    plot_molecule(mol)  # plot Molecule in Jupyter Notebook in AMS2023+
-except NameError:
-    pass  # ignore errors in AMS2022-
+view(mol, guess_bonds=True, width=300, height=300)
 
 
 # ## Calculation settings
@@ -112,7 +122,7 @@ trajectory = Trajectory(job.results.rkfpath())
 
 every = 20  # picture every 20 frames in the trajectory
 N_images = np.int_(np.ceil(len(trajectory) / every))
-fig, axes = plt.subplots(1, N_images, figsize=(10, 3))
+fig, axes = plt.subplots(1, N_images, figsize=(10, 4))
 
 O3H6_distances = []
 i_ax = 0
@@ -120,12 +130,16 @@ i_ax = 0
 for i, mol in enumerate(trajectory, 1):
     O3H6_distances.append(mol[3].distance_to(mol[6]))
     if i % every == 1:
-        try:
-            plot_molecule(mol, ax=axes[i_ax])  # mol is a PLAMS Molecule
+        if _has_view:
+            img = view(mol, width=300, height=300, guess_bonds=True)  # mol is a PLAMS Molecule
+            axes[i_ax].imshow(img)
+            axes[i_ax].axis("off")
             axes[i_ax].set_title(f"frame {i}")
             i_ax += 1
-        except NameError:
-            pass
+        else:
+            view(mol, ax=axes[i_ax])  # mol is a PLAMS Molecule
+            axes[i_ax].set_title(f"frame {i}")
+            i_ax += 1
 
 
 # The above pictures show how the H(6) approaches the O(3). At the end, the carbonic acid molecule has dissociated into CO2 and H2O.
@@ -150,11 +164,8 @@ plt.show()
 index = np.argmax(energies) + 1
 approximate_ts_molecule = job.results.get_history_molecule(index)
 
-try:
-    plot_molecule(approximate_ts_molecule)
-    plt.title(f"Using frame {index} as initial approximate transition state")
-except NameError:
-    pass
+print(f"Using frame {index} as initial approximate transition state:")
+view(approximate_ts_molecule, width=300, height=300, guess_bonds=True)
 
 
 ts_s = Settings()
@@ -166,11 +177,8 @@ ts_job = AMSJob(settings=ts_s, molecule=approximate_ts_molecule, name="ts-search
 ts_job.run()
 
 
-try:
-    plot_molecule(ts_job.results.get_main_molecule())
-    plt.title("Optimized transition state")
-except NameError:
-    pass
+print("Optimized transition state:")
+view(ts_job.results.get_main_molecule(), width=300, height=300, guess_bonds=True)
 
 
 print("Frequencies (at a TS there should be 1 imaginary [given as negative])")
