@@ -11,6 +11,15 @@ import os
 from scm.plams import Molecule
 from scm.plams import plot_grid_molecules
 
+try:
+    from scm.plams import view  # view molecule using AMSview in a Jupyter Notebook in AMS2026+
+except ImportError:
+    from scm.plams import plot_molecule  # plot molecule in a Jupyter Notebook in AMS2023+
+
+    def view(molecule, **kwargs):
+        plot_molecule(molecule)
+
+
 path = os.path.join(os.environ["AMSRESOURCES"], "Molecules", "TestMols", "PLAMS")
 filenames = ["tbut_benzene.in", "o_di_tbut_benzene.in", "tri_tbut_benzene.in"]
 filenames = [os.path.join(path, fn) for fn in filenames]
@@ -21,9 +30,7 @@ plot_grid_molecules(molecules, molsPerRow=3)
 
 # The structures are unoptimized, as the crowded geometry of the third structure demonstrates.
 
-from scm.plams import plot_molecule
-
-plot_molecule(molecules[2])
+view(molecules[2], width=300, height=300)
 
 
 # The geometry of the three structures can be optimized with the AMSWorker as follows.
@@ -40,7 +47,7 @@ for i, mol in enumerate(molecules):
     results = worker.GeometryOptimization("go%i" % (i), mol)
     stackmol += results.get_main_molecule()
 
-plot_molecule(stackmol)
+view(stackmol, width=300, height=300)
 
 
 # We may prefer to perform the optimization while constraining the positions of the benzene carbon atoms, so that the benzene rings can be stacked directly on top of one another. The constraints can be passed to the `GeometryOptimization()` call as a settings object. The settings object has the same layout as the constraints passed to a regular `AMSJob`.
@@ -53,7 +60,7 @@ for i, mol in enumerate(molecules):
     results = worker.GeometryOptimization("constrained%i" % (i), mol, constraints=s)
     stackmol += results.get_main_molecule()
 
-plot_molecule(stackmol)
+view(stackmol, width=300, height=300)
 
 
 # If we use contraints designed for one molecule in a geometry optimization for a different molecule, this may result in an error. We can look at the error message to check.
