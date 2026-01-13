@@ -3736,7 +3736,7 @@ class AMSJob(SingleJob):
             if key in moldict:
                 raise KeyError(f"Duplicate system headers found in s.input.ams.system: {repr(key)}")
             moldict[key] = read_mol(settings_block)
-            used_properties = ["atoms", "bondorders", "lattice", "charge", "region", "supercell"]
+            used_properties = ["atoms", "bondorders", "geometryfile", "lattice", "charge", "region", "supercell"]
             for used_property in used_properties:
                 if used_property in settings_block:
                     settings_block.pop(used_property)
