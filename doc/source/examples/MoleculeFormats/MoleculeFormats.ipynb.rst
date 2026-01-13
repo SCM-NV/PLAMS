@@ -25,7 +25,7 @@ Complete guide to storing and converting PLAMS Molecules between Python librarie
    AMSHOME = os.environ["AMSHOME"]
    cif_file = f"{AMSHOME}/atomicdata/Molecules/IZA-Zeolites/ABW.cif"
    xyz_file = f"{AMSHOME}/scripting/scm/params/examples/benchmark/ISOL6/e_13.xyz"
-   badxyz_file = f"{AMSHOME}/scripting/scm/plams/unit_tests/xyz/reactant2.xyz"
+   badxyz_file = f"{AMSHOME}/path/plams/unit_tests/xyz/reactant2.xyz"
 
    assert Path(cif_file).exists(), f"{cif_file} does not exist."
    assert Path(xyz_file).exists(), f"{xyz_file} does not exist."
@@ -133,6 +133,10 @@ PLAMS cannot natively read .cif files. Instead, go through another library, for 
 ::
 
    type(mol)=<class 'scm.plams.mol.molecule.Molecule'>
+
+
+   /Users/ormrodmorley/Documents/code/ams/amshome/bin.auto/python3.8/lib/python3.8/site-packages/ase/io/cif.py:401: UserWarning: crystal system 'orthorhombic' is not interpreted for space group Spacegroup(74, setting=1). This may result in wrong setting!
+     warnings.warn(
 
 .. figure:: MoleculeFormats_files/MoleculeFormats_15_2.png
 
@@ -528,6 +532,7 @@ There is no builtin converter between PLAMS Molecule and pymatgen Structure (per
     22  Si    0.3428  0.75  0.5993
     23  Si    0.8428  0.25  0.0993
 
+   /Users/ormrodmorley/Documents/code/ams/amshome/bin.auto/python3.8/lib/python3.8/site-packages/ase/io/cif.py:401: UserWarning: crystal system 'orthorhombic' is not interpreted for space group Spacegroup(74, setting=1). This may result in wrong setting!
      warnings.warn(
 
 Convert pymatgen Structure (periodic) to PLAMS Molecule

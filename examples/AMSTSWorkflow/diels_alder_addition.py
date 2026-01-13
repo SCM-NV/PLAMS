@@ -9,6 +9,19 @@ import os
 import matplotlib.pyplot as plt
 from typing import List
 
+try:
+    from scm.plams import view  # view molecule using AMSview in a Jupyter Notebook in AMS2026+
+
+    _has_view = True
+except ImportError:
+    from scm.plams import plot_molecule  # plot molecule in a Jupyter Notebook in AMS2023+
+
+    _has_view = False
+
+    def view(molecule, ax=None, **kwargs):
+        plot_molecule(molecule, ax=ax)
+
+
 # this line is not required in AMS2025+
 init()
 
@@ -200,6 +213,19 @@ def get_atom_radius(at: Atom) -> float:
     return PeriodicTable.get_radius(at.symbol)
 
 
+def view_molecule(mol: Molecule, title: str):
+    fig, ax = plt.subplots(1, 1, figsize=(3, 3))
+    ax.axis("off")
+
+    if _has_view:
+        img = view(mol, width=300, height=300)
+        ax.imshow(img)
+        ax.set_title(title)
+    else:
+        view(mol, ax=ax)
+        ax.set_title(title)
+
+
 # ## Run the calculations
 
 diene_smiles = "C1C=CC=C1"
@@ -209,16 +235,14 @@ diene = from_smiles(
 set_active(diene, [2, 4])
 
 
-plot_molecule(diene)
-plt.title("Diene (cyclopentadiene)")
+view_molecule(diene, "Diene (cyclopentadiene)")
 
 
 dienophile = from_smiles("N#CC=C")  # carbon 1, 2 will form bonds
 set_active(dienophile, [1, 2])
 
 
-plot_molecule(dienophile)
-plt.title("Dienophile (acrylonitrile)")
+view_molecule(dienophile, "Dienophile (acrylonitrile)")
 
 
 preliminary_md_results, ts_search_results, relax_from_saddle_results = addition(diene, dienophile)
@@ -227,15 +251,13 @@ preliminary_md_results, ts_search_results, relax_from_saddle_results = addition(
 # ## Preliminary biased MD results (UFF)
 
 final_md_system = preliminary_md_results.get_main_molecule()
-plot_molecule(final_md_system)
-plt.title("Final system from preliminary biased MD")
+view_molecule(final_md_system, "Final system from preliminary biased MD")
 
 
 # ## TS search results (DFTB)
 
 final_ts_system = ts_search_results.get_main_molecule()
-plot_molecule(final_ts_system)
-plt.title("DFTB-optimized transition state")
+view_molecule(final_ts_system, "DFTB-optimized transition state")
 
 
 # ## Energy landscape refinement results (DFTB)
@@ -254,13 +276,10 @@ plt.ylabel("Relative energy (eV)")
 plt.xticks([0, 1, 2], ["State 1 (min)", "State 3 (TS)", "State 2 (min)"])
 
 
-plot_molecule(landscape[1].molecule)
-plt.title("State 1 (minimum)")
+view_molecule(landscape[1].molecule, "State 1 (minimum)")
 
 
-plot_molecule(landscape[2].molecule)
-plt.title("State 2 (minimum)")
+view_molecule(landscape[2].molecule, "State 2 (minimum)")
 
 
-plot_molecule(landscape[3].molecule)
-plt.title("State 3 (Transition state)")
+view_molecule(landscape[3].molecule, "State 3 (Transition state)")
