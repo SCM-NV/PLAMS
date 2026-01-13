@@ -12,6 +12,19 @@ Initial imports
    import matplotlib.pyplot as plt
    from typing import List
 
+   try:
+       from scm.plams import view  # view molecule using AMSview in a Jupyter Notebook in AMS2026+
+
+       _has_view = True
+   except ImportError:
+       from scm.plams import plot_molecule  # plot molecule in a Jupyter Notebook in AMS2023+
+
+       _has_view = False
+
+       def view(molecule, ax=None, **kwargs):
+           plot_molecule(molecule, ax=ax)
+
+
    # this line is not required in AMS2025+
    init()
 
@@ -207,6 +220,19 @@ The ``addition()`` function
    def get_atom_radius(at: Atom) -> float:
        return PeriodicTable.get_radius(at.symbol)
 
+
+   def view_molecule(mol: Molecule, title: str):
+       fig, ax = plt.subplots(1, 1, figsize=(3, 3))
+       ax.axis("off")
+
+       if _has_view:
+           img = view(mol, width=300, height=300)
+           ax.imshow(img)
+           ax.set_title(title)
+       else:
+           view(mol, ax=ax)
+           ax.set_title(title)
+
 Run the calculations
 ~~~~~~~~~~~~~~~~~~~~
 
@@ -220,8 +246,7 @@ Run the calculations
 
 .. code:: ipython3
 
-   plot_molecule(diene)
-   plt.title("Diene (cyclopentadiene)");
+   view_molecule(diene, "Diene (cyclopentadiene)")
 
 .. figure:: diels_alder_addition_files/diels_alder_addition_6_0.png
 
@@ -232,8 +257,7 @@ Run the calculations
 
 .. code:: ipython3
 
-   plot_molecule(dienophile)
-   plt.title("Dienophile (acrylonitrile)");
+   view_molecule(dienophile, "Dienophile (acrylonitrile)")
 
 .. figure:: diels_alder_addition_files/diels_alder_addition_8_0.png
 
@@ -243,16 +267,16 @@ Run the calculations
 
 ::
 
-   [10.02|14:35:03] JOB preliminary_md STARTED
-   [10.02|14:35:03] JOB preliminary_md RUNNING
-   [10.02|14:35:08] JOB preliminary_md FINISHED
-   [10.02|14:35:08] JOB preliminary_md SUCCESSFUL
-   [10.02|14:35:08] JOB ts_search STARTED
-   [10.02|14:35:08] JOB ts_search RUNNING
-   [10.02|14:35:14] JOB ts_search FINISHED
-   [10.02|14:35:14] JOB ts_search SUCCESSFUL
-   [10.02|14:35:14] JOB refinement STARTED
-   [10.02|14:35:14] JOB refinement RUNNING
+   [13.01|10:28:00] JOB preliminary_md STARTED
+   [13.01|10:28:00] JOB preliminary_md RUNNING
+   [13.01|10:28:02] JOB preliminary_md FINISHED
+   [13.01|10:28:02] JOB preliminary_md SUCCESSFUL
+   [13.01|10:28:02] JOB ts_search STARTED
+   [13.01|10:28:02] JOB ts_search RUNNING
+   [13.01|10:28:04] JOB ts_search FINISHED
+   [13.01|10:28:04] JOB ts_search SUCCESSFUL
+   [13.01|10:28:04] JOB refinement STARTED
+   [13.01|10:28:04] JOB refinement RUNNING
    ... (PLAMS log lines truncated) ...
 
 Preliminary biased MD results (UFF)
@@ -261,8 +285,7 @@ Preliminary biased MD results (UFF)
 .. code:: ipython3
 
    final_md_system = preliminary_md_results.get_main_molecule()
-   plot_molecule(final_md_system)
-   plt.title("Final system from preliminary biased MD");
+   view_molecule(final_md_system, "Final system from preliminary biased MD")
 
 .. figure:: diels_alder_addition_files/diels_alder_addition_11_0.png
 
@@ -272,8 +295,7 @@ TS search results (DFTB)
 .. code:: ipython3
 
    final_ts_system = ts_search_results.get_main_molecule()
-   plot_molecule(final_ts_system)
-   plt.title("DFTB-optimized transition state");
+   view_molecule(final_ts_system, "DFTB-optimized transition state")
 
 .. figure:: diels_alder_addition_files/diels_alder_addition_13_0.png
 
@@ -289,11 +311,11 @@ Energy landscape refinement results (DFTB)
 
    All stationary points:
    ======================
-   State 1: C8H9N local minimum @ -24.90404981 Hartree (found 1 times, results on Refined1_MIN)
-   State 2: C8H9N local minimum @ -24.83552141 Hartree (found 1 times, results on Refined2_MIN)
+   State 1: C8H9N local minimum @ -24.90404972 Hartree (found 1 times, results on Refined1_MIN)
+   State 2: C8H9N local minimum @ -24.83552409 Hartree (found 1 times, results on Refined2_MIN)
    State 3: C8H9N transition state @ -24.82079293 Hartree (found 1 times, results on Refined3_TS_1-2)
-     +- Reactants: State 1: C8H9N local minimum @ -24.90404981 Hartree (found 1 times, results on Refined1_MIN)
-        Products:  State 2: C8H9N local minimum @ -24.83552141 Hartree (found 1 times, results on Refined2_MIN)
+     +- Reactants: State 1: C8H9N local minimum @ -24.90404972 Hartree (found 1 times, results on Refined1_MIN)
+        Products:  State 2: C8H9N local minimum @ -24.83552409 Hartree (found 1 times, results on Refined2_MIN)
         Prefactors: 0.000E+00:0.000E+00 s^-1
         Barriers: 2.266:0.401 eV
 
@@ -312,21 +334,18 @@ Above we see that the forward and backward barriers are 2.27 and 0.39 eV, respec
 
 .. code:: ipython3
 
-   plot_molecule(landscape[1].molecule)
-   plt.title("State 1 (minimum)");
+   view_molecule(landscape[1].molecule, "State 1 (minimum)")
 
 .. figure:: diels_alder_addition_files/diels_alder_addition_18_0.png
 
 .. code:: ipython3
 
-   plot_molecule(landscape[2].molecule)
-   plt.title("State 2 (minimum)");
+   view_molecule(landscape[2].molecule, "State 2 (minimum)")
 
 .. figure:: diels_alder_addition_files/diels_alder_addition_19_0.png
 
 .. code:: ipython3
 
-   plot_molecule(landscape[3].molecule)
-   plt.title("State 3 (Transition state)");
+   view_molecule(landscape[3].molecule, "State 3 (Transition state)")
 
 .. figure:: diels_alder_addition_files/diels_alder_addition_20_0.png

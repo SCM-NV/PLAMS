@@ -3391,11 +3391,26 @@ class AMSJob(SingleJob):
         # Build key-value dictionary from properties
         keyval_dict = {}
 
+        if _has_scm_chemsys:
+            from scm.libbase import AtomAttributes
+
+            allowed_attributes = AtomAttributes.Groups + ["mass", "region"]
+
+            def skip_attribute(prefix: str, key: str) -> bool:
+                return prefix == "" and key.lower() not in allowed_attributes
+
+        else:
+
+            def skip_attribute(prefix: str, key: str) -> bool:
+                """
+                Skip special atomic properties that are handled by _atom_symbol() already (handled explicitly below)
+                or internal PLAMS properties which are not accepted as valid atom properties in AMS, and so can be pruned out.
+                """
+                return prefix == "" and key.lower() in ["suffix", "ghost", "name", "supercell", "rdkit"]
+
         def serialize(sett: Settings, prefix: str = "") -> None:
             for key, val in sett.items():
-                if prefix == "" and key.lower() in ["suffix", "ghost", "name", "supercell", "rdkit"]:
-                    # Special atomic properties that are handled by _atom_symbol() already (handled explicitly below).
-                    # Or internal PLAMS properties which are not accepted as valid atom properties in AMS, and so can be pruned out.
+                if skip_attribute(prefix, key):
                     continue
                 if isinstance(val, Settings):
                     # Recursively serialize nested Settings object
