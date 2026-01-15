@@ -63,6 +63,23 @@ analysis = [
     "pillow>=10.4.0"
 ]
 
+all = [
+    "ase>=3.18",
+    "rdkit>=2017",
+    "psutil>=5.8.0",
+    "py-ubjson>=0.16.1",
+    "watchdog>=2.1.8",
+    "scipy>=1.8.0",
+    "matplotlib>=3.5.1",
+    "pandas>=1.5.2",
+    "networkx>=2.7.1",
+    "natsort>=8.1.0",
+    "h5py>=3.6.0",
+    "ipython>=7.22.0",
+    "pyomo>=6.4.1",
+    "pillow>=10.4.0"
+]
+
 docs = [
     "sphinx>=6.2.1,<8.2",
     "sphinx_copybutton>=0.5.2",
