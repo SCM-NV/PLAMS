@@ -36,7 +36,8 @@ keywords = [
 ]
 dependencies = [
     "numpy>=1.21.2",
-    "dill>=0.3.6"
+    "dill>=0.3.6",
+    "typing-extensions>=4.4.0",
 ]
 
 [project.optional-dependencies]
