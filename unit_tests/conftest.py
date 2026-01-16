@@ -30,7 +30,7 @@ def config():
         _finish()
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def xyz_folder():
     """
     Returns the path to the XYZ folder
