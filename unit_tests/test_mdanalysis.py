@@ -7,6 +7,8 @@ from scm.plams import Molecule
 from scm.plams import AMSJob
 from scm.plams import AMSMSDJob
 from scm.plams import AMSRDFJob
+from scm.plams import AMSVACFJob
+from scm.plams.recipes.md.trajectoryanalysis import AMSViscosityFromBinLogJob
 
 from test_helpers import skip_if_no_ams_installation
 from test_helpers import skip_if_no_scm_pisa
@@ -33,6 +35,8 @@ def mdjob(tmp_path_factory, xyz_folder):
     s.input.ams.MolecularDynamics.Trajectory.SamplingFreq = 1
     s.input.ams.MolecularDynamics.TimeStep = 0.5
     s.input.ams.MolecularDynamics.NSteps = 200
+    s.input.ams.MolecularDynamics.BinLog.Step = "Yes"
+    s.input.ams.MolecularDynamics.BinLog.PressureTensor = "Yes"
 
     s.runscript.nproc = 1
     os.environ["OMP_NUM_THREADS"] = "1"
@@ -242,3 +246,44 @@ class TestRDFJob:
         rdf = np.array(xy.y)
         peak = x[rdf.argmax()]
         assert abs(peak - 0.9074074074074073) < 1e-8
+
+
+class TestVACFJob:
+    """
+    Test of the AMS Job representing a velocity autocorrelation function calculation
+    """
+
+    def test_default_use(self, mdjob):
+        """
+        Test plainest use of AMSVACFJob
+        """
+        mol = mdjob.results.get_main_molecule()
+        oxygens = [i + 1 for i, at in enumerate(mol.atoms) if at.symbol == "O"]
+        vacf_job = AMSVACFJob(mdjob, atom_indices=oxygens)
+
+        # Check the input
+        txt = vacf_job.get_input()
+        for iat in oxygens:
+            assert "Atom %i" % (iat) in txt
+
+        # Run the job and check output
+        vacf_job.run()
+        D, units = vacf_job.results.get_D()
+        assert abs(D - 3.2882389727568384e-08) < 1e-18
+
+
+class TestViscosityFromBinLogJob:
+    """
+    Test of the AMS Job representing a velocity autocorrelation function calculation
+    """
+
+    def test_default_use(self, mdjob):
+        """
+        Test plainest use of AMSVACFJob
+        """
+        visc_job = AMSViscosityFromBinLogJob(mdjob)
+
+        # Run the job and check output
+        visc_job.run()
+        visc = visc_job.results.get_double_exponential_fit()[-1][-1]
+        assert abs(visc - 8.85511238380137e-05) < 1e-18

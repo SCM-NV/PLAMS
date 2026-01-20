@@ -473,7 +473,7 @@ class AMSVACFJob(AMSConvenientAnalysisJob):
         """
         Generate the input file
         """
-        self.settings_to_list()
+        self._settings_to_list(self.settings.input, self._task)
 
         for settings in self.settings.input.AutoCorrelation:
             settings.Property = "Velocities"
@@ -484,7 +484,7 @@ class AMSVACFJob(AMSConvenientAnalysisJob):
         Creates final settings
         """
         self._parent_prerun()  # trajectory and atom_indices handled
-        self.settings_to_list()
+        self._settings_to_list(self.settings.input, self._task)
 
         for settings in self.settings.input.AutoCorrelation:
             if not self._has_settings_entry(settings, "MaxFrame"):
