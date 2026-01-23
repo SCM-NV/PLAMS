@@ -496,7 +496,7 @@ class RKFTrajectoryFile(TrajectoryFile):
             step_txt = ""
             if step is not None:
                 step_txt = "(%i)" % (step + 1)
-            if not ("History", "Bonds.Index%s" % (step_txt)) in self.file_object:
+            if not (section, "Bonds.Index%s" % (step_txt)) in self.file_object:
                 return conect
             indices = self.file_object.read(section, "Bonds.Index%s" % (step_txt))
             connection_table = self.file_object.read(section, "Bonds.Atoms%s" % (step_txt))
