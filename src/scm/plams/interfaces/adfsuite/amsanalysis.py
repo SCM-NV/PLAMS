@@ -249,7 +249,7 @@ class AMSAnalysisResults(SCMResults):
     def recreate_settings(self) -> Optional[Settings]:
         """Recreate the input |Settings| instance for the corresponding job based on files present in the job folder. This method is used by |load_external|.
 
-        Extract user input from the kf file and parse it back to a |Settings| instance using ``scm.libbase`` module. Remove the ``system`` branch from that instance.
+        Extract user input from the kf file and parse it back to a |Settings| instance using ``scm.base`` module. Remove the ``system`` branch from that instance.
         """
         user_input = self._kf.read_string("General", "user input")
         try:

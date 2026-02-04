@@ -452,7 +452,7 @@ class ADFCOSMORSCompoundJob(MultiJob):
         return s
 
     @staticmethod
-    @requires_optional_package("scm.libbase")
+    @requires_optional_package("scm.base")
     def convert_to_coskf(
         rkf_path: str,
         coskf_name: str,
@@ -472,7 +472,7 @@ class ADFCOSMORSCompoundJob(MultiJob):
             mol_info (Optional[Dict[str, Union[float, int, str]]]) : Optional information to write out in the "Compound Data" section of the .coskf file
             densf_path (Optional[str]) : path to the densf output .t41 file
         """
-        from scm.libbase import KFFile
+        from scm.base import KFFile
 
         with KFFile(rkf_path) as rkf:
             cosmo = rkf.read_section("COSMO")

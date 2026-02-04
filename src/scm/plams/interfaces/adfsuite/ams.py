@@ -42,7 +42,7 @@ except ImportError:
     _has_scm_pisa = False
 
 try:
-    from scm.libbase import ChemicalSystem
+    from scm.base import ChemicalSystem
 
     _has_scm_chemsys = True
 except ImportError:
@@ -275,7 +275,7 @@ class AMSResults(Results):
         else:
             raise ValueError(f"Could not retrieve molecule from rkf section '{section}' for file '{file}.rkf'")
 
-    @requires_optional_package("scm.libbase")
+    @requires_optional_package("scm.base")
     def get_system(self, section: str, file: str = "ams") -> "ChemicalSystem":
         """Return a ``ChemicalSystem`` instance stored in a given *section* of a chosen ``.rkf`` file.
 
@@ -2448,7 +2448,7 @@ class AMSResults(Results):
     def recreate_settings(self) -> Optional[Settings]:
         """Recreate the input |Settings| instance for the corresponding job based on files present in the job folder. This method is used by |load_external|.
 
-        If ``ams.rkf`` is present in the job folder, extract user input and parse it back to a |Settings| instance using ``scm.libbase`` module. Remove the ``system`` branch from that instance.
+        If ``ams.rkf`` is present in the job folder, extract user input and parse it back to a |Settings| instance using ``scm.base`` module. Remove the ``system`` branch from that instance.
         """
         if "ams" in self.rkfs:
             user_input = cast(str, self.readrkf("General", "user input"))
@@ -3392,7 +3392,7 @@ class AMSJob(SingleJob):
         keyval_dict = {}
 
         if _has_scm_chemsys:
-            from scm.libbase import AtomAttributes
+            from scm.base import AtomAttributes
 
             allowed_attributes = AtomAttributes.Groups + ["mass", "region"]
 

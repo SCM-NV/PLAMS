@@ -19,12 +19,12 @@ from scm.plams.mol.molecule import Molecule
 from scm.plams.interfaces.adfsuite.inputparser import input_to_settings
 
 try:
-    from scm.libbase import ChemicalSystem
+    from scm.base import ChemicalSystem
     from scm.utils.conversions import chemsys_to_plams_molecule
 
-    _has_scm_libbase = True
+    _has_scm_base = True
 except ImportError:
-    _has_scm_libbase = False
+    _has_scm_base = False
 
 try:
     from scm.pisa.block import DriverBlock
@@ -129,7 +129,7 @@ class JobAnalysis:
             return ", ".join([f"{n}: {JobAnalysis._mol_formula_extractor(m)}" for n, m in mol.items()])
         elif isinstance(mol, Molecule):
             return mol.get_formula()
-        elif _has_scm_libbase and isinstance(mol, ChemicalSystem):
+        elif _has_scm_base and isinstance(mol, ChemicalSystem):
             return mol.formula()
         return None
 
@@ -141,7 +141,7 @@ class JobAnalysis:
             return ", ".join([f"{n}: {JobAnalysis._mol_smiles_extractor(m)}" for n, m in mol.items()])
         elif isinstance(mol, Molecule):
             return to_smiles(mol)
-        elif _has_scm_libbase and isinstance(mol, ChemicalSystem):
+        elif _has_scm_base and isinstance(mol, ChemicalSystem):
             return JobAnalysis._mol_smiles_extractor(chemsys_to_plams_molecule(mol))
         return None
 
@@ -153,7 +153,7 @@ class JobAnalysis:
             return ", ".join([f"{n}: {JobAnalysis._mol_gyration_radius_extractor(m)}" for n, m in mol.items()])
         elif isinstance(mol, Molecule):
             return mol.get_gyration_radius()
-        elif _has_scm_libbase and isinstance(mol, ChemicalSystem):
+        elif _has_scm_base and isinstance(mol, ChemicalSystem):
             return JobAnalysis._mol_gyration_radius_extractor(chemsys_to_plams_molecule(mol))
         return None
 

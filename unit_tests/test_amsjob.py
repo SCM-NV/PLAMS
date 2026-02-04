@@ -11,7 +11,7 @@ import threading
 from scm.plams.interfaces.adfsuite.ams import AMSJob, AMSResults
 from scm.plams.core.settings import Settings
 from scm.plams.mol.molecule import Atom, Molecule
-from test_helpers import skip_if_no_scm_pisa, skip_if_no_scm_libbase
+from test_helpers import skip_if_no_scm_pisa, skip_if_no_scm_base
 
 
 class TestAMSJob:
@@ -308,8 +308,8 @@ class TestAMSJobWithChemicalSystem(TestAMSJob):
         """
         Instance of the Molecule class passed to the AMSJob
         """
-        skip_if_no_scm_libbase()
-        from scm.libbase import ChemicalSystem
+        skip_if_no_scm_base()
+        from scm.base import ChemicalSystem
 
         molecule = ChemicalSystem()
         molecule.add_atom("O", coords=[0, 0, 0])
@@ -354,8 +354,8 @@ class TestAMSJobWithChemicalSystemAndPisa(TestAMSJobWithPisa):
         """
         Instance of the Molecule class passed to the AMSJob
         """
-        skip_if_no_scm_libbase()
-        from scm.libbase import ChemicalSystem
+        skip_if_no_scm_base()
+        from scm.base import ChemicalSystem
 
         molecule = ChemicalSystem()
         molecule.add_atom("O", coords=[0, 0, 0])
@@ -614,8 +614,8 @@ class TestAMSJobWithMultipleChemicalSystems(TestAMSJobWithMultipleMolecules):
         """
         Instance of the Molecule class passed to the AMSJob
         """
-        skip_if_no_scm_libbase()
-        from scm.libbase import ChemicalSystem
+        skip_if_no_scm_base()
+        from scm.base import ChemicalSystem
 
         main_molecule = ChemicalSystem()
         main_molecule.add_atom("C", coords=(0, 0, 0))
@@ -675,8 +675,8 @@ class TestAMSJobWithMultipleChemicalSystemsAndPisa(TestAMSJobWithMultipleMolecul
         """
         Instance of the Molecule class passed to the AMSJob
         """
-        skip_if_no_scm_libbase()
-        from scm.libbase import ChemicalSystem
+        skip_if_no_scm_base()
+        from scm.base import ChemicalSystem
 
         main_molecule = ChemicalSystem()
         main_molecule.add_atom("C", coords=(0, 0, 0))
@@ -975,8 +975,8 @@ class TestAMSJobWithSystemBlockSettingsAndChemicalSystem(TestAMSJobWithSystemBlo
         """
         Get instance of the Molecule class passed to the AMSJob
         """
-        skip_if_no_scm_libbase()
-        from scm.libbase import ChemicalSystem, Lattice
+        skip_if_no_scm_base()
+        from scm.base import ChemicalSystem, Lattice
 
         molecule = ChemicalSystem()
         molecule.add_atom("Ar", coords=(0, 0, 0))
@@ -1038,8 +1038,8 @@ class TestAMSJobWithSystemBlockSettingsAndChemicalSystemAndPisa(TestAMSJobWithSy
         """
         Get instance of the Molecule class passed to the AMSJob
         """
-        skip_if_no_scm_libbase()
-        from scm.libbase import ChemicalSystem, Lattice
+        skip_if_no_scm_base()
+        from scm.base import ChemicalSystem, Lattice
 
         molecule = ChemicalSystem()
         molecule.add_atom("Ar", coords=(0, 0, 0))
@@ -1415,8 +1415,8 @@ class TestAMSJobWithSystemBlockSettingsAndMultipleChemicalSystems(
         """
         Get instance of the Molecule class passed to the AMSJob
         """
-        skip_if_no_scm_libbase()
-        from scm.libbase import ChemicalSystem
+        skip_if_no_scm_base()
+        from scm.base import ChemicalSystem
 
         main_molecule = ChemicalSystem()
         main_molecule.add_atom("C", coords=(-0.13949723, -0.08053322, -0.12698191))
@@ -1688,7 +1688,7 @@ class TestAMSJobWithAtomAttributes(TestAMSJob):
         """
         Get instance of the Molecule class passed to the AMSJob
         """
-        skip_if_no_scm_libbase()
+        skip_if_no_scm_base()
 
         molecule = Molecule()
         o = Atom(symbol="O", coords=(0, 0, 0))
@@ -1757,8 +1757,8 @@ class TestAMSJobWithAtomAttributesAndChemicalSystem(TestAMSJobWithAtomAttributes
         """
         Get instance of the Molecule class passed to the AMSJob
         """
-        skip_if_no_scm_libbase()
-        from scm.libbase import ChemicalSystem
+        skip_if_no_scm_base()
+        from scm.base import ChemicalSystem
 
         molecule = ChemicalSystem()
         molecule.add_atom("O", coords=[0, 0, 0])

@@ -38,7 +38,7 @@ from scm.plams.core.settings import Settings, JobSettings
 from scm.plams.mol.molecule import Molecule
 
 try:
-    from scm.libbase import ChemicalSystem
+    from scm.base import ChemicalSystem
 
     _has_scm_chemsys = True
 except ImportError:

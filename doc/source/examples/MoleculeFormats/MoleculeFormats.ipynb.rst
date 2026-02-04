@@ -384,7 +384,7 @@ The problem can be fixed by passing the argument ``presanitize`` to the ``to_rdm
 
 .. figure:: MoleculeFormats_files/MoleculeFormats_42_1.svg
 
-SCM libbase ChemicalSystem Python class
+SCM Base ChemicalSystem Python class
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Convert PLAMS Molecule to ChemicalSystem
@@ -394,7 +394,7 @@ Convert PLAMS Molecule to ChemicalSystem
 
    from scm.utils.conversions import plams_molecule_to_chemsys, chemsys_to_plams_molecule
    from scm.plams import Molecule
-   from scm.libbase import ChemicalSystem
+   from scm.base import ChemicalSystem
 
    mol = Molecule(xyz_file)
    chemsys = plams_molecule_to_chemsys(mol)
@@ -403,7 +403,7 @@ Convert PLAMS Molecule to ChemicalSystem
 
 ::
 
-   type(chemsys)=<class 'scm.libbase._internal.ChemicalSystem'>
+   type(chemsys)=<class 'scm.base._internal.ChemicalSystem'>
    System
       Atoms
          C -1.47627 -1.15316 -0.292796
@@ -442,7 +442,7 @@ Convert ChemicalSystem to PLAMS Molecule
 
    from scm.utils.conversions import plams_molecule_to_chemsys, chemsys_to_plams_molecule
    from scm.plams import Molecule
-   from scm.libbase import ChemicalSystem
+   from scm.base import ChemicalSystem
 
    mol = chemsys_to_plams_molecule(chemsys)
    print(f"{type(chemsys)=}")
@@ -451,7 +451,7 @@ Convert ChemicalSystem to PLAMS Molecule
 
 ::
 
-   type(chemsys)=<class 'scm.libbase._internal.ChemicalSystem'>
+   type(chemsys)=<class 'scm.base._internal.ChemicalSystem'>
    type(mol)=<class 'scm.plams.mol.molecule.Molecule'>
 
 .. figure:: MoleculeFormats_files/MoleculeFormats_46_1.png

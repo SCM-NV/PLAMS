@@ -18,7 +18,7 @@ from scm.plams.core.jobmanager import JobManager
 
 if TYPE_CHECKING:
     try:
-        from scm.libbase import ChemicalSystem
+        from scm.base import ChemicalSystem
     except ImportError:
         pass
 
@@ -1111,7 +1111,7 @@ def _run_uff_md(
     return my_packed
 
 
-@requires_optional_package("scm.libbase")
+@requires_optional_package("scm.base")
 def packmol_around(
     current: Union[Molecule, "ChemicalSystem"],
     molecules: Union[List[Molecule], Molecule],
@@ -1162,7 +1162,7 @@ def packmol_around(
         the density will be lower than what you request.
 
     """
-    from scm.libbase import ChemicalSystem
+    from scm.base import ChemicalSystem
     from scm.utils.conversions import plams_molecule_to_chemsys, chemsys_to_plams_molecule
 
     if isinstance(current, Molecule):
@@ -1455,7 +1455,7 @@ def packmol_microsolvation(
 
 
 @overload
-@requires_optional_package("scm.libbase")
+@requires_optional_package("scm.base")
 def packmol_around_md(
     current: Union[Molecule, "ChemicalSystem"],
     molecules: Union[Molecule, List[Molecule]],
@@ -1464,7 +1464,7 @@ def packmol_around_md(
     **kwargs: Any,
 ) -> Molecule: ...
 @overload
-@requires_optional_package("scm.libbase")
+@requires_optional_package("scm.base")
 def packmol_around_md(
     current: Union[Molecule, "ChemicalSystem"],
     molecules: Union[Molecule, List[Molecule]],
@@ -1473,7 +1473,7 @@ def packmol_around_md(
     **kwargs: Any,
 ) -> Tuple[Molecule, Dict[str, Any]]: ...
 @overload
-@requires_optional_package("scm.libbase")
+@requires_optional_package("scm.base")
 def packmol_around_md(
     current: Union[Molecule, "ChemicalSystem"],
     molecules: Union[Molecule, List[Molecule]],
@@ -1481,7 +1481,7 @@ def packmol_around_md(
     always_run_md: bool = False,
     **kwargs: Any,
 ) -> Union[Molecule, Tuple[Molecule, Dict[str, Any]]]: ...
-@requires_optional_package("scm.libbase")
+@requires_optional_package("scm.base")
 def packmol_around_md(
     current: Union[Molecule, "ChemicalSystem"],
     molecules: Union[Molecule, List[Molecule]],
@@ -1503,7 +1503,7 @@ def packmol_around_md(
 
     In the returned ``Molecule``, the system will be mapped to ``[0..1]``. It has the same lattice has ``current``.
     """
-    from scm.libbase import ChemicalSystem, Lattice
+    from scm.base import ChemicalSystem, Lattice
     from scm.utils.conversions import plams_molecule_to_chemsys, chemsys_to_plams_molecule
 
     loglevel = 7
