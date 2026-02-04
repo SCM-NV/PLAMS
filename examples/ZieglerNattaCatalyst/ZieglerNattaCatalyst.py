@@ -14,7 +14,7 @@
 
 # ## Initial imports
 
-from scm.libbase import ChemicalSystem
+from scm.base import ChemicalSystem
 from scm.plams import view, Settings, AMSJob, Units
 
 

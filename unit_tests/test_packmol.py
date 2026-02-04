@@ -4,7 +4,7 @@ from typing import List, Optional, Union
 
 import numpy as np
 import pytest
-from test_helpers import skip_if_no_ams_installation, skip_if_no_scm_libbase
+from test_helpers import skip_if_no_ams_installation, skip_if_no_scm_base
 
 from scm.plams.interfaces.molecule.packmol import (
     PackMolStructure,
@@ -969,7 +969,7 @@ class TestGuessDensity:
 
         mols = [mol]
         try:
-            import scm.libbase  # noqa F401
+            import scm.base  # noqa F401
             from scm.utils.conversions import plams_molecule_to_chemsys
 
             mols.append(plams_molecule_to_chemsys(mols[0]))
@@ -994,7 +994,7 @@ class TestPackMolAround:
 
     def test_pack_water_iteratively(self):
         skip_if_no_ams_installation()
-        skip_if_no_scm_libbase()
+        skip_if_no_scm_base()
 
         water = from_smiles("O")
 

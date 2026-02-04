@@ -9,7 +9,7 @@ To begin with, create a variety of AMS jobs with different settings, engines and
 .. code:: ipython3
 
    from scm.plams import from_smiles, AMSJob, PlamsError, Settings, Molecule, Atom
-   from scm.libbase import ChemicalSystem
+   from scm.base import ChemicalSystem
    from scm.input_classes.drivers import AMS
    from scm.input_classes.engines import DFTB
    from scm.utils.conversions import plams_molecule_to_chemsys

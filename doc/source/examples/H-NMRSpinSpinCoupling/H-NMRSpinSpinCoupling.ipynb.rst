@@ -6,7 +6,7 @@ Initial imports
 
 .. code:: ipython3
 
-   from scm.libbase import ChemicalSystem
+   from scm.base import ChemicalSystem
    from scm.plams import AMSJob, Settings, view
 
 System

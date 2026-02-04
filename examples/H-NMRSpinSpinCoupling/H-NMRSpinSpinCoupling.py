@@ -3,7 +3,7 @@
 
 # ## Initial imports
 
-from scm.libbase import ChemicalSystem
+from scm.base import ChemicalSystem
 from scm.plams import AMSJob, Settings, view
 
 

@@ -11,7 +11,7 @@ from scm.plams.tools.units import Units
 from scm.plams.trajectories.trajectoryfile import TrajectoryFile
 
 try:
-    from scm.libbase import KFFile
+    from scm.base import KFFile
 
     _has_libbase = True
 

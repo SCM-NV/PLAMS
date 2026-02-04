@@ -139,14 +139,14 @@ def skip_if_no_scm_pisa():
         pytest.skip("Skipping test as cannot find scm.pisa package.")
 
 
-def skip_if_no_scm_libbase():
+def skip_if_no_scm_base():
     """
-    Check whether SCM libbase is available, and skip the test with a warning if it is not available.
+    Check whether SCM base is available, and skip the test with a warning if it is not available.
     """
     try:
-        import scm.libbase  # noqa F401
+        import scm.base  # noqa F401
     except ImportError:
-        pytest.skip("Skipping test as cannot find scm.libbase package.")
+        pytest.skip("Skipping test as cannot find scm.base package.")
 
 
 def skip_if_windows():
