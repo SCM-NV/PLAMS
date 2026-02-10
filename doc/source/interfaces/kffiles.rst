@@ -8,7 +8,7 @@ KF files
 
 KF is the main format for storing binary data used in all Amsterdam Modeling Suite programs.
 All ``TAPEXX`` and ``.rkf`` files are KF files.
-PLAMS offers a dictionary-like interface to KF format which allows for reading, writing, modifying and creating KF files efficiently.
+PLAMS offers a dictionary-like interface to the KF format which allows for reading, writing, modifying, and creating KF files efficiently.
 
 
 

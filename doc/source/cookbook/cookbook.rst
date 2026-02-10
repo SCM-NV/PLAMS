@@ -1,7 +1,7 @@
 Cookbook
 ========
 
-This is a collection of code snippets showing how to perform recurrent PLAMS tasks.
+This is a collection of code snippets showing how to perform recurring PLAMS tasks.
 
 init and finish
 ******************
@@ -9,7 +9,7 @@ init and finish
 Get the workdir created by plams.init
 -------------------------------------
 
-The :func:`~scm.plams.init` function creates a unique folder. If there is another folder with the same name it generate a unique name adding ".00x" to the end of the folder name. To get the actual absolute folder path of the plams workdir you should use:
+The :func:`~scm.plams.init` function creates a unique folder. If there is another folder with the same name, it generates a unique name by adding ".00x" to the end of the folder name. To get the actual absolute folder path of the PLAMS workdir you should use:
 
 .. code-block:: python
 
@@ -18,10 +18,10 @@ The :func:`~scm.plams.init` function creates a unique folder. If there is anothe
     plams.init(folder=folder_path)
     real_absolute_folder_path = plams.config.default_jobmanager.workdir
 
-Load job results from a plams work dir
+Load job results from a PLAMS workdir
 --------------------------------------
 
-It is quite common that your script first makes and runs the jobs, followed by an analysis of the results. If you just want to change the analysis without rerunning the jobs this is a possible setup
+It is quite common that your script first makes and runs the jobs, followed by an analysis of the results. If you just want to change the analysis without rerunning the jobs, this is a possible setup.
 
 .. code-block:: python
 
@@ -47,10 +47,10 @@ Settings and input
 ******************
 
 
-Create an input block with an header
+Create an input block with a header
 ------------------------------------
 
-These |Settings|
+These |Settings| objects
 
 .. code-block:: python
 
@@ -70,7 +70,7 @@ will generate the following text input when used for an |AMSJob|:
 Create an empty input block
 ---------------------------
 
-These |Settings|
+These |Settings| objects
 
 .. code-block:: python
 
@@ -87,7 +87,7 @@ will generate the following text input when used for an |AMSJob|:
 
 Create an input block with repeating keys
 -----------------------------------------
-These |Settings|
+These |Settings| objects
 
 .. code-block:: python
 
@@ -108,7 +108,7 @@ will generate the following text input when used for an |AMSJob|:
 Repeating input block
 ---------------------
 
-These |Settings|
+These |Settings| objects
 
 .. code-block:: python
 
@@ -136,7 +136,7 @@ will generate the following text input when used for an |AMSJob|:
 Create a "free" input block
 ---------------------------
 
-These |Settings|
+These |Settings| objects
 
 .. code-block:: python
 

@@ -3,16 +3,16 @@ Results
 
 .. currentmodule:: scm.plams.core.results
 
-The goal of |Results| object is to take care of the job folder after the execution is finished: gather information about produced files, help to manage them and extract data of interest from them.
+The goal of a |Results| object is to take care of the job folder after the execution is finished: gather information about produced files, help to manage them, and extract data of interest from them.
 Every |Job| instance has an associated |Results| instance created automatically on job creation and stored in its ``results`` attribute.
 
-From the technical standpoint, |Results| class is the part of PLAMS environment responsible for thread safety and proper synchronization in parallel job execution.
+From the technical standpoint, the |Results| class is the part of the PLAMS environment responsible for thread safety and proper synchronization in parallel job execution.
 
 
 Files in the job folder
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-Directly after the execution of a job is finished (see :ref:`job-life-cycle`), the job folder gets scanned by :meth:`~Results.collect` method.
+Directly after the execution of a job is finished (see :ref:`job-life-cycle`), the job folder gets scanned by the :meth:`~Results.collect` method.
 All files present in the job folder, including files in subfolders, are gathered in a list stored in ``files`` attribute of the |Results| instance.
 Entries in this list correspond to paths to files relative to the job folder, so files on the top level are stored by their names and files in subfolders by something like ``childjob/childjob.out``.
 
@@ -40,7 +40,7 @@ In the bracket notation, and in every other context regarding |Results|, wheneve
     >>> print(r['$JN.run'])
     /home/user/plams.12345/plamsjob/plamsjob.run
 
-Some produce produce fixed name files during execution.
+Some programs produce fixed-name files during execution.
 If one wants to automatically rename those files it can be done with ``_rename_map`` class attribute -- a dictionary defining which files should be renamed and how.
 Renaming is done during :meth:`~Results.collect`.
 
@@ -64,7 +64,7 @@ To run your job in parallel you need to use a parallel job runner::
     myresults = myjob.run(jobrunner=pjr)
 
 Parallelism is not something that is "on" or "off" for the entire script: within one script you can use multiple job runners, some of them may be parallel and some may be serial.
-However, if you wish to always use the same |JobRunner| instance, it is convenient to set is as default at the beginning of your script::
+However, if you wish to always use the same |JobRunner| instance, it is convenient to set it as default at the beginning of your script::
 
     config.default_jobrunner = JobRunner(parallel=True)
 
@@ -119,7 +119,7 @@ Let us start with a simple parallel script that takes all ``.xyz`` files in a gi
         dipole_magn = sum([a*a for a in dipole_vec])**0.5
         print('{}\t\t{}'.format(r.job.name, dipole_magn))
 
-For an explanation purpose let us assume that ``/home/user/xyz`` contains three files: ``ammonia.xyz``, ``ethanol.xyz``, ``water.xyz``.
+For explanatory purposes, let us assume that ``/home/user/xyz`` contains three files: ``ammonia.xyz``, ``ethanol.xyz``, ``water.xyz``.
 When you run this script the standard output will look something like:
 
 .. code-block:: none
@@ -321,5 +321,4 @@ API
 
     .. autofunction::  _caller_name_and_arg
     .. autofunction:: _privileged_access
-
 

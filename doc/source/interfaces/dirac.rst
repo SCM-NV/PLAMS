@@ -3,7 +3,7 @@ Dirac
 
 .. currentmodule:: scm.plams.interfaces.thirdparty.dirac
 
-DIRAC is an *ab initio* quantum chemistry program for all electron relativistic calculation.
+DIRAC is an *ab initio* quantum chemistry program for all-electron relativistic calculations.
 It features a variety of methods including HF, MP2, DFT, CI and CC.
 More information about DIRAC can be found on its `official website <http://www.diracprogram.org>`_.
 
@@ -15,10 +15,10 @@ Preparing a calculation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Preparing an instance of |DiracJob| follows general principles for |SingleJob|.
-Information adjusting input file is stored in ``myjob.settings.input`` branch, whereas a runscript is created based on contents of ``myjob.settings.runscript``.
+Information adjusting the input file is stored in the ``myjob.settings.input`` branch, whereas a runscript is created based on contents of ``myjob.settings.runscript``.
 The geometry of your system can be supplied in two ways.
 Unlike ADF or BAND, DIRAC uses two separate files, one for input settings and the other for atomic coordinates.
-Geometry file needs to be in ``.xyz`` format and it can be either generated automatically based on ``myjob.molecule`` or given directly by the user (see below for details).
+The geometry file needs to be in ``.xyz`` format and it can be either generated automatically based on ``myjob.molecule`` or given directly by the user (see below for details).
 
 
 .. _dirac-input:
@@ -26,7 +26,7 @@ Geometry file needs to be in ``.xyz`` format and it can be either generated auto
 Input
 +++++
 
-Input files for DIRAC are organized using blocks and subblocks with three level hierarchy.
+Input files for DIRAC are organized using blocks and subblocks with a three-level hierarchy.
 On the top level there are *blocks* (indicated by keywords starting with ``**``) which can contain *keys* (starting with ``.``) or *subblocks* (starting with ``*``), which in turn can contain more keys.
 This structure can be easily reflected with tree-like |Settings| objects.
 In general, the preparation process is quite similar to |SCMJob|, however, there are a few nuances.
@@ -40,25 +40,25 @@ The details are explained below.
 *   An empty value of a key can be obtained by setting its value to ``True``.
 *   An empty block or subblock can be obtained with an empty |Settings| instance.
 *   If the value of a key is a list, each element of this list will be printed in a separate line.
-*   All keywords are written to the input file with upper case, values remain unchanged.
+*   All keywords are written to the input file with uppercase, values remain unchanged.
 *   Many DIRAC keywords contain spaces (for example ``WAVE FUNCTION`` or ``LINEAR RESPONSE``) and thus cannot be used with convenient dot notation.
     Usual bracket notation has to be used in those cases (see :ref:`dot-notation`).
-*   Some subblocks follow the special requirement - they need to be "enabled" by presence of the corresponding keyword in the parent block.
+*   Some subblocks follow the special requirement: they need to be "enabled" by presence of the corresponding keyword in the parent block.
     For example, in ``**HAMILTONIAN`` block a *subblock* ``*FDE`` can be used to specify frozen density embedding parameters, but this subblock is taken into account only if a *key* ``.FDE`` is present in ``**HAMILTONIAN``.
     This introduces a problem, since you cannot store two entries with the same name in |Settings|::
 
-        #sets the .FDE key on the top level of HAMILOTNIAN block
-        myjob.setting.input.hamiltonian.fde = True
+        #sets the .FDE key on the top level of HAMILTONIAN block
+        myjob.settings.input.hamiltonian.fde = True
         #sets the *FDE subblock in the HAMILTONIAN block, but overwrites the key .FDE defined above
-        myjob.setting.input.hamiltonian.fde.frdens = 'value2'
+        myjob.settings.input.hamiltonian.fde.frdens = 'value2'
 
     To solve this problem a special "enabler" key ``_en`` can be used *inside the subblock*.
     If such a key is present, the parent block of this subblock will be enriched with corresponding key and value::
 
-        #sets the .FDE key on the top level of HAMILOTNIAN block, its value can be set just like any other key
-        myjob.setting.input.hamiltonian.fde._en = True
+        #sets the .FDE key on the top level of HAMILTONIAN block, its value can be set just like any other key
+        myjob.settings.input.hamiltonian.fde._en = True
         #sets the "proper" contents of *FDE subblock.
-        myjob.setting.input.hamiltonian.fde.frdens = 'value2'
+        myjob.settings.input.hamiltonian.fde.frdens = 'value2'
 
 
 .. _dirac-runscript:
@@ -68,7 +68,7 @@ Runscript
 
 Calculations with DIRAC are executed using a start script called ``pam``.
 This script accepts a range of option flags adjusting various technical aspects of calculation, including input and geometry files.
-You can type ``pam -h`` in you command line for details.
+You can type ``pam -h`` in your command line for details.
 
 A runscript calling ``pam`` is automatically generated by PLAMS.
 Its contents are based on ``myjob.settings.runscript`` branch and follow general rules described in :ref:`job-settings`.
@@ -94,7 +94,7 @@ Results extraction
 DIRAC produces two output files that can contain meaningful information.
 One is a "real" output of the calculation and the other is more technical output of ``pam`` script.
 For the sake of consistency PLAMS concatenates those two files into a single output file.
-The ``pam`` output is appended at the end of the "real" output, separated by a visual delimeter.
+The ``pam`` output is appended at the end of the "real" output, separated by a visual delimiter.
 Besides the regular text output some other files are produced by DIRAC.
 By default, ``DFCOEF``, ``GRIDOUT`` and ``dirac.xml`` are fetched from the scratch space and renamed to, respectively, ``jobname.dfcoef``, ``jobname.grid`` and ``jobname.xml``.
 

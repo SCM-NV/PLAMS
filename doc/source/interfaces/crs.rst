@@ -5,7 +5,7 @@ COSMO-RS
 
 .. currentmodule:: scm.plams.interfaces.adfsuite.crs
 
-COSMO-RS can be run from PLAMS using the |CRSJOb| class and the corresponding |CRSResults|,
+COSMO-RS can be run from PLAMS using the |CRSJob| class and the corresponding |CRSResults|,
 both respectively being subclasses of |SCMJob| and |SCMResults|.
 
 .. note:: There is also `a tutorial showing full code examples <../../COSMO-RS/PLAMS_COSMO-RS_scripting.html>`__ available in the COSMO-RS documentation.  There are several templates available that can easily be customized for other problem types, workflows, etc.
@@ -61,8 +61,8 @@ for example, the ADF GUI (``File -> Save as``).
     >>> my_results = my_job.run()
 
 
-Settings with multiple compound
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Settings with multiple compounds
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 More often than not one is interested in the properties of
 multi-component mixtures (*e.g.* a dissolved solute).
@@ -124,11 +124,11 @@ COSMO-RS Parameters
 ~~~~~~~~~~~~~~~~~~~
 
 A large number of configurable parameters_ is available for COSMO-RS.
-If one is interested in running multiple jobs it can be usefull to store the paramaters
+If one is interested in running multiple jobs it can be useful to store the parameters
 in separate dictionary / |Settings| instance and update the Job settings as needed,
-double so if one wants to use multiple different paramater sets.
+double so if one wants to use multiple different parameter sets.
 
-An example is provided below with the default COSMO-RS paramaters (*i.e.* ADF Combi2005):
+An example is provided below with the default COSMO-RS parameters (*i.e.* ADF Combi2005):
 
 .. code:: python
 
@@ -182,7 +182,7 @@ Data analyses and plotting
 
 As COSMO-RS can produce a large variety of data series,
 a number of specialized methods are available in the :class:`CRSResults` for their extraction and analysis.
-The resulting data is stored in either a dictionary of Numpy arrays or (optionally) a `Pandas DataFrame`_.
+The resulting data is stored in either a dictionary of NumPy arrays or (optionally) a `Pandas DataFrame`_.
 
 The extracted data can be further customized by altering the ``subsection`` argument.
 For example, by default :meth:`CRSResults.get_solubility` will extract the solubility in mol solute

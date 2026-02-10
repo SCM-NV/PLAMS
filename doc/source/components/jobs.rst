@@ -4,9 +4,9 @@ Jobs
 .. currentmodule:: scm.plams.core.basejob
 
 The |Job| class is undoubtedly the most important object in PLAMS.
-Job is the basic piece of computational work and running jobs is the main goal of PLAMS scripts.
+A job is the basic unit of computational work, and running jobs is the main goal of PLAMS scripts.
 
-Various jobs may differ in details quite a lot, but they all follow the same set of common rules defined in the abstract class |Job|.
+Various jobs may differ in details quite a lot, but they all follow the same set of common rules that are defined in the abstract class |Job|.
 
 .. note::
 
@@ -25,17 +25,17 @@ All files regarding that particular job (input, output, runscript, other files p
 In general, a job can be of one of two types: a *single job* or a *multijob*.
 These types are defined as subclasses of the |Job| class: |SingleJob| and |MultiJob|.
 
-Single job is a job representing a single calculation, usually done by executing an external binary (ADF, Dirac etc.).
-Single job creates a *runscript* (which is usually just a shell script) that is then either executed locally or submitted to some external queueing system.
-As a result of running a single job multiple files are created, including dumps of the standard output and standard error streams, together with any other files produced by that external binary.
+A single job is a job representing a single calculation, usually done by executing an external binary (ADF, Dirac, etc.).
+A single job creates a *runscript* (which is usually just a shell script) that is then either executed locally or submitted to some external queuing system.
+As a result of running a single job, multiple files are created, including dumps of the standard output and standard error streams, together with any other files produced by that external binary.
 |SingleJob| is still an abstract class that is further subclassed by program-specific concrete classes like for example |AMSJob|.
 
-Multijob, on the other hand, does not run any calculation by itself.
+A multijob, on the other hand, does not run any calculation by itself.
 It is a container for other jobs, used to aggregate smaller jobs into bigger ones.
 There is no runscript produced by a multijob.
 Instead, it contains a list of subjobs called *children* that are run together when the parent job is executed.
 Children jobs can in turn be either single or multijobs.
-Job folder of each child job is a subfolder of its parent's folder, so the folder hierarchy on the filesystem reflects the child-parent hierarchy of jobs.
+The job folder of each child job is a subfolder of its parent's folder, so the folder hierarchy on the filesystem reflects the child-parent hierarchy of jobs.
 |MultiJob| is a concrete class so you can create its instances and run them.
 
 
@@ -53,7 +53,7 @@ The following keyword arguments are common for all types of jobs:
 
 *   ``name`` -- a string containing the name of the job.
     If not supplied, default name ``plamsjob`` is used.
-    Job name cannot contain path separator (``\`` in Linux, ``/`` in Windows).
+    Job name cannot contain path separators (``\`` in Linux, ``/`` in Windows).
 *   ``settings`` -- a |Settings| instance to be used by this job.
     It gets copied (using :meth:`~scm.plams.core.settings.Settings.copy`) so you can pass the same instance to several different jobs and changes made afterwards won't interfere.
     Any instance of |Job| can be also passed as a value of this argument.
@@ -61,7 +61,7 @@ The following keyword arguments are common for all types of jobs:
 *   ``depend`` -- a list of jobs that need to be finished before this job can start.
     This is useful when you want to execute your jobs in parallel.
     Usually there is no need to use this argument, since dependencies between jobs are resolved automatically (see |parallel|).
-    However, sometimes one needs to explicitly specify such a dependency and  ``depend`` option is meant for that.
+    However, sometimes you may need to explicitly specify such a dependency, and the ``depend`` option is meant for that.
 
 Those values do not need to be passed to the constructor, they can be set or changed later (but they should be fixed before the job starts to run)::
 
@@ -75,8 +75,8 @@ Multijobs, in turn, accept a keyword argument ``children`` that stores the colle
 
 The most meaningful part of each job object is its |Settings| instance.
 It is used to store information about contents of the input file and the runscript as well as other tweaks of job's behavior.
-Thanks to the tree-like structure of |Settings| this information is organized in a convenient way: the top level (``myjob.settings``) stores general settings, ``myjob.settings.input`` is a branch for specifying input settings, ``myjob.settings.runscript`` holds information for runscript creation and so on.
-Some types of jobs will make use of their own ``myjob.settings`` branches and not every kind of job will require ``input`` or ``runscript`` branches (like multijob for example).
+Thanks to the tree-like structure of |Settings| this information is organized in a convenient way: the top level (``myjob.settings``) stores general settings, ``myjob.settings.input`` is a branch for specifying input settings, ``myjob.settings.runscript`` holds information for runscript creation, and so on.
+Some types of jobs will make use of their own ``myjob.settings`` branches and not every kind of job will require ``input`` or ``runscript`` branches (for example, a multijob).
 The nice thing is that all the unnecessary data present in job settings is simply ignored, so accidentally plugging settings with too much data will not cause any problem (except some cases where the whole content of some branch is used, like for example the ``input`` branch in |AMSJob|).
 
 
@@ -100,7 +100,7 @@ The following keys and branches of job settings are meaningful for all kinds of 
         If set to ``True``, standard output will be redirected inside the runscript using ``>``
 
 *   ``myjob.settings.run`` branch stores run flags for the job.
-    Run flags is a flat collection of key-value pairs that are used by |GridRunner| to construct a command used to submit the runscript to a queueing system (like, for example, number of nodes/cores or size of the memory used with ``qsub`` or ``sbatch``)
+    Run flags are a flat collection of key-value pairs that are used by |GridRunner| to construct a command used to submit the runscript to a queuing system (like, for example, number of nodes/cores or size of the memory used with ``qsub`` or ``sbatch``)
 *   ``myjob.settings.keep`` and ``myjob.settings.save`` are keys adjusting |cleaning|.
 *   ``myjob.settings.pickle`` is a boolean value defining if the job object should be pickled after finishing (see |pickling|)
 *   ``myjob.settings.link_files`` is a boolean value defining if files from the job folder can be linked rather than copied when copying is requested
@@ -164,7 +164,7 @@ The following steps are taken after the |run| method is called:
 3.  Explicit dependencies from ``myjob.depend`` are resolved.
     This means waiting for all jobs listed in ``depend`` to finish.
 4.  Job name gets registered in the job manager and the job folder is created.
-    If a job with the same name has been registered before, a new unique name is created.
+    If a job with the same name was registered before, a new unique name is created.
 5.  Job's |prerun| method is called.
 6.  ``myjob.settings`` are updated with the contents of ``myjob.default_settings`` (see :ref:`default-settings`).
 7.  The hash of a job is calculated and checked (see |RPM|).

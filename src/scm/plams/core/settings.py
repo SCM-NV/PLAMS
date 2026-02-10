@@ -1182,7 +1182,6 @@ class ConfigSettings(Settings):
     def erase_workdir(self) -> bool:
         """
         When enabled, the entire main working folder is deleted at the end of script. Defaults to ``False``.
-        :return:
         """
         return self["erase_workdir"]
 
