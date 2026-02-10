@@ -375,6 +375,7 @@ class RKFTrajectoryFile(TrajectoryFile):
 
         # Now make sure that it is possible to read from the file as well
         self._read_header()
+        self.firsttime = False
 
     def _update_celldata(self, cell):
         """
@@ -634,9 +635,8 @@ class RKFTrajectoryFile(TrajectoryFile):
             raise PlamsError("The coordinates do not match the rest of the trajectory")
 
         # If this is the first step, write the header
-        if self.position == 0:
+        if self.firsttime:
             self._write_header(coords, cell, molecule)
-            self.firsttime = False
 
         # Define some local variables
         step = self.position
