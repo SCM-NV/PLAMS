@@ -5,7 +5,7 @@ Quick jobs
 
 .. currentmodule:: scm.plams.interfaces.adfsuite.quickjobs
 
-Quick jobs that take in a structure and return a modified structure.
+Quick jobs that take a structure and return a modified structure.
 For example, the ``preoptimize()`` function lets you quickly optimize a
 molecule without storing any results on disk. This mimics the preoptimize
 function of the AMS GUI.

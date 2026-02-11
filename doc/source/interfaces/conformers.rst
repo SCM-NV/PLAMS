@@ -16,7 +16,7 @@ ConformersJob
 
 .. important::
 
-    Import these classes from ``scm.conformers``, not ``scm.plams`` !
+    Import these classes from ``scm.conformers``, not ``scm.plams``!
 
     .. code-block::
 
@@ -24,13 +24,12 @@ ConformersJob
 
 The ``ConformersJob`` class, which derives from |SingleJob| class, can be used to set up and run a Conformers calculation.
 
-The input options for the Conformers tool (described `here <../../AMS/Utilities/Conformers.html>`_) can be specified in the ``input.ams`` branch of a setting object. See the :ref:`ConformersGenerationExample` example.
+The input options for the Conformers tool (described `here <../../AMS/Utilities/Conformers.html>`_) can be specified in the ``input.ams`` branch of a |Settings| object. See the :ref:`ConformersGenerationExample` example.
 
-.. autoclass :: scm.conformers.ConformersJob
+.. autoclass:: scm.conformers.ConformersJob
 
-.. autoclass :: scm.conformers.ConformersResults
+.. autoclass:: scm.conformers.ConformersResults
 
 The ``plot_conformers()`` function (``from scm.conformers.plams.plot import plot_conformers``) lets you plot some example conformers in a Jupyter notebook:
 
 .. autofunction:: scm.conformers.plams.plot.plot_conformers
-

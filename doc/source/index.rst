@@ -12,7 +12,7 @@ PLAMS: Python Library for Automating Molecular Simulations
          :height: 70px
          :align: center
 
-      New to PLAMS? Take a look at this guide to learn how to install, set up and start using PLAMS.
+      New to PLAMS? Take a look at this guide to learn how to install, set up, and start using PLAMS.
 
     .. grid-item-card:: :ref:`Examples`
        :link: examples/examples.html
@@ -21,7 +21,7 @@ PLAMS: Python Library for Automating Molecular Simulations
           :height: 70px
           :align: center
 
-       Explore these practical examples demonstrating PLAMS functionality, and a wide-range of use cases with AMS.
+       Explore these practical examples demonstrating PLAMS functionality, and a wide range of use cases with AMS.
 
     .. grid-item-card:: :ref:`AMSSuite`
        :link: interfaces/amssuite.html

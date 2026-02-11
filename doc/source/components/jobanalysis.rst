@@ -9,10 +9,10 @@ Job Analysis
 
     The |JobAnalysis| class is available in AMS2025+
 
-The |JobAnalysis| class is a tool which aims to simplify the process of analyzing the status, inputs and outputs of multiple jobs.
+The |JobAnalysis| class is a tool that aims to simplify the process of analyzing the status, inputs and outputs of multiple jobs.
 It helps to create analysis tables, with jobs as rows and "analysis fields" as columns.
 An analysis field is simply a definition for how to extract a value from each job.
-These tables can then be easily visualized in a jupyter notebook or script, or exported for use with other analysis packages like `pandas <https://pandas.pydata.org/docs/index.html>`_.
+These tables can then be easily visualized in a Jupyter notebook or script, or exported for use with other analysis packages like `pandas <https://pandas.pydata.org/docs/index.html>`_.
 
 For a worked example demonstrating the capabilities and uses of the |JobAnalysis| class, see :ref:`JobAnalysisExample`.
 
@@ -41,11 +41,11 @@ Adding Analysis Fields
 Analysis fields can be added to a |JobAnalysis| in a number of ways.
 Firstly, there are a small number of predefined "standard" analysis fields which are common across jobs e.g. ``Name``, ``Path`` etc.
 These can be added to the analysis via the methods, such as :meth:`~scm.plams.tools.job_analysis.JobAnalysis.add_standard_field` / :meth:`~scm.plams.tools.job_analysis.JobAnalysis.add_standard_fields`.
-To add these standard fields, the key(s) of the relevant fields must be supplied. A full list of these is available in the tool-tip.
+To add these standard fields, the key(s) of the relevant fields must be supplied. A full list of these is available in the tooltip.
 
 Secondly, custom analysis fields can be added using the methods :meth:`~scm.plams.tools.job_analysis.JobAnalysis.add_field` or :meth:`~scm.plams.tools.job_analysis.JobAnalysis.set_field`.
 When doing this, a unique identifier for the field (the key) must be provided, along with a function defining how to extract a value for the field from a job.
-In addition, optional arguments can be provided to set the displayed name for the field, and it's formatting when returned in a table.
+In addition, optional arguments can be provided to set the displayed name for the field, and its formatting when returned in a table.
 
 Finally, additional methods are present to facilitate adding fields for values from the job ``settings``.
 These are :meth:`~scm.plams.tools.job_analysis.JobAnalysis.add_settings_field` and :meth:`~scm.plams.tools.job_analysis.JobAnalysis.add_settings_input_fields`.
@@ -105,19 +105,19 @@ For example:
 Extracting Analysis
 ~~~~~~~~~~~~~~~~~~~
 
-There a various ways to extract data from |JobAnalysis|.
+There are various ways to extract data from |JobAnalysis|.
 The simplest way to get a visual representation is to call :meth:`~scm.plams.tools.job_analysis.JobAnalysis.get_table` (or :meth:`~scm.plams.tools.job_analysis.JobAnalysis.display_table` if running in a notebook).
 This generates a table in either ``markdown``, ``html`` or ``rst`` formats.
 
 Alternatively, data can be retrieved in code by calling :meth:`~scm.plams.tools.job_analysis.JobAnalysis.get_analysis`.
-This gets a pure python dictionary of the data, where the analysis field keys are the dictionary keys.
+This gets a pure Python dictionary of the data, where the analysis field keys are the dictionary keys.
 The dictionary values are lists of values, with the elements as the field value for each job.
 
-For more complex or involved analysis, the best approach is to export the data to a pandas dataframe.
+For more complex or involved analysis, the best approach is to export the data to a pandas data frame.
 Pandas is a fast and powerful data analysis tool, which can perform complex manipulations.
 It can be installed via ``amspackages``.
 
-As a final option, data can also be saved to a csv file using :meth:`~scm.plams.tools.job_analysis.JobAnalysis.to_csv_file`.
+As a final option, data can also be saved to a CSV file using :meth:`~scm.plams.tools.job_analysis.JobAnalysis.to_csv_file`.
 
 
 API

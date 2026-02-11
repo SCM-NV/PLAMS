@@ -3,7 +3,7 @@ AMS driver and engines
 
 .. currentmodule:: scm.plams.interfaces.adfsuite.ams
 
-The AMS driver is a new program introduced in the 2018 release that unifies the way in which different computational engines of Amsterdam Modelling Suite are called.
+The AMS driver is a new program introduced in the 2018 release that unifies the way in which different computational engines of the Amsterdam Modeling Suite are called.
 You can find more information about the AMS driver in the `corresponding part of the documentation <../../AMS/General.html>`_.
 
 .. _AMS_preparing_input:
@@ -84,7 +84,7 @@ As we can see, the ``input`` branch of job settings is divided into two branches
 .. note::
 
     In general, PLAMS will use all the contents of the ``ams`` branch (spelling not case-sensitive) to construct the driver input and the contents of every other branch to construct a separate engine block with the same name as the branch (like ``DFTB`` in the example above).
-    In the present moment only applications with a single engine block are implemented in the AMS driver, but that will most likely change in the near future.
+    At present, only applications with a single engine block are implemented in the AMS driver, but that will most likely change in the near future.
 
 The contents of each branch of ``myjob.settings.input`` are translated to a string using the same logic:
 
@@ -106,7 +106,7 @@ The contents of each branch of ``myjob.settings.input`` are translated to a stri
         otherkey
 
 *   If a value of a key is ``False`` or ``None`` the key is omitted.
-*   En empty |Settings| instance produces an empty block::
+*   An empty |Settings| instance produces an empty block::
 
         s.input.ams.emptyblock = Settings()
         s.input.ams.otherblock #short syntax equivalent to the line above
@@ -148,7 +148,7 @@ The contents of each branch of ``myjob.settings.input`` are translated to a stri
           key2 value2
         end
 
-*   Another kind of special key can be used to override the default alphabetic ordering of entries within a block, or just to insert arbitrary strings into the block::
+*   Another kind of special key can be used to override the default alphabetical ordering of entries within a block, or just to insert arbitrary strings into the block::
 
         s.input.ams.block._1 = 'entire line that has to be the first line of block'
         s.input.ams.block._2 = 'second line'
@@ -373,4 +373,3 @@ Other functions
 
 .. autofunction:: hybrid_committee_engine_settings
     
-

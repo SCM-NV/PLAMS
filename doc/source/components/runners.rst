@@ -6,9 +6,9 @@ Job runners
 .. currentmodule:: scm.plams.core.jobrunner
 
 Job runners have already been mentioned in previous chapters about jobs and results.
-Here we sum up all that information and introduce a basic |JobRunner| object together with its subclass |GridRunner| which is meant for interacting with queueing systems that manage resources on computer clusters.
+Here we sum up all that information and introduce a basic |JobRunner| object together with its subclass |GridRunner| which is meant for interacting with queuing systems that manage resources on computer clusters.
 
-Job runners in PLAMS are very simple objects, both from user's perspective and in terms of internal architecture.
+Job runners in PLAMS are very simple objects, both from the users' perspective and in terms of internal architecture.
 They have no methods that are meant to be called in your scripts, apart from constructors.
 Job runners are supposed to be created (with some parameters adjusting their behavior) and passed to the |run| method as parameters (or placed as ``config.default_jobrunner``).
 

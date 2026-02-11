@@ -3,12 +3,12 @@ Serenity
 
 .. currentmodule:: scm.plams.interfaces.thirdparty.serenity
 
-Serenity is a quantum chemistry code originally developed in the group of Johannes Neugebauer at the University of Münster with a strong focus on quantum chemical subsystem/embedding methods. See the `serenity page <https://github.com/qcserenity/serenity>`_ for more details.
+Serenity is a quantum chemistry code originally developed in the group of Johannes Neugebauer at the University of Münster with a strong focus on quantum chemical subsystem/embedding methods. See the `Serenity page <https://github.com/qcserenity/serenity>`_ for more details.
 
 PLAMS offers a simple Serenity interface and is capable of running Serenity calculations.
 The relevant classes are |SerenityJob|, |SerenitySettings|, and |SerenityResults|.
 
-It is also possible to run post-Hartree-Fock (HF) Serenity calculations starting from a ground-state Self-Consistent-Field calculation perfromed with ADF.
+It is also possible to run post-Hartree-Fock (HF) Serenity calculations starting from a ground-state Self-Consistent-Field calculation performed with ADF.
 
 
 Serenity calculation
@@ -79,7 +79,7 @@ Here is a simple example::
     print(f"Serenity CCSD energy correction: {ccsd_correction} hartree")
 
 
-This script produces the CCSD/DZ energy of the nitrogen molecules using integrals computed by ADF with a Slater-type orbital basis.
+This script produces the CCSD/DZ energy of the nitrogen molecule using integrals computed by ADF with a Slater-type orbital basis.
 
 API
 ~~~~~~~~~~~~~~~~~~~~~~~~~

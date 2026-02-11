@@ -1,8 +1,8 @@
 Analysis tools: Densf, FCF, analysis
 ------------------------------------
 
-Apart from main computational programs mentioned above, Amsterdam Modeling Suite offers a range of small utility tools that can be used to obtain more specific results.
-These tools usually base on the prior run of one of the main programs and need the KF file produced by them as a part of the input.
+Apart from the main computational programs mentioned above, Amsterdam Modeling Suite offers a range of small utility tools that can be used to obtain more specific results.
+These tools usually rely on the prior run of one of the main programs and need the KF file produced by those programs as a part of the input.
 
 From the functional point of view these tools are very similar to ADF or AMS.
 Their results are stored in KF files and their input files follow the same structure of blocks, keys and values.
@@ -13,7 +13,7 @@ So no |Molecule| instance is needed and the ``molecule`` attribute of the job ob
 Because of that :meth:`~SCMResults.get_molecule` method does not work with :class:`FCFResults`, :class:`DensfResults` etc.
 
 Below you can find the list of dedicated job classes that are currently available.
-Details about input specification for those jobs can be found in corresponding part of AMS suite documentation.
+Details about input specification for those jobs can be found in the corresponding part of the AMS suite documentation.
 
 
 .. currentmodule:: scm.plams.interfaces.adfsuite.fcf
@@ -31,4 +31,3 @@ Details about input specification for those jobs can be found in corresponding p
 .. currentmodule:: scm.plams.interfaces.adfsuite.amsanalysis
 .. autoclass:: AMSAnalysisJob(name='plamsjob', settings=None, depend=None)
     :exclude-members: _result_type
-
