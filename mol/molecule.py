@@ -1146,7 +1146,7 @@ class Molecule:
         """
         if len(self.lattice) == 3:
             return (
-                float(np.linalg.det(np.dstack([self.lattice[0], self.lattice[1], self.lattice[2]])))
+                float(np.linalg.det(np.dstack([self.lattice[0], self.lattice[1], self.lattice[2]]))[0])
                 * Units.conversion_ratio("angstrom", unit) ** 3
             )
         elif len(self.lattice) == 2:
