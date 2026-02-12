@@ -3,7 +3,7 @@ import logging
 import os
 import sys
 from io import StringIO
-from typing import Any, Type, Dict, Literal, Optional, overload
+from typing import Any, Type, Dict, Literal, Optional, overload, List
 import threading
 from abc import ABC, abstractmethod
 
@@ -275,7 +275,7 @@ class CSVFormatter(logging.Formatter):
         self.log_time = datefmt is not None
         self.include_level = include_level
         self.include_name = include_name
-        self.headers: Optional[list[str]] = None
+        self.headers: Optional[List[str]] = None
         self._write_headers = True
 
     @property
