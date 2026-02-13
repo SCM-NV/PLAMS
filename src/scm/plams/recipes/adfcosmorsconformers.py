@@ -14,7 +14,7 @@ import os, re
 from pathlib import Path
 import numpy as np
 
-__version__ = "AMS2026.v1"
+__version__ = "2026.v1"
 
 
 class ADFCOSMORSConfFilter:
