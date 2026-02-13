@@ -306,7 +306,8 @@ class ADFCOSMORSConfJob(MultiJob):
             Path(self.coskf_dir, coskfname).unlink(missing_ok=True)
 
             matches = [
-                idx for idx, ref_E in enumerate(gas_rkf_energy)
+                idx
+                for idx, ref_E in enumerate(gas_rkf_energy)
                 if idx not in used_rkf_idx and np.isclose(conf_E, ref_E, rtol=1e-12, atol=1e-8)
             ]
 
@@ -345,13 +346,13 @@ class ADFCOSMORSConfJob(MultiJob):
             t41 = self.jobs_densf[i].results.kfpath()
 
         ADFCOSMORSCompoundJob.convert_to_coskf(
-            rkf_path = self.jobs_cosmo[i].results.rkfpath(file="adf"),
-            coskf_name = name,
-            plams_dir = self.jobs_cosmo[i].path,
-            coskf_dir = self.coskf_dir,
-            mol_info = self.mol_info,
-            densf_path = t41
-            )
+            rkf_path=self.jobs_cosmo[i].results.rkfpath(file="adf"),
+            coskf_name=name,
+            plams_dir=self.jobs_cosmo[i].path,
+            coskf_dir=self.coskf_dir,
+            mol_info=self.mol_info,
+            densf_path=t41,
+        )
 
     def _make_replay_job(self, job_id):
 
@@ -366,7 +367,9 @@ class ADFCOSMORSConfJob(MultiJob):
 
     def _make_cosmo_job(self, rkf_path, i):
 
-        sett = ADFCOSMORSCompoundJob.adf_settings(True, elements=list(set(at.symbol for at in self.mol)), atomic_ion=self.atomic_ion)
+        sett = ADFCOSMORSCompoundJob.adf_settings(
+            True, elements=list(set(at.symbol for at in self.mol)), atomic_ion=self.atomic_ion
+        )
         sett.input.AMS.Task = "SinglePoint"
         sett.input.AMS.LoadSystem.File = str(rkf_path / "ams.rkf")
         sett.input.AMS.EngineRestart = str(rkf_path / "adf.rkf")
