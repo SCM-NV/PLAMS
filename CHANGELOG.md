@@ -10,6 +10,7 @@ For example, 2024.101 is the major release of 2024, and 2024.102 is the first bu
 This changelog is effective from the 2025 releases.
 
 ## [Unreleased]
+* `RKFTrajectoryFile` overwrote existing Molecule section at first write call, causing incorrect charge in Conformers tool
 
 ## 2025.106
 
