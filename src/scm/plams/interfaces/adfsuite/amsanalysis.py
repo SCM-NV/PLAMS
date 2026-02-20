@@ -239,10 +239,14 @@ class AMSAnalysisResults(SCMResults):
             return None, None
         section = sections[i - 1]
         plot = self.get_xy(section.split("(")[0], i)
-        if not plot.properties or "DiffusionCoefficient" not in plot.properties.keys():
+        if not plot.properties or "Final" not in plot.properties.keys():
+            return None, None
+        if "Legend" not in plot.properties.keys() or not isinstance(plot.properties["Legend"], str):
+            return None, None
+        if "Diffusion" not in plot.properties["Legend"]:
             return None, None
 
-        D = cast(float, plot.properties["DiffusionCoefficient"])
+        D = cast(float, plot.properties["Final"])
         D_units = plot.y_units
         return D, D_units
 
