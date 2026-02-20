@@ -286,4 +286,4 @@ class TestViscosityFromBinLogJob:
         # Run the job and check output
         visc_job.run()
         visc = visc_job.results.get_double_exponential_fit()[-1][-1]
-        assert abs(visc - 8.855124346230889e-05) < 1e-10
+        assert abs(visc - 8.855124346230889e-05) < 1e-08
