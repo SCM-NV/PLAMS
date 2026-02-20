@@ -537,7 +537,6 @@ sleep 0.0 && sed 's/input/output/g' plamsjob.in
 
     def test_job_errors_logged_to_stdout(self, config):
         from scm.plams.core.logging import get_logger
-        return
 
         logger_name = f"plams-{uuid.uuid4()}"
         logger = get_logger(logger_name)
