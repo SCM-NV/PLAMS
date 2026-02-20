@@ -17,7 +17,6 @@ from scm.plams.interfaces.adfsuite.quickjobs import model_to_settings
 from scm.plams.tools.hbc_utilities import parse_mesp, write_HBC_to_COSKF, view_HBC
 import numpy as np
 
-__version__ = "2025.v1"
 __all__ = ["ADFCOSMORSCompoundJob", "ADFCOSMORSCompoundResults"]
 
 

@@ -14,8 +14,6 @@ import os, re
 from pathlib import Path
 import numpy as np
 
-__version__ = "2026.v1"
-
 
 class ADFCOSMORSConfFilter:
     """
@@ -94,7 +92,6 @@ class ADFCOSMORSConfJob(MultiJob):
     ):
 
         MultiJob.__init__(self, children=OrderedDict(), **kwargs)
-        self.__version__ = __version__
 
         self.mol = molecule
 
@@ -178,7 +175,6 @@ class ADFCOSMORSConfJob(MultiJob):
         return None
 
     def prerun(self):
-        log(f"[ADFCOSMORSConfJob] version = {self.__version__}")
         if not self._has_valid_conf_gen:
             msg = (
                 "[ADFCOSMORSConfJob] Wrong type for argument conf_gen. Expected ConformersJob instance. "
