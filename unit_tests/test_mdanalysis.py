@@ -15,16 +15,12 @@ from test_helpers import skip_if_no_scm_pisa
 
 
 @pytest.fixture(scope="session")
-def mdjob(tmp_path_factory, xyz_folder):
+def mdjob(xyz_folder):
     """
-    Create AMSJob for an MD simulation (hopefully once per session)
+    Create AMSJob for an MD simulation once per session
     """
     skip_if_no_ams_installation()
-    pwd = os.getcwd()
     mol = Molecule(xyz_folder / "water_box.xyz")
-
-    dirname = tmp_path_factory.mktemp("data")
-    os.chdir(dirname.as_posix())
 
     s = Settings()
     s.input.ams.Task = "MolecularDynamics"
@@ -42,7 +38,6 @@ def mdjob(tmp_path_factory, xyz_folder):
     os.environ["OMP_NUM_THREADS"] = "1"
     job = AMSJob(settings=s, molecule=mol, name="md")
     job.run()
-    os.chdir(pwd)
 
     return job
 
@@ -68,7 +63,7 @@ class TestMSDJob:
         # Run the job and check output
         msd_job.run()
         D = msd_job.results.get_diffusion_coefficient()
-        assert abs(D - 2.7430808506924798e-08) < 1e-14
+        assert np.isclose(D, 2.7430808506924798e-08, atol=1e-13)
 
     def test_settings_use(self, mdjob):
         """
@@ -85,7 +80,7 @@ class TestMSDJob:
         # Run the job and check output
         msd_job.run()
         D = msd_job.results.get_diffusion_coefficient()
-        assert abs(D - 2.7430808506924798e-08) < 1e-14
+        assert np.isclose(D, 2.7430808506924798e-08, atol=1e-13)
 
     def test_pisa_use(self, mdjob):
         """
@@ -105,7 +100,7 @@ class TestMSDJob:
         # Run the job and check output
         msd_job.run()
         D = msd_job.results.get_diffusion_coefficient()
-        assert abs(D - 2.7430808506924798e-08) < 1e-14
+        assert np.isclose(D, 2.7430808506924798e-08, atol=1e-13)
 
 
 class TestRDFJob:
@@ -131,7 +126,7 @@ class TestRDFJob:
         x, rdf = rdf_job.results.get_rdf()
         ind = rdf.argmax()
         peak = x[ind]
-        assert abs(peak - 0.9074074074074073) < 1e-8
+        assert np.isclose(peak, 0.9074074074074073, atol=1e-8)
 
     def test_indices_use(self, mdjob):
         """
@@ -152,7 +147,7 @@ class TestRDFJob:
         x, rdf = rdf_job.results.get_rdf()
         ind = rdf.argmax()
         peak = x[ind]
-        assert abs(peak - 2.7407407407407405) < 1e-8
+        assert np.isclose(peak, 2.7407407407407405, atol=1e-8)
 
     def test_settings_use(self, mdjob):
         """
@@ -187,7 +182,7 @@ class TestRDFJob:
         x, rdf = rdf_job.results.get_rdf()
         ind = rdf.argmax()
         peak = x[ind]
-        assert abs(peak - 2.7407407407407405) < 1e-8
+        assert np.isclose(peak, 2.7407407407407405, atol=1e-8)
 
     def test_pisa_use(self, mdjob):
         """
@@ -209,7 +204,7 @@ class TestRDFJob:
         x, rdf = rdf_job.results.get_rdf()
         ind = rdf.argmax()
         peak = x[ind]
-        assert abs(peak - 2.7407407407407405) < 1e-8
+        assert np.isclose(peak, 2.7407407407407405, atol=1e-8)
 
     def test_multiple_rdfs(self, mdjob):
         """
@@ -238,14 +233,14 @@ class TestRDFJob:
         x, rdf = rdf_job.results.get_rdf()
         ind = rdf.argmax()
         peak = x[ind]
-        assert abs(peak - 2.7407407407407405) < 1e-8
+        assert np.isclose(peak, 2.7407407407407405, atol=1e-8)
 
         # Get the peak from the second RDF
         xy = rdf_job.results.get_xy(i=2)
         x = np.array(xy.x[0])
         rdf = np.array(xy.y)
         peak = x[rdf.argmax()]
-        assert abs(peak - 0.9074074074074073) < 1e-8
+        assert np.isclose(peak, 0.9074074074074073, atol=1e-8)
 
 
 class TestVACFJob:
@@ -269,7 +264,7 @@ class TestVACFJob:
         # Run the job and check output
         vacf_job.run()
         D, units = vacf_job.results.get_D()
-        assert abs(D - 3.2882389727568384e-08) < 1e-14
+        assert np.isclose(D, 3.2882389727568384e-08, atol=1e-13)
 
 
 class TestViscosityFromBinLogJob:
@@ -286,4 +281,4 @@ class TestViscosityFromBinLogJob:
         # Run the job and check output
         visc_job.run()
         visc = visc_job.results.get_double_exponential_fit()[-1][-1]
-        assert abs(visc - 8.855124346230889e-05) < 1e-08
+        assert np.isclose(visc, 8.855124346230889e-05, atol=1e-08)
