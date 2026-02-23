@@ -15,8 +15,6 @@ Conformers Generation
 
 Example illustrating how to generate conformers with AMS.
 
-**This example is only compatible with AMS2023**.
-
 .. include:: ConformersGeneration.common_header.rst
 .. include:: conformers.ipynb.rst
 .. include:: ConformersGeneration.common_footer.rst
