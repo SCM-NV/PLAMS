@@ -116,7 +116,7 @@ class Atom:
 
         If *symbol* is ``True``, atomic symbol is added at the beginning of the line. If *symbol* is a string, this exact string is printed there.
 
-        *suffix* is an arbitrary string that is appended at the end of returned line. It can contain identifiers in curly brackets (like for example ``f={fragment}``) that will be replaced by values of corresponding keys from *suffix_dict* dictionary. See :ref:`formatstrings` for details.
+        *suffix* is an arbitrary string that is appended at the end of returned line. It can contain identifiers in curly brackets (like for example ``f={fragment}``) that will be replaced by values of corresponding keys from *suffix_dict* dictionary. See `Format String Syntax <https://docs.python.org/3/library/string.html#formatstrings>`__ for details.
 
         Example:
 

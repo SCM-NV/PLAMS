@@ -15,7 +15,7 @@ Any derived settings class is interchangeable with the base |Settings| class of 
 Tree-like structure
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The |Settings| class is based on the regular Python dictionary (built-in class :class:`dict`, tutorial can be found :ref:`here<tut-dictionaries>`) and in many aspects works just like it::
+The |Settings| class is based on the regular Python dictionary (built-in class :class:`dict`, tutorial can be found `here <https://docs.python.org/3/tutorial/datastructures.html#tut-dictionaries>`__) and in many aspects works just like it::
 
     >>> s = Settings()
     >>> s['abc'] = 283
