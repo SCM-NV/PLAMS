@@ -64,7 +64,7 @@ def _in_limited_thread(func: Callable[Concatenate[SelfT, P], None]) -> Callable[
 
 
 def _limit(func: Callable[Concatenate[SelfT, P], None]) -> Callable[Concatenate[SelfT, P], None]:
-    """Decorator for an instance method. If ``_job_limit`` attribute of given instance is not ``None``, use this attribute to wrap decorated method via :ref:`with<with-locks>` statement."""
+    """Decorator for an instance method. If ``_job_limit`` attribute of given instance is not ``None``, use this attribute to wrap decorated method via `with <https://docs.python.org/3/library/threading.html#using-locks-conditions-and-semaphores-in-the-with-statement>`__ statement."""
 
     @functools.wraps(func)
     def wrapper(self: SelfT, /, *args: P.args, **kwargs: P.kwargs) -> None:
