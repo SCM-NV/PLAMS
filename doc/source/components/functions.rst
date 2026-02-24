@@ -9,6 +9,7 @@ This chapter gathers information about public functions that can be used in PLAM
 
 .. autofunction:: init
 .. autofunction:: finish
+.. autofunction:: jobs_in_directory
 .. autofunction:: load
 .. autofunction:: load_all
 .. autofunction:: read_molecules

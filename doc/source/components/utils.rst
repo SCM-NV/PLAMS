@@ -57,6 +57,8 @@ the :ref:`BalanceReactionEquationsExample` example.
 
 .. autofunction:: scm.plams.tools.reaction.balance
 
+.. autoclass:: scm.plams.tools.reaction.ReactionEquation
+
 
 Older functions:
 

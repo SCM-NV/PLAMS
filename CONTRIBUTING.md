@@ -59,7 +59,8 @@ uv pip install $AMSHOME/scripting/scm/amspipe
 ```
 or:
 ```bash
-uv pip install $AMSHOME/scripting/wheels/amspipe-0.1-py3-none-any.whl
+uv pip install --index-url "https://<scm-username>:<pwd>@downloads.scm.com/Downloads/packages/uv/channels/2026.1/simple/" \
+  scm-amspipe scm-external-engines plams
 ```
 To run tests use:
 ```bash
