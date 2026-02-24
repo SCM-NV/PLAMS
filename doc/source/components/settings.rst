@@ -190,7 +190,16 @@ For example:
     config.job.pickle = False
     config.default_jobrunner = JobRunner(parallel=True, maxjobs=8)
 
-The structure for the defined options on the nested settings objects is defined below.
+A context manager ``config_context`` is provided to override the global ``config`` within a specific scope:
+
+.. autofunction:: scm.plams.core.functions.config_context
+
+This can be useful for temporarily disabling or changing global settings.
+If you use this context manager, obtain ``config`` with the ``get_config`` function:
+
+.. autofunction:: scm.plams.core.functions.get_config
+
+The structure for all the defined options on the nested settings objects is defined below.
 
 .. autoclass:: ConfigSettings
 

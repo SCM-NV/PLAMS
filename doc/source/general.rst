@@ -109,6 +109,47 @@ The latest (unreleased) development version can be downloaded from the `trunk br
 Once the downloaded zip file has been extracted, navigate to its location and run ``pip install .`` to install into your Python environment.
 
 
+What's new in PLAMS for AMS2026?
+--------------------------------------
+
+Added
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* Improved molecular visualization. The :func:`~scm.plams.tools.view.view` function allows visualization of molecules and chemical systems using AMSView, which can be easily rendered in a Jupyter notebook or saved as images.
+* Improvements to the |JobAnalysis| tool for collecting and analyzing job results, with additional methods:
+    * :meth:`~scm.plams.tools.job_analysis.JobAnalysis.add_rkf_field` to simplify adding values from an RKF file to the analysis
+    * :meth:`~scm.plams.tools.job_analysis.JobAnalysis.get_settings_field_key` and :meth:`~scm.plams.tools.job_analysis.JobAnalysis.get_rkf_field_key` methods to simplify getting the keys for analysis fields
+* Additional functionality to assist with workflows:
+    * :func:`~scm.plams.core.functions.jobs_in_directory` context manager to allow jobs to run in a subdirectory of the PLAMS working directory
+    * :meth:`~scm.plams.core.basejob.Job.delete` and :meth:`~scm.plams.core.basejob.Job.rename` methods for deleting/renaming job files and directories
+    * :meth:`~scm.plams.core.settings.JobSettings.on_status_change` callback, available on global ``config``, which fires any time a job status is updated and allows notifications when jobs finish or error
+    * :func:`~scm.plams.core.functions.config_context` context manager and :func:`~scm.plams.core.functions.get_config` function allow context-based override of global ``config`` settings
+* Additional methods to get results from AMS calculations:
+    * :meth:`~scm.plams.interfaces.adfsuite.ams.AMSResults.get_pvdos` method to get partial vibrational spectra
+    * :meth:`~scm.plams.interfaces.adfsuite.ams.AMSResults.get_main_engine_name`
+    * :meth:`~scm.plams.interfaces.adfsuite.ams.AMSResults.get_reduced_masses`
+* Dedicated job for Energy Decomposition Analysis in BAND |BANDFragmentJob|
+* Method :meth:`~scm.plams.tools.reaction.balance` to find a balanced :class:`~scm.plams.tools.reaction.ReactionEquation`
+* Many type hints added across the code to aid scripting through an IDE
+
+Changed
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* :class:`~scm.plams.interfaces.adfsuite.amsanalysis.AMSAnalysisJob` has PISA support, accepts multiple |AMSJob| instances as input, and no longer overwrites user-supplied input settings
+* :meth:`~scm.plams.interfaces.adfsuite.ams.AMSResults.get_normal_modes` explicitly gives the option to return mass-weighted Hessian eigenvectors
+* |JobAnalysis| returns an updated copy on modification instead of performing operations in-place
+* :func:`~scm.plams.interfaces.molecule.packmol.packmol` function made more flexible, now accepting a single ``None`` value for ``n_molecules`` if two of ``n_atoms``, ``density`` and ``box_bounds`` are specified (the missing value is then auto-calculated)
+
+Fixed
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* Method to guess density in :func:`~scm.plams.interfaces.molecule.packmol.packmol_around` changed to resolve large underestimations in molecular volumes
+
+Deprecated
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* :func:`~scm.plams.core.functions.add_to_class` decorator is deprecated in favor of using standalone functions or subclasses
+
 What's new in PLAMS for AMS2025?
 --------------------------------------
 

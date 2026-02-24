@@ -40,25 +40,27 @@ _config: ContextVar[ConfigSettings] = ContextVar("_config")
 @contextmanager
 def config_context() -> Generator[ConfigSettings, None, None]:
     """
-    Enter a context with a |config| specific only to the current context.
+    Enter a context with a ``config`` specific only to the current context.
 
-    The global |config| will be copied into a new |ConfigSettings|, which can then be modified independently of the global instance.
+    The global ``config`` will be copied into a new |ConfigSettings|, which can then be modified independently of the global instance.
 
-    The |config| for this context can be retrieved using the function :func:`get_config`.
+    The ``config`` for this context can be retrieved using the function :func:`get_config`.
 
-     .. note::
+    .. note::
+
         Starting a new thread creates a new context, so the context configuration will not automatically be used in the new thread.
         To copy over the parent thread context to the new thread, instead use :class:`~scm.plams.core.threading_utils.ContextAwareThread`
 
-     .. code:: python
-         >>> with config_context() as cfg:
-         >>>     cfg.log.stdout = 0
-         >>>     print(f"Stdout logging inside context disabled: {get_config().log.stdout == 0}")
-         >>> print(f"Stdout logging outside context disabled: {get_config().log.stdout == 0}")
-             Stdout logging inside context disabled: True
-             Stdout logging outside context disabled: False
+    .. code:: python
 
-    :return: copy of the global |config| instance in a new |ConfigSettings|
+        >>> with config_context() as cfg:
+        >>>     cfg.log.stdout = 0
+        >>>     print(f"Stdout logging inside context disabled: {get_config().log.stdout == 0}")
+        >>> print(f"Stdout logging outside context disabled: {get_config().log.stdout == 0}")
+            Stdout logging inside context disabled: True
+            Stdout logging outside context disabled: False
+
+    :return: copy of the global ``config`` instance in a new |ConfigSettings|
     """
     cfg: ConfigSettings = get_config().copy()
     token = _config.set(cfg)
@@ -72,7 +74,7 @@ def get_config() -> ConfigSettings:
     """
     Get the |ConfigSettings| for the current code context.
 
-    This will be the configuration used within a :func:`config_context` context, or otherwise the global |config|.
+    This will be the configuration used within a :func:`config_context` context, or otherwise the global ``config``.
 
     :return: |ConfigSettings| that should be used in the current code context
     """
@@ -658,6 +660,7 @@ def jobs_in_directory(path: Union[str, os.PathLike]) -> Generator[Path, None, No
         * The absolute path of the directory is returned on entering the context, which assumes the default |JobManager| is used. If another job manager is used within the context, the actual directory will be relative to its ``workdir``.
 
     .. code:: python
+
          >>> with jobs_in_directory("GeometryOptimization") as go_dir:
          >>>     with jobs_in_directory("DFTB"):
          >>>        job1.run()
@@ -671,6 +674,7 @@ def jobs_in_directory(path: Union[str, os.PathLike]) -> Generator[Path, None, No
             path/plams_workdir/GeometryOptimization/ML/M3GNet/job2
 
     .. note::
+
         Starting a new thread creates a new context, so the context configuration will not automatically be used in the new thread.
         To copy over the parent thread context to the new thread, instead use :class:`~scm.plams.core.threading_utils.ContextAwareThread`
 
