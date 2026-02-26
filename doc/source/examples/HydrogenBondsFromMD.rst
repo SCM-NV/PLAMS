@@ -12,7 +12,7 @@ The script ``get_hbonds.py`` accepts the name of an MD trajectory RKF file, and 
 
 .. code-block:: bash
 
-   amspython get_hbonds.py path/to/ams.rkf path/to/indices.txt
+   $AMSBIN/amspython get_hbonds.py path/to/ams.rkf path/to/indices.txt
 
 In its simplest form, the input file indices.txt will contain only one or more element names.
 
@@ -29,10 +29,19 @@ The script ``get_hbonds.py``.
 .. literalinclude:: ../../../examples/get_hbonds.py
 	:language: python
 
+**Example usage:** 
 (:download:`Download get_water_indices.py <../../../examples/get_water_indices.py>`)
 
-The script ``get_water_indices`` can create the file ``indices.txt`` that is required by the ``get_hbonds.py`` script, for the specific case where the indices of all water oxygen atoms are required. The script accepts the name of the MD trajectory RKF file.
+The script ``get_water_indices`` can create the file ``indices.txt`` that is required by the ``get_hbonds.py`` script, for the specific case where the indices of all water oxygen atoms are required. The script accepts the name of the MD trajectory RKF file and can be called from the command line as follows.
+
+.. code-block:: bash
+
+   $AMSBIN/amspython get_water_indices.py path/to/ams.rkf
+
+The script ``get_water_indices.py``.
 
 .. literalinclude:: ../../../examples/get_water_indices.py
 	:language: python
+
+
 
