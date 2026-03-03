@@ -18,6 +18,7 @@ Any function that takes results of a single point job and returns a single numbe
 The source code of the whole module with both abovementioned classes:
 
 .. literalinclude:: ../../../../src/scm/plams/recipes/numgrad.py
+   :language: python
 
 .. include:: NumGrad.common_header.rst
 .. include:: NumGrad.ipynb.rst

@@ -18,6 +18,7 @@ No specialized |Results| subclass is defined for ``ADFNBOJob``.
 The source code of the whole module:
 
 .. literalinclude:: ../../../../src/scm/plams/recipes/adfnbo.py
+   :language: python
 
 .. include:: ADFNBO.common_header.rst
 .. include:: ADFNBO.ipynb.rst

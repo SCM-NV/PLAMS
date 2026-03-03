@@ -21,6 +21,7 @@ It simply redirects the usual |AMSResults| methods to the results of the full sy
 
 
 .. literalinclude:: ../../../../src/scm/plams/recipes/adffragment.py
+   :language: python
 
 .. include:: ADFFrag.common_header.rst
 .. include:: adffrag.ipynb.rst
