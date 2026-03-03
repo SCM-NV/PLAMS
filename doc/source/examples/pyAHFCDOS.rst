@@ -8,5 +8,6 @@ The ``FCFDOS`` class allows one to easily calculate the density of states for an
 For an example, see :ref:`Vibronic Density of States with ADF<fcf_dos>`.
 
 .. literalinclude:: ../../../src/scm/plams/recipes/fcf_dos.py
+   :language: python
 
 

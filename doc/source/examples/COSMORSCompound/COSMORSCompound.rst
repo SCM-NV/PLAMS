@@ -15,6 +15,7 @@ Source code for ``ADFCOSMORSCompound``
 .. dropdown::
 
     .. literalinclude:: ../../../../src/scm/plams/recipes/adfcosmorscompound.py
+       :language: python
 
 Brief API Documentation
 -----------------------
