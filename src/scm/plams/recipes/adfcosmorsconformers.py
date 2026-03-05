@@ -75,6 +75,8 @@ class ADFCOSMORSConfJob(MultiJob):
         name: Optional PLAMS job name. Default to `plams`.
     """
 
+    _result_type = ADFCOSMORSConfResults
+
     def __init__(
         self,
         molecule: Molecule,
@@ -356,6 +358,7 @@ class ADFCOSMORSConfJob(MultiJob):
             True, elements=list(set(at.symbol for at in self.mol)), atomic_ion=self.atomic_ion
         )
         sett.input.AMS.Task = "Replay"
+        self._get_final_adf_job().results.wait()
         sett.input.AMS.Replay.File = self._get_final_adf_job().results["conformers.rkf"]
         sett.input.AMS.Replay.StoreAllResultFiles = "True"
 
