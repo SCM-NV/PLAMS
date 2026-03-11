@@ -137,23 +137,6 @@ Reaction that cannot be balanced
    reaction.coeffs=None
    reaction.message='Empty nullspace'
 
-Sympy method
-~~~~~~~~~~~~
-
-By default, a native method is used to compute the nullspace. Optionally, this can be done with sympy. The result should be the same.
-
-.. code:: ipython3
-
-   reactants = ["C9H8O4", "H2O"]
-   products = ["C2H4O2", "C7H6O3"]
-
-   reaction = balance(reactants, products, method="sympy")
-   print(reaction)
-
-::
-
-   1 C9H8O4 + 1 H2O => 1 C2H4O2 + 1 C7H6O3
-
 Balance reactions with charged species
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
