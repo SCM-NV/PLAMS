@@ -100,6 +100,9 @@ Calculation settings
    # s.input.MLPotential.Model = 'M3GNet-UP-2022'   # if you have ML potential license and M3Gnet installed
    # s.input.dftb  # if you have a DFTB license
 
+   # setting the random seed to ensure reproducibility. You should generally not include this
+   s.input.ams.RNGSeed = 12345
+
    # MD settings
    s.input.ams.Task = "MolecularDynamics"
    s.input.ams.MolecularDynamics.NSteps = nsteps
@@ -158,6 +161,8 @@ Calculation settings
      End
    End
 
+   RNGSeed 12345
+
    Restraints
      Distance 1 2 1.2661886450379047 1.0
    End
@@ -188,10 +193,10 @@ Run the job
 
 ::
 
-   [12.01|16:08:19] JOB dissociating-carbonic-acid STARTED
-   [12.01|16:08:19] JOB dissociating-carbonic-acid RUNNING
-   [12.01|16:08:20] JOB dissociating-carbonic-acid FINISHED
-   [12.01|16:08:21] JOB dissociating-carbonic-acid SUCCESSFUL
+   [11.03|13:47:36] JOB dissociating-carbonic-acid STARTED
+   [11.03|13:47:36] JOB dissociating-carbonic-acid RUNNING
+   [11.03|13:47:37] JOB dissociating-carbonic-acid FINISHED
+   [11.03|13:47:37] JOB dissociating-carbonic-acid SUCCESSFUL
 
 Analyze the trajectory
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -222,6 +227,7 @@ Extract the O3H6 distances at each stored frame, and plot some of the molecules
                view(mol, ax=axes[i_ax])  # mol is a PLAMS Molecule
                axes[i_ax].set_title(f"frame {i}")
                i_ax += 1
+   plt.show()
 
 .. figure:: ams_plumed_files/ams_plumed_11_0.png
 
@@ -277,10 +283,10 @@ PLAMS makes it easy to extract any frame from an MD trajectory. As an example, l
 
 ::
 
-   [12.01|16:08:27] JOB ts-search STARTED
-   [12.01|16:08:27] JOB ts-search RUNNING
-   [12.01|16:09:07] JOB ts-search FINISHED
-   [12.01|16:09:07] JOB ts-search SUCCESSFUL
+   [11.03|13:47:44] JOB ts-search STARTED
+   [11.03|13:47:44] JOB ts-search RUNNING
+   [11.03|13:48:11] JOB ts-search FINISHED
+   [11.03|13:48:11] JOB ts-search SUCCESSFUL
 
 .. code:: ipython3
 
@@ -303,15 +309,15 @@ PLAMS makes it easy to extract any frame from an MD trajectory. As an example, l
 ::
 
    Frequencies (at a TS there should be 1 imaginary [given as negative])
-   -1427.002 cm^-1
-   307.787 cm^-1
-   364.254 cm^-1
-   545.556 cm^-1
-   703.642 cm^-1
-   744.026 cm^-1
-   876.638 cm^-1
-   1080.218 cm^-1
-   1117.900 cm^-1
-   1760.451 cm^-1
-   2064.254 cm^-1
-   3475.147 cm^-1
+   -1431.372 cm^-1
+   321.023 cm^-1
+   367.843 cm^-1
+   544.548 cm^-1
+   703.407 cm^-1
+   742.540 cm^-1
+   877.320 cm^-1
+   1080.540 cm^-1
+   1124.406 cm^-1
+   1758.547 cm^-1
+   2063.143 cm^-1
+   3472.487 cm^-1

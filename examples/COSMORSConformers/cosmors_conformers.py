@@ -19,9 +19,14 @@ config.log.stdout = 1  # Suppress plams output
 
 # ## Set up conformer generator
 
-# First, we input the acetic acid molecule with the `from_smiles` function
+# First, we input the acetic acid molecule with the `from_smiles` function and provide the optional compound information that can be written to the COSKF file.
 
 mol = from_smiles("CC(=O)O")
+mol_info = {
+    "CAS": "64-19-7",
+    "IUPAC": "Acetic acid",
+    "Other Name": "Ethanoic acid; Ethylic acid",
+}
 
 
 # Now, we'll specify a conformer generator (identical to the default) that generates only 50 initial structures:
@@ -59,6 +64,7 @@ job = ADFCOSMORSConfJob(
     final_filter=fil3,
     coskf_name="acetic_acid",
     coskf_dir="test_coskfs",
+    mol_info=mol_info,
 )
 job.run()
 job.results.wait()
