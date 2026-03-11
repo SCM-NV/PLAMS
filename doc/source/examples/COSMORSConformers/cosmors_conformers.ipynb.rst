@@ -27,11 +27,16 @@ Initial imports
 Set up conformer generator
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-First, we input the acetic acid molecule with the ``from_smiles`` function
+First, we input the acetic acid molecule with the ``from_smiles`` function and provide the optional compound information that can be written to the COSKF file.
 
 .. code:: ipython3
 
    mol = from_smiles("CC(=O)O")
+   mol_info = {
+       "CAS": "64-19-7",
+       "IUPAC": "Acetic acid",
+       "Other Name": "Ethanoic acid; Ethylic acid",
+   }
 
 Now, we’ll specify a conformer generator (identical to the default) that generates only 50 initial structures:
 
@@ -74,27 +79,28 @@ Finally, we give this information to the ``ADFCOSMORSConfJob`` class. We also sp
        final_filter=fil3,
        coskf_name="acetic_acid",
        coskf_dir="test_coskfs",
+       mol_info=mol_info,
    )
    job.run()
    job.results.wait()
 
 ::
 
-   [19.03|15:33:37] JOB plamsjob STARTED
-   [19.03|15:33:37] Waiting for job plamsjob to finish
-   [19.03|15:33:37] JOB plamsjob/conformers_uff STARTED
-   [19.03|15:33:37] JOB plamsjob/additional_1 STARTED
-   [19.03|15:33:37] JOB plamsjob/adf_conformers STARTED
-   [19.03|15:33:37] JOB plamsjob/adf_filter STARTED
-   [19.03|15:33:37] Waiting for job conformers_uff to finish
-   [19.03|15:33:37] Waiting for job adf_filter to finish
-   [19.03|15:33:37] Waiting for job additional_1 to finish
-   [19.03|15:33:37] Waiting for job adf_conformers to finish
-   [19.03|15:33:44] JOB plamsjob/conformers_uff SUCCESSFUL
-   [19.03|15:33:45] JOB plamsjob/additional_1 SUCCESSFUL
-   [19.03|15:43:18] JOB plamsjob/adf_conformers SUCCESSFUL
-   [19.03|15:43:19] JOB plamsjob/adf_filter SUCCESSFUL
-   [19.03|15:43:19] JOB plamsjob/replay STARTED
+   [11.03|14:09:35] JOB plamsjob STARTED
+   [11.03|14:09:35] Waiting for job plamsjob to finish
+   [11.03|14:09:35] JOB plamsjob/conformers_uff STARTED
+   [11.03|14:09:35] JOB plamsjob/additional_1 STARTED
+   [11.03|14:09:35] JOB plamsjob/adf_conformers STARTED
+   [11.03|14:09:35] JOB plamsjob/adf_filter STARTED
+   [11.03|14:09:35] Waiting for job adf_filter to finish
+   [11.03|14:09:35] Waiting for job conformers_uff to finish
+   [11.03|14:09:35] Waiting for job additional_1 to finish
+   [11.03|14:09:35] Waiting for job adf_conformers to finish
+   [11.03|14:09:42] JOB plamsjob/conformers_uff SUCCESSFUL
+   [11.03|14:09:44] JOB plamsjob/additional_1 SUCCESSFUL
+   [11.03|14:20:21] JOB plamsjob/adf_conformers SUCCESSFUL
+   [11.03|14:20:22] JOB plamsjob/adf_filter SUCCESSFUL
+   [11.03|14:20:22] JOB plamsjob/replay STARTED
    ... (PLAMS log lines truncated) ...
 
 .. code:: ipython3
