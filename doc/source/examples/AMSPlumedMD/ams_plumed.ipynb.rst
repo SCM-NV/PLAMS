@@ -222,6 +222,7 @@ Extract the O3H6 distances at each stored frame, and plot some of the molecules
                view(mol, ax=axes[i_ax])  # mol is a PLAMS Molecule
                axes[i_ax].set_title(f"frame {i}")
                i_ax += 1
+   plt.show()
 
 .. figure:: ams_plumed_files/ams_plumed_11_0.png
 

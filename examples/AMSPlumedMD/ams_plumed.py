@@ -140,7 +140,7 @@ for i, mol in enumerate(trajectory, 1):
             view(mol, ax=axes[i_ax])  # mol is a PLAMS Molecule
             axes[i_ax].set_title(f"frame {i}")
             i_ax += 1
-
+plt.show()
 
 # The above pictures show how the H(6) approaches the O(3). At the end, the carbonic acid molecule has dissociated into CO2 and H2O.
 
