@@ -26,12 +26,11 @@ init()
 
 
 # ## Initial system
-#
+# 
 # Define a Molecule from xyz coordinates and show the molecule.
-#
+# 
 # * O(3) is the right-most O atom
 # * H(6) is the left-most H atom
-
 
 def get_molecule():
     job = AMSJob.from_input(
@@ -81,6 +80,9 @@ s.input.ReaxFF.ForceField = "CHO.ff"  # If you have ReaxFF license
 # s.input.MLPotential.Model = 'M3GNet-UP-2022'   # if you have ML potential license and M3Gnet installed
 # s.input.dftb  # if you have a DFTB license
 
+# setting the random seed to ensure reproducibility. You should generally not include this
+s.input.ams.RNGSeed = 12345
+
 # MD settings
 s.input.ams.Task = "MolecularDynamics"
 s.input.ams.MolecularDynamics.NSteps = nsteps
@@ -111,11 +113,11 @@ print(job.get_input())
 
 # ## Run the job
 
-job.run()
+job.run();
 
 
 # ## Analyze the trajectory
-#
+# 
 # Extract the O3H6 distances at each stored frame, and plot some of the molecules
 
 trajectory = Trajectory(job.results.rkfpath())
@@ -142,6 +144,7 @@ for i, mol in enumerate(trajectory, 1):
             i_ax += 1
 plt.show()
 
+
 # The above pictures show how the H(6) approaches the O(3). At the end, the carbonic acid molecule has dissociated into CO2 and H2O.
 
 plt.plot(O3H6_distances)
@@ -158,7 +161,7 @@ plt.show()
 
 
 # ## A transition state search
-#
+# 
 # PLAMS makes it easy to extract any frame from an MD trajectory. As an example, let's use highest-energy frame as an initial structure for a transition state search with the ADF DFT engine.
 
 index = np.argmax(energies) + 1
@@ -174,7 +177,7 @@ ts_s.input.ams.GeometryOptimization.InitialHessian.Type = "Calculate"
 ts_s.input.ams.Properties.NormalModes = "Yes"
 ts_s.input.adf.xc.gga = "PBE"
 ts_job = AMSJob(settings=ts_s, molecule=approximate_ts_molecule, name="ts-search")
-ts_job.run()
+ts_job.run();
 
 
 print("Optimized transition state:")
@@ -185,3 +188,7 @@ print("Frequencies (at a TS there should be 1 imaginary [given as negative])")
 
 for f in ts_job.results.get_frequencies():
     print(f"{f:.3f} cm^-1")
+
+
+
+
