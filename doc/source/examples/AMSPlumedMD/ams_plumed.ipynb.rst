@@ -193,10 +193,10 @@ Run the job
 
 ::
 
-   [11.03|10:12:04] JOB dissociating-carbonic-acid STARTED
-   [11.03|10:12:04] JOB dissociating-carbonic-acid RUNNING
-   [11.03|10:12:07] JOB dissociating-carbonic-acid FINISHED
-   [11.03|10:12:07] JOB dissociating-carbonic-acid SUCCESSFUL
+   [11.03|13:47:36] JOB dissociating-carbonic-acid STARTED
+   [11.03|13:47:36] JOB dissociating-carbonic-acid RUNNING
+   [11.03|13:47:37] JOB dissociating-carbonic-acid FINISHED
+   [11.03|13:47:37] JOB dissociating-carbonic-acid SUCCESSFUL
 
 Analyze the trajectory
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -267,7 +267,7 @@ PLAMS makes it easy to extract any frame from an MD trajectory. As an example, l
 
 ::
 
-   Using frame 84 as initial approximate transition state:
+   Using frame 82 as initial approximate transition state:
 
 .. figure:: ams_plumed_files/ams_plumed_16_1.png
 
@@ -283,10 +283,10 @@ PLAMS makes it easy to extract any frame from an MD trajectory. As an example, l
 
 ::
 
-   [11.03|10:12:12] JOB ts-search STARTED
-   [11.03|10:12:12] JOB ts-search RUNNING
-   [11.03|10:12:44] JOB ts-search FINISHED
-   [11.03|10:12:44] JOB ts-search SUCCESSFUL
+   [11.03|13:47:44] JOB ts-search STARTED
+   [11.03|13:47:44] JOB ts-search RUNNING
+   [11.03|13:48:11] JOB ts-search FINISHED
+   [11.03|13:48:11] JOB ts-search SUCCESSFUL
 
 .. code:: ipython3
 
@@ -309,15 +309,15 @@ PLAMS makes it easy to extract any frame from an MD trajectory. As an example, l
 ::
 
    Frequencies (at a TS there should be 1 imaginary [given as negative])
-   -1426.850 cm^-1
-   324.881 cm^-1
-   370.108 cm^-1
-   544.544 cm^-1
-   701.997 cm^-1
-   741.459 cm^-1
-   876.355 cm^-1
-   1080.877 cm^-1
-   1123.478 cm^-1
-   1757.915 cm^-1
-   2063.626 cm^-1
-   3469.953 cm^-1
+   -1431.372 cm^-1
+   321.023 cm^-1
+   367.843 cm^-1
+   544.548 cm^-1
+   703.407 cm^-1
+   742.540 cm^-1
+   877.320 cm^-1
+   1080.540 cm^-1
+   1124.406 cm^-1
+   1758.547 cm^-1
+   2063.143 cm^-1
+   3472.487 cm^-1
