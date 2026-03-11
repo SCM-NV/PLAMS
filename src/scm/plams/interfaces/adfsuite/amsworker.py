@@ -362,6 +362,11 @@ class AMSWorkerMDState:
         return self._state["kineticEnergy"] * Units.conversion_ratio("au", unit)
 
     @_restrict
+    def get_temperature(self, unit: str = "K") -> float:
+        """Return the temperature, expressed in *unit*."""
+        return self._state["temperature"] * Units.conversion_ratio("K", unit)
+
+    @_restrict
     def get_velocities(self, dist_unit: str = "Angstrom", time_unit: str = "fs") -> np.ndarray:
         """Return the atomic velocities, expressed in *dist_unit* / *time_unit*."""
         return (
