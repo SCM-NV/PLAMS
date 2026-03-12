@@ -46,6 +46,13 @@ if TYPE_CHECKING:
     from scm.amspipe import AMSPipeError
     import psutil
 
+try:
+    from scm.base import ChemicalSystem
+
+    _has_scm_chemsys = True
+except ImportError:
+    _has_scm_chemsys = False
+
 T = TypeVar("T")
 TSelf = TypeVar("TSelf", bound="AMSWorker")
 TPool = TypeVar("TPool", bound="AMSWorkerPool")
@@ -983,28 +990,72 @@ class AMSWorker:
             # ... and return an AMSWorkerResults object indicating our failure.
             return AMSWorkerResults(name, molecule, {}, exc)
 
-    def _prepare_system(self, molecule: "Molecule") -> None:
+    def _prepare_system(self, molecule: Union["Molecule", "ChemicalSystem"]) -> None:
         # This is a good opportunity to let the worker process know about all the results we no longer need ...
         self._prune_restart_cache()
 
         chemicalSystem: Dict[str, Any] = {}
-        chemicalSystem["atomSymbols"] = np.asarray([atom.symbol for atom in molecule])
-        chemicalSystem["coords"] = molecule.as_array() * Units.conversion_ratio("Angstrom", "Bohr")
-        if "charge" in molecule.properties:
-            chemicalSystem["totalCharge"] = float(molecule.properties.charge)
+        angstrom_to_bohr = Units.conversion_ratio("Angstrom", "Bohr")
+
+        if _has_scm_chemsys and isinstance(molecule, ChemicalSystem):
+            from scm.base import AtomAttributes
+
+            chemicalSystem["atomSymbols"] = np.asarray([atom.symbol for atom in molecule.atoms])
+            chemicalSystem["coords"] = np.asarray(molecule.coords) * angstrom_to_bohr
+            chemicalSystem["totalCharge"] = float(molecule.charge)
+
+            atomicInfo = []
+            for i, atom in enumerate(molecule.atoms):
+                ai = []
+                regions = sorted(molecule.get_regions_of_atom(i))
+                if regions:
+                    ai.append(f"region={','.join(regions)}")
+                if not np.isclose(float(atom.mass), float(atom.element.mass)):
+                    ai.append(f"mass={float(atom.mass):g}")
+                for group in AtomAttributes.Groups:
+                    if molecule.atom_attributes_enabled(group):
+                        attr = getattr(atom, group, None)
+                        if attr is not None:
+                            attr_str = str(attr).strip()
+                            if attr_str:
+                                ai.append(attr_str)
+                atomicInfo.append(" ".join(ai))
+
+            if any(ai != "" for ai in atomicInfo):
+                chemicalSystem["atomicInfo"] = np.asarray(atomicInfo)
+
+            if molecule.has_lattice():
+                cell = np.asarray(molecule.lattice.vectors) * angstrom_to_bohr
+                chemicalSystem["latticeVectors"] = cell
+
+            if molecule.has_bonds():
+                bonds = list(molecule.bonds)
+                chemicalSystem["bonds"] = np.asarray([[iat + 1, jat + 1] for iat, jat, _ in bonds], dtype=int)
+                if len(chemicalSystem["bonds"]) == 0:
+                    chemicalSystem["bonds"] = np.zeros((0, 2))
+                chemicalSystem["bondOrders"] = np.asarray([float(bond.order) for _, _, bond in bonds])
         else:
-            chemicalSystem["totalCharge"] = 0.0
-        atomicInfo = [AMSJob._atom_suffix(atom) for atom in molecule]
-        if any(ai != "" for ai in atomicInfo):
-            chemicalSystem["atomicInfo"] = np.asarray(atomicInfo)
-        if molecule.lattice:
-            cell = np.asarray(molecule.lattice) * Units.conversion_ratio("Angstrom", "Bohr")
-            chemicalSystem["latticeVectors"] = cell
-        if molecule.bonds:
-            chemicalSystem["bonds"] = np.array([[iat for iat in molecule.index(bond)] for bond in molecule.bonds])
-            if len(chemicalSystem["bonds"]) == 0:
-                chemicalSystem["bonds"] = np.zeros((0, 2))
-            chemicalSystem["bondOrders"] = np.asarray([float(bond.order) for bond in molecule.bonds])
+            chemicalSystem["atomSymbols"] = np.asarray([atom.symbol for atom in molecule])
+            chemicalSystem["coords"] = molecule.as_array() * angstrom_to_bohr
+            if "charge" in molecule.properties:
+                chemicalSystem["totalCharge"] = float(molecule.properties.charge)
+            else:
+                chemicalSystem["totalCharge"] = 0.0
+
+            atomicInfo = [AMSJob._atom_suffix(atom) for atom in molecule]
+            if any(ai != "" for ai in atomicInfo):
+                chemicalSystem["atomicInfo"] = np.asarray(atomicInfo)
+
+            if molecule.lattice:
+                cell = np.asarray(molecule.lattice) * angstrom_to_bohr
+                chemicalSystem["latticeVectors"] = cell
+
+            if molecule.bonds:
+                chemicalSystem["bonds"] = np.array([[iat for iat in molecule.index(bond)] for bond in molecule.bonds])
+                if len(chemicalSystem["bonds"]) == 0:
+                    chemicalSystem["bonds"] = np.zeros((0, 2))
+                chemicalSystem["bondOrders"] = np.asarray([float(bond.order) for bond in molecule.bonds])
+
         self._call("SetSystem", chemicalSystem)
 
     def SinglePoint(
