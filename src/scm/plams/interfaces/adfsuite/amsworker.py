@@ -317,7 +317,7 @@ class AMSWorkerResults:
             self._main_system = self.get_input_system()
             if self._results is not None and "xyzAtoms" in self._results:
                 self._main_system.coords = self._results.get("xyzAtoms") * Units.conversion_ratio("au", "Angstrom")
-                if "latticeVectors" in self._results:
+                if "latticeVectors" in self._results and self._results.get("latticeVectors").size > 0:
                     self._main_system.lattice.vectors = [
                         list(v) for v in self._results.get("latticeVectors") * Units.conversion_ratio("au", "Angstrom")
                     ]
@@ -1040,9 +1040,9 @@ class AMSWorker:
         if _has_scm_chemsys and isinstance(molecule, ChemicalSystem):
             from scm.base import AtomAttributes
 
-            chemicalSystem["atomSymbols"] = np.asarray([atom.symbol for atom in molecule.atoms])
-            chemicalSystem["coords"] = np.asarray(molecule.coords) * angstrom_to_bohr
-            chemicalSystem["totalCharge"] = molecule.charge
+            symbols = np.asarray([atom.symbol for atom in molecule.atoms])
+            coords = np.asarray(molecule.coords)
+            charge = molecule.charge
 
             atomicInfo = []
             for i, atom in enumerate(molecule.atoms):
@@ -1061,40 +1061,45 @@ class AMSWorker:
                                 ai.append(attr_str)
                 atomicInfo.append(" ".join(ai))
 
-            if any(ai != "" for ai in atomicInfo):
-                chemicalSystem["atomicInfo"] = np.asarray(atomicInfo)
-
-            if molecule.has_lattice():
-                cell = np.asarray(molecule.lattice.vectors) * angstrom_to_bohr
-                chemicalSystem["latticeVectors"] = cell
+            cell = np.asarray(molecule.lattice.vectors) if molecule.has_lattice() else None
 
             if molecule.has_bonds():
-                bonds = list(molecule.bonds)
-                chemicalSystem["bonds"] = np.asarray([[iat + 1, jat + 1] for iat, jat, _ in bonds], dtype=int)
-                if len(chemicalSystem["bonds"]) == 0:
-                    chemicalSystem["bonds"] = np.zeros((0, 2))
-                chemicalSystem["bondOrders"] = np.asarray([float(bond.order) for _, _, bond in bonds])
-        else:
-            chemicalSystem["atomSymbols"] = np.asarray([atom.symbol for atom in molecule])
-            chemicalSystem["coords"] = molecule.as_array() * angstrom_to_bohr
-            if "charge" in molecule.properties:
-                chemicalSystem["totalCharge"] = float(molecule.properties.charge)
+                bonds = np.asarray([[iat + 1, jat + 1] for iat, jat, _ in molecule.bonds], dtype=int)
+                bond_orders = np.asarray([bond.order for _, _, bond in molecule.bonds])
             else:
-                chemicalSystem["totalCharge"] = 0.0
+                bonds = None
+                bond_orders = None
+
+        else:
+            symbols = np.asarray([atom.symbol for atom in molecule])
+            coords = molecule.as_array()
+            charge = float(molecule.properties.charge) if "charge" in molecule.properties else 0.0
 
             atomicInfo = [AMSJob._atom_suffix(atom) for atom in molecule]
-            if any(ai != "" for ai in atomicInfo):
-                chemicalSystem["atomicInfo"] = np.asarray(atomicInfo)
 
-            if molecule.lattice:
-                cell = np.asarray(molecule.lattice) * angstrom_to_bohr
-                chemicalSystem["latticeVectors"] = cell
+            cell = np.asarray(molecule.lattice) if molecule.lattice else None
 
             if molecule.bonds:
-                chemicalSystem["bonds"] = np.array([[iat for iat in molecule.index(bond)] for bond in molecule.bonds])
-                if len(chemicalSystem["bonds"]) == 0:
-                    chemicalSystem["bonds"] = np.zeros((0, 2))
-                chemicalSystem["bondOrders"] = np.asarray([float(bond.order) for bond in molecule.bonds])
+                bonds = np.array([[iat for iat in molecule.index(bond)] for bond in molecule.bonds])
+                bond_orders = np.asarray([float(bond.order) for bond in molecule.bonds])
+            else:
+                bonds = None
+                bond_orders = None
+
+        chemicalSystem["atomSymbols"] = symbols
+        chemicalSystem["coords"] = coords * angstrom_to_bohr
+        chemicalSystem["totalCharge"] = charge
+
+        if any(ai != "" for ai in atomicInfo):
+            chemicalSystem["atomicInfo"] = np.asarray(atomicInfo)
+
+        if cell is not None:
+            chemicalSystem["latticeVectors"] = cell * angstrom_to_bohr
+
+        if bonds is not None:
+            bonds = bonds if len(bonds) > 0 else np.zeros((0, 2))
+            chemicalSystem["bonds"] = bonds
+            chemicalSystem["bondOrders"] = bond_orders
 
         self._call("SetSystem", chemicalSystem)
 

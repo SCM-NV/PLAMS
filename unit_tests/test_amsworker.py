@@ -513,6 +513,8 @@ class WorkerResultsTestBase(ABC):
             if molecule.has_lattice():
                 scaled_lattice = np.asarray(molecule.lattice.vectors) * self.lattice_scaling
                 results["latticeVectors"] = scaled_lattice * Units.conversion_ratio("Angstrom", "Bohr")
+            else:
+                results["latticeVectors"] = np.zeros((0, 3))
 
         return AMSWorkerResults("test", molecule, results)
 
