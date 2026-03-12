@@ -4,8 +4,10 @@ from abc import ABC, abstractmethod
 import numpy as np
 import pytest
 
-from scm.plams.interfaces.adfsuite.amsworker import AMSWorker
+from scm.plams.interfaces.adfsuite.amsworker import AMSWorker, AMSWorkerResults
 from scm.plams.mol.molecule import Molecule
+from scm.plams.tools.units import Units
+from scm.plams.interfaces.molecule.ase import fromASE
 from test_helpers import skip_if_no_scm_base
 
 
@@ -462,6 +464,237 @@ class TestAMSWorkerWithChlorophyllChemicalSystem(TestAMSWorkerWithChlorophyllMol
 
     @pytest.fixture
     def mol(self, xyz_folder):
+        skip_if_no_scm_base()
+
+        from scm.base import ChemicalSystem
+
+        mol = ChemicalSystem.from_xyz(str(xyz_folder / "chlorophyl1.xyz"))
+        return mol
+
+
+class WorkerResultsTestBase(ABC):
+
+    @property
+    def coord_shift(self):
+        return np.array([0.1, -0.2, 0.3])
+
+    @property
+    def lattice_scaling(self):
+        return 1.042
+
+    @abstractmethod
+    @pytest.fixture
+    def mol(self, xyz_folder): ...
+
+    @abstractmethod
+    @pytest.fixture
+    def system(self, xyz_folder): ...
+
+    def _create_results_from_molecule(self, molecule, include_xyz=False) -> AMSWorkerResults:
+        results = {}
+
+        if include_xyz:
+            shifted_coords = molecule.as_array() + self.coord_shift
+            results["xyzAtoms"] = shifted_coords * Units.conversion_ratio("Angstrom", "au")
+            if molecule.lattice:
+                scaled_lattice = np.asarray(molecule.lattice) * self.lattice_scaling
+                results["latticeVectors"] = scaled_lattice * Units.conversion_ratio("Angstrom", "Bohr")
+
+        return AMSWorkerResults("test", molecule, results)
+
+    def _create_results_from_chemical_system(self, molecule, include_xyz=False) -> AMSWorkerResults:
+        skip_if_no_scm_base()
+
+        results = {}
+
+        if include_xyz:
+            shifted_coords = molecule.coords + self.coord_shift
+            results["xyzAtoms"] = shifted_coords * Units.conversion_ratio("Angstrom", "au")
+            if molecule.has_lattice():
+                scaled_lattice = np.asarray(molecule.lattice.vectors) * self.lattice_scaling
+                results["latticeVectors"] = scaled_lattice * Units.conversion_ratio("Angstrom", "Bohr")
+
+        return AMSWorkerResults("test", molecule, results)
+
+    @pytest.mark.parametrize("include_xyz", [True, False])
+    def test_get_input_molecule(self, mol, system, include_xyz):
+        results_mol = self._create_results_from_molecule(mol, include_xyz=include_xyz)
+        results_sys = self._create_results_from_chemical_system(system, include_xyz=include_xyz)
+
+        input_mol_from_mol = results_mol.get_input_molecule()
+        input_mol_from_sys = results_sys.get_input_molecule()
+        for input_mol in [input_mol_from_mol, input_mol_from_sys]:
+            assert np.all(input_mol.symbols == mol.symbols)
+            assert np.allclose(input_mol.as_array(), mol.as_array())
+            assert np.allclose(input_mol.lattice, mol.lattice)
+            assert input_mol.label(4) == mol.label(4)
+
+    @pytest.mark.parametrize("include_xyz", [True, False])
+    def test_get_input_system(self, mol, system, include_xyz):
+        results_mol = self._create_results_from_molecule(mol, include_xyz=include_xyz)
+        results_sys = self._create_results_from_chemical_system(system, include_xyz=include_xyz)
+
+        input_sys_from_mol = results_mol.get_input_system()
+        input_sys_from_sys = results_sys.get_input_system()
+        for input_sys in [input_sys_from_mol, input_sys_from_sys]:
+            assert input_sys.has_same_atoms(system)
+            assert input_sys.has_same_geometry(system)
+
+    @pytest.mark.parametrize("include_xyz", [True, False])
+    def test_get_main_molecule(self, mol, system, include_xyz):
+        results_mol = self._create_results_from_molecule(mol, include_xyz=include_xyz)
+        results_sys = self._create_results_from_chemical_system(system, include_xyz=include_xyz)
+
+        main_mol_from_mol = results_mol.get_main_molecule()
+        main_mol_from_sys = results_sys.get_main_molecule()
+
+        expected_coords = mol.as_array()
+        expected_lattice = np.array(mol.lattice)
+        if include_xyz:
+            expected_coords += self.coord_shift
+            expected_lattice *= self.lattice_scaling
+
+        for main_mol in [main_mol_from_mol, main_mol_from_sys]:
+            assert np.all(main_mol.symbols == mol.symbols)
+            assert np.allclose(main_mol.as_array(), expected_coords)
+            assert np.allclose(main_mol.lattice, expected_lattice)
+            assert main_mol.label(4) == mol.label(4)
+
+    @pytest.mark.parametrize("include_xyz", [True, False])
+    def test_get_main_system(self, mol, system, include_xyz):
+        results_mol = self._create_results_from_molecule(mol, include_xyz=include_xyz)
+        results_sys = self._create_results_from_chemical_system(system, include_xyz=include_xyz)
+
+        expected_sys = system.copy()
+        if include_xyz:
+            expected_sys.coords += self.coord_shift
+            expected_sys.lattice.vectors *= self.lattice_scaling
+
+        main_sys_from_mol = results_mol.get_main_system()
+        main_sys_from_sys = results_sys.get_main_system()
+        for main_sys in [main_sys_from_mol, main_sys_from_sys]:
+            assert main_sys.has_same_atoms(expected_sys)
+            assert main_sys.has_same_geometry(expected_sys)
+
+    @pytest.mark.parametrize("include_xyz", [True, False])
+    def test_get_main_ase_atoms(self, mol, system, include_xyz):
+        results_mol = self._create_results_from_molecule(mol, include_xyz=include_xyz)
+        results_sys = self._create_results_from_chemical_system(system, include_xyz=include_xyz)
+
+        ase_atoms_from_mol = results_mol.get_main_ase_atoms()
+        ase_atoms_from_sys = results_sys.get_main_ase_atoms()
+
+        expected_coords = mol.as_array()
+        expected_lattice = np.zeros((3, 3))
+        for i, vec in enumerate(mol.lattice):
+            expected_lattice[i, :] = vec
+        if include_xyz:
+            expected_coords += self.coord_shift
+            expected_lattice *= self.lattice_scaling
+
+        for ase_atoms in [ase_atoms_from_mol, ase_atoms_from_sys]:
+            assert np.all(ase_atoms.numbers == mol.numbers)
+            assert np.allclose(ase_atoms.positions, expected_coords)
+            assert np.allclose(ase_atoms.cell, expected_lattice)
+            assert fromASE(ase_atoms).label(4) == mol.label(4)
+
+
+class TestAMSWorkerResultsWithHydroxide(WorkerResultsTestBase):
+
+    @pytest.fixture
+    def mol(self, xyz_folder):
+        mol = Molecule(xyz_folder / "hydroxide.xyz")
+        mol.lattice = [[5.0, 0.0, 0.0], [0.0, 6.0, 0.0], [0.0, 0.0, 7.0]]
+        mol.properties.charge = -1
+        mol[1].properties.region = {"oxygen", "hydroxide"}
+        mol[2].properties.region = {"hydrogen", "hydroxide"}
+        mol[2].properties.mass = 2.0141
+        mol[1].properties.adf.f = "myfrag"
+        mol[2].properties.adf.f = "myfrag"
+        mol.guess_bonds()
+        return mol
+
+    @pytest.fixture
+    def system(self, xyz_folder):
+        skip_if_no_scm_base()
+
+        from scm.base import ChemicalSystem
+
+        mol = ChemicalSystem.from_xyz(str(xyz_folder / "hydroxide.xyz"))
+
+        mol.lattice = [[5.0, 0.0, 0.0], [0.0, 6.0, 0.0], [0.0, 0.0, 7.0]]
+        mol.charge = -1
+        mol.add_atoms_to_region([0, 1], "hydroxide")
+        mol.add_atom_to_region(0, "oxygen")
+        mol.add_atom_to_region(1, "hydrogen")
+        mol.enable_atom_attributes("adf")
+        mol.atoms[1].mass = 2.0141
+        mol.atoms[0].adf.f = "myfrag"
+        mol.atoms[1].adf.f = "myfrag"
+        mol.guess_bonds()
+        return mol
+
+
+class TestAMSWorkerResultsWithWater(WorkerResultsTestBase):
+
+    @pytest.fixture
+    def mol(self, xyz_folder):
+        mol = Molecule(xyz_folder / "water.xyz")
+        mol.lattice = [[5.0, 0.0, 0.0], [0.0, 6.0, 0.0]]
+        mol[1].properties.region = {"oxygen"}
+        mol[2].properties.mass = 2
+        mol[1].properties.forcefield.type = "o"
+        mol[2].properties.forcefield.type = "h2"
+        mol.guess_bonds()
+        return mol
+
+    @pytest.fixture
+    def system(self, xyz_folder):
+        skip_if_no_scm_base()
+
+        from scm.base import ChemicalSystem
+
+        mol = ChemicalSystem.from_xyz(str(xyz_folder / "water.xyz"))
+
+        mol.lattice = [[5.0, 0.0, 0.0], [0.0, 6.0, 0.0]]
+        mol.add_atom_to_region(0, "oxygen")
+        mol.enable_atom_attributes("adf")
+        mol.enable_atom_attributes("forcefield")
+        mol.atoms[1].mass = 2
+        mol.atoms[0].forcefield.type = "o"
+        mol.atoms[1].forcefield.type = "h2"
+        mol.guess_bonds()
+        return mol
+
+
+class TestAMSWorkerResultsWithBenzene(WorkerResultsTestBase):
+
+    @pytest.fixture
+    def mol(self, xyz_folder):
+        mol = Molecule(xyz_folder / "benzene.xyz")
+        mol.guess_bonds()
+        return mol
+
+    @pytest.fixture
+    def system(self, xyz_folder):
+        skip_if_no_scm_base()
+
+        from scm.base import ChemicalSystem
+
+        mol = ChemicalSystem.from_xyz(str(xyz_folder / "benzene.xyz"))
+        mol.guess_bonds()
+        return mol
+
+
+class TestAMSWorkerResultsWithChlorophyll(WorkerResultsTestBase):
+
+    @pytest.fixture
+    def mol(self, xyz_folder):
+        mol = Molecule(xyz_folder / "chlorophyl1.xyz")
+        return mol
+
+    @pytest.fixture
+    def system(self, xyz_folder):
         skip_if_no_scm_base()
 
         from scm.base import ChemicalSystem
