@@ -4,12 +4,14 @@ import threading
 import time
 from os.path import join as opj
 from subprocess import DEVNULL, PIPE
+import traceback
 
 from scm.plams.core.errors import PlamsError
 from scm.plams.core.functions import get_config, log
 from scm.plams.core.private import saferun
 from scm.plams.core.settings import Settings
 from scm.plams.core.threading_utils import LimitedSemaphore, ContextAwareThread
+from scm.plams.core.enums import JobStatus
 
 from typing import Callable, TypeVar, Dict, Any, Tuple, TYPE_CHECKING, Optional, List
 from typing_extensions import ParamSpec, Concatenate
@@ -223,6 +225,17 @@ class JobRunner(metaclass=_MetaRunner):
             if job._prepare(jobmanager):
                 job._execute(self)
                 job._finalize()
+        except (KeyboardInterrupt, SystemExit):
+            # Ensure keyboard interrupts set the job as failed and propagate the error
+            # This ensures that we do not hang when running with a serial job runner
+            log(f"Job {job.name} was interrupted, marking job as {JobStatus.FAILED}", 5)
+            job.status = JobStatus.FAILED  # type: ignore[assignment] # Python3.8 only - can be removed when support dropped
+            job.results.finished.set()  # type: ignore[has-type]
+            job.results.done.set()  # type: ignore[has-type]
+            if job.parent and job in job.parent:  # type: ignore[has-type]
+                job.parent._notify()
+            job._error_msg = traceback.format_exc()
+            raise
         finally:
             # Log job summaries
             try:
