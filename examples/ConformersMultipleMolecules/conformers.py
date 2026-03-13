@@ -133,7 +133,10 @@ def plot_conformers(job: ConformersJob, indices=None, temperature=298, unit="kca
 plot_conformers(job)
 
 
-# You can also open the conformers in AMSmovie to browse all conformers 1000+ conformers:
+# You can also open the conformers in AMSmovie to browse all 1000+ conformers:
+
+# Open AMSmovie in a Jupyter Notebook, equivalent to the shell command:
+# amsmovie /path/plams/examples/ConformersMultipleMolecules/plams_workdir/conformers/conformers.rkf
 
 
 # Finally in AMS2025+, you can also inspect the conformer data using the JobAnalysis tool.
