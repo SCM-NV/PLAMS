@@ -151,6 +151,10 @@ class TestAMSWorkerWithHydroxideChemicalSystem(TestAMSWorkerWithHydroxideMolecul
         mol.guess_bonds()
         return mol
 
+    @property
+    def expected_atomic_info(self):
+        return ["adf.f=myfrag region=hydroxide,oxygen", "mass=2.0141 adf.f=myfrag region=hydrogen,hydroxide"]
+
 
 class TestAMSWorkerWithWaterMolecule(PrepareSystemTestBase):
 
@@ -213,6 +217,10 @@ class TestAMSWorkerWithWaterChemicalSystem(TestAMSWorkerWithWaterMolecule):
         mol.atoms[1].forcefield.type = "h2"
         mol.guess_bonds()
         return mol
+
+    @property
+    def expected_atomic_info(self):
+        return ["forcefield.type=o region=oxygen", "mass=2 forcefield.type=h2", ""]
 
     @property
     def expected_bonds(self):

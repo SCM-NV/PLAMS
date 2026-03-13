@@ -1038,29 +1038,10 @@ class AMSWorker:
         angstrom_to_bohr = Units.conversion_ratio("Angstrom", "Bohr")
 
         if _has_scm_chemsys and isinstance(molecule, ChemicalSystem):
-            from scm.base import AtomAttributes
-
             symbols = np.asarray([atom.symbol for atom in molecule.atoms])
             coords = np.asarray(molecule.coords)
             charge = molecule.charge
-
-            atomicInfo = []
-            for i, atom in enumerate(molecule.atoms):
-                ai = []
-                regions = sorted(molecule.get_regions_of_atom(i))
-                if regions:
-                    ai.append(f"region={','.join(regions)}")
-                if not np.isclose(float(atom.mass), float(atom.element.mass)):
-                    ai.append(f"mass={float(atom.mass):g}")
-                for group in AtomAttributes.Groups:
-                    if molecule.atom_attributes_enabled(group):
-                        attr = getattr(atom, group, None)
-                        if attr is not None:
-                            attr_str = str(attr).strip()
-                            if attr_str:
-                                ai.append(attr_str)
-                atomicInfo.append(" ".join(ai))
-
+            atomicInfo = [molecule.atom_EOL_string(i) for i in range(molecule.num_atoms)]
             cell = np.asarray(molecule.lattice.vectors) if molecule.has_lattice() else None
 
             if molecule.has_bonds():
