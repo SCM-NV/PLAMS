@@ -8,23 +8,30 @@ Initial imports
 
    import pyCRS
    import matplotlib.pyplot as plt
-   from rdkit import Chem
-   from rdkit.Chem.Draw import IPythonConsole
+   import math
 
-   IPythonConsole.ipython_useSVG = True
-   IPythonConsole.molSize = 150, 150
+   import scm.plams as plams
+
+   try:
+       from scm.plams import view  # view molecule using AMSview in a Jupyter Notebook in AMS2026+
+   except ImportError:
+       from scm.plams import plot_molecule  # plot molecule in a Jupyter Notebook in AMS2023+
+
+       def view(molecule, **kwargs):
+           plot_molecule(molecule)
 
 Property prediction from SMILES (ethyl acetate)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code:: ipython3
 
+   from scm.plams import from_smiles
+
    # smiles = 'CCO' # ethanol
    smiles = "O=C(OCC)C"  # ethyl acetate
-   rdkit_mol = Chem.MolFromSmiles(smiles)
-   rdkit_mol  # show the molecule in a Jupyter notebook
+   view(plams.from_smiles(smiles), width=300, height=300)
 
-.. figure:: property_prediction_files/property_prediction_3_0.svg
+.. figure:: property_prediction_files/property_prediction_3_0.png
 
 Temperature-independent properties
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -49,7 +56,7 @@ Temperature-independent properties
    criticalpressure    : 38.243 bar
    criticaltemp        : 544.189 K
    criticalvol         : 0.271 L/mol
-   density             : 0.894 kg/L (298.15 K)
+   density             : 0.894 kg/L
    dielectricconstant  : 6.834 
    entropygas          : 382.780 J/(mol K)
    flashpoint          : 265.005 K
@@ -165,7 +172,10 @@ Continuing from the previous example, you can also create e.g. a bar chart with
 
    prop = "boilingpoint"
    values = [mol.properties.get(prop, None) for mol in mols]
-   plt.barh(smiles_list, values)
+   filtered = [(s, v) for s, v in zip(smiles_list, values) if not math.isnan(v)]
+   smiles_plot, values_plot = zip(*filtered)
+
+   plt.barh(smiles_plot, values_plot)
    plt.title("Boiling point [K]");
 
 .. figure:: property_prediction_files/property_prediction_13_0.png

@@ -180,10 +180,12 @@ Here we plot the three lowest-energy conformers.
 
 .. figure:: conformers_files/conformers_23_0.png
 
-You can also open the conformers in AMSmovie to browse all conformers 1000+ conformers:
+You can also open the conformers in AMSmovie to browse all 1000+ conformers:
 
 .. code:: ipython3
 
+   # Open AMSmovie in a Jupyter Notebook, equivalent to the shell command:
+   # amsmovie /path/plams/examples/ConformersMultipleMolecules/plams_workdir/conformers/conformers.rkf
    !amsmovie {rkf}
 
 Finally in AMS2025+, you can also inspect the conformer data using the JobAnalysis tool.
