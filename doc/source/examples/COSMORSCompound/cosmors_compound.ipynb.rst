@@ -28,22 +28,31 @@ Enable the parallel calculation through ``JobRunner``. Here, we’ll assign one 
    config.job.runscript.nproc = 1  # Number of cores for each job
    config.log.stdout = 1  # Suppress plams output
 
+Optional compound metadata keyed by molecule name. This metadata is passed to ADFCOSMORSCompoundJob via ``mol_info``, written to the “Compound Data” section of the generated COSKF file, and used by AMSCrs GUI and ``pyCRS.Database`` to search compounds.
+
+.. code:: ipython3
+
+   mol_info_by_name = {
+       "CO": {"CAS": "630-08-0", "IUPAC": "Carbon monoxide", "Other Name": ""},
+       "H2O": {"CAS": "7732-18-5", "IUPAC": "Water", "Other Name": ""},
+   }
+
 .. code:: ipython3
 
    molecules = read_molecules("./compounds_xyz")
 
    results = []
    for name, mol in molecules.items():
-       job = ADFCOSMORSCompoundJob(molecule=mol, coskf_name=name, coskf_dir="test_coskfs_xyz")
+       mol_info = mol_info_by_name.get(name)
+       job = ADFCOSMORSCompoundJob(molecule=mol, coskf_name=name, coskf_dir="test_coskfs_xyz", mol_info=mol_info)
        results.append(job.run())
 
 ::
 
-   [19.03|15:14:40] JOB plamsjob STARTED
-   [19.03|15:14:40] JOB plamsjob STARTED
-   [19.03|15:14:40] JOB plamsjob/gas STARTED
-   [19.03|15:14:40] JOB plamsjob/solv STARTED
-   [19.03|15:14:40] JOB plamsjob/sigma STARTED
+   [13.03|09:03:55] JOB plamsjob STARTED
+   [13.03|09:03:55] JOB plamsjob STARTED
+   [13.03|09:03:55] JOB plamsjob/gas STARTED
+   [13.03|09:03:55] JOB plamsjob/solv STARTED
 
 .. code:: ipython3
 
@@ -52,21 +61,23 @@ Enable the parallel calculation through ``JobRunner``. Here, we’ll assign one 
 
 ::
 
-   [19.03|15:14:40] Waiting for job plamsjob to finish
-   [19.03|15:14:40] JOB plamsjob.002/gas STARTED
-   [19.03|15:14:40] JOB plamsjob.002/solv STARTED
-   [19.03|15:14:40] Waiting for job gas to finish
-   [19.03|15:14:40] JOB plamsjob.002/sigma STARTED
-   [19.03|15:14:40] Waiting for job solv to finish
-   [19.03|15:14:40] Waiting for job gas to finish
-   [19.03|15:14:40] Waiting for job solv to finish
-   [19.03|15:14:45] JOB plamsjob.002/gas SUCCESSFUL
-   [19.03|15:14:49] JOB plamsjob.002/solv SUCCESSFUL
-   [19.03|15:14:49] JOB plamsjob.002/sigma SUCCESSFUL
-   [19.03|15:14:50] JOB plamsjob.002 SUCCESSFUL
-   [19.03|15:14:57] JOB plamsjob/gas SUCCESSFUL
-   [19.03|15:15:10] JOB plamsjob/solv SUCCESSFUL
-   [19.03|15:15:10] JOB plamsjob/sigma SUCCESSFUL
+   [13.03|09:03:55] JOB plamsjob/sigma STARTED
+   [13.03|09:03:55] JOB plamsjob.002/gas STARTED
+   [13.03|09:03:55] Waiting for job plamsjob to finish
+   [13.03|09:03:55] JOB plamsjob.002/solv STARTED
+   [13.03|09:03:55] JOB plamsjob.002/sigma STARTED
+   [13.03|09:03:55] Waiting for job gas to finish
+   [13.03|09:03:55] Waiting for job solv to finish
+   [13.03|09:03:55] Waiting for job solv to finish
+   [13.03|09:03:55] Waiting for job gas to finish
+   [13.03|09:03:59] JOB plamsjob.002/gas SUCCESSFUL
+   [13.03|09:04:03] JOB plamsjob.002/solv SUCCESSFUL
+   [13.03|09:04:03] WARNING: Main KF file sigma.crskf not present in /path/plams/examples/COSMORSCompound/plams_workdir/plamsjob.002/sigma
+   [13.03|09:04:03] JOB plamsjob.002/sigma CRASHED
+   [13.03|09:04:05] JOB plamsjob.002 FAILED
+   [13.03|09:04:10] JOB plamsjob/gas SUCCESSFUL
+   [13.03|09:04:22] JOB plamsjob/solv SUCCESSFUL
+   [13.03|09:04:22] WARNING: Main KF file sigma.crskf not present in /path/plams/examples/COSMORSCompound/plams_workdir/plamsjob/sigma
    ... (PLAMS log lines truncated) ...
 
 .. code:: ipython3
@@ -96,22 +107,24 @@ Lastly, we give this information to the ``ADFCOSMORSCompoundJob`` class, includi
 
    results = []
    for name, mol in molecules.items():
+       mol_info = mol_info_by_name.get(name)
        job = ADFCOSMORSCompoundJob(
            molecule=mol,  # The initial structure
            coskf_name=name,  # a name to be used for coskf file
            coskf_dir="test_coskfs_smiles",  # a directory to put the .coskf files generated
            preoptimization="GFN1-xTB",  # perform preoptimize or not
            singlepoint=False,  # run a singlepoint in gasphase and solvation calculation without geometry optimization. Cannot be combined with `preoptimization`
-           name=name,
-       )  # an optional name for the calculation directory
+           name=name,  # an optional name for the calculation directory
+           mol_info=mol_info,  # compound information to be stored in the Compound Data section of the COSKF file
+       )
        results.append(job.run())
 
 ::
 
-   [19.03|15:15:16] JOB H2O STARTED
-   [19.03|15:15:16] JOB CO STARTED
-   [19.03|15:15:16] JOB H2O/preoptimization STARTED
-   [19.03|15:15:16] JOB CO/preoptimization STARTED
+   [13.03|09:04:25] JOB H2O STARTED
+   [13.03|09:04:25] JOB CO STARTED
+   [13.03|09:04:25] JOB H2O/preoptimization STARTED
+   [13.03|09:04:25] JOB H2O/gas STARTED
 
 .. code:: ipython3
 
@@ -120,25 +133,27 @@ Lastly, we give this information to the ``ADFCOSMORSCompoundJob`` class, includi
 
 ::
 
-   [19.03|15:15:16] Waiting for job H2O to finish
-   [19.03|15:15:16] JOB CO/gas STARTED
-   [19.03|15:15:16] JOB H2O/gas STARTED
-   [19.03|15:15:16] JOB H2O/solv STARTED
-   [19.03|15:15:16] JOB CO/solv STARTED
-   [19.03|15:15:16] JOB H2O/sigma STARTED
-   [19.03|15:15:16] JOB CO/sigma STARTED
-   [19.03|15:15:16] Waiting for job gas to finish
-   [19.03|15:15:16] Waiting for job preoptimization to finish
-   [19.03|15:15:16] Waiting for job preoptimization to finish
-   [19.03|15:15:16] Waiting for job gas to finish
-   [19.03|15:15:16] Waiting for job solv to finish
-   [19.03|15:15:16] Waiting for job solv to finish
-   [19.03|15:15:16] JOB H2O/preoptimization SUCCESSFUL
-   [19.03|15:15:16] JOB CO/preoptimization SUCCESSFUL
-   [19.03|15:15:23] JOB H2O/gas SUCCESSFUL
-   [19.03|15:15:27] JOB H2O/solv SUCCESSFUL
+   [13.03|09:04:25] JOB H2O/solv STARTED
+   [13.03|09:04:25] Waiting for job H2O to finish
+   [13.03|09:04:25] JOB H2O/sigma STARTED
+   [13.03|09:04:25] JOB CO/preoptimization STARTED
+   [13.03|09:04:25] JOB CO/gas STARTED
+   [13.03|09:04:25] JOB CO/solv STARTED
+   [13.03|09:04:25] JOB CO/sigma STARTED
+   [13.03|09:04:25] Waiting for job gas to finish
+   [13.03|09:04:25] Waiting for job preoptimization to finish
+   [13.03|09:04:25] Waiting for job solv to finish
+   [13.03|09:04:25] Waiting for job preoptimization to finish
+   [13.03|09:04:25] Waiting for job gas to finish
+   [13.03|09:04:25] Waiting for job solv to finish
+   [13.03|09:04:26] JOB H2O/preoptimization SUCCESSFUL
+   [13.03|09:04:26] JOB CO/preoptimization SUCCESSFUL
+   [13.03|09:04:32] JOB H2O/gas SUCCESSFUL
+   [13.03|09:04:37] JOB H2O/solv SUCCESSFUL
+   [13.03|09:04:37] WARNING: Main KF file sigma.crskf not present in /path/plams/examples/COSMORSCompound/plams_workdir/H2O/sigma
    ... (PLAMS log lines truncated) ...
-   [19.03|15:15:31] Waiting for job CO to finish
+   [13.03|09:04:40] Waiting for job CO to finish
+   [13.03|09:05:06] WARNING: Main KF file sigma.crskf not present in /path/plams/examples/COSMORSCompound/plams_workdir/CO/sigma
 
 .. code:: ipython3
 
