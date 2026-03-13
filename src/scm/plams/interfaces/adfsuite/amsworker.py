@@ -278,7 +278,7 @@ class AMSWorkerResults:
         if self._input_molecule is None:
             system_block = str(self._input_system)
             ams_job = AMSJob.from_input(text_input=system_block)
-            self._input_molecule = list(ams_job.molecule.values())[0]
+            self._input_molecule = list(ams_job.molecule.values())[0]  # type: ignore[operator,union-attr]
 
         return self._input_molecule.copy()
 
@@ -316,10 +316,10 @@ class AMSWorkerResults:
         if self._main_system is None:
             self._main_system = self.get_input_system()
             if self._results is not None and "xyzAtoms" in self._results:
-                self._main_system.coords = self._results.get("xyzAtoms") * Units.conversion_ratio("au", "Angstrom")
-                if "latticeVectors" in self._results and self._results.get("latticeVectors").size > 0:
+                self._main_system.coords = self._results.get("xyzAtoms") * Units.conversion_ratio("au", "Angstrom")  # type: ignore[operator]
+                if "latticeVectors" in self._results and self._results.get("latticeVectors").size > 0:  # type: ignore[union-attr]
                     self._main_system.lattice.vectors = [
-                        list(v) for v in self._results.get("latticeVectors") * Units.conversion_ratio("au", "Angstrom")
+                        list(v) for v in self._results.get("latticeVectors") * Units.conversion_ratio("au", "Angstrom")  # type: ignore[operator,union-attr]
                     ]
 
         return self._main_system.copy()
