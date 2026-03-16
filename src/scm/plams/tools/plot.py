@@ -6,6 +6,13 @@ from scm.plams.core.functions import requires_optional_package
 from scm.plams.interfaces.adfsuite.ams import AMSJob
 from scm.plams.mol.molecule import Molecule
 
+try:
+    from scm.base import ChemicalSystem
+
+    _has_scm_chemsys = True
+except ImportError:
+    _has_scm_chemsys = False
+
 if TYPE_CHECKING:
     import matplotlib.pyplot as plt
     import ase
@@ -339,7 +346,7 @@ def plot_molecule(
 
 @requires_optional_package("rdkit")
 def plot_grid_molecules(
-    molecules: List[Molecule],
+    molecules: List[Union[Molecule, "ChemicalSystem"]],
     legends: Optional[List[str]] = None,
     molsPerRow: int = 2,
     subImgSize: Tuple[int, int] = (200, 200),
