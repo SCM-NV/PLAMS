@@ -4,7 +4,9 @@ Worked Example
 Create Example Jobs
 ~~~~~~~~~~~~~~~~~~~
 
-To begin with, create a variety of AMS jobs with different settings, engines and calculation types.
+To begin with, we create a variety of AMS jobs with different settings, tasks, engines and calculation types.
+
+This allows us to generate diverse example single point/geometry optimization calculations with DFTB, ADF etc.
 
 .. code:: ipython3
 
@@ -72,7 +74,7 @@ To begin with, create a variety of AMS jobs with different settings, engines and
 
        return AMSJob(molecule=mol, settings=sett, name="neb")
 
-Now, run a selection of them.
+Now, we create a selection of jobs covering different systems and settings:
 
 .. code:: ipython3
 
@@ -100,25 +102,39 @@ Now, run a selection of them.
 
 ::
 
-   [15.05|09:44:38] JOB dftb STARTED
-   [15.05|09:44:38] JOB adf STARTED
-   [15.05|09:44:38] JOB adf STARTED
-   [15.05|09:44:38] JOB dftb STARTED
-   [15.05|09:44:38] Renaming job adf to adf.002
-   [15.05|09:44:38] JOB adf STARTED
-   [15.05|09:44:38] JOB adf STARTED
-   [15.05|09:44:38] JOB dftb STARTED
-   [15.05|09:44:38] JOB adf STARTED
-   [15.05|09:44:38] JOB dftb RUNNING
+   [16.03|17:17:31] JOB dftb STARTED
+   [16.03|17:17:31] JOB adf STARTED
+   [16.03|17:17:31] JOB adf STARTED
+   [16.03|17:17:31] JOB dftb STARTED
+   [16.03|17:17:31] JOB adf STARTED
+   [16.03|17:17:31] JOB adf STARTED
+   [16.03|17:17:31] JOB dftb STARTED
+   [16.03|17:17:31] Renaming job dftb to dftb.002
+   [16.03|17:17:31] JOB adf STARTED
+   [16.03|17:17:31] JOB adf STARTED
    ... (PLAMS log lines truncated) ...
+   [16.03|17:17:45] Job neb reported errors. Please check the output
+   [16.03|17:17:45] Job neb reported errors. Please check the output
+   [16.03|17:17:45] Error message for job neb was:
+       NEB optimization did NOT converge
+   [16.03|17:17:45] Job neb reported errors. Please check the output
+   [16.03|17:17:45] Job neb reported errors. Please check the output
+   [16.03|17:17:48] Job neb.002 reported errors. Please check the output
+   [16.03|17:17:48] Job neb.002 reported errors. Please check the output
+   [16.03|17:17:48] Error message for job neb.002 was:
+       NEB optimization did NOT converge
+   [16.03|17:17:48] Job neb.002 reported errors. Please check the output
+   [16.03|17:17:48] Job neb.002 reported errors. Please check the output
 
 Job Analysis
 ~~~~~~~~~~~~
 
+The ``JobAnalysis`` tool can be used to extract data from a large number of jobs, and analyse the results.
+
 Adding and Loading Jobs
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-Jobs can be loaded by passing job objects directly, or loading from a path.
+Jobs can be loaded by passing job objects directly to the ``JobAnalysis``, or alternatively loading from a path. This latter option is useful for loading jobs run previously in other scripts.
 
 .. code:: ipython3
 
@@ -126,235 +142,115 @@ Jobs can be loaded by passing job objects directly, or loading from a path.
 
 .. code:: ipython3
 
-   ja = JobAnalysis(jobs=jobs[:10], paths=[j.path for j in jobs[10:-2]])
+   ja = JobAnalysis(jobs=jobs)
+   # ja = JobAnalysis(paths=[j.path for j in jobs]) # alternatively load jobs from a set of paths
 
-::
-
-   [15.05|09:44:48] Waiting for job adf.003 to finish
-   [15.05|09:44:49] JOB neb FINISHED
-   [15.05|09:44:49] Job neb reported errors. Please check the output
-   [15.05|09:44:49] JOB neb FAILED
-   [15.05|09:44:49] Job neb reported errors. Please check the output
-   [15.05|09:44:49] Error message for job neb was:
-       NEB optimization did NOT converge
-   [15.05|09:44:49] Job neb reported errors. Please check the output
-   [15.05|09:44:49] Job neb reported errors. Please check the output
-   [15.05|09:44:49] JOB neb.002 FINISHED
-   [15.05|09:44:49] JOB neb.002 SUCCESSFUL
-   [15.05|09:44:52] JOB adf.014 FINISHED
-   [15.05|09:44:52] JOB adf.014 SUCCESSFUL
-   [15.05|09:44:53] JOB adf.008 FINISHED
-   [15.05|09:44:53] JOB adf.008 SUCCESSFUL
-   [15.05|09:44:57] JOB adf.015 FINISHED
-   [15.05|09:44:57] JOB adf.015 SUCCESSFUL
-   ... (PLAMS log lines truncated) ...
-   [15.05|09:45:00] Waiting for job adf.004 to finish
-
-Jobs can also be added or removed after initialization.
+Additional jobs can also be added or removed after initialization of the ``JobAnalysis`` tool.
 
 .. code:: ipython3
 
-   ja = ja.add_job(jobs[-2]).load_job(jobs[-1].path)
-   ja.display_table()
+   extra_job = example_job_dftb("CCC", "SinglePoint")
+   extra_job.run()
+   extra_job.ok()
 
-======================================================= ======== ===== ===== =================================
-Path                                                    Name     OK    Check ErrorMsg
-======================================================= ======== ===== ===== =================================
-/path/plams/examples/JobAnalysis/plams_workdir/dftb     dftb     True  True  None
-/path/plams/examples/JobAnalysis/plams_workdir/adf      adf      True  True  None
-/path/plams/examples/JobAnalysis/plams_workdir/adf.002  adf.002  True  True  None
-/path/plams/examples/JobAnalysis/plams_workdir/dftb.002 dftb.002 True  True  None
-/path/plams/examples/JobAnalysis/plams_workdir/adf.003  adf.003  True  True  None
-/path/plams/examples/JobAnalysis/plams_workdir/adf.004  adf.004  True  True  None
-/path/plams/examples/JobAnalysis/plams_workdir/dftb.003 dftb.003 True  True  None
-/path/plams/examples/JobAnalysis/plams_workdir/adf.005  adf.005  True  True  None
-/path/plams/examples/JobAnalysis/plams_workdir/adf.006  adf.006  True  True  None
-/path/plams/examples/JobAnalysis/plams_workdir/dftb.004 dftb.004 True  True  None
-/path/plams/examples/JobAnalysis/plams_workdir/adf.007  adf.007  True  True  None
-/path/plams/examples/JobAnalysis/plams_workdir/adf.008  adf.008  True  True  None
-/path/plams/examples/JobAnalysis/plams_workdir/dftb.005 dftb.005 True  True  None
-/path/plams/examples/JobAnalysis/plams_workdir/adf.009  adf.009  True  True  None
-/path/plams/examples/JobAnalysis/plams_workdir/adf.010  adf.010  True  True  None
-/path/plams/examples/JobAnalysis/plams_workdir/dftb.006 dftb.006 True  True  None
-/path/plams/examples/JobAnalysis/plams_workdir/adf.011  adf.011  True  True  None
-/path/plams/examples/JobAnalysis/plams_workdir/adf.012  adf.012  True  True  None
-/path/plams/examples/JobAnalysis/plams_workdir/dftb.007 dftb.007 True  True  None
-/path/plams/examples/JobAnalysis/plams_workdir/adf.013  adf.013  True  True  None
-/path/plams/examples/JobAnalysis/plams_workdir/adf.014  adf.014  True  True  None
-/path/plams/examples/JobAnalysis/plams_workdir/dftb.008 dftb.008 True  True  None
-/path/plams/examples/JobAnalysis/plams_workdir/adf.015  adf.015  True  True  None
-/path/plams/examples/JobAnalysis/plams_workdir/adf.016  adf.016  True  True  None
-/path/plams/examples/JobAnalysis/plams_workdir/neb      neb      False False NEB optimization did NOT converge
-/path/plams/examples/JobAnalysis/plams_workdir/neb.002  neb.002  True  True  None
-======================================================= ======== ===== ===== =================================
+   ja = ja.add_job(extra_job)
+
+The loaded jobs and the initial analysis fields can be shows by displaying the ``JobAnalysis`` table:
+
+.. code:: ipython3
+
+   ja.display_table()
 
 Adding and Removing Fields
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-A range of common standard fields can be added with the ``add_standard_field(s)`` methods. In addition, fields deriving from the job settings can be added with the ``add_settings_input_fields`` method, and fields from the output rkfs with the ``add_rkf_field`` method. Custom fields can also be added with the ``add_field`` method, by defining a field key, value accessor and optional arguments like display name and value formatting.
-
-Fields can be removed by calling ``remove_field`` with the corresponding field key.
+On initialization, some analysis fields are automatically included in the analysis (``Path``, ``Name``, ``OK``, ``Check`` and ``ErrorMsg``). These are useful to see which jobs were loaded, and whether they succeeded. However, one or more of these fields can be removed with the ``remove_field`` method.
 
 .. code:: ipython3
 
-   ja = (
-       ja.remove_field("Path")
-       .add_standard_fields(["Formula", "Smiles", "CPUTime", "SysTime"])
-       .add_rkf_field("General", "engine")
-       .add_settings_input_fields()
-       .add_field("Energy", lambda j: j.results.get_energy(unit="kJ/mol"), display_name="Energy [kJ/mol]", fmt=".2f")
-   )
+   ja = ja.remove_field("Path")
+
+A range of other common fields can be added with the ``add_standard_field(s)`` method.
+
+.. code:: ipython3
+
+   ja = ja.add_standard_fields(["Formula", "Smiles", "CPUTime", "SysTime"])
+
+In addition, all fields deriving from the job input settings can be added with the ``add_settings_input_fields`` method. By default, these will have names corresponding to the concatenated settings entries. Individual settings field can be added with the ``add_settings_field`` method. This is useful to see the differences in the input settings of various jobs which may have succeeded/failed.
+
+.. code:: ipython3
+
+   ja = ja.add_settings_input_fields()
+
+For output results, fields from the rkfs can be added with the ``add_rkf_field`` method, using a specified rkf file (default ``ams.rkf``), section and variable.
+
+.. code:: ipython3
+
+   ja = ja.add_rkf_field("General", "engine")
+
+Finally, custom fields can also be added with the ``add_field`` method, by defining a field key, value accessor and optional arguments like the display name and value formatting. This is most useful to extract results from jobs using built-in methods on the job results class.
+
+.. code:: ipython3
+
+   ja = ja.add_field("Energy", lambda j: j.results.get_energy(unit="kJ/mol"), display_name="Energy [kJ/mol]", fmt=".2f")
+   ja = ja.add_field("AtomType", lambda j: [at.symbol for at in j.results.get_main_molecule()])
+   ja = ja.add_field("Charge", lambda j: j.results.get_charges())
+
    ja.display_table(max_rows=5)
-
-======= ===== ===== ================================= ================= ================= ========= ======== ================ ==================== ================= ============= ================= ===================== ===============
-Name    OK    Check ErrorMsg                          Formula           Smiles            CPUTime   SysTime  AmsGeneralEngine InputAmsTask         InputAdfBasisType InputAdfXcGga InputAmsNebImages InputAmsNebIterations Energy [kJ/mol]
-======= ===== ===== ================================= ================= ================= ========= ======== ================ ==================== ================= ============= ================= ===================== ===============
-dftb    True  True  None                              C2H6              CC                0.189760  0.047422 dftb             SinglePoint          None              None          None              None                  -19594.01
-adf     True  True  None                              C2H6              CC                3.702566  0.122056 adf              SinglePoint          DZ                None          None              None                  -3973.29
-…       …     …     …                                 …                 …                 …         …        …                …                    …                 …             …                 …                     …
-adf.016 True  True  None                              CH4O              CO                18.829835 0.833251 adf              GeometryOptimization TZP               PBE           None              None                  -2900.38
-neb     False False NEB optimization did NOT converge : CHN, final: CHN : C=N, final: C#N 0.471924  0.050081 dftb             NEB                  None              None          9                 10                    None
-neb.002 True  True  None                              : CHN, final: CHN : C=N, final: C#N 0.730961  0.090290 dftb             NEB                  None              None          9                 100                   -14936.53
-======= ===== ===== ================================= ================= ================= ========= ======== ================ ==================== ================= ============= ================= ===================== ===============
-
-In addition to the fluent syntax, both dictionary and dot syntaxes are also supported for adding and removing fields.
-
-.. code:: ipython3
-
-   import numpy as np
-
-   ja["AtomType"] = lambda j: [at.symbol for at in j.results.get_main_molecule()]
-   ja.Charge = lambda j: j.results.get_charges()
-   ja.AtomCoords = lambda j: [np.array(at.coords) for at in j.results.get_main_molecule()]
-
-   del ja["Check"]
-   del ja.SysTime
-
-   ja.display_table(max_rows=5, max_col_width=30)
-
-======= ===== =============================== ================= ================= ========= ================ ==================== ================= ============= ================= ===================== =============== =============================== =============================== ===============================
-Name    OK    ErrorMsg                        Formula           Smiles            CPUTime   AmsGeneralEngine InputAmsTask         InputAdfBasisType InputAdfXcGga InputAmsNebImages InputAmsNebIterations Energy [kJ/mol] AtomType                        Charge                          AtomCoords
-======= ===== =============================== ================= ================= ========= ================ ==================== ================= ============= ================= ===================== =============== =============================== =============================== ===============================
-dftb    True  None                            C2H6              CC                0.189760  dftb             SinglePoint          None              None          None              None                  -19594.01       [‘C’, ‘C’, ‘H’, ‘H’, ‘H’, ‘H’,… [-0.07293185 -0.07372966 0.02…  [array([-0.74763668, 0.041837…
-adf     True  None                            C2H6              CC                3.702566  adf              SinglePoint          DZ                None          None              None                  -3973.29        [‘C’, ‘C’, ‘H’, ‘H’, ‘H’, ‘H’,… [-0.83243445 -0.83187828 0.27…  [array([-0.74763668, 0.041837…
-…       …     …                               …                 …                 …         …                …                    …                 …             …                 …                     …               …                               …                               …
-adf.016 True  None                            CH4O              CO                18.829835 adf              GeometryOptimization TZP               PBE           None              None                  -2900.38        [‘C’, ‘O’, ‘H’, ‘H’, ‘H’, ‘H’]  [ 0.58673094 -0.60299606 -0.10… [array([-0.36298962, -0.021487…
-neb     False NEB optimization did NOT conve… : CHN, final: CHN : C=N, final: C#N 0.471924  dftb             NEB                  None              None          9                 10                    None            [‘C’, ‘N’, ‘H’]                 None                            [array([0.46884763, 0.20209473…
-neb.002 True  None                            : CHN, final: CHN : C=N, final: C#N 0.730961  dftb             NEB                  None              None          9                 100                   -14936.53       [‘C’, ‘N’, ‘H’]                 [-0.00732595 -0.21157426 0.21…  [array([0.56218708, 0.20551051…
-======= ===== =============================== ================= ================= ========= ================ ==================== ================= ============= ================= ===================== =============== =============================== =============================== ===============================
 
 Processing Data
 ~~~~~~~~~~~~~~~
 
 Once an initial analysis has been created, the data can be further processed, depending on the use case. For example, to inspect the difference between failed and successful jobs, jobs can be filtered down and irrelevant fields removed.
 
+Here we first filter the jobs to those which have the ``NEB`` task:
+
 .. code:: ipython3
 
-   ja_neb = (
-       ja.filter_jobs(lambda data: data["InputAmsTask"] == "NEB")
-       .remove_field("AtomCoords")
-       .remove_uniform_fields(ignore_empty=True)
-   )
+   ja_neb = ja.filter_jobs(lambda data: data["InputAmsTask"] == "NEB")
 
+Then we remove the “uniform fields” i.e. fields where all the values are the same. This lets us remove the noise and focus on the fields which have differences.
+
+.. code:: ipython3
+
+   ja_neb = ja_neb.remove_uniform_fields(ignore_empty=True)
    ja_neb.display_table()
-
-======= ===== ======== =====================
-Name    OK    CPUTime  InputAmsNebIterations
-======= ===== ======== =====================
-neb     False 0.471924 10
-neb.002 True  0.730961 100
-======= ===== ======== =====================
 
 Another use case may be to analyze the results from one or more jobs. For this, it can be useful to utilize the ``expand`` functionality to convert job(s) to multiple rows. During this process, fields selected for expansion will have their values extracted into individual rows, whilst other fields have their values duplicated.
 
+First we filter to a single job, the geometry optimization of water:
+
 .. code:: ipython3
 
-   ja_adf_expanded = (
-       ja.filter_jobs(
-           lambda data: data["InputAmsTask"] == "GeometryOptimization"
-           and data["InputAdfBasisType"] is not None
-           and data["Smiles"] == "O"
-       )
-       .expand_field("AtomType")
-       .expand_field("Charge")
-       .expand_field("AtomCoords")
-       .remove_uniform_fields()
+   ja_adf_water = ja.filter_jobs(
+       lambda data: data["InputAmsTask"] == "GeometryOptimization"
+       and data["InputAdfBasisType"] is not None
+       and data["Smiles"] == "O"
    )
+   ja_adf_water.display_table()
 
-   ja_adf_expanded.display_table()
-
-======= ======== ================= ============= =============== ======== =================== ===============================================
-Name    CPUTime  InputAdfBasisType InputAdfXcGga Energy [kJ/mol] AtomType Charge              AtomCoords
-======= ======== ================= ============= =============== ======== =================== ===============================================
-adf.011 2.697854 DZ                None          -1316.30        O        -0.8416865250737331 [-2.17062120e-04 3.82347777e-01 0.00000000e+00]
-adf.011 2.697854 DZ                None          -1316.30        H        0.42084716070260286 [-0.81250923 -0.19167629 0. ]
-adf.011 2.697854 DZ                None          -1316.30        H        0.4208393643711281  [ 0.8127263 -0.19067148 0. ]
-adf.012 4.089876 TZP               PBE           -1363.77        O        -0.6739805275850443 [-2.46726007e-04 4.01580956e-01 0.00000000e+00]
-adf.012 4.089876 TZP               PBE           -1363.77        H        0.33698188085180536 [-0.76455997 -0.2012764 0. ]
-adf.012 4.089876 TZP               PBE           -1363.77        H        0.33699864673323343 [ 0.76480669 -0.20030455 0. ]
-======= ======== ================= ============= =============== ======== =================== ===============================================
-
-For more nested values, the depth of expansion can also be selected to further flatten the data.
+Then we “expand” a given field to flatten the arrays and have one row per entry in the array. This lets us see the charge per atom for each job:
 
 .. code:: ipython3
 
-   ja_adf_expanded2 = ja_adf_expanded.add_field(
-       "Coord", lambda j: [("x", "y", "z") for _ in j.results.get_main_molecule()], expansion_depth=2
-   ).expand_field("AtomCoords", depth=2)
-
-   ja_adf_expanded2.display_table()
-
-======= ======== ================= ============= =============== ======== =================== ======================= =====
-Name    CPUTime  InputAdfBasisType InputAdfXcGga Energy [kJ/mol] AtomType Charge              AtomCoords              Coord
-======= ======== ================= ============= =============== ======== =================== ======================= =====
-adf.011 2.697854 DZ                None          -1316.30        O        -0.8416865250737331 -0.00021706211955194217 x
-adf.011 2.697854 DZ                None          -1316.30        O        -0.8416865250737331 0.38234777653349844     y
-adf.011 2.697854 DZ                None          -1316.30        O        -0.8416865250737331 0.0                     z
-adf.011 2.697854 DZ                None          -1316.30        H        0.42084716070260286 -0.8125092343354401     x
-adf.011 2.697854 DZ                None          -1316.30        H        0.42084716070260286 -0.19167629390344054    y
-adf.011 2.697854 DZ                None          -1316.30        H        0.42084716070260286 0.0                     z
-adf.011 2.697854 DZ                None          -1316.30        H        0.4208393643711281  0.8127262964549918      x
-adf.011 2.697854 DZ                None          -1316.30        H        0.4208393643711281  -0.19067148263005784    y
-adf.011 2.697854 DZ                None          -1316.30        H        0.4208393643711281  0.0                     z
-adf.012 4.089876 TZP               PBE           -1363.77        O        -0.6739805275850443 -0.00024672600727009935 x
-adf.012 4.089876 TZP               PBE           -1363.77        O        -0.6739805275850443 0.40158095623473306     y
-adf.012 4.089876 TZP               PBE           -1363.77        O        -0.6739805275850443 0.0                     z
-adf.012 4.089876 TZP               PBE           -1363.77        H        0.33698188085180536 -0.7645599672263915     x
-adf.012 4.089876 TZP               PBE           -1363.77        H        0.33698188085180536 -0.2012764045590436     y
-adf.012 4.089876 TZP               PBE           -1363.77        H        0.33698188085180536 0.0                     z
-adf.012 4.089876 TZP               PBE           -1363.77        H        0.33699864673323343 0.7648066932336616      x
-adf.012 4.089876 TZP               PBE           -1363.77        H        0.33699864673323343 -0.20030455167568945    y
-adf.012 4.089876 TZP               PBE           -1363.77        H        0.33699864673323343 0.0                     z
-======= ======== ================= ============= =============== ======== =================== ======================= =====
+   ja_adf_water_expanded = ja_adf_water.expand_field("AtomType").expand_field("Charge").remove_uniform_fields()
+   ja_adf_water_expanded.display_table()
 
 Expansion can be undone with the corresponding ``collapse`` method.
 
-Fields can be also further filtered, modified or reordered to customize the analysis.
+Fields can be also further filtered, modified or reordered to customize the analysis. This example also illustrates the “fluent” syntax of the ``JobAnalysis`` tool, whereb
 
 .. code:: ipython3
 
    ja_adf = (
-       ja_adf_expanded2.collapse_field("AtomCoords")
-       .collapse_field("Coord")
-       .filter_fields(lambda vals: all([not isinstance(v, list) for v in vals]))  # remove arrays
-       .remove_field("Name")
+       ja_adf_water_expanded.remove_field("Name")
        .format_field("CPUTime", ".2f")
        .format_field("Charge", ".4f")
        .rename_field("InputAdfBasisType", "Basis")
+       .rename_field("InputAdfBasisType", "GGA")
        .reorder_fields(["AtomType", "Charge", "Energy"])
    )
    ja_adf.display_table()
-
-======== ======= =============== ======= ===== =============
-AtomType Charge  Energy [kJ/mol] CPUTime Basis InputAdfXcGga
-======== ======= =============== ======= ===== =============
-O        -0.8417 -1316.30        2.70    DZ    None
-H        0.4208  -1316.30        2.70    DZ    None
-H        0.4208  -1316.30        2.70    DZ    None
-O        -0.6740 -1363.77        4.09    TZP   PBE
-H        0.3370  -1363.77        4.09    TZP   PBE
-H        0.3370  -1363.77        4.09    TZP   PBE
-======== ======= =============== ======= ===== =============
 
 Extracting Analysis Data
 ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -367,33 +263,11 @@ As has been demonstrated, a visual representation of the table can be easily gen
 
    print(ja_adf.to_table(fmt="rst"))
 
-::
-
-   +----------+---------+-----------------+---------+-------+---------------+
-   | AtomType | Charge  | Energy [kJ/mol] | CPUTime | Basis | InputAdfXcGga |
-   +==========+=========+=================+=========+=======+===============+
-   | O        | -0.8417 | -1316.30        | 2.70    | DZ    | None          |
-   +----------+---------+-----------------+---------+-------+---------------+
-   | H        | 0.4208  | -1316.30        | 2.70    | DZ    | None          |
-   +----------+---------+-----------------+---------+-------+---------------+
-   | H        | 0.4208  | -1316.30        | 2.70    | DZ    | None          |
-   +----------+---------+-----------------+---------+-------+---------------+
-   | O        | -0.6740 | -1363.77        | 4.09    | TZP   | PBE           |
-   +----------+---------+-----------------+---------+-------+---------------+
-   | H        | 0.3370  | -1363.77        | 4.09    | TZP   | PBE           |
-   +----------+---------+-----------------+---------+-------+---------------+
-   | H        | 0.3370  | -1363.77        | 4.09    | TZP   | PBE           |
-   +----------+---------+-----------------+---------+-------+---------------+
-
 Alternatively, raw data can be retrieved via the ``get_analysis`` method, which returns a dictionary of analysis keys to values.
 
 .. code:: ipython3
 
    print(ja_adf.get_analysis())
-
-::
-
-   {'AtomType': ['O', 'H', 'H', 'O', 'H', 'H'], 'Charge': [-0.8416865250737331, 0.42084716070260286, 0.4208393643711281, -0.6739805275850443, 0.33698188085180536, 0.33699864673323343], 'Energy': [-1316.2997406426532, -1316.2997406426532, -1316.2997406426532, -1363.766294275197, -1363.766294275197, -1363.766294275197], 'CPUTime': [2.697854, 2.697854, 2.697854, 4.089876, 4.089876, 4.089876], 'InputAdfBasisType': ['DZ', 'DZ', 'DZ', 'TZP', 'TZP', 'TZP'], 'InputAdfXcGga': [None, None, None, 'PBE', 'PBE', 'PBE']}
 
 Data can also be easily written to a csv file using ``to_csv_file``, to be exported to another program.
 
@@ -405,17 +279,7 @@ Data can also be easily written to a csv file using ``to_csv_file``, to be expor
    with open(csv_name) as csv:
        print(csv.read())
 
-::
-
-   AtomType,Charge,Energy,CPUTime,InputAdfBasisType,InputAdfXcGga
-   O,-0.8416865250737331,-1316.2997406426532,2.697854,DZ,
-   H,0.42084716070260286,-1316.2997406426532,2.697854,DZ,
-   H,0.4208393643711281,-1316.2997406426532,2.697854,DZ,
-   O,-0.6739805275850443,-1363.766294275197,4.089876,TZP,PBE
-   H,0.33698188085180536,-1363.766294275197,4.089876,TZP,PBE
-   H,0.33699864673323343,-1363.766294275197,4.089876,TZP,PBE
-
-Finally, for more complex data analysis, the results can be converted to a `pandas <https://pandas.pydata.org>`__ dataframe. This is recommended for more involved data manipulations, and can be installed using amspackages i.e. using the command: ``"${AMSBIN}/amspackages" install pandas``.
+Finally, for more complex data analysis, the results can be converted to a `pandas <https://pandas.pydata.org>`__ dataframe. This is recommended for more involved data manipulations. It is included in the python stack for AMS2026+, and for earlier versions of AMS, it can be installed via amspackages i.e. using the command: ``"${AMSBIN}/amspackages" install pandas``.
 
 .. code:: ipython3
 
@@ -430,84 +294,3 @@ Finally, for more complex data analysis, the results can be converted to a `pand
        print(
            "Pandas not available. Please install with amspackages to run this example '${AMSBIN}/amspackages install pandas'"
        )
-
-::
-
-     AtomType    Charge       Energy   CPUTime InputAdfBasisType InputAdfXcGga
-   0        O -0.841687 -1316.299741  2.697854                DZ          None
-   1        H  0.420847 -1316.299741  2.697854                DZ          None
-   2        H  0.420839 -1316.299741  2.697854                DZ          None
-   3        O -0.673981 -1363.766294  4.089876               TZP           PBE
-   4        H  0.336982 -1363.766294  4.089876               TZP           PBE
-   5        H  0.336999 -1363.766294  4.089876               TZP           PBE
-
-Additional Analysis Methods
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The ``JobAnalysis`` class does have some additional built in methods to aid with job analysis.
-
-For example, the ``get_timeline`` and ``display_timeline`` methods show pictorially when jobs started, how long they took to run and what their status is.
-
-This can be useful for visualizing the dependencies of jobs. Here you can see that the first 8 jobs started running in parallel, due to the ``maxthreads`` constraint, and the remaining jobs waited before starting. Also that the penultimate job failed.
-
-.. code:: ipython3
-
-   ja.display_timeline(fmt="rst")
-
-::
-
-   +----------+----------------------+----------------------+----------------------+----------------------+----------------------+--------------+-------------+---------------+
-   | JobName  | ↓2025-05-15 09:44:37 | ↓2025-05-15 09:44:49 | ↓2025-05-15 09:45:00 | ↓2025-05-15 09:45:12 | ↓2025-05-15 09:45:23 | WaitDuration | RunDuration | TotalDuration |
-   +==========+======================+======================+======================+======================+======================+==============+=============+===============+
-   | dftb     | ==>                  |                      |                      |                      |                      | 0s           | 0s          | 1s            |
-   +----------+----------------------+----------------------+----------------------+----------------------+----------------------+--------------+-------------+---------------+
-   | adf      | ========>            |                      |                      |                      |                      | 0s           | 4s          | 4s            |
-   +----------+----------------------+----------------------+----------------------+----------------------+----------------------+--------------+-------------+---------------+
-   | adf.002  | ================>    |                      |                      |                      |                      | 0s           | 9s          | 9s            |
-   +----------+----------------------+----------------------+----------------------+----------------------+----------------------+--------------+-------------+---------------+
-   | dftb.002 | ==>                  |                      |                      |                      |                      | 0s           | 0s          | 1s            |
-   +----------+----------------------+----------------------+----------------------+----------------------+----------------------+--------------+-------------+---------------+
-   | adf.003  | ==================== | ===================> |                      |                      |                      | 0s           | 22s         | 22s           |
-   +----------+----------------------+----------------------+----------------------+----------------------+----------------------+--------------+-------------+---------------+
-   | adf.004  | ==================== | ==================== | ==================== | ===================* | >                    | 0s           | 45s         | 45s           |
-   +----------+----------------------+----------------------+----------------------+----------------------+----------------------+--------------+-------------+---------------+
-   | dftb.003 | ===>                 |                      |                      |                      |                      | 0s           | 1s          | 1s            |
-   +----------+----------------------+----------------------+----------------------+----------------------+----------------------+--------------+-------------+---------------+
-   | adf.005  | ======>              |                      |                      |                      |                      | 0s           | 3s          | 3s            |
-   +----------+----------------------+----------------------+----------------------+----------------------+----------------------+--------------+-------------+---------------+
-   | adf.006  | --=======>           |                      |                      |                      |                      | 0s           | 5s          | 5s            |
-   +----------+----------------------+----------------------+----------------------+----------------------+----------------------+--------------+-------------+---------------+
-   | dftb.004 | ..=>                 |                      |                      |                      |                      | 1s           | 0s          | 1s            |
-   +----------+----------------------+----------------------+----------------------+----------------------+----------------------+--------------+-------------+---------------+
-   | adf.007  | ..-===========>      |                      |                      |                      |                      | 1s           | 6s          | 8s            |
-   +----------+----------------------+----------------------+----------------------+----------------------+----------------------+--------------+-------------+---------------+
-   | adf.008  | ...+================ | =======>             |                      |                      |                      | 1s           | 13s         | 15s           |
-   +----------+----------------------+----------------------+----------------------+----------------------+----------------------+--------------+-------------+---------------+
-   | dftb.005 | ...---=>             |                      |                      |                      |                      | 2s           | 1s          | 3s            |
-   +----------+----------------------+----------------------+----------------------+----------------------+----------------------+--------------+-------------+---------------+
-   | adf.009  | ......-===>          |                      |                      |                      |                      | 3s           | 2s          | 5s            |
-   +----------+----------------------+----------------------+----------------------+----------------------+----------------------+--------------+-------------+---------------+
-   | adf.010  | .......-====>        |                      |                      |                      |                      | 4s           | 2s          | 6s            |
-   +----------+----------------------+----------------------+----------------------+----------------------+----------------------+--------------+-------------+---------------+
-   | dftb.006 | ........-=>          |                      |                      |                      |                      | 4s           | 1s          | 5s            |
-   +----------+----------------------+----------------------+----------------------+----------------------+----------------------+--------------+-------------+---------------+
-   | adf.011  | .........-=====>     |                      |                      |                      |                      | 5s           | 3s          | 8s            |
-   +----------+----------------------+----------------------+----------------------+----------------------+----------------------+--------------+-------------+---------------+
-   | adf.012  | ..........========>  |                      |                      |                      |                      | 5s           | 4s          | 10s           |
-   +----------+----------------------+----------------------+----------------------+----------------------+----------------------+--------------+-------------+---------------+
-   | dftb.007 | ..........-->        |                      |                      |                      |                      | 5s           | 1s          | 6s            |
-   +----------+----------------------+----------------------+----------------------+----------------------+----------------------+--------------+-------------+---------------+
-   | adf.013  | ............-=====>  |                      |                      |                      |                      | 6s           | 3s          | 10s           |
-   +----------+----------------------+----------------------+----------------------+----------------------+----------------------+--------------+-------------+---------------+
-   | adf.014  | .............-====== | ======>              |                      |                      |                      | 7s           | 7s          | 14s           |
-   +----------+----------------------+----------------------+----------------------+----------------------+----------------------+--------------+-------------+---------------+
-   | dftb.008 | ..............-=>    |                      |                      |                      |                      | 7s           | 1s          | 9s            |
-   +----------+----------------------+----------------------+----------------------+----------------------+----------------------+--------------+-------------+---------------+
-   | adf.015  | ...............-==== | ===============>     |                      |                      |                      | 8s           | 11s         | 19s           |
-   +----------+----------------------+----------------------+----------------------+----------------------+----------------------+--------------+-------------+---------------+
-   | adf.016  | ................==== | ==================== | =============>       |                      |                      | 9s           | 20s         | 29s           |
-   +----------+----------------------+----------------------+----------------------+----------------------+----------------------+--------------+-------------+---------------+
-   | neb      | ................--== | X                    |                      |                      |                      | 9s           | 1s          | 10s           |
-   +----------+----------------------+----------------------+----------------------+----------------------+----------------------+--------------+-------------+---------------+
-   | neb.002  | ..................== | >                    |                      |                      |                      | 10s          | 1s          | 11s           |
-   +----------+----------------------+----------------------+----------------------+----------------------+----------------------+--------------+-------------+---------------+
