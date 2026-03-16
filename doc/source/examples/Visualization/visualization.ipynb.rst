@@ -7,7 +7,7 @@ Visualizing Structures with PLAMS
 Rendering Images
 ~~~~~~~~~~~~~~~~
 
-PLAMS molecules can be simply passed to the ``view`` function to render an image using AMSview. These images can then easily be displayed in a notebook.
+PLAMS molecules can be simply passed to the ``view`` function to render an image using AMSview. These images can then easily be displayed in a notebook. To save the image file, the ``picture_path`` argument can be supplied which will also persist the image at the given location.
 
 For example, below we create a molecule of caffeine from its SMILES string, and view it.
 
@@ -16,13 +16,13 @@ For example, below we create a molecule of caffeine from its SMILES string, and 
    import scm.plams as plams
 
    caffeine = plams.from_smiles("CN1C=NC2=C1C(=O)N(C(=O)N2C)C", forcefield="uff")
-   plams.view(caffeine)
+   plams.view(caffeine, picture_path="caffeine.png")
 
 .. figure:: visualization_files/visualization_3_0.png
 
 The size of the image can be controlled via the ``height`` and ``width`` arguments, which specify the size in pixels. An additional ``padding`` argument can also be used to control how much space (in Angstrom) is added or trimmed from the edges of the image.
 
-To save the image file, the ``picture_path`` argument can be supplied which will also persist the image at the given location. Furthermore, the molecule can also be opened interactively in AMSview using the option ``open_window = True``.
+Furthermore, the molecule can also be opened interactively in AMSview using the option ``open_window = True``.
 
 Examples of all these options are demonstrated below for beta-carotene.
 
@@ -79,14 +79,13 @@ Illustrations of these are provided below. Further examples can be found in the 
        for i, img in enumerate(images):
            axes[i].imshow(img)
            axes[i].axis("off")
-       plt.show()
 
 .. code:: ipython3
 
    images = [
-       plams.view(caffeine, direction="along_x", width=400),
-       plams.view(caffeine, direction="along_y", width=400),
-       plams.view(caffeine, direction="along_z", width=400),
+       plams.view(caffeine, direction="along_x", width=400, picture_path="caffeine_along_x.png"),
+       plams.view(caffeine, direction="along_y", width=400, picture_path="caffeine_along_y.png"),
+       plams.view(caffeine, direction="along_z", width=400, picture_path="caffeine_along_z.png"),
    ]
    plot_three_images(images)
 
@@ -97,9 +96,9 @@ Illustrations of these are provided below. Further examples can be found in the 
    butane = plams.from_smiles("CCCC", forcefield="uff")
 
    images = [
-       plams.view(butane, direction="along_pca1", width=400),
-       plams.view(butane, direction="along_pca2", width=400),
-       plams.view(butane, direction="along_pca3", width=400),
+       plams.view(butane, direction="along_pca1", width=400, picture_path="butane_along_pca1.png"),
+       plams.view(butane, direction="along_pca2", width=400, picture_path="butane_along_pca2.png"),
+       plams.view(butane, direction="along_pca3", width=400, picture_path="butane_along_pca3.png"),
    ]
    plot_three_images(images)
 
@@ -108,9 +107,9 @@ Illustrations of these are provided below. Further examples can be found in the 
 .. code:: ipython3
 
    images = [
-       plams.view(butane, direction="corner_pca1", width=400),
-       plams.view(butane, direction="corner_pca2", width=400),
-       plams.view(butane, direction="corner_pca3", width=400),
+       plams.view(butane, direction="corner_pca1", width=400, picture_path="butane_corner_pca1.png"),
+       plams.view(butane, direction="corner_pca2", width=400, picture_path="butane_corner_pca1.png"),
+       plams.view(butane, direction="corner_pca3", width=400, picture_path="butane_corner_pca1.png"),
    ]
    plot_three_images(images)
 
@@ -122,7 +121,7 @@ Here, the ``normal`` option can be provided, which specifies the normal to the v
 
 .. code:: ipython3
 
-   plams.view(butane, config=plams.ViewConfig(normal=(1, 0, 1), normal_basis="pca"))
+   plams.view(butane, config=plams.ViewConfig(normal=(1, 0, 1), normal_basis="pca", picture_path="butane_normal.png"))
 
 .. figure:: visualization_files/visualization_13_0.png
 
@@ -150,7 +149,7 @@ For example, with our caffeine molecule, we can define QM and MM regions and hig
        else:
            atom.properties.region = {"MM"}
 
-   plams.view(caffeine, show_regions=True)
+   plams.view(caffeine, show_regions=True, picture_path="caffeine_regions.png")
 
 .. figure:: visualization_files/visualization_16_0.png
 
@@ -169,6 +168,7 @@ See the example below which also allows tuning of the atom label size and color:
            atom_label_color="#32CD32",
            atom_label_size=1.7,
        ),
+       picture_path="caffeine_labels.png",
    )
 
 .. figure:: visualization_files/visualization_18_0.png
@@ -209,7 +209,7 @@ First, we set up and view the carbon nanotube. By using ``show_unit_cell_edges=F
    # Rotate from z-axis to x-axis (default in AMS)
    nanotube.rotate([[0, 0, 1], [0, 1, 0], [-1, 0, 0]], lattice=True)
 
-   plams.view(nanotube, show_unit_cell_edges=False)
+   plams.view(nanotube, show_unit_cell_edges=False, picture_path="nanotube.png")
 
 .. figure:: visualization_files/visualization_22_0.png
 
@@ -220,7 +220,7 @@ Next, we create the platinum surface, and use the option ``show_lattice_vectors=
    pt_surface = plams.fromASE(build.fcc111("Pt", size=(4, 4, 3), vacuum=5.0, orthogonal=True, periodic=True))
    pt_surface.lattice.pop()
 
-   plams.view(pt_surface, show_unit_cell_edges=False, show_lattice_vectors=True)
+   plams.view(pt_surface, show_unit_cell_edges=False, show_lattice_vectors=True, picture_path="pt_surface.png")
 
 .. figure:: visualization_files/visualization_24_0.png
 
@@ -238,9 +238,30 @@ Note that in this case we also set ``fixed_atom_size=False`` to scale the atoms 
    wurtzite = plams.fromASE(build.make_supercell(wurtzite_unit_cell, np.diag([2, 2, 2])))
 
    images = [
-       plams.view(wurtzite, fixed_atom_size=False, show_lattice_vectors=True, direction="along_a", width=400),
-       plams.view(wurtzite, fixed_atom_size=False, show_lattice_vectors=True, direction="along_b", width=400),
-       plams.view(wurtzite, fixed_atom_size=False, show_lattice_vectors=True, direction="along_c", width=400),
+       plams.view(
+           wurtzite,
+           fixed_atom_size=False,
+           show_lattice_vectors=True,
+           direction="along_a",
+           width=400,
+           picture_path="wurtzite_along_a.png",
+       ),
+       plams.view(
+           wurtzite,
+           fixed_atom_size=False,
+           show_lattice_vectors=True,
+           direction="along_b",
+           width=400,
+           picture_path="wurtzite_along_b.png",
+       ),
+       plams.view(
+           wurtzite,
+           fixed_atom_size=False,
+           show_lattice_vectors=True,
+           direction="along_c",
+           width=400,
+           picture_path="wurtzite_along_c.png",
+       ),
    ]
 
    plot_three_images(images)
@@ -262,7 +283,7 @@ In addition, we pass a ``ViewConfig`` object which exposes additional settings t
    )
 
    config = plams.ViewConfig(unit_cell_edge_thickness=0.1)
-   plams.view(water_box, config=config, direction="tilt_x", show_lattice_vectors=True)
+   plams.view(water_box, config=config, direction="tilt_x", show_lattice_vectors=True, picture_path="water_box.png")
 
 .. figure:: visualization_files/visualization_28_0.png
 
@@ -288,6 +309,7 @@ Efforts have been made to ensure the view options when using different backends 
        show_regions=True,
        backend="ase_plot",
        show_atom_labels=True,
+       picture_path="caffeine_ase.png",
    )
 
 .. figure:: visualization_files/visualization_31_0.png
@@ -302,6 +324,7 @@ Efforts have been made to ensure the view options when using different backends 
        direction="tilt_z",
        show_lattice_vectors=True,
        backend="ase_plot",
+       picture_path="water_ase.png",
    )
 
 .. figure:: visualization_files/visualization_32_0.png

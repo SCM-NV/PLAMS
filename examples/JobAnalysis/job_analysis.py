@@ -3,7 +3,9 @@
 
 # ## Create Example Jobs
 
-# To begin with, create a variety of AMS jobs with different settings, engines and calculation types.
+# To begin with, we create a variety of AMS jobs with different settings, tasks, engines and calculation types.
+#
+# This allows us to generate diverse example single point/geometry optimization calculations with DFTB, ADF etc.
 
 from scm.plams import from_smiles, AMSJob, PlamsError, Settings, Molecule, Atom
 from scm.base import ChemicalSystem
@@ -70,7 +72,7 @@ def example_job_neb(iterations, use_chemsys=False):
     return AMSJob(molecule=mol, settings=sett, name="neb")
 
 
-# Now, run a selection of them.
+# Now, we create a selection of jobs covering different systems and settings:
 
 from scm.plams import config, JobRunner
 
@@ -97,106 +99,110 @@ for j in jobs:
 
 # ## Job Analysis
 
+# The `JobAnalysis` tool can be used to extract data from a large number of jobs, and analyse the results.
+
 # ### Adding and Loading Jobs
 #
-# Jobs can be loaded by passing job objects directly, or loading from a path.
+# Jobs can be loaded by passing job objects directly to the `JobAnalysis`, or alternatively loading from a path. This latter option is useful for loading jobs run previously in other scripts.
 
 from scm.plams import JobAnalysis
 
 
-ja = JobAnalysis(jobs=jobs[:10], paths=[j.path for j in jobs[10:-2]])
+ja = JobAnalysis(jobs=jobs)
+# ja = JobAnalysis(paths=[j.path for j in jobs]) # alternatively load jobs from a set of paths
 
 
-# Jobs can also be added or removed after initialization.
+# Additional jobs can also be added or removed after initialization of the `JobAnalysis` tool.
 
-ja = ja.add_job(jobs[-2]).load_job(jobs[-1].path)
+extra_job = example_job_dftb("CCC", "SinglePoint")
+extra_job.run()
+extra_job.ok()
+
+ja = ja.add_job(extra_job)
+
+
+# The loaded jobs and the initial analysis fields can be shows by displaying the `JobAnalysis` table:
+
 ja.display_table()
 
 
 # ### Adding and Removing Fields
 
-# A range of common standard fields can be added with the `add_standard_field(s)` methods. In addition, fields deriving from the job settings can be added with the `add_settings_input_fields` method, and fields from the output rkfs with the `add_rkf_field` method. Custom fields can also be added with the `add_field` method, by defining a field key, value accessor and optional arguments like display name and value formatting.
-#
-# Fields can be removed by calling `remove_field` with the corresponding field key.
+# On initialization, some analysis fields are automatically included in the analysis (`Path`, `Name`, `OK`, `Check` and `ErrorMsg`). These are useful to see which jobs were loaded, and whether they succeeded. However, one or more of these fields can be removed with the `remove_field` method.
 
-ja = (
-    ja.remove_field("Path")
-    .add_standard_fields(["Formula", "Smiles", "CPUTime", "SysTime"])
-    .add_rkf_field("General", "engine")
-    .add_settings_input_fields()
-    .add_field("Energy", lambda j: j.results.get_energy(unit="kJ/mol"), display_name="Energy [kJ/mol]", fmt=".2f")
-)
+ja = ja.remove_field("Path")
+
+
+# A range of other common fields can be added with the `add_standard_field(s)` method.
+
+ja = ja.add_standard_fields(["Formula", "Smiles", "CPUTime", "SysTime"])
+
+
+# In addition, all fields deriving from the job input settings can be added with the `add_settings_input_fields` method. By default, these will have names corresponding to the concatenated settings entries. Individual settings field can be added with the `add_settings_field` method. This is useful to see the differences in the input settings of various jobs which may have succeeded/failed.
+
+ja = ja.add_settings_input_fields()
+
+
+# For output results, fields from the rkfs can be added with the `add_rkf_field` method, using a specified rkf file (default `ams.rkf`), section and variable.
+
+ja = ja.add_rkf_field("General", "engine")
+
+
+# Finally, custom fields can also be added with the `add_field` method, by defining a field key, value accessor and optional arguments like the display name and value formatting. This is most useful to extract results from jobs using built-in methods on the job results class.
+
+ja = ja.add_field("Energy", lambda j: j.results.get_energy(unit="kJ/mol"), display_name="Energy [kJ/mol]", fmt=".2f")
+ja = ja.add_field("AtomType", lambda j: [at.symbol for at in j.results.get_main_molecule()])
+ja = ja.add_field("Charge", lambda j: j.results.get_charges())
+
 ja.display_table(max_rows=5)
-
-
-# In addition to the fluent syntax, both dictionary and dot syntaxes are also supported for adding and removing fields.
-
-import numpy as np
-
-ja["AtomType"] = lambda j: [at.symbol for at in j.results.get_main_molecule()]
-ja.Charge = lambda j: j.results.get_charges()
-ja.AtomCoords = lambda j: [np.array(at.coords) for at in j.results.get_main_molecule()]
-
-del ja["Check"]
-del ja.SysTime
-
-ja.display_table(max_rows=5, max_col_width=30)
 
 
 # ### Processing Data
 
 # Once an initial analysis has been created, the data can be further processed, depending on the use case.
 # For example, to inspect the difference between failed and successful jobs, jobs can be filtered down and irrelevant fields removed.
+#
+# Here we first filter the jobs to those which have the `NEB` task:
 
-ja_neb = (
-    ja.filter_jobs(lambda data: data["InputAmsTask"] == "NEB")
-    .remove_field("AtomCoords")
-    .remove_uniform_fields(ignore_empty=True)
-)
+ja_neb = ja.filter_jobs(lambda data: data["InputAmsTask"] == "NEB")
 
+
+# Then we remove the "uniform fields" i.e. fields where all the values are the same. This lets us remove the noise and focus on the fields which have differences.
+
+ja_neb = ja_neb.remove_uniform_fields(ignore_empty=True)
 ja_neb.display_table()
 
 
 # Another use case may be to analyze the results from one or more jobs.
 # For this, it can be useful to utilize the `expand` functionality to convert job(s) to multiple rows.
 # During this process, fields selected for expansion will have their values extracted into individual rows, whilst other fields have their values duplicated.
+#
+# First we filter to a single job, the geometry optimization of water:
 
-ja_adf_expanded = (
-    ja.filter_jobs(
-        lambda data: data["InputAmsTask"] == "GeometryOptimization"
-        and data["InputAdfBasisType"] is not None
-        and data["Smiles"] == "O"
-    )
-    .expand_field("AtomType")
-    .expand_field("Charge")
-    .expand_field("AtomCoords")
-    .remove_uniform_fields()
+ja_adf_water = ja.filter_jobs(
+    lambda data: data["InputAmsTask"] == "GeometryOptimization"
+    and data["InputAdfBasisType"] is not None
+    and data["Smiles"] == "O"
 )
+ja_adf_water.display_table()
 
-ja_adf_expanded.display_table()
 
+# Then we "expand" a given field to flatten the arrays and have one row per entry in the array. This lets us see the charge per atom for each job:
 
-# For more nested values, the depth of expansion can also be selected to further flatten the data.
-
-ja_adf_expanded2 = ja_adf_expanded.add_field(
-    "Coord", lambda j: [("x", "y", "z") for _ in j.results.get_main_molecule()], expansion_depth=2
-).expand_field("AtomCoords", depth=2)
-
-ja_adf_expanded2.display_table()
+ja_adf_water_expanded = ja_adf_water.expand_field("AtomType").expand_field("Charge").remove_uniform_fields()
+ja_adf_water_expanded.display_table()
 
 
 # Expansion can be undone with the corresponding `collapse` method.
 #
-# Fields can be also further filtered, modified or reordered to customize the analysis.
+# Fields can be also further filtered, modified or reordered to customize the analysis. This example also illustrates the "fluent" syntax of the `JobAnalysis` tool, whereb
 
 ja_adf = (
-    ja_adf_expanded2.collapse_field("AtomCoords")
-    .collapse_field("Coord")
-    .filter_fields(lambda vals: all([not isinstance(v, list) for v in vals]))  # remove arrays
-    .remove_field("Name")
+    ja_adf_water_expanded.remove_field("Name")
     .format_field("CPUTime", ".2f")
     .format_field("Charge", ".4f")
     .rename_field("InputAdfBasisType", "Basis")
+    .rename_field("InputAdfBasisType", "GGA")
     .reorder_fields(["AtomType", "Charge", "Energy"])
 )
 ja_adf.display_table()
@@ -226,7 +232,7 @@ with open(csv_name) as csv:
     print(csv.read())
 
 
-# Finally, for more complex data analysis, the results can be converted to a [pandas](https://pandas.pydata.org) dataframe. This is recommended for more involved data manipulations, and can be installed using amspackages i.e. using the command: `"${AMSBIN}/amspackages" install pandas`.
+# Finally, for more complex data analysis, the results can be converted to a [pandas](https://pandas.pydata.org) dataframe. This is recommended for more involved data manipulations. It is included in the python stack for AMS2026+, and for earlier versions of AMS, it can be installed via amspackages i.e. using the command: `"${AMSBIN}/amspackages" install pandas`.
 
 try:
     import pandas
@@ -239,14 +245,3 @@ except ImportError:
     print(
         "Pandas not available. Please install with amspackages to run this example '${AMSBIN}/amspackages install pandas'"
     )
-
-
-# ### Additional Analysis Methods
-
-# The `JobAnalysis` class does have some additional built in methods to aid with job analysis.
-#
-# For example, the `get_timeline` and `display_timeline` methods show pictorially when jobs started, how long they took to run and what their status is.
-#
-# This can be useful for visualizing the dependencies of jobs. Here you can see that the first 8 jobs started running in parallel, due to the `maxthreads` constraint, and the remaining jobs waited before starting. Also that the penultimate job failed.
-
-ja.display_timeline(fmt="rst")
