@@ -339,7 +339,7 @@ def plot_molecule(
 
 @requires_optional_package("rdkit")
 def plot_grid_molecules(
-    molecules: List[Molecule],
+    molecules: List[Union[Molecule, "ChemicalSystem"]],
     legends: Optional[List[str]] = None,
     molsPerRow: int = 2,
     subImgSize: Tuple[int, int] = (200, 200),

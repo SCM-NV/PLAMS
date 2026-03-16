@@ -2214,14 +2214,17 @@ def _guess_atomic_charge(iat: int, ndangling: int, rdmol: "RDKitMol", mol: Molec
     return altered_charge
 
 
-def _rdmol_for_image(mol: Molecule, remove_hydrogens: bool = True) -> "RDKitMol":
+def _rdmol_for_image(mol: Union[Molecule, "ChemicalSystem"], remove_hydrogens: bool = True) -> "RDKitMol":
     """
     Convert PLAMS molecule to an RDKit molecule specifically for a 2D image
     """
     from rdkit.Chem import AllChem
     from rdkit.Chem import RemoveHs
 
-    rdmol = to_rdmol(mol, presanitize=True)
+    try:
+        rdmol = mol.to_rdkit_mol()  # ChemicalSystem
+    except AttributeError:
+        rdmol = to_rdmol(mol, presanitize=True)
 
     # Flatten the molecule
     AllChem.Compute2DCoords(rdmol)  # type: ignore[attr-defined]
