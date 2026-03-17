@@ -26,6 +26,7 @@ __all__ = [
     "plot_phonons_dos",
     "plot_phonons_thermodynamic_properties",
     "plot_molecule",
+    "plot_image_grid",
     "plot_correlation",
     "plot_msd",
     "plot_work_function",
@@ -406,6 +407,72 @@ def plot_grid_molecules(
         ax.imshow(image_data)
         return ax
     return img
+
+
+@requires_optional_package("matplotlib")
+def plot_image_grid(
+    images: Dict[str, "PilImage.Image"],
+    rows: Optional[int] = None,
+    cols: Optional[int] = None,
+    figsize: Optional[Tuple[float, float]] = None,
+    show_labels: bool = True,
+    save_path: Optional[Union[str, "PathLike"]] = None,
+) -> np.ndarray:
+    """Plot a dictionary of images in a matplotlib grid.
+
+    :param images: dictionary with labels as keys and images as values; iteration order determines image order in the grid
+    :param rows: number of rows in the grid; if ``None``, infer from ``cols`` and number of images
+    :param cols: number of columns in the grid; if ``None``, infer from ``rows`` and number of images
+    :param figsize: matplotlib figure size; if ``None``, uses a grid-proportional default
+    :param show_labels: whether to show labels above images; labels are taken from dictionary keys
+    :param save_path: optional path to save the plotted grid image using matplotlib ``savefig``
+    :return: 2D numpy array of matplotlib axes with shape ``(rows, cols)``
+    :rtype: np.ndarray
+    """
+    import matplotlib.pyplot as plt
+
+    items = list(images.items())
+    n_images = len(items)
+
+    if n_images == 0:
+        raise ValueError("images must contain at least one image")
+
+    if rows is not None and rows <= 0:
+        raise ValueError(f"rows must be a positive integer when provided, but got {rows}")
+    if cols is not None and cols <= 0:
+        raise ValueError(f"cols must be a positive integer when provided, but got {cols}")
+
+    if rows is None and cols is None:
+        cols = int(np.ceil(np.sqrt(n_images)))
+        rows = int(np.ceil(n_images / cols))
+    elif rows is None:
+        rows = int(np.ceil(n_images / cols))  # type: ignore[operator]
+    elif cols is None:
+        cols = int(np.ceil(n_images / rows))
+
+    grid_size = rows * cols  # type: ignore[operator]
+    if n_images > grid_size:
+        raise ValueError(f"Grid of shape ({rows}, {cols}) can hold at most {grid_size} images, but got {n_images}")
+
+    if figsize is None:
+        figsize = ((4.0 * cols), (4.0 * rows))  # type: ignore[operator]
+    fig, axes = plt.subplots(rows, cols, figsize=figsize)  # type: ignore[arg-type]
+    axes = np.array(axes, dtype=object).reshape(rows, cols)  # type: ignore[arg-type]
+
+    for ax in axes.flat:
+        ax.axis("off")
+
+    for i, (key, image) in enumerate(items):
+        row, col = divmod(i, cols)  # type: ignore[operator]
+        ax = cast(Any, axes[row, col])
+        ax.imshow(image)
+        if show_labels:
+            ax.set_title(key)
+
+    if save_path is not None:
+        fig.savefig(save_path)
+
+    return axes
 
 
 def get_correlation_xy(
