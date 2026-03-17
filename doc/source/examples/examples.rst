@@ -111,7 +111,6 @@ Packmol and AMS-ASE interfaces
    AMSCalculator/ASECalculator
    ChargedAMSCalculator/ChargedAMSCalculator
    i-PI-AMS
-   SellaTransitionStateSearch
 
 .. N.B. the ASE calculator example is linked to via an external site, so the path should not be updated (or a redirect needs to be added)
 
