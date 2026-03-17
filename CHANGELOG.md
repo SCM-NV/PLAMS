@@ -27,6 +27,7 @@ This changelog is effective from the 2025 releases.
 * Added a `balance` function to `scm.plams.tools.reaction`, which returns a `ReactionEquation`
 * `view` function to visualize molecules/chemical systems using AMSView
 * `config.job.on_status_change` callback which fires any time a job status is updated
+* `plot_image_grid` to plot multiple images (e.g. those generated from `view`) in a grid format
 
 ### Changed
 * `JobAnalysis` returns an updated copy on modification instead of performing the operation in-place
