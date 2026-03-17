@@ -446,24 +446,24 @@ def plot_image_grid(
         cols = int(np.ceil(np.sqrt(n_images)))
         rows = int(np.ceil(n_images / cols))
     elif rows is None:
-        rows = int(np.ceil(n_images / cols))
+        rows = int(np.ceil(n_images / cols))  # type: ignore[operator]
     elif cols is None:
         cols = int(np.ceil(n_images / rows))
 
-    grid_size = rows * cols
+    grid_size = rows * cols  # type: ignore[operator]
     if n_images > grid_size:
         raise ValueError(f"Grid of shape ({rows}, {cols}) can hold at most {grid_size} images, but got {n_images}")
 
     if figsize is None:
-        figsize = ((4.0 * cols), (4.0 * rows))
-    fig, axes = plt.subplots(rows, cols, figsize=figsize)
-    axes = np.array(axes, dtype=object).reshape(rows, cols)
+        figsize = ((4.0 * cols), (4.0 * rows))  # type: ignore[operator]
+    fig, axes = plt.subplots(rows, cols, figsize=figsize)  # type: ignore[arg-type]
+    axes = np.array(axes, dtype=object).reshape(rows, cols)  # type: ignore[arg-type]
 
     for ax in axes.flat:
         ax.axis("off")
 
     for i, (key, image) in enumerate(items):
-        row, col = divmod(i, cols)
+        row, col = divmod(i, cols)  # type: ignore[operator]
         ax = cast(Any, axes[row, col])
         ax.imshow(image)
         if show_labels:
