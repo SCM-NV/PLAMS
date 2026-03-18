@@ -1072,7 +1072,9 @@ class AMSResults(Results):
     def get_frequency_spectrum(
         self,
         engine: Optional[str] = None,
-        broadening_type: Literal["gaussian", "lorentzian"] = "gaussian",
+        broadening_type: Literal[
+            "gaussian_height", "gaussian_area", "lorentzian_height", "lorentzian_area"
+        ] = "gaussian_height",
         broadening_width: int = 40,
         min_x: int = 0,
         max_x: int = 4000,
@@ -1260,7 +1262,9 @@ class AMSResults(Results):
         self,
         engine: Optional[str] = None,
         spectrum_type: Literal["ir", "raman", "vcd"] = "ir",
-        broadening_type: Literal["gaussian", "lorentzian"] = "gaussian",
+        broadening_type: Literal[
+            "gaussian_height", "gaussian_area", "lorentzian_height", "lorentzian_area"
+        ] = "gaussian_height",
         broadening_width: int = 40,
         min_x: int = 0,
         max_x: int = 4000,

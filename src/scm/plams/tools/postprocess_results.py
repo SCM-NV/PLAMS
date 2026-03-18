@@ -4,12 +4,20 @@ from typing import Union, Literal, Tuple, Optional
 ArrayOrFloat = Union[np.ndarray, float]
 
 
-def _gaussian(x: np.ndarray, A: ArrayOrFloat, x0: ArrayOrFloat, sigma: ArrayOrFloat) -> np.ndarray:
+def _gaussian_height(x: np.ndarray, A: ArrayOrFloat, x0: ArrayOrFloat, sigma: ArrayOrFloat) -> np.ndarray:
     return A * np.exp(-((x - x0) ** 2) / (2 * sigma**2))
 
 
-def _lorentzian(x: np.ndarray, A: ArrayOrFloat, x0: ArrayOrFloat, sigma: ArrayOrFloat) -> np.ndarray:
+def _lorentzian_area(x: np.ndarray, A: ArrayOrFloat, x0: ArrayOrFloat, sigma: ArrayOrFloat) -> np.ndarray:
     return (A / np.pi) * (0.5 * sigma) / ((x - x0) ** 2 + (0.5 * sigma) ** 2)
+
+
+def _gaussian_area(x: np.ndarray, A: ArrayOrFloat, x0: ArrayOrFloat, sigma: ArrayOrFloat) -> np.ndarray:
+    return (A / (sigma * (2 * np.pi) ** 0.5)) * np.exp(-((x - x0) ** 2) / (2 * sigma**2))
+
+
+def _lorentzian_height(x: np.ndarray, A: ArrayOrFloat, x0: ArrayOrFloat, sigma: ArrayOrFloat) -> np.ndarray:
+    return (A * (0.5 * sigma) ** 2) / ((x - x0) ** 2 + (0.5 * sigma) ** 2)
 
 
 def _generate_broadening_widths(x_data: np.ndarray, broadening_width: ArrayOrFloat, centers: np.ndarray) -> np.ndarray:
@@ -27,7 +35,9 @@ def broaden_results(
     centers: np.ndarray,
     areas: np.ndarray,
     broadening_width: Union[float, np.ndarray] = 40,
-    broadening_type: Literal["gaussian", "lorentzian"] = "gaussian",
+    broadening_type: Literal[
+        "gaussian", "lorentzian", "gaussian_height", "gaussian_area", "lorentzian_height", "lorentzian_area"
+    ] = "gaussian_height",
     x_data: Union[np.ndarray, Tuple[float, float, float]] = (0, 4000, 0.5),
     post_process: Optional[Literal["max_to_1"]] = None,
 ) -> Tuple[np.ndarray, np.ndarray]:
@@ -39,8 +49,8 @@ def broaden_results(
     :type areas: np.ndarray
     :param broadening_width: if is np.ndarray each peak broadening is assigned otherwise apply the same value for all the peaks, defaults to 40
     :type broadening_width: Union[float, np.ndarray], optional
-    :param broadening_type: the line shape of the peak, defaults to "gaussian"
-    :type broadening_type: Literal['gaussian', 'lorentzian'], optional
+    :param broadening_type: the line shape of the peak, defaults to "gaussian_height"
+    :type broadening_type: Literal['gaussian', 'lorentzian', 'gaussian_height', 'gaussian_area', 'lorentzian_height', 'lorentzian_area'], optional
     :param x_data: it can be a np.ndarray or you can set a tuple with (min,max,step_size), defaults to (0, 4000, 0.5)
     :type x_data: Union[np.ndarray, Tuple[float, float, float]], optional
     :param post_process: if max_to_1 the resulted spectrum has the max peak height =1, defaults to None
@@ -49,8 +59,12 @@ def broaden_results(
     :rtype: Tuple[np.ndarray, np.ndarray]
     """
     Function_Broaden = {
-        "gaussian": _gaussian,
-        "lorentzian": _lorentzian,
+        "gaussian": _gaussian_height,
+        "gaussian_height": _gaussian_height,
+        "lorentzian": _lorentzian_area,
+        "lorentzian_area": _lorentzian_area,
+        "lorentzian_height": _lorentzian_height,
+        "gaussian_area": _gaussian_area,
     }
     if isinstance(x_data, tuple) and len(x_data) == 3:
         x_array = np.arange(*x_data)
