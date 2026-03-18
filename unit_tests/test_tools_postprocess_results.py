@@ -30,6 +30,10 @@ def test_broaden_results_area_methods_preserve_total_area(broadening_type):
         broadening_width=1.0,
         broadening_type=broadening_type,
     )
-
-    integrated_area = np.trapezoid(y_result, x_result)
+    if hasattr(np, "trapezoid"):
+        # avoid warnings
+        integrated_area = np.trapezoid(y_result, x_result)
+    else:
+        # retrocompatibility
+        integrated_area = np.trapz(y_result, x_result)
     assert integrated_area <= np.sum(areas)
