@@ -3,14 +3,14 @@
 FAQ
 ###
 
-Where can I find some help on setting up python workflows with PLAMS?
+Where can I find some help on setting up Python workflows with PLAMS?
 *********************************************************************
 
 You can find a hands-on demonstration of how to write and execute a PLAMS workflow in our `video tutorial series <https://www.youtube.com/watch?v=1-gN6HJHseM>`_.
 
 For more simple examples and recipes to get you started, take a look at the other parts in this PLAMS manual.
 
-Let us know if you have issues setting up your own workflows. We would also like to hear if you would like to contribute a useful python workflow script to help out others!
+Let us know if you have issues setting up your own workflows. We would also like to hear if you want to contribute a useful Python workflow script to help out others!
 
 Where can I find some example scripts?
 **************************************

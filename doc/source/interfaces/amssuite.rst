@@ -3,7 +3,7 @@
 Amsterdam Modeling Suite
 -------------------------
 
-PLAMS offers interfaces to the main programs of the Amsterdam Modelling Suite.
+PLAMS offers interfaces to the main programs of the Amsterdam Modeling Suite.
 
 All possible input keywords and options are covered, as well as extraction of arbitrary data from binary files (called KF files) produced by these programs.
 

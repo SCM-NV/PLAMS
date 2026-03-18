@@ -11,7 +11,7 @@ import threading
 from scm.plams.interfaces.adfsuite.ams import AMSJob, AMSResults
 from scm.plams.core.settings import Settings
 from scm.plams.mol.molecule import Atom, Molecule
-from test_helpers import skip_if_no_scm_pisa, skip_if_no_scm_libbase
+from test_helpers import skip_if_no_scm_pisa, skip_if_no_scm_base
 
 
 class TestAMSJob:
@@ -308,8 +308,8 @@ class TestAMSJobWithChemicalSystem(TestAMSJob):
         """
         Instance of the Molecule class passed to the AMSJob
         """
-        skip_if_no_scm_libbase()
-        from scm.libbase import UnifiedChemicalSystem as ChemicalSystem
+        skip_if_no_scm_base()
+        from scm.base import ChemicalSystem
 
         molecule = ChemicalSystem()
         molecule.add_atom("O", coords=[0, 0, 0])
@@ -354,8 +354,8 @@ class TestAMSJobWithChemicalSystemAndPisa(TestAMSJobWithPisa):
         """
         Instance of the Molecule class passed to the AMSJob
         """
-        skip_if_no_scm_libbase()
-        from scm.libbase import UnifiedChemicalSystem as ChemicalSystem
+        skip_if_no_scm_base()
+        from scm.base import ChemicalSystem
 
         molecule = ChemicalSystem()
         molecule.add_atom("O", coords=[0, 0, 0])
@@ -614,8 +614,8 @@ class TestAMSJobWithMultipleChemicalSystems(TestAMSJobWithMultipleMolecules):
         """
         Instance of the Molecule class passed to the AMSJob
         """
-        skip_if_no_scm_libbase()
-        from scm.libbase import UnifiedChemicalSystem as ChemicalSystem
+        skip_if_no_scm_base()
+        from scm.base import ChemicalSystem
 
         main_molecule = ChemicalSystem()
         main_molecule.add_atom("C", coords=(0, 0, 0))
@@ -675,8 +675,8 @@ class TestAMSJobWithMultipleChemicalSystemsAndPisa(TestAMSJobWithMultipleMolecul
         """
         Instance of the Molecule class passed to the AMSJob
         """
-        skip_if_no_scm_libbase()
-        from scm.libbase import UnifiedChemicalSystem as ChemicalSystem
+        skip_if_no_scm_base()
+        from scm.base import ChemicalSystem
 
         main_molecule = ChemicalSystem()
         main_molecule.add_atom("C", coords=(0, 0, 0))
@@ -975,8 +975,8 @@ class TestAMSJobWithSystemBlockSettingsAndChemicalSystem(TestAMSJobWithSystemBlo
         """
         Get instance of the Molecule class passed to the AMSJob
         """
-        skip_if_no_scm_libbase()
-        from scm.libbase import UnifiedChemicalSystem as ChemicalSystem, UnifiedLattice as Lattice
+        skip_if_no_scm_base()
+        from scm.base import ChemicalSystem, Lattice
 
         molecule = ChemicalSystem()
         molecule.add_atom("Ar", coords=(0, 0, 0))
@@ -1038,8 +1038,8 @@ class TestAMSJobWithSystemBlockSettingsAndChemicalSystemAndPisa(TestAMSJobWithSy
         """
         Get instance of the Molecule class passed to the AMSJob
         """
-        skip_if_no_scm_libbase()
-        from scm.libbase import UnifiedChemicalSystem as ChemicalSystem, UnifiedLattice as Lattice
+        skip_if_no_scm_base()
+        from scm.base import ChemicalSystem, Lattice
 
         molecule = ChemicalSystem()
         molecule.add_atom("Ar", coords=(0, 0, 0))
@@ -1415,8 +1415,8 @@ class TestAMSJobWithSystemBlockSettingsAndMultipleChemicalSystems(
         """
         Get instance of the Molecule class passed to the AMSJob
         """
-        skip_if_no_scm_libbase()
-        from scm.libbase import UnifiedChemicalSystem as ChemicalSystem
+        skip_if_no_scm_base()
+        from scm.base import ChemicalSystem
 
         main_molecule = ChemicalSystem()
         main_molecule.add_atom("C", coords=(-0.13949723, -0.08053322, -0.12698191))
@@ -1672,6 +1672,129 @@ Engine Mopac
     ConvergenceThreshold 1e-08
   End
   model pm6
+EndEngine
+
+"""
+
+
+class TestAMSJobWithAtomAttributes(TestAMSJob):
+    """
+    Test suite for AMSJob using molecule with atom attributes.
+    Sets up a geometry optimization of water with forcefield engine.
+    """
+
+    @staticmethod
+    def get_input_molecule():
+        """
+        Get instance of the Molecule class passed to the AMSJob
+        """
+        skip_if_no_scm_base()
+
+        molecule = Molecule()
+        o = Atom(symbol="O", coords=(0, 0, 0))
+        h1 = Atom(symbol="H", coords=(1, 0, 0))
+        h2 = Atom(symbol="H", coords=(0, 1, 0))
+        o.properties.forcefield.type = "O_water"
+        o.properties.region = {"water", "o"}
+        h1.properties.forcefield.type = "H_water"
+        h1.properties.region = {"water", "h"}
+        h1.properties.rdkit.charge = 0.0
+        h2.properties.forcefield.type = "H_water"
+        h2.properties.region = {"water", "h"}
+        h2.properties.mass = 2.014
+        h2.properties.foo = "bar"
+
+        molecule.add_atom(o)
+        molecule.add_atom(h1)
+        molecule.add_atom(h2)
+
+        return molecule
+
+    @staticmethod
+    def get_input_settings():
+        """
+        Instance of the Settings class passed to the AMSJob
+        """
+        settings = Settings()
+        settings.input.ams.Task = "GeometryOptimization"
+        settings.input.ForceField.Type = "Amber95"
+        settings.input.ForceField.ForceFieldFile = "$AMSRESOURCES/ForceFields/amber95.ff"
+
+        return settings
+
+    @staticmethod
+    def get_expected_input():
+        """
+        Get expected input file
+        """
+        return """\
+Task GeometryOptimization
+
+System
+  Atoms
+              O       0.0000000000       0.0000000000       0.0000000000 forcefield.type=O_water region=o,water
+              H       1.0000000000       0.0000000000       0.0000000000 forcefield.type=H_water region=h,water
+              H       0.0000000000       1.0000000000       0.0000000000 forcefield.type=H_water mass=2.014 region=h,water
+  End
+End
+
+Engine ForceField
+  ForceFieldFile $AMSRESOURCES/ForceFields/amber95.ff
+  Type Amber95
+EndEngine
+
+"""
+
+
+class TestAMSJobWithAtomAttributesAndChemicalSystem(TestAMSJobWithAtomAttributes):
+    """
+    Test suite for AMSJob using multiple molecules and PISA for settings input.
+    Sets up a geometry optimization of water with forcefield engine.
+    """
+
+    @staticmethod
+    def get_input_molecule():
+        """
+        Get instance of the Molecule class passed to the AMSJob
+        """
+        skip_if_no_scm_base()
+        from scm.base import ChemicalSystem
+
+        molecule = ChemicalSystem()
+        molecule.add_atom("O", coords=[0, 0, 0])
+        molecule.add_atom("H", coords=[1, 0, 0])
+        molecule.add_atom("H", coords=[0, 1, 0])
+
+        molecule.enable_atom_attributes("forcefield")
+        molecule.atoms[0].forcefield.type = "O_water"
+        molecule.atoms[1].forcefield.type = "H_water"
+        molecule.atoms[2].forcefield.type = "H_water"
+        molecule.atoms[2].mass = 2.014
+        molecule.add_atoms_to_region([0, 1, 2], "water")
+        molecule.add_atoms_to_region([0], "o")
+        molecule.add_atoms_to_region([1, 2], "h")
+
+        return molecule
+
+    @staticmethod
+    def get_expected_input():
+        """
+        Get expected input file
+        """
+        return """\
+Task GeometryOptimization
+
+System
+   Atoms
+      O 0 0 0 forcefield.type=O_water region=o,water
+      H 1 0 0 forcefield.type=H_water region=h,water
+      H 0 1 0 mass=2.014 forcefield.type=H_water region=h,water
+   End
+End
+
+Engine ForceField
+  ForceFieldFile $AMSRESOURCES/ForceFields/amber95.ff
+  Type Amber95
 EndEngine
 
 """

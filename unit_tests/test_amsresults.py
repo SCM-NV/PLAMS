@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, Mock
 import numpy as np
 import pytest
 from ase import Atoms as AseAtoms
@@ -22,6 +22,7 @@ class TestWaterOptimizationAMSResults:
         job = MagicMock(spec=AMSJob)
         job.status = "successful"
         job.path = str(rkf_folder / "water_optimization")
+        job.get_path = Mock(return_value=rkf_folder / "water_optimization")
         results = AMSResults(job=job)
         return results
 
@@ -246,7 +247,7 @@ class TestWaterOptimizationAMSResults:
 
         # When get molecule from given file section
         try:
-            from scm.libbase import UnifiedChemicalSystem as ChemicalSystem
+            from scm.base import ChemicalSystem
 
             # Then molecule as expected when chemical system present
             molecule = water_opt_results.get_system(section, file)
@@ -287,7 +288,7 @@ class TestWaterOptimizationAMSResults:
 
         # When get input molecule
         try:
-            from scm.libbase import UnifiedChemicalSystem as ChemicalSystem
+            from scm.base import ChemicalSystem
 
             # Then molecule as expected when chemical system present
             molecule = water_opt_results.get_input_system()
@@ -322,7 +323,7 @@ class TestWaterOptimizationAMSResults:
 
         # Then molecule as expected (post optimization)
         try:
-            from scm.libbase import UnifiedChemicalSystem as ChemicalSystem
+            from scm.base import ChemicalSystem
 
             # Then molecule as expected when chemical system present
             molecule = water_opt_results.get_main_system()
@@ -794,6 +795,7 @@ class TestPropaneNitrileOptimizationAMSResults:
         job = MagicMock(spec=AMSJob)
         job.status = "successful"
         job.path = str(rkf_folder / "propanenitrile")
+        job.get_path = Mock(return_value=rkf_folder / "propanenitrile")
         results = AMSResults(job=job)
         return results
 

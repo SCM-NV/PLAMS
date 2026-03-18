@@ -37,7 +37,7 @@ from scm.plams.core.private import run_with_timeout
 from scm.plams.tools.units import Units
 
 try:
-    from scm.libbase import UnifiedChemicalSystem as ChemicalSystem
+    from scm.base import ChemicalSystem
 
     _has_scm_chemsys = True
 except ImportError:
@@ -119,6 +119,7 @@ class ViewConfig:
     :param atom_label_type: property used for atom labels, defaults to ``Element``
     :param atom_label_color: hexadecimal color code for atom labels, defaults to ``#000000`` i.e. black
     :param atom_label_size: scale atom labels by the given factor, to make them larger or smaller, defaults to ``1.0``
+    :param guess_bonds: guess bonds before viewing, defaults to ``False``
     :param show_regions: display translucent spheres on atoms according to their regions, defaults to ``False``
     :param show_unit_cell_edges: display unit cell for periodic systems using semi-transparent edges, defaults to ``True``
     :param unit_cell_edge_thickness: specify thickness of the displayed unit cell boundary, defaults to ``0.05``
@@ -147,6 +148,7 @@ class ViewConfig:
     atom_label_type: Literal["Element", "AtomType", "Name"] = "Element"
     atom_label_color: str = "#000000"
     atom_label_size: float = 1.0
+    guess_bonds: bool = False
     show_regions: bool = False
 
     # Periodic
@@ -176,9 +178,11 @@ class ViewConfig:
             raise ValueError(f"height must be a positive integer, but was '{self.height}'")
         if not isinstance(self.padding, (int, float)):
             raise ValueError(f"padding must be a numeric value, but was '{self.padding}'")
-        if self.direction and (not isinstance(self.direction, str) or self.direction not in ViewDirections.__args__):  # type: ignore
+        if self.direction and (
+            not isinstance(self.direction, str) or self.direction not in ViewDirections.__args__  # type: ignore[attr-defined]
+        ):
             raise ValueError(
-                f"direction must be one of: '{', '.join(ViewDirections.__args__)}'; but was '{self.direction}'"  # type: ignore
+                f"direction must be one of: '{', '.join(ViewDirections.__args__)}'; but was '{self.direction}'"  # type: ignore[attr-defined]
             )
         if self.normal and (
             not isinstance(self.normal, Sequence)
@@ -230,14 +234,17 @@ class ViewConfig:
         if not isinstance(self.show_lattice_vectors, bool):
             raise ValueError(f"show_lattice_vectors must be a boolean value, but was '{self.show_lattice_vectors}'")
 
-        if not isinstance(self.backend, str) or self.backend not in Backends.__args__:  # type: ignore
+        if not isinstance(self.backend, str) or self.backend not in Backends.__args__:  # type: ignore[attr-defined]
             raise ValueError(
-                f"backend must be one of: '{', '.join(Backends.__args__)}'; but was '{self.backend}'"  # type: ignore
+                f"backend must be one of: '{', '.join(Backends.__args__)}'; but was '{self.backend}'"  # type: ignore[attr-defined]
             )
         if self.timeout and (not isinstance(self.timeout, int) or self.timeout < 0):
             raise ValueError(f"timeout must be a positive integer, but was '{self.timeout}'")
         if not isinstance(self.open_window, bool):
             raise ValueError(f"open_window must be a boolean value, but was '{self.open_window}'")
+
+
+_view_backends_cache: Optional[Dict[str, Tuple["_ViewBackend", bool, Optional[Exception]]]] = None
 
 
 @requires_optional_package("PIL")
@@ -252,6 +259,7 @@ def view(
     fixed_atom_size: Optional[bool] = None,
     show_atom_labels: Optional[bool] = None,
     atom_label_type: Optional[Literal["Element", "AtomType", "Name"]] = None,
+    guess_bonds: Optional[bool] = None,
     show_regions: Optional[bool] = None,
     show_unit_cell_edges: Optional[bool] = None,
     show_lattice_vectors: Optional[bool] = None,
@@ -271,6 +279,7 @@ def view(
     :param fixed_atom_size: override to use the same radius for all elements (except Hydrogen)
     :param show_atom_labels: override to display text label on each atom
     :param atom_label_type: override for property used for atom labels
+    :param guess_bonds: override for guessing bonds before viewing
     :param show_regions: override to display translucent spheres on atoms according to their regions
     :param show_unit_cell_edges: override to display unit cell for periodic systems using semi-transparent edges
     :param show_lattice_vectors: override to display the lattice vectors for periodic systems
@@ -279,6 +288,7 @@ def view(
     :param open_window: override to open AMSview in a dedicated window
     :return: image of the molecule generated using AMSView
     """
+    global _view_backends_cache
     # Set up config objects, applying any config overrides from the keyword args
     config = config or ViewConfig()
     if width is not None:
@@ -296,6 +306,8 @@ def view(
         config.show_atom_labels = show_atom_labels
     if atom_label_type is not None:
         config.atom_label_type = atom_label_type
+    if guess_bonds is not None:
+        config.guess_bonds = guess_bonds
     if show_regions is not None:
         config.show_regions = show_regions
 
@@ -314,7 +326,7 @@ def view(
         config.timeout = 10 if not config.open_window else None
 
     # On first call check which backends are available
-    if not hasattr(view, "_backends"):
+    if _view_backends_cache is None:
 
         def check_backend_available(b: TBackend) -> Tuple[TBackend, bool, Optional[Exception]]:
             try:
@@ -328,9 +340,9 @@ def view(
             "amsview_xvfb": check_backend_available(_AmsViewXvfbBackend()),
             "ase_plot": check_backend_available(_AsePlotBackend()),
         }
-        view._backends = backends
+        _view_backends_cache = backends
     else:
-        backends = view._backends
+        backends = _view_backends_cache
 
     # On subsequent calls get the available backend
     if config.backend != "auto" and config.backend not in backends:
@@ -351,6 +363,10 @@ def view(
     # Validation to help prevent crashing due to bad options
     config.validate()
 
+    if config.guess_bonds:
+        system = system.copy()
+        system.guess_bonds()
+
     # Render image with backend
     img = selected_backend.generate_image(system, config)
 
@@ -363,11 +379,15 @@ class _ViewBackend(ABC):
     """
 
     @classmethod
-    @abstractmethod
     def check_available(cls) -> None:
         """
         Check whether this backend is available on the current system, otherwise raise an error
         """
+        try:
+            he_atom = Molecule(positions=[[0, 0, 0]], numbers=[2])
+            cls.generate_image(he_atom, ViewConfig())
+        except Exception as ex:
+            raise AMSExecutionError("Could not generate test image", ex)
 
     @classmethod
     @abstractmethod
@@ -508,11 +528,7 @@ class _AmsViewBackend(_ViewBackend):
     @classmethod
     @requires_ams(minimum_version="2025.204")
     def check_available(cls) -> None:
-        canary_call = [os.path.expandvars("$AMSBIN/amsview"), "-h", "-batch"]
-        try:
-            subprocess.run(canary_call, capture_output=True, check=True, text=True)
-        except (subprocess.CalledProcessError, FileNotFoundError) as ex:
-            raise AMSExecutionError(" ".join(canary_call), ex)
+        super().check_available()
 
     @classmethod
     def get_command(
@@ -557,7 +573,7 @@ class _AmsViewBackend(_ViewBackend):
         if config.show_unit_cell_faces:
             command += ["-showunitcell", "faces"]
         elif config.show_unit_cell_edges:
-            command += ["-showunitcell", f"thickness {config.unit_cell_edge_thickness}"]
+            command += ["-showunitcell", f"{config.unit_cell_edge_thickness}"]
         else:
             command += ["-showunitcell", "hide"]
 
@@ -630,7 +646,7 @@ class _AmsViewXvfbBackend(_AmsViewBackend):
     @classmethod
     def check_available(cls) -> None:
         _XvfbManager.check_xvfb()
-        cls.run_command([os.path.expandvars("$AMSBIN/amsview"), "-h", "-batch"], ViewConfig())
+        super().check_available()
 
     @classmethod
     def run_command(cls, command: List[str], config: ViewConfig) -> None:
@@ -888,7 +904,7 @@ class _AsePlotBackend(_ViewBackend):
     @requires_optional_package("matplotlib")
     @requires_optional_package("scipy")
     def check_available(cls) -> None:
-        return
+        super().check_available()
 
     @classmethod
     def generate_image(cls, system: Union[Molecule, "ChemicalSystem"], config: ViewConfig) -> "PilImage.Image":

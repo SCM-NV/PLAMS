@@ -7,11 +7,19 @@ import scm.plams as plams
 import os
 import numpy as np
 
+try:
+    from scm.plams import view  # view molecule using AMSview in a Jupyter Notebook in AMS2026+
+except ImportError:
+    from scm.plams import plot_molecule  # plot molecule in a Jupyter Notebook in AMS2023+
+
+    def view(molecule, **kwargs):
+        plot_molecule(molecule)
+
 
 # ## Create initial benzene system
 
 benzene_box = plams.packmol(plams.from_smiles("c1ccccc1", forcefield="uff"), density=0.875, n_molecules=40)
-plams.plot_molecule(benzene_box)
+view(benzene_box, width=300, height=300, direction="tilt_z", padding=-2)
 
 
 # ## Equilibration MD simulation

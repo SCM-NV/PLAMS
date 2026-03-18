@@ -50,6 +50,7 @@ Molecule analysis
    MapMoleculesAndConvertToDCD
    HydrogenBondsFromMD
    PlotReaction2D/PlotReaction2D
+   BalanceReactionEquations/BalanceReactionEquations
 
 MD trajectory analysis
 ----------------------
@@ -80,6 +81,8 @@ Workflows
    RedoxPotential
    ExcitationsWorkflow/ExcitationsWorkflow
    AMSTSWorkflow/AMSTSWorkflow
+   ZieglerNattaCatalyst/ZieglerNattaCatalyst
+   H-NMRSpinSpinCoupling/H-NMRSpinSpinCoupling
    ChargeTransferIntegralsADF/ChargeTransferIntegralsADF
    TuningRangeSeparation/TuningRangeSeparation
    ConformersGeneration/ConformersGeneration

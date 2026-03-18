@@ -10,12 +10,21 @@ Initial imports
    from scm.plams.tools.plot import plot_correlation, get_correlation_xy
    import matplotlib.pyplot as plt
 
+   try:
+       from scm.plams import view  # view molecule using AMSview in a Jupyter Notebook in AMS2026+
+   except ImportError:
+       from scm.plams import plot_molecule  # plot molecule in a Jupyter Notebook in AMS2023+
+
+       def view(molecule, **kwargs):
+           plot_molecule(molecule)
+
+
    # this line is not required in AMS2025+
    plams.init()
 
 ::
 
-   PLAMS working folder: /path/plams/examples/PlotCorrelation/plams_workdir.003
+   PLAMS working folder: /path/plams/examples/PlotCorrelation/plams_workdir
 
 Define two engines to compare
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -35,7 +44,7 @@ Let’s use a glycine molecule generated from SMILES:
 .. code:: ipython3
 
    glycine = plams.from_smiles("C(C(=O)O)N")
-   plams.plot_molecule(glycine);
+   view(glycine, width=200, height=200, padding=-0.5)
 
 .. figure:: plot_correlation_files/plot_correlation_5_0.png
 
@@ -60,20 +69,20 @@ Run a single-point calculation storing the Gradients (negative forces):
 
 ::
 
-   [11.02|09:35:58] JOB glycine-engine1 STARTED
-   [11.02|09:35:58] JOB glycine-engine1 RUNNING
-   [11.02|09:35:59] JOB glycine-engine1 FINISHED
-   [11.02|09:35:59] JOB glycine-engine1 SUCCESSFUL
-   [11.02|09:35:59] JOB glycine-engine2 STARTED
-   [11.02|09:35:59] JOB glycine-engine2 RUNNING
-   [11.02|09:35:59] JOB glycine-engine2 FINISHED
-   [11.02|09:35:59] JOB glycine-engine2 SUCCESSFUL
+   [24.12|16:05:27] JOB glycine-engine1 STARTED
+   [24.12|16:05:27] JOB glycine-engine1 RUNNING
+   [24.12|16:05:27] JOB glycine-engine1 FINISHED
+   [24.12|16:05:27] JOB glycine-engine1 SUCCESSFUL
+   [24.12|16:05:28] JOB glycine-engine2 STARTED
+   [24.12|16:05:28] JOB glycine-engine2 RUNNING
+   [24.12|16:05:28] JOB glycine-engine2 FINISHED
+   [24.12|16:05:28] JOB glycine-engine2 SUCCESSFUL
 
 
 
 
 
-   <scm.plams.interfaces.adfsuite.ams.AMSResults at 0x305253df0>
+   <scm.plams.interfaces.adfsuite.ams.AMSResults at 0x1768596d0>
 
 .. code:: ipython3
 
@@ -120,14 +129,27 @@ Compare multiple jobs
    smiles_list = ["CC=C", "CCCO", "C(C(=O)O)N"]
    names = ["propene", "propanol", "glycine"]
    molecules = [plams.from_smiles(x) for x in smiles_list]
+   imgs = []
    for mol in molecules:
-       plams.plot_molecule(mol)
+       imgs.append(view(mol, width=200, height=200))
 
-.. figure:: plot_correlation_files/plot_correlation_14_0.png
+.. code:: ipython3
 
-.. figure:: plot_correlation_files/plot_correlation_14_1.png
+   imgs[0]
 
-.. figure:: plot_correlation_files/plot_correlation_14_2.png
+.. figure:: plot_correlation_files/plot_correlation_15_0.png
+
+.. code:: ipython3
+
+   imgs[1]
+
+.. figure:: plot_correlation_files/plot_correlation_16_0.png
+
+.. code:: ipython3
+
+   imgs[2]
+
+.. figure:: plot_correlation_files/plot_correlation_17_0.png
 
 .. code:: ipython3
 
@@ -141,19 +163,19 @@ Compare multiple jobs
 
 ::
 
-   [11.02|09:36:00] JOB e1propene STARTED
-   [11.02|09:36:00] JOB e1propene RUNNING
-   [11.02|09:36:00] JOB e1propene FINISHED
-   [11.02|09:36:00] JOB e1propene SUCCESSFUL
-   [11.02|09:36:00] JOB e1propanol STARTED
-   [11.02|09:36:00] JOB e1propanol RUNNING
-   [11.02|09:36:00] JOB e1propanol FINISHED
-   [11.02|09:36:00] JOB e1propanol SUCCESSFUL
-   [11.02|09:36:00] JOB e1glycine STARTED
-   [11.02|09:36:00] Job e1glycine previously run as glycine-engine1, using old results
-   [11.02|09:36:00] JOB e1glycine COPIED
+   [24.12|16:05:31] JOB e1propene STARTED
+   [24.12|16:05:31] JOB e1propene RUNNING
+   [24.12|16:05:31] JOB e1propene FINISHED
+   [24.12|16:05:31] JOB e1propene SUCCESSFUL
+   [24.12|16:05:31] JOB e1propanol STARTED
+   [24.12|16:05:31] JOB e1propanol RUNNING
+   [24.12|16:05:31] JOB e1propanol FINISHED
+   [24.12|16:05:31] JOB e1propanol SUCCESSFUL
+   [24.12|16:05:31] JOB e1glycine STARTED
+   [24.12|16:05:31] Job e1glycine previously run as glycine-engine1, using old results
+   [24.12|16:05:31] JOB e1glycine COPIED
    ... (PLAMS log lines truncated) ...
-   [11.02|09:36:01] Job e2glycine previously run as glycine-engine2, using old results
+   [24.12|16:05:31] Job e2glycine previously run as glycine-engine2, using old results
 
 The correlation plot can be plotted as before. You can also add a unit conversion to get your preferred units, and add custom xlabel and ylabel:
 
@@ -174,7 +196,7 @@ The correlation plot can be plotted as before. You can also add a unit conversio
        multiplier=multiplier,
    );
 
-.. figure:: plot_correlation_files/plot_correlation_18_0.png
+.. figure:: plot_correlation_files/plot_correlation_21_0.png
 
 .. code:: ipython3
 
@@ -188,7 +210,7 @@ The correlation plot can be plotted as before. You can also add a unit conversio
        ylabel="Engine 2",
    );
 
-.. figure:: plot_correlation_files/plot_correlation_19_0.png
+.. figure:: plot_correlation_files/plot_correlation_22_0.png
 
 Use Task Replay to compare multiple frames from a trajectory
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -210,16 +232,16 @@ The forces from an MD job can be stored with ``writeenginegradients=True``
 
 ::
 
-   [11.02|09:36:01] JOB nve-md-e1 STARTED
-   [11.02|09:36:01] JOB nve-md-e1 RUNNING
-   [11.02|09:36:03] JOB nve-md-e1 FINISHED
-   [11.02|09:36:03] JOB nve-md-e1 SUCCESSFUL
+   [24.12|16:05:32] JOB nve-md-e1 STARTED
+   [24.12|16:05:32] JOB nve-md-e1 RUNNING
+   [24.12|16:05:32] JOB nve-md-e1 FINISHED
+   [24.12|16:05:33] JOB nve-md-e1 SUCCESSFUL
 
 
 
 
 
-   <scm.plams.interfaces.adfsuite.ams.AMSResults at 0x306bea850>
+   <scm.plams.interfaces.adfsuite.ams.AMSResults at 0x3325b2880>
 
 When using the Replay task, set ``Properties.Gradients`` to get the forces:
 
@@ -234,16 +256,16 @@ When using the Replay task, set ``Properties.Gradients`` to get the forces:
 
 ::
 
-   [11.02|09:36:03] JOB replay-e2 STARTED
-   [11.02|09:36:03] JOB replay-e2 RUNNING
-   [11.02|09:36:05] JOB replay-e2 FINISHED
-   [11.02|09:36:06] JOB replay-e2 SUCCESSFUL
+   [24.12|16:05:33] JOB replay-e2 STARTED
+   [24.12|16:05:33] JOB replay-e2 RUNNING
+   [24.12|16:05:34] JOB replay-e2 FINISHED
+   [24.12|16:05:34] JOB replay-e2 SUCCESSFUL
 
 
 
 
 
-   <scm.plams.interfaces.adfsuite.ams.AMSResults at 0x306c3d670>
+   <scm.plams.interfaces.adfsuite.ams.AMSResults at 0x3325fa070>
 
 For the MD job the gradients (negative forces) are stored in ``History%EngineGradients``, but for the Replay job they are stored in ``History%Gradients``. Use the ``alt_variable`` to specify the variable for the second job:
 
@@ -251,4 +273,4 @@ For the MD job the gradients (negative forces) are stored in ``History%EngineGra
 
    plot_correlation(md, replay, section="History", variable="EngineGradients", alt_variable="Gradients", file="ams");
 
-.. figure:: plot_correlation_files/plot_correlation_27_0.png
+.. figure:: plot_correlation_files/plot_correlation_30_0.png

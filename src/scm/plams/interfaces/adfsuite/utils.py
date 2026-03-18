@@ -29,7 +29,8 @@ def requires_ams(minimum_version: Optional[str] = None) -> Callable[[Callable[P,
             ams = os.path.join(amsbin, "ams")
             try:
                 # N.B. return code is 1 for version check
-                result = subprocess.run([ams, "--version"], capture_output=True, text=True)
+                cmd = [ams, "--version"] if os.name == "posix" else ["sh", ams, "--version"]
+                result = subprocess.run(cmd, capture_output=True, text=True)
 
                 if result.stderr:
                     raise AMSExecutionError(command="$AMSBIN/ams --version", error=result.stderr)
@@ -37,7 +38,9 @@ def requires_ams(minimum_version: Optional[str] = None) -> Callable[[Callable[P,
                 match = re.search(r"release=(\S+)", result.stdout)
                 version = match.group(1) if match else None
             except Exception as e:
-                raise AMSExecutionError(command="$AMSBIN/ams --version", error=e)
+                raise AMSExecutionError(
+                    command="$AMSBIN/ams --version" if os.name == "posix" else "sh $AMSBIN/ams --version", error=e
+                )
 
             if version and (not minimum_version or version >= minimum_version):
                 return func(*args, **kwargs)

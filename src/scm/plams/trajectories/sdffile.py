@@ -88,7 +88,7 @@ class SDFTrajectoryFile(TrajectoryFile):
         >>> sdfout.write_next(molecule=mol, step=0, energy=5.)
     """
 
-    def __init__(self, filename, mode="r", fileobject=None, ntap=None):
+    def __init__(self, filename=None, mode="r", fileobject=None, ntap=None):
         """
         Initiates an SDFTrajectoryFile object
 
@@ -197,8 +197,6 @@ class SDFTrajectoryFile(TrajectoryFile):
 
         # Get the coordinates and cell
         cell = mol.lattice
-        if len(cell) == 0:
-            cell = None
         self.coords[:, :] = mol.as_array()
         if len(mol.bonds) > 0:
             conect = {}
@@ -210,13 +208,51 @@ class SDFTrajectoryFile(TrajectoryFile):
                 conect[iat].append((jat, bond.order))
             self.conect = conect
 
-        # Read the additional data
+        # Get the additional data
+        historydata, lattice = self._read_properties(restlines)
         if self.include_historydata:
-            historydata = {}
+            self.historydata = historydata
+        if lattice is not None:
+            cell = lattice
+
+        if len(cell) == 0:
+            cell = None
+
+        if isinstance(molecule, Molecule):
+            self._set_plamsmol(self.coords, cell, molecule)
+
+        return self.coords, cell
+
+    def _read_properties(self, restlines):
+        """
+        Read properties from SDF entry
+        """
+
+        def get_propertynames(restlines):
+            """
+            Extract line indices of the property names
+            """
+            entries = []
+            keys = []
+            for i, line in enumerate(restlines[:-1]):
+                if line[:4] == ">  <":
+                    entries.append(i)
+                    keys.append(line.split("<")[1].split(">")[0])
+            entries.append(len(restlines) - 1)
+            return entries, keys
+
+        historydata = {}
+        cell = None
+        read_lattice = False
+        if "<VEC1>" in "\n".join(restlines):
+            read_lattice = True
+            cell = []
+
+        # Read the additional data
+        if self.include_historydata or read_lattice:
             # First find all entries (entries can run over multiple lines)
-            entries = [i for i, line in enumerate(restlines[:-1]) if line[:4] == ">  <"] + [len(restlines) - 1]
-            for i, iline in enumerate(entries[:-1]):
-                key = restlines[iline].split("<")[1].split(">")[0]
+            entries, keys = get_propertynames(restlines)
+            for i, (iline, key) in enumerate(zip(entries, keys)):
                 value = "".join(restlines[iline + 1 : entries[i + 1] - 1])
                 value = value.strip()
                 # Try to turn this into a float or integer?
@@ -227,13 +263,11 @@ class SDFTrajectoryFile(TrajectoryFile):
                         value = float(value)
                     except ValueError:
                         pass
-                historydata[key] = value
-            self.historydata = historydata
-
-        if isinstance(molecule, Molecule):
-            self._set_plamsmol(self.coords, cell, molecule)
-
-        return self.coords, cell
+                if key in ["VEC1", "VEC2", "VEC3"]:
+                    cell.append([float(v) for v in value.split()])
+                elif self.include_historydata:
+                    historydata[key] = value
+        return historydata, cell
 
     def _is_endoffile(self):
         """
@@ -341,6 +375,11 @@ def create_sdf_string(molecule, step=None, historydata=None):
 
     if "Step" in historydata:
         step = historydata["Step"]
+
+    if not "VEC1" in historydata:
+        if len(molecule.lattice) > 0:
+            for ivec, vec in enumerate(molecule.lattice):
+                historydata["VEC%i" % (ivec + 1)] = " ".join([str(v) for v in vec])
 
     block = "Energy = %.10f kcal/mol\n" % (energy)
     f = io.StringIO()

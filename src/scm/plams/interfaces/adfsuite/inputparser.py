@@ -11,8 +11,8 @@ from scm.plams.interfaces.adfsuite.amsworker import AMSWorker, AMSWorkerError
 from scm.plams.interfaces.adfsuite.ams import AMSJob
 
 if TYPE_CHECKING:
-    from scm.libbase import InputParser as InputParserLibbase
-    from scm.libbase import InputFile as InputFileLibbase
+    from scm.base import InputParser as InputParserLibbase
+    from scm.base import InputFile as InputFileLibbase
 
 TSelf = TypeVar("TSelf", bound="InputParser")
 
@@ -23,15 +23,15 @@ class InputParser:
     """
     A utility class for converting text input into JSON dictionaries and plams.Settings.
 
-    This is a legacy implementation for environments without access to scm.libbase.
+    This is a legacy implementation for environments without access to scm.base.
     """
 
     # !!!!!!!  DEPRECATED  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    # This class has been deprecated. The equivalent in scm.libbase
-    # should be used instead where possible. The scm.libbase version does the input
+    # This class has been deprecated. The equivalent in scm.base
+    # should be used instead where possible. The scm.base version does the input
     # parsing via direct calls into libscm_base, instead of spawning an AMSWorker
     # and then pushing the input through the pipe. This implementation exists here
-    # only to remove the dependency on scm.libbase when running in python
+    # only to remove the dependency on scm.base when running in python
     # environments without access to the base library.
     # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -79,28 +79,28 @@ class InputParserFacade:
     """
     A utility class for converting text input into JSON dictionaries and plams.Settings.
 
-    Uses the scm.libbase implementation of InputParser if available, and otherwise the legacy implementation
+    Uses the scm.base implementation of InputParser if available, and otherwise the legacy implementation
     of the parser which spawns an AMSWorker instance.
     """
 
     try:
-        from scm.libbase import InputParser as InputParserLibbase
+        from scm.base import InputParser as InputParserLibbase
 
         # Cache a single instance of the parser to avoid having to repeatedly reload input file definition JSON
         # But for this need to make access to the parser thread-safe
-        input_parser_scm_libbase = InputParserLibbase()
+        input_parser_scm_base = InputParserLibbase()
         input_parser_lock = threading.Lock()
-        _has_scm_libbase = True
+        _has_scm_base = True
     except ImportError:
-        _has_scm_libbase = False
+        _has_scm_base = False
 
     @property
     def parser(self) -> Union[InputParser, "InputParserLibbase"]:
         """
         Get instance of a parser used to convert text input.
         """
-        if self._has_scm_libbase:
-            return self.input_parser_scm_libbase
+        if self._has_scm_base:
+            return self.input_parser_scm_base
         else:
             return InputParser()
 
@@ -108,7 +108,7 @@ class InputParserFacade:
         """
         Run a string of text input through the input parser and produce a Python dictionary representing the JSONified input.
         """
-        if self._has_scm_libbase:
+        if self._has_scm_base:
             with self.input_parser_lock:
                 return self.parser.to_dict(program, text_input, string_leafs)
         else:
@@ -116,7 +116,7 @@ class InputParserFacade:
                 return parser.to_dict(program, text_input, string_leafs)
 
 
-@requires_optional_package("scm.libbase")
+@requires_optional_package("scm.base")
 def get_system_blocks_as_molecules_from_input(input_file: "InputFileLibbase") -> Dict[str, Molecule]:
     """
     Get a dictionary of mappings between the System blocks in the input to |Molecule| instances.
@@ -142,6 +142,8 @@ def get_system_blocks_as_molecules_from_input(input_file: "InputFileLibbase") ->
         tmp = Settings()
         tmp.input.ams.System = Settings(json.loads(input_file.get_json())).System
         mols = AMSJob.settings_to_mol(tmp)
+        if mols is None:
+            raise PlamsError(f"No system blocks found for program '{input_file.program}'")
     else:
         mols = {}
 
@@ -176,32 +178,57 @@ def input_to_settings(
     :param parser: use specific parser or defaults to internal parser if ``None``
     :return: |Settings| object with the structure of the parsed AMS input
     """
+
+    def _separate_engine_settings(lines: List[str], depth: int = 0) -> Tuple[Settings, List[str]]:
+        """
+        Recursively resolve the engine settings and add them to the rest
+        """
+        input_settings = Settings()
+
+        # Find the lines corresponding to the engine block.
+        # This should be recursive, to handle the hybrid engine.
+        while True:
+            lines, engine_lines = _separate_engine_lines(lines)
+            if engine_lines is None:
+                break
+            # We have found a separate engine block.
+            engine_words = engine_lines[0].split()
+            engine_name = engine_words[1]
+            if depth == 0:
+                key = engine_name
+            else:
+                key = " ".join(engine_words[:2])
+            engine_header = None if len(engine_words) == 2 else engine_words[2]
+            if not key in input_settings:
+                input_settings[key] = []
+            if len(engine_lines) == 2:
+                # If it's empty we already know the result of parsing it.
+                engine_settings = Settings()
+                if engine_header is not None:
+                    engine_settings["_h"] = engine_header
+                input_settings[key].append(engine_settings)
+            else:
+                engine_settings, rest_lines = _separate_engine_settings(engine_lines[1:-1], depth + 1)
+                if engine_header is not None:
+                    engine_settings["_h"] = engine_header
+                rest_settings = Settings(input_parser.to_dict(engine_name.lower(), "\n".join(rest_lines), string_leafs))
+                engine_settings.update(rest_settings)
+                input_settings[key].append(engine_settings)
+        for key in input_settings.keys():
+            if len(input_settings[key]) == 1:
+                input_settings[key] = input_settings[key][0]
+
+        return input_settings, lines
+
     input_parser = parser or InputParserFacade()
     if program in ["ams", "acerxn"]:
         # Settings for the program are special:
         # * Root level input needs to go under settings.input.ams.
         # * Engine block needs to go  to settings.input.%engine% where
         #   %engine% is the name of the engine, e.g. adf.
-        input_settings = Settings()
         lines = text_input.splitlines()
-
-        # Find the lines corresponding to the engine block.
-        while True:
-            lines, engine_lines = _separate_engine_lines(lines)
-            if engine_lines is None:
-                break
-            # We have found a separate engine block.
-            engine_name = engine_lines[0].split()[1]
-            if len(engine_lines) == 2:
-                # If it's empty we already know the result of parsing it.
-                input_settings[engine_name] = Settings()
-            else:
-                input_settings[engine_name] = Settings(
-                    input_parser.to_dict(engine_name.lower(), "\n".join(engine_lines[1:-1]), string_leafs)
-                )
-
+        input_settings, lines = _separate_engine_settings(lines)
         input_settings["ams"] = Settings(input_parser.to_dict(program, "\n".join(lines), string_leafs))
-
     else:
         input_settings = Settings(input_parser.to_dict(program, text_input, string_leafs))
 

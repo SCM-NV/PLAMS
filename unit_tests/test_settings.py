@@ -935,6 +935,7 @@ Fe:
    metal: 	True
    properties: 	['common']
 _explicit_init: 	False
+atexit_timeout: 	30
 daemon_threads: 	True
 default_jobmanager: 	Uninitialized LazyWrapper
 default_jobrunner: 	Uninitialized LazyWrapper
@@ -974,6 +975,7 @@ job:
               shebang: 	#!/bin/sh
               stdout_redirect: 	False
     link_files: 	True
+    on_status_change: 	None
 jobmanager: 	
            counter_len: 	3
            hashing: 	input

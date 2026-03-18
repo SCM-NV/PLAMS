@@ -2,7 +2,6 @@ import os
 import stat
 from collections.abc import Iterable
 from itertools import chain
-from os.path import join as opj
 from typing import List, Optional, Union, Any
 
 from scm.plams.core.basejob import SingleJob
@@ -39,13 +38,13 @@ class UnifacResults(CRSResults):
                 for i in f:
                     if '"$AMSBIN"/unifac' in i:
                         ret = i.split()
-                        arg_list[-1] = arg_list[-1].rstrip("\\")  # type: ignore
+                        arg_list[-1] = arg_list[-1].rstrip("\\")  # type: ignore[index]
                     else:
                         continue
 
                     while i.endswith("\\"):  # The input might be spread over multiple lines
                         i = next(f)
-                        ret += i.split().rstrip("\\")  # type: ignore
+                        ret += i.split().rstrip("\\")  # type: ignore[attr-defined]
                     del ret[0]  # Delete ``"$AMSBIN"/unifac``
                     break
             return ret
@@ -163,12 +162,12 @@ class UnifacJob(SingleJob):
 
     def _get_ready(self) -> None:
         """Create the runfile."""
-        runfile = opj(self.path, self._filename("run"))
+        runfile = self.get_path() / self._filename("run")
         with open(runfile, "w") as f:
             f.write(self.full_runscript())
         os.chmod(runfile, os.stat(runfile).st_mode | stat.S_IEXEC)
 
-    def get_input(self) -> None:
+    def get_input(self) -> None:  # type: ignore[override]
         return None
 
     def hash_input(self) -> str:

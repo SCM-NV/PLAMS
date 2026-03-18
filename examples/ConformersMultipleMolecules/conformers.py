@@ -14,6 +14,19 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 
+try:
+    from scm.plams import view  # view molecule using AMSview in a Jupyter Notebook in AMS2026+
+
+    _has_view = True
+except ImportError:
+    from scm.plams import plot_molecule  # plot molecule in a Jupyter Notebook in AMS2023+
+
+    _has_view = False
+
+    def view(molecule, ax=None, **kwargs):
+        plot_molecule(molecule, ax=ax)
+
+
 # this line is not required in AMS2025+
 plams.init()
 
@@ -22,7 +35,7 @@ plams.init()
 
 smiles = "CC(N)C(=O)O"
 alanine = plams.from_smiles(smiles)
-plams.plot_molecule(alanine)
+view(alanine, height=300, width=300)
 
 
 # ## Initial system: alanine dimer
@@ -38,7 +51,7 @@ mol = plams.packmol(alanine, n_molecules=2, density=density, sphere=True)
 mol.translate(-np.array(mol.get_center_of_mass()))
 
 
-plams.plot_molecule(mol, rotation="0x,0y,90z")
+view(mol, direction="along_pca3")
 
 
 # ## Calculation setup

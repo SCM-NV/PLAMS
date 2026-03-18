@@ -7,7 +7,7 @@ Crystal
 
 More information about CRYSTAL can be found on its `official website <http://www.crystal.unito.it>`_.
 
-PLAMS offers a simple CRYSTAL interface which does not offer access to all possible input types of CRYSTAL just most.
+PLAMS offers a simple CRYSTAL interface which does not offer access to all possible input types of CRYSTAL, just most.
 CRYSTAL14 was used by the developer, but as far as the developer can tell the new input features from CRYSTAL17 can be achieved with this interface.
 Older CRYSTAL versions are more restrictive with the input, so they have not been tested.
 The relevant classes are |CrystalJob| and |Results|.
@@ -20,7 +20,7 @@ Preparing an instance of |CRYSTALJob| follows the general principles for |Single
 Information adjusting the input file is stored in the ``myjob.settings.input`` branch.
 The geometry of your system can be supplied via the class |Molecule| and will be parsed into a ``fort.34`` file using the *EXTERNAL* keyword (only if you have `ASE <https://wiki.fysik.dtu.dk/ase/index.html>`_ installed).
 It can also be supplied to the ``myjob.settings.input`` branch by using the function |mol2CrystalConf| to create a CRYSTAL-type input of your structure inside the input file (set ``myjob.settings.ignore_molecule = True``).
-Consult `the manual <http://http://www.crystal.unito.it/documentation.php>`_ for further information on the different input options of CRYSTAL.
+Consult `the manual <http://www.crystal.unito.it/documentation.php>`_ for further information on the different input options of CRYSTAL.
 
 
 
@@ -29,7 +29,7 @@ Consult `the manual <http://http://www.crystal.unito.it/documentation.php>`_ for
 Input
 +++++
 
-Settings must contain at least (case insensitive):
+Settings must contain at least (case-insensitive):
 
 - one geometry key ('CRYSTAL','SLAB','POLYMER','HELIX','MOLECULE','EXTERNAL','DLVINPUT'), if the |Molecule| parser of |CRYSTALJob| is used the 'EXTERNAL' keyword is added automatically. For using |mol2CrystalConf|, see below).
 - one basis key ('BASISSET')
@@ -61,9 +61,9 @@ without the 'options' being printed, but the section will still be closed with a
 Runscript
 +++++++++
 
-The command ``crystal`` should point to the crystal binary or a runscript (so make sure it is in your ``$PATH``), that the input can be piped to.
+The command ``crystal`` should point to the CRYSTAL binary or a runscript (so make sure it is in your ``$PATH``), that the input can be piped to.
 Modify ``CrystalJob._command`` if necessary.
-PLAMS will not clean up the mess of files that crystal produces.
+PLAMS will not clean up the mess of files that CRYSTAL produces.
 If you want that, your runscript should do it for you.
 Standard output is written to ``$JN.out``.
 

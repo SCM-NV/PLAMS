@@ -13,7 +13,7 @@ from scm.plams.core.enums import JobStatus
 from scm.plams.tools.job_analysis import JobAnalysis
 from scm.plams.core.settings import Settings, JobManagerSettings
 from test_basejob import DummySingleJob
-from test_helpers import temp_file_path, skip_if_no_scm_pisa, skip_if_no_scm_libbase
+from test_helpers import temp_file_path, skip_if_no_scm_pisa, skip_if_no_scm_base
 
 
 class TestJobAnalysis:
@@ -1290,6 +1290,7 @@ dummyjob.010,,,False
             .remove_uniform_fields()
             .to_dataframe()
         )
+        formula_list = [None if pandas.isna(x) else x for x in df["Formula"].to_list()]
 
         assert df.shape == (10, 4)
         assert df.columns.to_list() == [
@@ -1298,7 +1299,7 @@ dummyjob.010,,,False
             "Smiles",
             "InputAmsPropertiesNormalmodes",
         ]
-        assert df.Formula.to_list() == [
+        assert formula_list == [
             "C2H6",
             "CH4",
             "H2O",
@@ -1635,7 +1636,7 @@ class TestJobAnalysisWithChemicalSystem(TestJobAnalysis):
     @pytest.fixture(scope="class")
     def dummy_single_jobs(self):
         # Generate dummy jobs for a selection of molecules and input settings
-        skip_if_no_scm_libbase()
+        skip_if_no_scm_base()
         from scm.utils.conversions import plams_molecule_to_chemsys
 
         smiles = ["CC", "C", "O", "CO", "CCC", "CCCC", "CCCO", "CCCCCC", "CCCOC", "Sys"]

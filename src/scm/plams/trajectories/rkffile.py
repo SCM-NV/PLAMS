@@ -1,12 +1,24 @@
 #!/usr/bin/env python
 
-from scm.plams.core.errors import PlamsError
 import numpy
+from typing import Optional
+from typing import Dict
+
+from scm.plams.core.errors import PlamsError
 from scm.plams.mol.molecule import Molecule
-from scm.plams.tools.kftools import KFFile
 from scm.plams.tools.periodic_table import PeriodicTable
 from scm.plams.tools.units import Units
 from scm.plams.trajectories.trajectoryfile import TrajectoryFile
+
+try:
+    from scm.base import KFFile
+
+    _has_libbase = True
+
+except ImportError:
+    from scm.plams.tools.kftools import KFFile
+
+    _has_libbase = False
 
 __all__ = ["RKFTrajectoryFile", "write_general_section", "write_molecule_section"]
 
@@ -107,7 +119,7 @@ class RKFTrajectoryFile(TrajectoryFile):
         >>> rkf_out.close()
     """
 
-    def __init__(self, filename, mode="rb", fileobject=None, ntap=None):
+    def __init__(self, filename=None, mode="rb", fileobject=None, ntap=None):
         """
         Initiates an RKFTrajectoryFile object
 
@@ -119,30 +131,10 @@ class RKFTrajectoryFile(TrajectoryFile):
         # TODO: If the mddata option is set to True, then the file created here works with AMSMovie and the analysis tools.
         #      To also make is work for restarts, two things have to be added:
         #      1. The final velocities have to be converted from bohr/fs to bohr/au (1/41.341373336493)
-        #         and stored in MDResuts%EndVelocities
+        #         and stored in MDResults%EndVelocities
         #      2. The final coordinates need to be copied to the Molecule section.
 
-        self.position = 0
-        if filename is not None:
-            # fileobject = KFFile(filename,autosave=False,keep_file_open=True)
-            fileobject = KFFile(filename, autosave=False)
-            # fileobject = KFFile(filename,autosave=False,fastsave=True)
-            # This fastsave option (no copying) was not worth it, so I removed it.
-            if fileobject is None:
-                raise PlamsError("KFFile %s not found." % (filename))
-        self.file_object = fileobject
-        self.mode = mode
-
-        self.ntap = 0
-        if ntap is not None:
-            self.ntap = ntap
-        self.firsttime = True
-        self.coords = numpy.zeros((self.ntap, 3))  # Only for reading purposes,
-        # to avoid creating the array each time
-        # PLAMS molecule related settings
-        self.elements = ["H"] * self.ntap
-        self.current_molecule = None
-        self.store_molecule = True  # Even if True, the molecule attribute is only stored during iteration
+        super().__init__(filename, mode, fileobject, ntap)
 
         # RKF specific attributes
         self.program = "trajectory"
@@ -164,7 +156,7 @@ class RKFTrajectoryFile(TrajectoryFile):
         self.mdblockitems = None
         self._mdblock = {}
         self.include_historydata = False  # Any additional data along the history section will be stored
-        self.historydata = None
+        self.historydata: Optional[Dict] = None
         self.historyitems = None
 
         # Skip to the trajectory part of the file (only if in read mode, because coords are required in header)
@@ -182,7 +174,27 @@ class RKFTrajectoryFile(TrajectoryFile):
         elif self.mode == "ab":
             self._move_cursor_to_append_pos()
         else:
-            raise PlamsError('Mode %s is invalid. Only "rb" and "wb" are allowed.' % (self.mode))
+            raise PlamsError('Mode %s is invalid. Only "rb", "wb" and "ab" are allowed.' % (self.mode))
+
+    def _set_fileobject(self, filename, fileobject, mode):
+        """
+        Set the file object and mode (read/write)
+        """
+        if filename is not None:
+            if _has_libbase:
+                fileobject = KFFile(filename)
+            else:
+                fileobject = KFFile(filename, autosave=False)
+                # fileobject = KFFile(filename,autosave=False,fastsave=True) # Not worth it
+            if fileobject is None:
+                raise PlamsError("KFFile %s not found." % (filename))
+        elif fileobject is None:
+            raise PlamsError("Either a fileobject or a filename need to be provided")
+        self.file_object = fileobject
+
+        if len(mode) == 1:
+            mode = "".join(mode, "b")
+        self.mode = mode
 
     def store_mddata(self, rkf=None):
         """
@@ -308,6 +320,9 @@ class RKFTrajectoryFile(TrajectoryFile):
             self.mdblocksize = 100
             return
         blocksize = self.file_object.read(section, "blockSize")
+        nblocks = 0
+        if (section, "nBlocks") in self.file_object:
+            nblocks = self.file_object.read(section, "nBlocks")
         item_keys = [kn for kn in sections[section] if "ItemName" in kn]
         items = [self.file_object.read(section, kn) for kn in item_keys]
         blockitems = []
@@ -317,6 +332,12 @@ class RKFTrajectoryFile(TrajectoryFile):
                 is_blockitem = True
                 if (section, "%s(1)" % (item)) in self.file_object:
                     if isinstance(self.file_object.read(section, "%s(1)" % (item)), str):
+                        is_blockitem = False
+                    # If this is a block item, the correct amount of blocks need to be there
+                    # Still not full proof. Should check that the number of items is correct.
+                    elif not (section, "%s(%i)" % (item, nblocks)) in self.file_object:
+                        is_blockitem = False
+                    elif (section, "%s(%i)" % (item, nblocks + 1)) in self.file_object:
                         is_blockitem = False
                 else:
                     is_blockitem = False
@@ -348,11 +369,13 @@ class RKFTrajectoryFile(TrajectoryFile):
         self._write_molecule_section(coords, cell, section="InputMolecule", molecule=molecule)
         if self.include_mddata:
             # Start setting up the MDHistory section as well
-            self.mdblocksize = 100
-            self.file_object.write(self.mdhistory_name, "blockSize", 100)
+            if self.mdblocksize is None:
+                self.mdblocksize = 100
+            self.file_object.write(self.mdhistory_name, "blockSize", self.mdblocksize)
 
         # Now make sure that it is possible to read from the file as well
         self._read_header()
+        self.firsttime = False
 
     def _update_celldata(self, cell):
         """
@@ -474,7 +497,7 @@ class RKFTrajectoryFile(TrajectoryFile):
             step_txt = ""
             if step is not None:
                 step_txt = "(%i)" % (step + 1)
-            if not ("History", "Bonds.Index%s" % (step_txt)) in self.file_object:
+            if not (section, "Bonds.Index%s" % (step_txt)) in self.file_object:
                 return conect
             indices = self.file_object.read(section, "Bonds.Index%s" % (step_txt))
             connection_table = self.file_object.read(section, "Bonds.Atoms%s" % (step_txt))
@@ -612,9 +635,8 @@ class RKFTrajectoryFile(TrajectoryFile):
             raise PlamsError("The coordinates do not match the rest of the trajectory")
 
         # If this is the first step, write the header
-        if self.position == 0:
+        if self.firsttime:
             self._write_header(coords, cell, molecule)
-            self.firsttime = False
 
         # Define some local variables
         step = self.position
@@ -838,13 +860,18 @@ class RKFTrajectoryFile(TrajectoryFile):
                 old_values = []
                 if key in self._mdblock:
                     if iblock in self._mdblock[key]:
-                        if len(self._mdblock[key][iblock]) == step % self.mdblocksize - 1:
+                        if len(self._mdblock[key][iblock]) == (step - 1) % self.mdblocksize:
                             old_values = self._mdblock[key][iblock]
                 if len(old_values) == 0:
                     if (section, "%s(%i)" % (key, iblock)) in self.file_object:
                         old_values = self.file_object.read(section, "%s(%i)" % (key, iblock))
                         if not isinstance(old_values, list):
                             old_values = [old_values]
+                if len(old_values) != (step - 1) % self.mdblocksize:
+                    # This will mess up the RKF, so should throw an error
+                    msg = "Introducing new block value '%s' at step %i." % (key, step - 1)
+                    msg += " Block values should be written every step!"
+                    raise PlamsError(msg)
                 values = old_values + [values]  # Values is a scalar
             else:
                 self.file_object.write(section, "nBlocks", iblock)

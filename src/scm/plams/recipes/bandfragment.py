@@ -5,6 +5,7 @@ from scm.plams.recipes.adffragment import ADFFragmentJob, ADFFragmentResults
 from scm.plams.tools.units import Units
 from scm.plams.core.errors import FileError
 from scm.plams.core.functions import add_to_instance
+from scm.plams.core.enums import JobStatus
 
 
 from os.path import join as opj
@@ -117,7 +118,7 @@ class BANDFragmentJob(ADFFragmentJob):
 
         job = cls(name=jobname)
         job.path = path
-        job.status = "copied"
+        job.status = JobStatus.COPIED
 
         job.f1 = AMSJob.load_external(opj(path, "frag1"))
         job.f2 = AMSJob.load_external(opj(path, "frag2"))

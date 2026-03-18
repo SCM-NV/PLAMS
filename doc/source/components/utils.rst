@@ -1,15 +1,15 @@
 Utilities
 -------------------------
 
-Presented here is a small set of useful utility tools that can come handy in various contexts in your scripts.
+Presented here is a small set of useful utility tools that can come in handy in various contexts in your scripts.
 They are simple, standalone objects always present in the main namespace.
 
 .. contents:: :local:
 
-What is characteristic for the  |PeriodicTable| and |Units| classes described below is that they are meant to be used in a bit different way than all other PLAMS classes.
+What is characteristic for the |PeriodicTable| and |Units| classes described below is that they are meant to be used in a bit different way than all other PLAMS classes.
 Usually one takes a class (like |DiracJob|), creates an instance of it (``myjob = DiracJob(...)``) and executes some of its methods (``r = myjob.run()``).
-In contrast, utility classes are designed in a way similar to so called singleton design pattern.
-That means it is not possible to create any instances of these classes.
+In contrast, utility classes are designed in a way similar to the so-called singleton design pattern.
+That means it is not possible to create instances of these classes.
 The class itself serves for "one and only instance" and all methods should be called using the class as the calling object::
 
     >>> x = PeriodicTable()
@@ -51,6 +51,14 @@ A small module for converting VASP output to AMS-like output, and for converting
 
 Reaction energies
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+*New in AMS2026*: The ``balance`` function is new in AMS2026. For usage, see
+the :ref:`BalanceReactionEquationsExample` example.
+
+.. autofunction:: scm.plams.tools.reaction.balance
+
+
+Older functions:
 
 .. automodule:: scm.plams.tools.reaction_energies
 

@@ -3,8 +3,8 @@
 Components (Settings, Job, ...)
 ===============================
 
-This section contains description of all components (classes, functions, decorators) that can be used within PLAMS scripts.
-In each part you can find API specification of a particular component, an explanation of its role in the whole environment and examples of usage.
+This section contains a description of all components (classes, functions, decorators) that can be used within PLAMS scripts.
+In each section you can find the API specification of a particular component, an explanation of its role in the whole environment, and examples of usage.
 
 .. toctree::
 
@@ -19,5 +19,4 @@ In each part you can find API specification of a particular component, an explan
     trajectories
     jobanalysis
     view
-
 

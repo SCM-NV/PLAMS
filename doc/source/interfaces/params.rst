@@ -3,7 +3,7 @@
 ParAMS, Simple Active Learning
 -------------------------------------
 
-The PLAMS interface to ParAMS and Simple Active Learning are described in the respective documentation pages:
+The PLAMS interface to ParAMS and Simple Active Learning is described in the respective documentation pages:
 
 * `ParAMS documentation <../../params/python/paramsjob/paramsjob.html>`__
 

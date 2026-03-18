@@ -22,7 +22,7 @@ class JobCSVFormatter(CSVFormatter):
 
     @staticmethod
     def _format_job(job: Job) -> Dict[str, Any]:
-        message = {
+        message: Dict[str, Any] = {
             "job_base_name": re.sub(r"\.\d+$", "", job.name),
             "job_name": job.name,
             "job_status": job.status,

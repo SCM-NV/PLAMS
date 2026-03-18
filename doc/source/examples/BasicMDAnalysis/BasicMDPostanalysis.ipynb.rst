@@ -21,6 +21,15 @@ Run a short MD simulation of 16 water molecules in a box.
    # this line is not required in AMS2025+
    init()
 
+   try:
+       from scm.plams import view  # view molecule using AMSview in a Jupyter Notebook in AMS2026+
+   except ImportError:
+       from scm.plams import plot_molecule  # plot molecule in a Jupyter Notebook in AMS2023+
+
+       def view(molecule, **kwargs):
+           plot_molecule(molecule)
+
+
    mol = packmol(from_smiles("O"), n_molecules=16, density=1.0)
    s = Settings()
    s.input.ams.Task = "MolecularDynamics"
@@ -38,20 +47,20 @@ Run a short MD simulation of 16 water molecules in a box.
 ::
 
    PLAMS working folder: /path/plams/examples/BasicMDAnalysis/plams_workdir
-   [03.03|11:50:24] JOB md STARTED
-   [03.03|11:50:24] JOB md RUNNING
-   [03.03|11:50:28] JOB md FINISHED
-   [03.03|11:50:28] JOB md SUCCESSFUL
+   [12.01|16:16:38] JOB md STARTED
+   [12.01|16:16:38] JOB md RUNNING
+   [12.01|16:16:43] JOB md FINISHED
+   [12.01|16:16:43] JOB md SUCCESSFUL
 
 
 
 
 
-   <scm.plams.interfaces.adfsuite.ams.AMSResults at 0x12f4185b0>
+   <scm.plams.interfaces.adfsuite.ams.AMSResults at 0x14f905af0>
 
 .. code:: ipython3
 
-   plot_molecule(mol, rotation=("80x,10y,0z"));
+   view(mol, direction="tilt_z", width=300, height=300, padding=-1)
 
 .. figure:: BasicMDPostanalysis_files/BasicMDPostanalysis_5_0.png
 

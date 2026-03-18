@@ -5,7 +5,7 @@ Job manager
 
 .. currentmodule:: scm.plams.core.jobmanager
 
-Job manager is the "commander" of PLAMS environment.
+The job manager is the "commander" of the PLAMS environment.
 It creates the structure of the working folder, manages its contents, and keeps track of all jobs you run.
 
 Every instance of |JobManager| is tied to a working folder.
@@ -22,7 +22,7 @@ This can be left to default, or explicitly initialized, for example with:
     config.default_jobmanager = JobManager(config.jobmanager, "my/path", "my_folder")
     init(path="my/path", folder="my_folder")
 
-Aside from this, it is rare to interact explicitly with a |JobManager| instance (create it manually, call any of its methods, explore its data etc.).
+Aside from this, it is rare to interact explicitly with a |JobManager| instance (create it manually, call any of its methods, explore its data, etc.).
 All interactions are handled automatically from |run| or other methods.
 
 .. technical::
@@ -48,7 +48,7 @@ PLAMS has a built-in mechanism to detect such situations and avoid unnecessary w
 During |run|, just before the actual job execution, a unique identifier (called *hash*) of a job is calculated.
 Job manager stores all hashes of previously started jobs and checks if the hash of the job you are just running has already occurred.
 If such a situation is detected, the execution of the current job is skipped and results of the previous job are used.
-Results from previous job's folder can be either copied or linked to the current job's folder, based on ``link_files`` key in **previous** job's ``settings``.
+Results from the previous job's folder can be either copied or linked to the current job's folder, based on the ``link_files`` key in the **previous** job's ``settings``.
 
 .. note::
 
@@ -58,11 +58,11 @@ Results from previous job's folder can be either copied or linked to the current
 The crucial part of the whole rerun prevention logic is a properly working :meth:`~scm.plams.core.basejob.Job.hash` function.
 It is a function that takes the whole job instance and produces its hash.
 The hashing function needs to produce different hashes for different jobs and exactly the same hashes for jobs that do exactly the same work.
-It is far from trivial to come up with the scheme that works well for all kind of external binaries, since the technical details about job preparation can differ a lot.
+It is far from trivial to come up with the scheme that works well for all kinds of external binaries, since the technical details about job preparation can differ a lot.
 Currently implemented method works based on calculating SHA256 hash of input and/or runscript contents.
 The value of ``hashing`` key in job manager's ``settings`` can be one of the following: ``'input'``, ``'runscript'``, ``'input+runscript'`` (or ``None`` to disable the rerun prevention).
 
-If you decide to implement your own hashing method, it can be done by overriding :meth:`~scm.plams.core.basejob.SingleJob.hash_input` and/or meth:`~scm.plams.core.basejob.SingleJob.hash_runscript`.
+If you decide to implement your own hashing method, it can be done by overriding :meth:`~scm.plams.core.basejob.SingleJob.hash_input` and/or :meth:`~scm.plams.core.basejob.SingleJob.hash_runscript`.
 
 .. warning::
 
@@ -71,7 +71,7 @@ If you decide to implement your own hashing method, it can be done by overriding
     If you are experiencing problems (PLAMS refuses to run a job, because it was already run in the past), you can disable the rerun prevention with ``config.default_jobmanager.settings.hashing = None``.
 
 Hashing is disabled for |MultiJob| instances since they don't have inputs and runscripts.
-Of course single jobs that are children of multijobs are hashed in the normal way, so trying to run exactly the same multijob twice will not trigger rerun prevention on the multijob level, but rather for every children job separately, effectively preventing any doubled work.
+Of course single jobs that are children of multijobs are hashed in the normal way, so trying to run exactly the same multijob twice will not trigger rerun prevention on the multijob level, but rather for every child job separately, effectively preventing any doubled work.
 
 
 
@@ -131,7 +131,7 @@ The decision if a job should be pickled is based on the ``pickle`` key in job's 
 If you wish not to pickle a particular job just set ``myjob.settings.pickle = False``.
 Of course the global default ``config.job.pickle`` can also be used.
 
-If you modify a job or its corresponding |Results| instance after it has been pickler, these changes are not going to be reflected in the ``.dill`` file, since it was created before the changes happened.
+If you modify a job or its corresponding |Results| instance after it has been pickled, these changes are not going to be reflected in the ``.dill`` file, since it was created before the changes happened.
 To update the state of the ``.dill`` file to include such changes you need to repickle the job manually by calling ``myjob.pickle()`` after doing your changes.
 
 .. note::
@@ -163,7 +163,7 @@ Pickling and rerun prevention combine together into a handy restart mechanism.
 When your script tries to do something "illegal", an exception is raised and the script gets terminated by the Python interpreter.
 Usually it is caused by a mistake in the script (a typo, using wrong variable, accessing wrong element of a list etc.).
 In such a case one would like to correct the script and run it again.
-But some jobs in the terminated script may had already been run and successfully finished before the exception occurred.
+But some jobs in the terminated script may have already been run and successfully finished before the exception occurred.
 It would be a waste of time to run those jobs again in the corrected script if they are meant to produce exactly the same results as previously.
 The solution is to load all successful jobs from the old script at the beginning of the new one and let |RPM| do the rest.
 But having to go to the old script's working folder and manually get paths to all ``.dill`` files present there would be cumbersome.

@@ -5,8 +5,8 @@ RASPA
 
 .. currentmodule:: scm.plams.interfaces.thirdparty.raspa
 
-The runscript written by PLAMS expects the environment variable *$RASPA_DIR* to be set. It should point to the 
-location RASPA_ is installed in (*$RASPA_DIR/bin/simulate* being the compiled executable).
+The runscript written by PLAMS expects the environment variable *$RASPA_DIR* to be set. It should point to the
+location where RASPA_ is installed (*$RASPA_DIR/bin/simulate* being the compiled executable).
 
 Input
 ~~~~~~~~~~~~~~
@@ -62,7 +62,7 @@ The input generated during the execution of the RASPA_ job is similar to: ::
       widomprobability 1.0
 
 
-The *Component* sections differ from the standard behaviour and are printed by the input parser as shown in this example.
+The *Component* sections differ from the standard behavior and are printed by the input parser as shown in this example.
 They can be inserted using the dictionary-like or dot-like notation as shown above. The ``MoleculeName`` key is obligatory.
 
 As in other interfaces, the ``_h`` key results in the value being printed along the section title.
@@ -86,7 +86,7 @@ Loading jobs
 
 Calculations done without PLAMS can be loaded using the |load_external| functionality. The |RaspaResults| class **does not** support reading input files into |Settings| objects yet.
 
-Just do ``RaspaJob.load_external(path)`` to get use the job inside PLAMS.
+Just do ``RaspaJob.load_external(path)`` to use the job inside PLAMS.
 
 
 API

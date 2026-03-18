@@ -190,6 +190,7 @@ class AMSMSDResults(AMSAnalysisResults):
 class AMSMSDJob(AMSConvenientAnalysisJob):
     """A convenient class wrapping around the trajectory analysis MSD tool"""
 
+    results: AMSMSDResults
     _result_type = AMSMSDResults
     _parent_write_atoms = True
     _task = "MeanSquareDisplacement"
@@ -323,6 +324,7 @@ class AMSViscosityFromBinLogResults(AMSAnalysisResults):
 class AMSViscosityFromBinLogJob(AMSConvenientAnalysisJob):
     """A convenient class wrapping around the trajectory analysis ViscosityFromBinLog tool. Only runs with default input options (max correlation time 10% of the total trajectory)."""
 
+    results: AMSViscosityFromBinLogResults
     _result_type = AMSViscosityFromBinLogResults
     _parent_write_atoms = False
     _task = "AutoCorrelation"

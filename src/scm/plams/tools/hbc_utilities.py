@@ -1,12 +1,13 @@
 from scm.plams.core.functions import requires_optional_package
 from scm.plams.version import __version__
+from scm.plams.tools.units import Units
 from typing import Optional, List, Tuple, Dict, Any
 from pathlib import Path
 import numpy as np
 import os
 
 
-@requires_optional_package("scm.libbase")
+@requires_optional_package("scm.base")
 def view_HBC(rkf_path: str, xyz_file: Optional[str] = None) -> None:
     """
     visulize the hydrogen bond centers (HBC)
@@ -15,7 +16,7 @@ def view_HBC(rkf_path: str, xyz_file: Optional[str] = None) -> None:
         rkf_path (str) : A COSKF file used to visulize the HBC.
         xyz_file (optional str) : The name of the XYZ file to write the visualization to. If not provided, a temporary file "tmp-HBC.xyz" will be used.
     """
-    from scm.libbase import KFFile
+    from scm.base import KFFile
 
     if not isinstance(rkf_path, str):
         raise TypeError(f"Expected `rkf_path` to be a string but got {type(rkf_path).__name__}")
@@ -54,14 +55,14 @@ def view_HBC(rkf_path: str, xyz_file: Optional[str] = None) -> None:
     os.system(f"$AMSBIN/amsview {xyz_filename}")
 
 
-@requires_optional_package("scm.libbase")
+@requires_optional_package("scm.base")
 def write_HBC_to_COSKF(
     rkf_path: str, HBC_xyz: List[np.ndarray], HBC_atom: List[int], HBC_angle: List[float], HBC_info: Dict[str, Any]
 ) -> None:
     """
     Write the hydrogen bond centers (HBC) information into the COSKF file
     """
-    from scm.libbase import KFFile
+    from scm.base import KFFile
 
     if not isinstance(rkf_path, str):
         raise TypeError(f"Expected `rkf_path` to be a string but got {type(rkf_path).__name__}")
@@ -79,7 +80,7 @@ def write_HBC_to_COSKF(
             rkf.write("HBC", "HBC angles", HBC_angle)
 
 
-@requires_optional_package("scm.libbase")
+@requires_optional_package("scm.base")
 def parse_mesp(
     densf_path: str,
     rkf_path: str,
@@ -103,7 +104,7 @@ def parse_mesp(
         HBC_info (Dict[str, Any]) : A dictionary containing metadata, including the ADF version, density grid type, and HBC script version.
 
     """
-    from scm.libbase import KFFile, Units
+    from scm.base import KFFile
 
     rkf = KFFile(rkf_path)
     densf = KFFile(densf_path)
@@ -126,7 +127,7 @@ def parse_mesp(
     HBC_xyz: List[np.ndarray] = []
     HBC_atom: List[int] = []
     HBC_angle: List[float] = []
-    BOHR = Units.convert("bohr", "angstrom", 1.0)
+    BOHR = Units.convert(1.0, "bohr", "angstrom")
 
     atom_COSMO_radius = None
     if rkf.var_exists("COSMO", "Atom COSMO Radii"):

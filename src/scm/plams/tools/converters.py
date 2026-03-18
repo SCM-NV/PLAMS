@@ -515,15 +515,15 @@ def rkf_to_ase_atoms(rkf_file: str, get_results: bool = True) -> List["Atoms"]:
     kf = KFFile(rkf_filename)
     if "History" in kf.keys():
         if "ChemicalSystem(1)" in kf.keys():
-            rkf = RKFHistoryFile(rkf_filename)
+            rkf: RKFTrajectoryFile = RKFHistoryFile(rkf_filename)
         else:
             rkf = RKFTrajectoryFile(rkf_filename)
 
         rkf.store_historydata()
         all_atoms = []
         for crd, cell in rkf:
-            energy, stress = None, None
-            if get_results:
+            energy, gradients, stress = None, None, None
+            if get_results and rkf.historydata is not None:
                 energy = rkf.historydata.get("EngineEnergy", None)
                 if energy is None:
                     energy = rkf.historydata.get("Energy", None)

@@ -19,12 +19,17 @@ Initial imports
    IPythonConsole.ipython_useSVG = True
    IPythonConsole.molSize = 250, 250
 
+   try:
+       from scm.plams import view  # view molecule using AMSview in a Jupyter Notebook in AMS2026+
+   except ImportError:
+       from scm.plams import plot_molecule  # plot molecule in a Jupyter Notebook in AMS2023+
+
+       def view(molecule, **kwargs):
+           plot_molecule(molecule)
+
+
    # this line is not required in AMS2025+
    plams.init()
-
-::
-
-   PLAMS working folder: /path/plams/examples/ReactionsDiscovery/plams_workdir.002
 
 Helpers for showing molecules
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -107,14 +112,16 @@ Running reactions discovery
 .. code:: ipython3
 
    result = job.run()  # start the job
-   job.check()  # check if job was successful
+   job.check()  # check if job was succesful
 
 ::
 
-   [11.02|09:43:46] JOB MyDiscovery STARTED
-   [11.02|09:43:46] JOB MyDiscovery RUNNING
-   [11.02|09:46:16] JOB MyDiscovery FINISHED
-   [11.02|09:46:17] JOB MyDiscovery SUCCESSFUL
+   [13.01|09:49:52] JOB MyDiscovery STARTED
+   [13.01|09:49:52] JOB MyDiscovery RUNNING
+   [13.01|10:26:59] JOB MyDiscovery FINISHED
+   [13.01|10:27:00] Job mdsim_2 reported warnings. Please check the output
+   [13.01|10:27:00] JOB MyDiscovery SUCCESSFUL
+   [13.01|10:27:00] Job mdsim_2 reported warnings. Please check the output
 
 
 
@@ -140,7 +147,7 @@ The categories are ``Products`` ``Reactants`` and ``Unstable``, as described in 
 
 ::
 
-   ['Reactants', 'Products', 'Unstable']
+   ['Products', 'Reactants', 'Unstable']
 
 .. code:: ipython3
 
@@ -166,14 +173,21 @@ Unstable products were determined to not likely exist outside of reactive dynami
 
 .. code:: ipython3
 
-   for unstable_molecule in molecules["Unstable"][:3]:
-       plams.plot_molecule(unstable_molecule);
+   view(molecules["Unstable"][0], width=200, height=200)
 
 .. figure:: reactions_discovery_files/reactions_discovery_24_0.png
 
-.. figure:: reactions_discovery_files/reactions_discovery_24_1.png
+.. code:: ipython3
 
-.. figure:: reactions_discovery_files/reactions_discovery_24_2.png
+   view(molecules["Unstable"][1], width=200, height=200)
+
+.. figure:: reactions_discovery_files/reactions_discovery_25_0.png
+
+.. code:: ipython3
+
+   view(molecules["Unstable"][2], width=200, height=200)
+
+.. figure:: reactions_discovery_files/reactions_discovery_26_0.png
 
 Graph of the reaction network
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

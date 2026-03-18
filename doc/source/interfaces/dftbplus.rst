@@ -36,7 +36,7 @@ Input files for DFTB+ are either in HSD (*human-friendly structured data*) or XM
 This interface will produce HSD format input files.
 See `the manual <http://www.dftb-plus.info/documentation/>`_ for further information on keywords and structure.
 The input file must be named *dftb_in.hsd* and is therefore created using this name.
-Note that many values have standard settings, those will all be printed to *dftb_pin.hsd* when you start a calculation.
+Note that many values have standard settings; those will all be printed to *dftb_pin.hsd* when you start a calculation.
 Check both files for errors when having problems.
 
 HSD input files are organized using different properties.
@@ -50,9 +50,9 @@ This is done by automatically creating either *property lists* or *method types*
 *   If a key has one or more subkeys it will be created as a *property list*::
 
         #sets the hamiltonian property to be of a method type named DFTB
-        myjob.setting.input.hamiltonian._h = 'DFTB'
+        myjob.settings.input.hamiltonian._h = 'DFTB'
         #sets the key parserversion of the property list parserversion to 4
-        myjob.setting.input.parseroptions.parserversion = '4'
+        myjob.settings.input.parseroptions.parserversion = '4'
 
 Empty *method types* can be created by not giving any subkeys to a key except ``_h``.
 
@@ -70,13 +70,13 @@ The standard output is redirected to ``$JN.out``, errors to ``$JN.err``.
 
 Results extraction
 ~~~~~~~~~~~~~~~~~~~~~~~~~
-DFTB+ creates multiple outputfiles, none of them are renamed.
+DFTB+ creates multiple output files, none of them are renamed.
 See ``detailed.out`` for the results of your calculation.
 Resulting geometries are saved in ``.xyz`` and ``.gen`` format by DFTB+.
 Other files might be created depending on your calculation type.
 
 General text processing methods from |Results| can be used to obtain data from results files.
-At the moment only three functions for result extraction are defined:
+At the moment, only three functions for result extraction are defined:
 
 *   Read the total energy :meth:`~DFTBPlusResults.get_energy`
 *   Get the molecule from the ``.xyz`` file :meth:`~DFTBPlusResults.get_molecule`

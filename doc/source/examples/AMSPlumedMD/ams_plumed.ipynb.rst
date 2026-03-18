@@ -11,6 +11,19 @@ Initial imports
    import numpy as np
    import matplotlib.pyplot as plt
 
+   try:
+       from scm.plams import view  # view molecule using AMSview in a Jupyter Notebook in AMS2026+
+
+       _has_view = True
+   except ImportError:
+       from scm.plams import plot_molecule  # plot molecule in a Jupyter Notebook in AMS2023+
+
+       _has_view = False
+
+       def view(molecule, ax=None, **kwargs):
+           plot_molecule(molecule, ax=ax)
+
+
    # this line is not required in AMS2025+
    init()
 
@@ -49,10 +62,7 @@ Define a Molecule from xyz coordinates and show the molecule.
 
    mol = get_molecule()
 
-   try:
-       plot_molecule(mol)  # plot Molecule in Jupyter Notebook in AMS2023+
-   except NameError:
-       pass  # ignore errors in AMS2022-
+   view(mol, guess_bonds=True, width=300, height=300)
 
 .. figure:: ams_plumed_files/ams_plumed_4_0.png
 
@@ -178,10 +188,10 @@ Run the job
 
 ::
 
-   [10.02|14:24:55] JOB dissociating-carbonic-acid STARTED
-   [10.02|14:24:55] JOB dissociating-carbonic-acid RUNNING
-   [10.02|14:24:58] JOB dissociating-carbonic-acid FINISHED
-   [10.02|14:24:58] JOB dissociating-carbonic-acid SUCCESSFUL
+   [12.01|16:08:19] JOB dissociating-carbonic-acid STARTED
+   [12.01|16:08:19] JOB dissociating-carbonic-acid RUNNING
+   [12.01|16:08:20] JOB dissociating-carbonic-acid FINISHED
+   [12.01|16:08:21] JOB dissociating-carbonic-acid SUCCESSFUL
 
 Analyze the trajectory
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -194,7 +204,7 @@ Extract the O3H6 distances at each stored frame, and plot some of the molecules
 
    every = 20  # picture every 20 frames in the trajectory
    N_images = np.int_(np.ceil(len(trajectory) / every))
-   fig, axes = plt.subplots(1, N_images, figsize=(10, 3))
+   fig, axes = plt.subplots(1, N_images, figsize=(10, 4))
 
    O3H6_distances = []
    i_ax = 0
@@ -202,12 +212,16 @@ Extract the O3H6 distances at each stored frame, and plot some of the molecules
    for i, mol in enumerate(trajectory, 1):
        O3H6_distances.append(mol[3].distance_to(mol[6]))
        if i % every == 1:
-           try:
-               plot_molecule(mol, ax=axes[i_ax])  # mol is a PLAMS Molecule
+           if _has_view:
+               img = view(mol, width=300, height=300, guess_bonds=True)  # mol is a PLAMS Molecule
+               axes[i_ax].imshow(img)
+               axes[i_ax].axis("off")
                axes[i_ax].set_title(f"frame {i}")
                i_ax += 1
-           except NameError:
-               pass
+           else:
+               view(mol, ax=axes[i_ax])  # mol is a PLAMS Molecule
+               axes[i_ax].set_title(f"frame {i}")
+               i_ax += 1
 
 .. figure:: ams_plumed_files/ams_plumed_11_0.png
 
@@ -242,13 +256,14 @@ PLAMS makes it easy to extract any frame from an MD trajectory. As an example, l
    index = np.argmax(energies) + 1
    approximate_ts_molecule = job.results.get_history_molecule(index)
 
-   try:
-       plot_molecule(approximate_ts_molecule)
-       plt.title(f"Using frame {index} as initial approximate transition state")
-   except NameError:
-       pass
+   print(f"Using frame {index} as initial approximate transition state:")
+   view(approximate_ts_molecule, width=300, height=300, guess_bonds=True)
 
-.. figure:: ams_plumed_files/ams_plumed_16_0.png
+::
+
+   Using frame 82 as initial approximate transition state:
+
+.. figure:: ams_plumed_files/ams_plumed_16_1.png
 
 .. code:: ipython3
 
@@ -262,20 +277,21 @@ PLAMS makes it easy to extract any frame from an MD trajectory. As an example, l
 
 ::
 
-   [10.02|14:24:59] JOB ts-search STARTED
-   [10.02|14:24:59] JOB ts-search RUNNING
-   [10.02|14:26:08] JOB ts-search FINISHED
-   [10.02|14:26:08] JOB ts-search SUCCESSFUL
+   [12.01|16:08:27] JOB ts-search STARTED
+   [12.01|16:08:27] JOB ts-search RUNNING
+   [12.01|16:09:07] JOB ts-search FINISHED
+   [12.01|16:09:07] JOB ts-search SUCCESSFUL
 
 .. code:: ipython3
 
-   try:
-       plot_molecule(ts_job.results.get_main_molecule())
-       plt.title("Optimized transition state")
-   except NameError:
-       pass
+   print("Optimized transition state:")
+   view(ts_job.results.get_main_molecule(), width=300, height=300, guess_bonds=True)
 
-.. figure:: ams_plumed_files/ams_plumed_18_0.png
+::
+
+   Optimized transition state:
+
+.. figure:: ams_plumed_files/ams_plumed_18_1.png
 
 .. code:: ipython3
 
@@ -287,15 +303,15 @@ PLAMS makes it easy to extract any frame from an MD trajectory. As an example, l
 ::
 
    Frequencies (at a TS there should be 1 imaginary [given as negative])
-   -1418.139 cm^-1
-   319.619 cm^-1
-   368.881 cm^-1
-   544.479 cm^-1
-   702.632 cm^-1
-   743.002 cm^-1
-   875.907 cm^-1
-   1080.859 cm^-1
-   1124.376 cm^-1
-   1758.036 cm^-1
-   2063.370 cm^-1
-   3471.052 cm^-1
+   -1427.002 cm^-1
+   307.787 cm^-1
+   364.254 cm^-1
+   545.556 cm^-1
+   703.642 cm^-1
+   744.026 cm^-1
+   876.638 cm^-1
+   1080.218 cm^-1
+   1117.900 cm^-1
+   1760.451 cm^-1
+   2064.254 cm^-1
+   3475.147 cm^-1

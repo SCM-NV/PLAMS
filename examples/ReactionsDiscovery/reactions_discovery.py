@@ -16,6 +16,15 @@ from rdkit.Chem.Draw import IPythonConsole
 IPythonConsole.ipython_useSVG = True
 IPythonConsole.molSize = 250, 250
 
+try:
+    from scm.plams import view  # view molecule using AMSview in a Jupyter Notebook in AMS2026+
+except ImportError:
+    from scm.plams import plot_molecule  # plot molecule in a Jupyter Notebook in AMS2023+
+
+    def view(molecule, **kwargs):
+        plot_molecule(molecule)
+
+
 # this line is not required in AMS2025+
 plams.init()
 
@@ -95,7 +104,7 @@ graph, molecules, categories = result.get_network()
 
 # ## Categories
 #
-# The categories are `Products` `Reactants` and `Unstable`, as described in the reactions discovery manual. `molecules` is a dictionairy with keys equal to the categories and each concomitant value is a list of PLAMS molecules.
+# The categories are `Products` `Reactants` and `Unstable`, as described in the reactions discovery manual. `molecules` is a dictionary with keys equal to the categories and each concomitant value is a list of PLAMS molecules.
 
 print(categories)
 
@@ -114,8 +123,13 @@ draw_molecules(molecules["Products"][:6])
 #
 # Unstable products were determined to not likely exist outside of reactive dynamics. This e.g. includes radicals or structures that don't form stable molecules in isolation. Not all unstable molecules have a sensible 2d structure, so instead we plot their 3d structure.
 
-for unstable_molecule in molecules["Unstable"][:3]:
-    plams.plot_molecule(unstable_molecule)
+view(molecules["Unstable"][0], width=200, height=200)
+
+
+view(molecules["Unstable"][1], width=200, height=200)
+
+
+view(molecules["Unstable"][2], width=200, height=200)
 
 
 # ## Graph of the reaction network

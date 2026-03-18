@@ -3,9 +3,24 @@ import numpy
 from scm.plams.mol.molecule import Molecule
 from scm.plams.interfaces.molecule.rdkit import to_smiles
 from scm.plams.core.functions import requires_optional_package
+from scm.plams.core.errors import PlamsError
+from dataclasses import dataclass
 
-from typing import Union, Optional, Iterable, Sequence
+from typing import Union, Optional, Iterable, Sequence, List, Dict, Set, Mapping, Literal, Any
 import numpy.typing
+import numpy as np
+
+
+class ReactionEquationError(PlamsError):
+    """
+    Error with the reaction equation
+    """
+
+
+class UninitializedReactionError(PlamsError):
+    """
+    Reaction equation state not properly initialized
+    """
 
 
 class ReactionEquation:
@@ -30,10 +45,10 @@ class ReactionEquation:
         # Not to be changed by user
         self._rformulas = [m.get_formula() if isinstance(m, Molecule) else m for m in reactants]
         self._pformulas = [m.get_formula() if isinstance(m, Molecule) else m for m in products]
-        self.rsmiles = [to_smiles(m) if isinstance(m, Molecule) else None for m in reactants]
-        self.psmiles = [to_smiles(m) if isinstance(m, Molecule) else None for m in products]
-        self.rsmiles = None if None in self.rsmiles else self.rsmiles
-        self.psmiles = None if None in self.psmiles else self.psmiles
+        rsmiles = [to_smiles(m) if isinstance(m, Molecule) else None for m in reactants]
+        psmiles = [to_smiles(m) if isinstance(m, Molecule) else None for m in products]
+        self.rsmiles: Optional[List[Union[str, None]]] = None if None in rsmiles else rsmiles  # type: ignore[assignment]
+        self.psmiles: Optional[List[Union[str, None]]] = None if None in psmiles else psmiles  # type: ignore[assignment]
 
         # Set the charges
         self._rcharges = []
@@ -52,15 +67,15 @@ class ReactionEquation:
             self._pcharges.append(q)
 
         # General settings for this system
-        self.elements = None
-        self.reactant_elements = None
-        self.product_elements = None
-        self.matrix = None
+        self.elements: Optional[List[str]] = None
+        self.reactant_elements: Optional[List[Dict[str, int]]] = None
+        self.product_elements: Optional[List[Dict[str, int]]] = None
+        self.matrix: Optional[numpy.typing.NDArray] = None
         self.rank = None
-        self.basis = None
+        self.basis: Optional[numpy.typing.NDArray] = None
 
         # Settings that will change with each balance call (depend on min_coeffs)
-        self.min_coeffs = None
+        self.min_coeffs: Optional[numpy.typing.NDArray] = None
         self.model = None
         self.solver = None
         self.coeffs = None
@@ -96,8 +111,6 @@ class ReactionEquation:
         """
         if min_coeffs is not None:
             min_coeffs = numpy.array(min_coeffs)
-            if len(min_coeffs[min_coeffs != 0]) == 0:
-                raise Exception("At least one non-zero coefficient needs to be provided as the min_coeffs argument.")
 
         self.coeffs = None
         self.equivalent_coeffs = None
@@ -111,13 +124,16 @@ class ReactionEquation:
         # Exclude basis vectors based on the provided min_coeffs
         basis = self.get_reduced_basis()
         if len(basis) == 0:
+            self.message = "Empty nullspace"
             return None
 
         # If the basis containt no coefficients for either products or reactants, it also fails
         nreactants = len(self._rformulas)
         if abs(basis[:, :nreactants]).sum() == 0:
+            self.message = "Empty nullspace"
             return None
         if abs(basis[:, nreactants:]).sum() == 0:
+            self.message = "Empty nullspace"
             return None
 
         # Now we work with the basis to get the coefficients
@@ -137,20 +153,28 @@ class ReactionEquation:
 
         return coeffs
 
-    def set_minimum_coefficients(self, min_coeffs=None):
+    def set_minimum_coefficients(self, min_coeffs: Optional[numpy.typing.NDArray] = None) -> None:
         """
         Set the minimum coefficient values
 
         * ``min_coeffs`` -- Vector representing the minimal allowable (integer) coefficient of each molecule
                         [0, 0, 1, 0, 0]
         """
+        if min_coeffs is not None:
+            min_coeffs = numpy.array(min_coeffs)
+            if len(min_coeffs[min_coeffs != 0]) == 0:
+                msg = "At least one non-zero coefficient needs to be provided as the min_coeffs argument."
+                raise ReactionEquationError(msg)
+
         nreactants = len(self._rformulas)
         if min_coeffs is None:
+            if self.matrix is None:
+                raise UninitializedReactionError("Uninitialized: Call prepare_state() method first.")
             min_coeffs = numpy.zeros(self.matrix.shape[1])
             min_coeffs[nreactants] = 1
         self.min_coeffs = min_coeffs
 
-    def get_nullspace_basis(self):
+    def get_nullspace_basis(self) -> numpy.typing.NDArray:
         """
         Here we try to get the nullspace vectors
         """
@@ -168,28 +192,30 @@ class ReactionEquation:
             for c in sol:
                 c = [v[0] for v in c.tolist()]
                 basis.append(c)
-            basis = numpy.array([[float(x) for x in v] for v in basis])
+            basis_array = numpy.array([[float(x) for x in v] for v in basis])
 
         elif self.method == "plams" or self.method == "sympy":
             from scm.plams.tools.plams_matrix import PLAMSMatrix
 
-            matrix = PLAMSMatrix(self.matrix)
-            basis = matrix.nullspace()
+            plams_matrix = PLAMSMatrix(self.matrix)
+            basis_array = plams_matrix.nullspace()
 
         else:
-            raise Exception("Null space method not known")
+            raise ReactionEquationError("Null space method not known")
 
-        return basis
+        return basis_array
 
-    def get_reduced_basis(self):
+    def get_reduced_basis(self) -> numpy.typing.NDArray:
         """
         Select only the rows in basis that share the same block with the main product
         """
 
-        def get_row_indices(ind):
+        def get_row_indices(ind: int) -> numpy.typing.NDArray:
             """
             Get the indices of the rows in the same block with compound ind
             """
+            if self.basis is None:
+                raise UninitializedReactionError("Uninitialized: prepare_state() should be called.")
             # First find a row that has a nonzero value at position ind
             rowmap = None
             for i, row in enumerate(self.basis):
@@ -203,6 +229,10 @@ class ReactionEquation:
             return indexmap
 
         # Add the rows for the blocks representing each mandatory compound
+        if self.basis is None:
+            raise UninitializedReactionError("Uninitialized: Call prepare_state() method first.")
+        if self.min_coeffs is None:
+            raise UninitializedReactionError("Uninitialized: Call set_minimum_coefficients() method first.")
         nmols = len(self.min_coeffs)
         nonzero_indices = iter(numpy.arange(nmols)[self.min_coeffs > 0])
         indexmap = get_row_indices(next(nonzero_indices))
@@ -221,7 +251,7 @@ class ReactionEquation:
         return basis
 
     @requires_optional_package("pyomo")
-    def setup_optimizer(self, basis):
+    def setup_optimizer(self, basis: numpy.typing.NDArray) -> None:
         """
         Solve the problem using ILP.
 
@@ -263,6 +293,8 @@ class ReactionEquation:
 
         # Set up the secondary constraint
         model.constraints = ConstraintList()
+        if self.min_coeffs is None:
+            raise UninitializedReactionError("Uninitialized: Call set_minimum_coefficients() method first.")
         for i in range(n):
             expr = model.x[i] >= self.min_coeffs[i]
             model.constraints.add(expr)
@@ -280,12 +312,14 @@ class ReactionEquation:
         self.model = model
         self.solver = solver
 
-    def optimize_coefficients(self):
+    def optimize_coefficients(self) -> numpy.typing.NDArray:
         """
         Solve the problem using ILP.
 
         min(sum(x)), with basis@y = x, and x >= min_coeffs
         """
+        if self.model is None:
+            raise UninitializedReactionError("Model not properly initialized. Call setup_optimizer method.")
         n = len(self.model.x)
 
         # Solve the problem
@@ -302,13 +336,15 @@ class ReactionEquation:
         self.message = message
         return coeffs
 
-    def refine_optimization(self):
+    def refine_optimization(self) -> numpy.typing.NDArray:
         """
         Find all solutions with the same cost, and select the one with the lowest indices
 
         Note: This is done by repressing the highest coefficient in the previous solution,
               and optimizing again, untill no improvement is made.
         """
+        if self.model is None:
+            raise UninitializedReactionError("Model not properly initialized. Call balance() method directly.")
         n = len(self.model.x)
         coeffs = self.coeffs
         cost = self.model.objective()
@@ -352,20 +388,20 @@ class ReactionEquation:
         return coeffs
 
     @property
-    def reactants(self):
+    def reactants(self) -> List[str]:
         """
         Get the list of reactant formulas
         """
         return self._rformulas
 
     @property
-    def products(self):
+    def products(self) -> List[str]:
         """
         Get the list of product formulas
         """
         return self._pformulas
 
-    def set_charges(self, reactant_charges, product_charges):
+    def set_charges(self, reactant_charges: List[float], product_charges: List[float]) -> None:
         """
         Set the charges for reactant and product molecules
 
@@ -375,23 +411,31 @@ class ReactionEquation:
         if len(reactant_charges) != len(self._rformulas):
             strings = ["Number of supplied reactant charges should be %i " % (len(self._rformulas))]
             strings += ["not %i." % (len(reactant_charges))]
-            raise Exception("".join(strings))
+            raise ReactionEquationError("".join(strings))
         if len(product_charges) != len(self._pformulas):
             strings = ["Number of supplied product charges should be %i " % (len(self._pformulas))]
             strings += ["not %i." % (len(product_charges))]
-            raise Exception("".join(strings))
+            raise ReactionEquationError("".join(strings))
         self._rcharges = reactant_charges
         self._pcharges = product_charges
 
-    def set_coefficients(self, icoeffs):
+    def set_coefficients(self, icoeffs: int) -> None:
         """
         Set one of the entries in self.equivalent_coefficients as the final result
         """
+        if self.equivalent_coeffs is None:
+            raise UninitializedReactionError("Model not properly initialized. Call balance() method first.")
         self.coeffs = self.equivalent_coeffs[icoeffs]
 
-    def __str__(self):
-        """
-        Write the balanced reaction
+    def __format__(self, fmt: Optional[str] = None) -> str:
+        """Formats the chemical reaction.
+
+        fmt: str
+            If 'smiles', will print the reaction using SMILES if possible.
+
+        Example:
+
+        >>> print(f"{reaction:smiles}")
         """
         if self.message == "Unsolved":
             return "Equation not yet balanced"
@@ -408,26 +452,36 @@ class ReactionEquation:
 
         reactants = self._rformulas
         products = self._pformulas
-        if self.print_as_smiles and self.rsmiles is not None:
+        if (fmt == "smiles" or self.print_as_smiles) and self.rsmiles is not None:
             reactants = self.rsmiles
-        if self.print_as_smiles and self.psmiles is not None:
+        if (fmt == "smiles" or self.print_as_smiles) and self.psmiles is not None:
             products = self.psmiles
 
-        # Molecule strings
-        block = [" + ".join(["%i %s" % (self.coeffs[i], reactants[i]) for i in rindices])]
-        block += [" + ".join(["%i %s" % (pcoeffs[i], products[i]) for i in pindices])]
-        strings = [" => ".join(block)]
-        # Charges
-        # block = [" + ".join(["%i %.1f"%(self.coeffs[i],self._rcharges[i]) for i in rindices])]
-        # block += [" + ".join(["%i %.1f"%(pcoeffs[i],self._pcharges[i]) for i in pindices])]
-        # strings += [" => ".join(block)]
-        reaction_charge = sum([-self.coeffs[i] * self._rcharges[i] for i in rindices])
-        reaction_charge += sum([pcoeffs[i] * self._pcharges[i] for i in pindices])
-        strings += ["Charge = %.2f" % (reaction_charge)]
-        return " | ".join(strings)
+        def chargestring(arr, i) -> str:
+            if not arr:
+                return ""
+            if fmt == "smiles" or self.print_as_smiles:
+                return ""
+            val = arr[i]
+            if val == 0:
+                return ""
+            return f"[{val:+}]"
+
+        ret = (
+            " + ".join(f"{self.coeffs[i]} {reactants[i]}{chargestring(self._rcharges, i)}" for i in rindices)
+            + " => "
+            + " + ".join(f"{pcoeffs[i]} {products[i]}{chargestring(self._pcharges, i)}" for i in pindices)
+        )
+        return ret
+
+    def __str__(self) -> str:
+        """
+        Write the balanced reaction
+        """
+        return f"{self}"
 
     @property
-    def reaction_charge(self):
+    def reaction_charge(self) -> Union[int, str]:
         """
         Write the balanced reaction
         """
@@ -448,13 +502,14 @@ class ReactionEquation:
         reaction_charge += sum([pcoeffs[i] * self._pcharges[i] for i in pindices])
         return reaction_charge
 
-    def matrix_as_string(self, mat=None, space=8):
+    def matrix_as_string(self, mat: Optional[numpy.typing.NDArray] = None, space: int = 8) -> str:
         """
         Print a numpy matrix in nice format
         """
         if mat is None:
             mat = self.matrix
-
+        if mat is None:
+            raise UninitializedReactionError("Uninitialized. Call prepare_state() method first.")
         form = f"%{space}s"
         form2 = f"%{space}.1e"
         lines = []
@@ -468,19 +523,19 @@ class ReactionEquation:
     # Private methods
     #################
 
-    def _set_elements(self):
+    def _set_elements(self) -> None:
         """
         Set the element data from the formulas
         """
         # Get all elements, as well as for each molecule how many of each they contain
-        elements = set()
-        reactants = []
+        elements: Set[str] = set()
+        reactants: List[Dict[str, int]] = []
         for formula in self._rformulas:
             d = self._elements_from_formula(formula)
             reactants.append(d)
             for el in d.keys():
                 elements.add(el)
-        products = []
+        products: List[Dict[str, int]] = []
         for formula in self._pformulas:
             d = self._elements_from_formula(formula)
             products.append(d)
@@ -491,12 +546,16 @@ class ReactionEquation:
         self.reactant_elements = reactants
         self.product_elements = products
 
-    def _set_matrix(self):
+    def _set_matrix(self) -> None:
         """
         Get the matrix from the molecular formulas
         """
         if self.elements is None:
-            raise Exception("Object state not yet prepared")
+            raise UninitializedReactionError("Uninitialized: prepare_state() method was not called.")
+        if self.reactant_elements is None:
+            raise UninitializedReactionError("Uninitialized: prepare_state() method was not called.")
+        if self.product_elements is None:
+            raise UninitializedReactionError("Uninitialized: prepare_state() method was not called.")
 
         mat = []
         for el in self.elements:
@@ -508,12 +567,11 @@ class ReactionEquation:
                 num = d[el] if el in d else 0
                 row.append(-num)
             mat.append(row)
-        mat = numpy.array(mat)
-        self.matrix = mat
-        self.rank = numpy.linalg.matrix_rank(mat)
+        self.matrix = numpy.array(mat)
+        self.rank = numpy.linalg.matrix_rank(self.matrix)
 
     @staticmethod
-    def _elements_from_formula(formula):
+    def _elements_from_formula(formula: str) -> Dict[str, int]:
         """
         Get all elements from the formula
         """
@@ -532,9 +590,100 @@ class ReactionEquation:
         indices = [letter_indices[i] for i, b in enumerate(capitals) if b]
         lower = [i + l for i, l in zip(indices, lengths)]
         upper = indices[1:] + [len(formula)]
-        numbers = [formula[l:u] for l, u in zip(lower, upper)]
-        numbers = [int(s) if s.isdigit() else 1 for s in numbers]
+        str_numbers = [formula[l:u] for l, u in zip(lower, upper)]
+        numbers = [int(s) if s.isdigit() else 1 for s in str_numbers]
 
         # Create a dictionary
         element_numbers = {el: i for el, i in zip(elements, numbers)}
         return element_numbers
+
+
+@dataclass
+class Species:
+    formula: str
+    charge: int = 0
+    min_coeff: int = 0
+    smiles: Optional[str] = None
+
+    @classmethod
+    def from_molecule(cls, mol: Molecule, min_coeff: int = 0, smiles: Optional[str] = None) -> "Species":
+        """Initialize a Species from a PLAMS Molecule."""
+        return cls(
+            formula=mol.get_formula(as_dict=False),
+            charge=int(mol.properties.get("charge", 0) or 0),
+            min_coeff=min_coeff,
+            smiles=smiles,
+        )
+
+    @classmethod
+    def from_smiles(cls, smiles: str, min_coeff: int = 0) -> "Species":
+        """Initialize a Species from a SMILES string."""
+        from scm.plams import from_smiles as plams_from_smiles
+
+        return cls.from_molecule(plams_from_smiles(smiles), min_coeff=min_coeff, smiles=smiles)
+
+    @classmethod
+    def from_dict(
+        cls, d: Mapping[str, int], charge: int = 0, min_coeff: int = 0, smiles: Optional[str] = None
+    ) -> "Species":
+        """Initialize a Species from a dictionary.
+
+        Example:
+
+        >>> x = Species.from_dict({"H": 4, "C": 1}, min_coeff=0)
+        """
+
+        formula = "".join(f"{k}{v}" for k, v in d.items())
+        return cls(formula=formula, charge=charge, min_coeff=min_coeff, smiles=smiles)
+
+
+def balance(
+    reactants: Sequence[Union[str, Species]],
+    products: Sequence[Union[str, Species]],
+    method: Literal["plams", "sympy"] = "plams",
+) -> ReactionEquation:
+    """Method to find balanced reaction converting reactants into products.
+
+    reactants: sequence of str | Species
+        The reactants. If string, should be the summary formula like "C2H6O". Note: an element may only appear once in the string, "HCOOH" is not allowed.
+
+        To set charges or min_coeff, use a Species.
+
+    products: sequence of str | Species
+        The products.
+
+    method: "plams" or "sympy" (default "plams")
+        Which method to use. "sympy" requires that sympy is installed.
+
+    Returns: ReactionEquation
+        A balanced reaction equation.
+
+    Example:
+
+    >>> from scm.plams.tools.reaction import balance, Species
+    >>> balance(reactants=["CH4", "O2"], products=["CO2", "H2O"])
+    >>> balance(reactants=[Species("H", charge=1), Species("OH", charge=-1)], products=[Species("H2O")])
+
+    """
+
+    def to_species(x: Any) -> Species:
+        if isinstance(x, str):
+            return Species(formula=x)
+        if isinstance(x, Species):
+            return x
+        raise ValueError(f"Cannot handle {x} of type {type(x)}")
+
+    r = [to_species(x) for x in reactants]
+    p = [to_species(x) for x in products]
+
+    min_coeffs: Optional[numpy.typing.NDArray] = np.array([x.min_coeff for x in r] + [x.min_coeff for x in p])
+    if min_coeffs is not None and all(x == 0 for x in min_coeffs):
+        min_coeffs = None
+    ret = ReactionEquation([x.formula for x in r], [x.formula for x in p])
+    ret.method = method
+    if all(x.smiles for x in r) and all(x.smiles for x in p):
+        ret.rsmiles = [x.smiles for x in r]
+        ret.psmiles = [x.smiles for x in p]
+    ret.set_charges([x.charge for x in r], [x.charge for x in p])
+    ret.balance(min_coeffs=min_coeffs)
+    return ret

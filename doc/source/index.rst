@@ -9,25 +9,25 @@ PLAMS: Python Library for Automating Molecular Simulations
       :link: general.html
 
       .. image:: _static/plams_cog_py.png
-         :width: 80px
+         :height: 70px
          :align: center
 
-      New to PLAMS? Take a look at this guide to learn how to install, set up and start using PLAMS.
+      New to PLAMS? Take a look at this guide to learn how to install, set up, and start using PLAMS.
 
     .. grid-item-card:: :ref:`Examples`
        :link: examples/examples.html
 
        .. image:: _static/example_mol.png
-          :width: 80px
+          :height: 70px
           :align: center
 
-       Explore these practical examples demonstrating PLAMS functionality, and a wide-range of use cases with AMS.
+       Explore these practical examples demonstrating PLAMS functionality, and a wide range of use cases with AMS.
 
     .. grid-item-card:: :ref:`AMSSuite`
        :link: interfaces/amssuite.html
 
        .. image:: _static/plams_cog_ams.png
-          :width: 80px
+          :height: 70px
           :align: center
 
        Check out this user guide for detailed documentation on how to set up and run AMS calculations.
@@ -36,7 +36,7 @@ PLAMS: Python Library for Automating Molecular Simulations
        :link: components/components.html
 
        .. image:: _static/plams_cog_core.png
-          :width: 80px
+          :height: 70px
           :align: center
 
        Find the detailed API reference for core PLAMS components.

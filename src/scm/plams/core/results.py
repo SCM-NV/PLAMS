@@ -24,6 +24,7 @@ if TYPE_CHECKING:
 
 T = TypeVar("T")
 P = ParamSpec("P")
+TSelf = TypeVar("TSelf", bound="Results")
 
 __all__ = ["Results"]
 
@@ -214,7 +215,7 @@ class Results(ApplyRestrict):
             old = old.replace("$JN", self.job.name)
             new = new.replace("$JN", self.job.name)
             if old in self.files:
-                os.rename(opj(self.job.path, old), opj(self.job.path, new))
+                os.rename(self.job.get_path() / old, self.job.get_path() / new)
                 self.files[self.files.index(old)] = new
         self.refresh()
 
@@ -242,7 +243,7 @@ class Results(ApplyRestrict):
         """grep_output(pattern='', options='')
         Shortcut for :meth:`~Results.grep_file` on the output file."""
         try:
-            output = self.job._filename("out")
+            output = self.job._filename("out")  # type: ignore[attr-defined]
         except AttributeError:
             raise ResultsError(
                 f"Job {self.job.name} does not seem to be an instance of SingleJob, it does not have _filenames dictionary"
@@ -265,7 +266,7 @@ class Results(ApplyRestrict):
         filename = filename.replace("$JN", self.job.name)
         if filename not in self.files:
             raise ResultsError(f"No `{filename}` associated with job `{self.job.name}`")
-        with open(opj(self.job.path, filename)) as f:
+        with open(self.job.get_path() / filename) as f:
             return f.read()
 
     def regex_file(self, filename: str, regex: str) -> List:
@@ -305,7 +306,7 @@ class Results(ApplyRestrict):
         """awk_output(script='', progfile=None, **kwargs)
         Shortcut for :meth:`~Results.awk_file` on the output file."""
         try:
-            output = self.job._filename("out")
+            output = self.job._filename("out")  # type: ignore[attr-defined]
         except AttributeError:
             raise ResultsError(
                 f"Job {self.job.name} does not seem to be an instance of SingleJob, it does not have _filenames dictionary"
@@ -321,10 +322,10 @@ class Results(ApplyRestrict):
         new = new.replace("$JN", self.job.name)
         self.refresh()
         if old in self.files:
-            os.rename(opj(self.job.path, old), opj(self.job.path, new))
+            os.rename(self.job.get_path() / old, self.job.get_path() / new)
             self.files[self.files.index(old)] = new
         else:
-            raise FileError(f"File {old} not present in {self.job.path}")
+            raise FileError(f"File {old} not present in {str(self.job.get_path())}")
 
     def get_file_chunk(
         self,
@@ -382,7 +383,7 @@ class Results(ApplyRestrict):
         """get_output_chunk(begin=None, end=None, match=0, inc_begin=False, inc_end=False, process=None)
         Shortcut for :meth:`~Results.get_file_chunk` on the output file."""
         try:
-            output = self.job._filename("out")
+            output = self.job._filename("out")  # type: ignore[attr-defined]
         except AttributeError:
             raise ResultsError(f"Job {self.job.name} is not an instance of SingleJob, it does not have an output")
         return self.get_file_chunk(output, begin, end, match, inc_begin, inc_end, process)
@@ -408,9 +409,9 @@ class Results(ApplyRestrict):
         if arg == "all":
             return
 
-        path = self.job.path
-        absfiles = [opj(path, f) for f in self.files]
-        childnames = [child.name for child in self.job] if hasattr(self.job, "children") else []
+        path = self.job.get_path()
+        absfiles = [path / f for f in self.files]
+        childnames = [child.name for child in self.job] if hasattr(self.job, "children") else []  # type: ignore[attr-defined]
         if arg in ["none", [], None]:
             for f in absfiles:
                 if os.path.isfile(f):
@@ -434,15 +435,15 @@ class Results(ApplyRestrict):
                 absarg = functools.reduce(operator.iadd, map(glob.glob, absarg))
 
             for f in absfiles:
-                if (f in absarg) == rev and os.path.isfile(f):
+                if (f in absarg) == rev and os.path.isfile(f):  # type: ignore[comparison-overlap]
                     os.remove(f)
-                    log("Deleting file " + f, 5)
+                    log(f"Deleting file {str(f)}", 5)
 
         else:
             log(f"WARNING: {arg} is not a valid keep/save argument", 3)
         self.refresh()
 
-    def _copy_to(self, newresults: "Results") -> None:
+    def _copy_to(self: TSelf, newresults: TSelf) -> None:
         """_copy_to(newresults)
         Copy these results to *newresults*.
 
@@ -452,10 +453,10 @@ class Results(ApplyRestrict):
         """
         for name in self.files:
             newname = Results._replace_job_name(name, self.job.name, newresults.job.name)
-            oldpath = opj(self.job.path, name)
-            newpath = opj(newresults.job.path, newname)
+            oldpath = self.job.get_path() / name
+            newpath = newresults.job.get_path() / newname
             os.makedirs(os.path.dirname(newpath), exist_ok=True)
-            if os.name == "posix" and self.job.settings.link_files is True:
+            if os.name == "posix" and self.job.settings.link_files is True:  # type: ignore[has-type]
                 os.link(oldpath, newpath)
             else:
                 shutil.copy(oldpath, newpath)
@@ -465,7 +466,7 @@ class Results(ApplyRestrict):
                 continue
             newresults.__dict__[k] = self._export_attribute(v, newresults)
 
-    def _export_attribute(self, attr: T, other: "Results") -> T:
+    def _export_attribute(self: TSelf, attr: T, other: TSelf) -> T:
         """_export_attribute(attr, other)
         Export this instance's attribute to *other*. This method should be overridden in your |Results| subclass if it has some attributes that are not properly handled by :func:`python3:copy.deepcopy`.
 
@@ -484,9 +485,9 @@ class Results(ApplyRestrict):
         """Magic method to enable bracket notation. Elements from ``files`` can be used to get absolute paths."""
         name = name.replace("$JN", self.job.name)
         if name in self.files:
-            return opj(self.job.path, name)
+            return str(self.job.get_path() / name)
         else:
-            raise FileError(f"File {name} not present in {self.job.path}")
+            raise FileError(f"File {name} not present in {str(self.job.get_path())}")
 
     def __contains__(self, name: str) -> bool:
         """Magic method to enable the Python ``in`` operator notation for checking if a filename with a particular name is present."""
@@ -499,10 +500,10 @@ class Results(ApplyRestrict):
         """
         filename = filename.replace("$JN", self.job.name)
         if filename in self.files:
-            process = saferun(command + [filename], cwd=self.job.path, stdout=PIPE)
+            process = saferun(command + [filename], cwd=str(self.job.get_path()), stdout=PIPE)
             if process.returncode != 0:
                 return []
             ret: List[str] = process.stdout.decode().splitlines()
             return ret
         else:
-            raise FileError(f"File {filename} not present in {self.job.path}")
+            raise FileError(f"File {filename} not present in {str(self.job.get_path())}")

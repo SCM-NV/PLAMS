@@ -12,7 +12,7 @@ class TestRequiresAms:
         return True
 
     @requires_ams("2024.2")
-    def this_function_requires_2025_ams(self):
+    def this_function_requires_2024_ams(self):
         return True
 
     def test_requires_ams_when_no_amsbin_errors(self, monkeypatch):
@@ -38,7 +38,7 @@ class TestRequiresAms:
 
         with patch("subprocess.run", return_value=mock_result):
             with pytest.raises(AMSVersionError):
-                self.this_function_requires_2025_ams()
+                self.this_function_requires_2024_ams()
 
     def test_requires_ams_when_compatible_version_returns(self, monkeypatch):
         monkeypatch.setenv("AMSBIN", "foo")
@@ -48,9 +48,9 @@ class TestRequiresAms:
 
         with patch("subprocess.run", return_value=mock_result):
             assert self.this_function_requires_any_ams()
-            assert self.this_function_requires_2025_ams()
+            assert self.this_function_requires_2024_ams()
 
         mock_result.stdout = "release=2025.101"
         with patch("subprocess.run", return_value=mock_result):
             assert self.this_function_requires_any_ams()
-            assert self.this_function_requires_2025_ams()
+            assert self.this_function_requires_2024_ams()

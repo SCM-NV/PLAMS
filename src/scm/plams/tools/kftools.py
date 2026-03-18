@@ -21,7 +21,7 @@ from typing import (
 )
 
 import numpy as np
-from scm.plams.core.errors import FileError
+from scm.plams.core.errors import FileError, PlamsError
 from scm.plams.core.functions import log
 from scm.plams.core.private import saferun
 import numpy
@@ -36,13 +36,38 @@ TRead = Union[TValue, Sequence[TMultiValue]]
 TWrite = Union[TValue, Sequence[TValue]]
 
 
+class KFTypedReadError(PlamsError):
+    def __init__(self, section: str, variable: str, ret: TRead, expected_ret: str):
+        where = f'Variable "{variable}" of Section "{section}"'
+        found_type = f"{ret} ({self._get_read_return_type(ret)})"
+        super().__init__(f"{where} is not an {expected_ret}, but instead found {found_type}")
+
+    def _get_read_return_type(self, ret: TRead) -> str:
+        """Obtains a string representation of a value returned from `KFReader.read` used for error formatting.
+
+        :param ret: The read value to be inspected for its type
+        :return: A str representation of the type of ret
+        """
+        is_list = False
+        if isinstance(ret, List):
+            is_list = True
+            if len(ret) == 0:
+                return "List"
+            else:
+                ret = ret[0]
+        ret_type = str(type(ret))
+        if is_list:
+            ret_type = f"List[{ret_type}]"
+        return ret_type
+
+
 def _run_kftool(*args: Any, **kwargs: Any) -> "subprocess.CompletedProcess[Any]":
     startupinfo = None
     if os.name == "nt":
         # Prevent unwanted console windows from popping up on Windows
-        startupinfo = subprocess.STARTUPINFO()  # type: ignore
-        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW  # type: ignore
-        startupinfo.wShowWindow = subprocess.SW_HIDE  # type: ignore
+        startupinfo = subprocess.STARTUPINFO()  # type: ignore[attr-defined]
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW  # type: ignore[attr-defined]
+        startupinfo.wShowWindow = subprocess.SW_HIDE  # type: ignore[attr-defined]
 
     return saferun(*args, **kwargs, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, startupinfo=startupinfo)
 
@@ -79,7 +104,7 @@ class KFReader:
         if autodetect:
             self._autodetect()
 
-    def read(self, section: str, variable: str) -> TRead:  # type: ignore
+    def read(self, section: str, variable: str) -> TRead:
         """Extract and return data for a *variable* located in a *section*.
 
         For single-value numerical or boolean variables returned value is a single number or bool. For longer variables this method returns a list of values. For string variables a single string is returned.
@@ -89,7 +114,7 @@ class KFReader:
             self._create_index()
 
         try:
-            tmp = self._sections[section]  # type: ignore
+            tmp = self._sections[section]  # type: ignore[index]
         except KeyError:
             raise KeyError(f"Section {section} not present in {self.path}")
         try:
@@ -105,7 +130,7 @@ class KFReader:
                     ret = self._get_data(self._read_block(f, i), vtype)[vstart - 1 :]
                     first = False
                 else:
-                    ret += self._get_data(self._read_block(f, i), vtype)  # type: ignore
+                    ret += self._get_data(self._read_block(f, i), vtype)  # type: ignore[operator]
                 if len(ret) >= vlen:
                     ret = ret[:vlen]
                     if isinstance(ret, bytes):
@@ -117,6 +142,7 @@ class KFReader:
                         return ret[0]
                     else:
                         return ret
+        return ret
 
     def variable_type(self, section: str, variable: str) -> int:
         """Return the integer code of the variable's type (int:1, float:2, string:3, bool:4)"""
@@ -125,7 +151,7 @@ class KFReader:
             self._create_index()
 
         try:
-            vtype, vlb, vstart, vlen = self._sections[section][variable]  # type: ignore
+            vtype, vlb, vstart, vlen = self._sections[section][variable]  # type: ignore[index]
         except KeyError:
             raise KeyError(f"Section '{section}' or variable '{variable}' not present in '{self.path}'")
         return vtype
@@ -134,8 +160,8 @@ class KFReader:
         """Iteration yields pairs of section name and variable name."""
         if self._sections is None:
             self._create_index()
-        for section in self._sections:  # type: ignore
-            for variable in self._sections[section]:  # type: ignore
+        for section in self._sections:  # type: ignore[union-attr]
+            for variable in self._sections[section]:  # type: ignore[index]
                 yield section, variable
 
     def _autodetect(self) -> None:
@@ -373,6 +399,97 @@ class KFFile:
             ret = [ret]
         return ret
 
+    def read_int(self, section: str, variable: str) -> int:
+        """Obtain an integer for a *variable* located in *section*.
+
+        :param section: Section where the variable is located
+        :param variable: Variable to obtain
+        :raises KFTypedReadError: Error is raised if the *variable* in *section* does not contain a single integer
+        :return: The integer value of *variable* located in *section*
+        """
+        ret = self.read(section, variable)
+        if not isinstance(ret, int):
+            raise KFTypedReadError(section, variable, ret, "int")
+        return ret
+
+    def read_ints(self, section: str, variable: str) -> List[int]:
+        """Obtain a list of integers for a *variable* located in *section*.
+
+        :param section: Section where the variable is located
+        :param variable: Variable to obtain
+        :raises KFTypedReadError: Error is raised if the *variable* in *section* does not contain a list of integers
+        :return: The list of integers of *variable* located in *section*
+        """
+        ret = self.read(section, variable, return_as_list=True)
+        if not isinstance(ret, List) or not self._variable_type_equals(section, variable, 1):
+            raise KFTypedReadError(section, variable, ret, "List[int]")
+        return ret
+
+    def read_real(self, section: str, variable: str) -> float:
+        """Obtain a real/float for a *variable* located in *section*.
+
+        :param section: Section where the variable is located
+        :param variable: Variable to obtain
+        :raises KFTypedReadError: Error is raised if the *variable* in *section* does not contain a single real/float
+        :return: The real/float value of *variable* located in *section*
+        """
+        ret = self.read(section, variable)
+        if not isinstance(ret, float):
+            raise KFTypedReadError(section, variable, ret, "float")
+        return ret
+
+    def read_reals(self, section: str, variable: str) -> List[float]:
+        """Obtain a list of reals/floats for a *variable* located in *section*.
+
+        :param section: Section where the variable is located
+        :param variable: Variable to obtain
+        :raises KFTypedReadError: Error is raised if the *variable* in *section* does not contain a list of reals/floats
+        :return: The list of reals/floats of *variable* located in *section*
+        """
+        ret = self.read(section, variable, return_as_list=True)
+        if not isinstance(ret, List) or not self._variable_type_equals(section, variable, 2):
+            raise KFTypedReadError(section, variable, ret, "List[float]")
+        return ret
+
+    def read_logical(self, section: str, variable: str) -> bool:
+        """Obtain a logical/bool for a *variable* located in *section*.
+
+        :param section: Section where the variable is located
+        :param variable: Variable to obtain
+        :raises KFTypedReadError: Error is raised if the *variable* in *section* does not contain a single logical/bool
+        :return: The logical/bool value of *variable* located in *section*
+        """
+        ret = self.read(section, variable)
+        if not isinstance(ret, bool):
+            raise KFTypedReadError(section, variable, ret, "bool")
+        return ret
+
+    def read_logicals(self, section: str, variable: str) -> List[bool]:
+        """Obtain a list of logicals/bools for a *variable* located in *section*.
+
+        :param section: Section where the variable is located
+        :param variable: Variable to obtain
+        :raises KFTypedReadError: Error is raised if the *variable* in *section* does not contain a list of logicals/bools
+        :return: The list of logicals/bools of *variable* located in *section*
+        """
+        ret = self.read(section, variable, return_as_list=True)
+        if not isinstance(ret, List) or not self._variable_type_equals(section, variable, 3):
+            raise KFTypedReadError(section, variable, ret, "List[bool]")
+        return ret
+
+    def read_string(self, section: str, variable: str) -> str:
+        """Obtain a string for a *variable* located in *section*.
+
+        :param section: Section where the variable is located
+        :param variable: Variable to obtain
+        :raises KFTypedReadError: Error is raised if the *variable* in *section* does not contain a single string
+        :return: The string value of *variable* located in *section*
+        """
+        ret = self.read(section, variable)
+        if not isinstance(ret, str):
+            raise KFTypedReadError(section, variable, ret, "str")
+        return ret
+
     def write(
         self,
         section: str,
@@ -399,7 +516,7 @@ class KFFile:
             self.tmpdata[section] = OrderedDict()
 
         if trick_value:
-            self.tmpdata[section][variable] = trick_value  # type: ignore
+            self.tmpdata[section][variable] = trick_value  # type: ignore[assignment]
         else:
             self.tmpdata[section][variable] = value
 
@@ -432,7 +549,7 @@ class KFFile:
         if self.reader:
             if not self.reader._sections:
                 self.reader._create_index()
-            if section in self.reader._sections:  # type: ignore
+            if section in self.reader._sections:  # type: ignore[operator]
                 tmpfile = self.path + ".tmp"
                 _run_kftool(["cpkf", self.path, tmpfile, "-rm", section])
                 shutil.move(tmpfile, self.path)
@@ -444,7 +561,7 @@ class KFFile:
         if self.reader:
             if self.reader._sections is None:
                 self.reader._create_index()
-            ret |= set(self.reader._sections)  # type: ignore
+            ret |= set(self.reader._sections)  # type: ignore[arg-type]
         return sorted(ret)
 
     def read_section(self, section: str) -> Dict[str, TRead]:
@@ -481,6 +598,13 @@ class KFFile:
                 ret[sec] = set()
             ret[sec].add(var)
         return ret
+
+    def _variable_type_equals(self, section: str, variable: str, variable_type: int) -> bool:
+        """Check the type of a variable."""
+        if self.reader is not None:
+            return self.reader.variable_type(section, variable) == variable_type
+        else:
+            return False
 
     def __getitem__(self, name: Union[str, Tuple[str, str]]) -> TRead:
         """Allow to use ``x = mykf['section%variable']`` or ``x = mykf[('section','variable')]`` instead of ``x = kf.read('section', 'variable')``."""
@@ -593,12 +717,12 @@ class KFHistory:
     def __init__(self, kf: KFReader, section: str):
         self.kf = kf
         self.section = section
-        self.nsteps: int = kf.read(section, "nEntries")  # type: ignore
+        self.nsteps: int = kf.read(section, "nEntries")  # type: ignore[assignment]
         self.shapes: Dict[str, Tuple[int, ...]] = {}
         self.blocked: Set[str] = set()
 
         if (section, "nBlocks") in kf:
-            self.nblocks: int = kf.read(section, "nBlocks")  # type: ignore
+            self.nblocks: int = kf.read(section, "nBlocks")  # type: ignore[assignment]
         else:
             self.nblocks = 0
 
@@ -621,7 +745,7 @@ class KFHistory:
             for i in range(1, self.nblocks + 1):
                 block = self.kf.read(self.section, f"{name}({i})")
                 try:
-                    yield from block  # type: ignore
+                    yield from block  # type: ignore[misc]
                 except TypeError:
                     # one-element blocks are not iterable (KFReader returns them as scalars)
                     yield block
@@ -640,13 +764,13 @@ class KFHistory:
     def _init_shape(self, name: str) -> None:
         shapevar = name + "(dim)"
         if (self.section, shapevar) in self.kf:
-            shape: Union[List[int], int] = self.kf.read(self.section, shapevar)  # type: ignore
+            shape: Union[List[int], int] = self.kf.read(self.section, shapevar)  # type: ignore[assignment]
             try:
                 # shape is a list (variable "name" is at least rank-2)
-                self.shapes[name] = tuple(shape)  # type: ignore
+                self.shapes[name] = tuple(shape)  # type: ignore[arg-type]
             except TypeError:
                 # shape is a scalar (variable "name" is a scalar or rank-1)
-                self.shapes[name] = (shape,)  # type: ignore
+                self.shapes[name] = (shape,)  # type: ignore[assignment]
             perAtomVar = name + "(perAtom)"
             if self.nblocks and (self.section, perAtomVar) in self.kf:
                 perAtom = self.kf.read(self.section, perAtomVar)

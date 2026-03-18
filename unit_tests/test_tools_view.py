@@ -11,7 +11,7 @@ from scm.plams.mol.molecule import Molecule
 from test_helpers import skip_if_windows
 
 try:
-    from scm.libbase import UnifiedChemicalSystem as ChemicalSystem, UnifiedLattice as Lattice
+    from scm.base import ChemicalSystem, Lattice
 
     _has_scm_chemsys = True
 except ImportError:
@@ -29,7 +29,9 @@ class TestView:
 
     def test_backends_cache(self, water):
         # Given backend cache with no successful backends
-        view._backends = {
+        import scm.plams.tools.view as viewer
+
+        viewer._view_backends_cache = {
             "amsview": (_AmsViewBackend(), False, RuntimeError("something went wrong")),
             "amsview_xvfb": (_AmsViewXvfbBackend(), False, RuntimeError("something also went wrong")),
             "ase_plot": (_AsePlotBackend(), False, RuntimeError("something else went wrong")),
@@ -43,11 +45,13 @@ class TestView:
             view(water, backend="amsview")
 
         # Given backend cache with successful backend
-        view._backends["ase_plot"] = (_AsePlotBackend(), True, None)
+        viewer._view_backends_cache["ase_plot"] = (_AsePlotBackend(), True, None)
 
         # When view
         # Then succeeds
         view(water, backend="auto")
+
+        viewer._view_backends_cache = None
 
 
 class TestAmsViewBackend:
@@ -68,11 +72,11 @@ class TestAmsViewBackend:
         [
             (
                 ViewConfig(),
-                "foo.in -transparent -scmgeometry 800x400 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 1.000000 -fixedatomsize -hideregions -showunitcell thickness 0.05 -save bar.png -batch",
+                "foo.in -transparent -scmgeometry 800x400 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 1.000000 -fixedatomsize -hideregions -showunitcell 0.05 -save bar.png -batch",
             ),
             (
                 ViewConfig(width=100, height=100, normal=(1.0, 0.0, 0.0)),
-                "foo.in -transparent -scmgeometry 100x100 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 1.000000 0.000000 0.000000 -fixedatomsize -hideregions -showunitcell thickness 0.05 -save bar.png -batch",
+                "foo.in -transparent -scmgeometry 100x100 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 1.000000 0.000000 0.000000 -fixedatomsize -hideregions -showunitcell 0.05 -save bar.png -batch",
             ),
             (
                 ViewConfig(
@@ -82,11 +86,11 @@ class TestAmsViewBackend:
                     atom_label_size=2,
                     show_regions=True,
                 ),
-                "foo.in -transparent -scmgeometry 800x400 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 1.000000 -atomlabel Element -labelcolor #FFFFFF -labelsize 2 -showunitcell thickness 0.05 -save bar.png -batch",
+                "foo.in -transparent -scmgeometry 800x400 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 1.000000 -atomlabel Element -labelcolor #FFFFFF -labelsize 2 -showunitcell 0.05 -save bar.png -batch",
             ),
             (
                 ViewConfig(show_unit_cell_edges=True, unit_cell_edge_thickness=0.2),
-                "foo.in -transparent -scmgeometry 800x400 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 1.000000 -fixedatomsize -hideregions -showunitcell thickness 0.2 -save bar.png -batch",
+                "foo.in -transparent -scmgeometry 800x400 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 1.000000 -fixedatomsize -hideregions -showunitcell 0.2 -save bar.png -batch",
             ),
             (
                 ViewConfig(show_unit_cell_faces=True, show_lattice_vectors=True),
@@ -94,7 +98,7 @@ class TestAmsViewBackend:
             ),
             (
                 ViewConfig(dpi=600),
-                "foo.in -transparent -scmgeometry 800x400 -dpi 600 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 1.000000 -fixedatomsize -hideregions -showunitcell thickness 0.05 -save bar.png -batch",
+                "foo.in -transparent -scmgeometry 800x400 -dpi 600 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 1.000000 -fixedatomsize -hideregions -showunitcell 0.05 -save bar.png -batch",
             ),
         ],
         ids=[

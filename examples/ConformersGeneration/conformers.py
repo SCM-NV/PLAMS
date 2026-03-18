@@ -12,13 +12,26 @@ import numpy as np
 from scm.plams import ConformersJob
 from scm.plams import *
 
+try:
+    from scm.plams import view  # view molecule using AMSview in a Jupyter Notebook in AMS2026+
+
+    _has_view = True
+except ImportError:
+    from scm.plams import plot_molecule  # plot molecule in a Jupyter Notebook in AMS2023+
+
+    _has_view = False
+
+    def view(molecule, ax=None, **kwargs):
+        plot_molecule(molecule, ax=ax)
+
+
 # this line is not required in AMS2025+
 init()
 
 # ## Initial structure
 
 molecule = from_smiles("OC(CC1c2ccccc2Sc2ccccc21)CN1CCCC1")
-plot_molecule(molecule)
+view(molecule, width=300, height=300)
 
 # ## Generate conformers with RDKit and UFF
 # The fastest way to generate conformers is to use RDKit with the UFF force field.

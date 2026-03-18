@@ -12,7 +12,7 @@ Overview
 
 PLAMS (Python Library for Automating Molecular Simulation) is a flexible and extensible toolkit for streamlining molecular simulation workflows.
 
-It simplifies and automates the process of configuring, running and analyzing computational chemistry calculations.
+It simplifies and automates the process of configuring, running, and analyzing computational chemistry calculations.
 The key features of PLAMS are:
 
 - **Amsterdam Modeling Suite (AMS) Integration**: Full support for interacting with AMS programs
@@ -28,9 +28,9 @@ Quick Start
 
 PLAMS is available to all users of AMS "out of the box" as part of the `AMS Python Stack <../Scripting/Python_Stack/Python_Stack.html>`__, which can be accessed with the ``$AMSBIN/amspython`` command.
 
-For most use-cases, no specific installation outside of AMS is required. For usage outside of ``amspython``, please see the :ref:`installation guide <installation>` below.
+For most use cases, no specific installation outside of AMS is required. For usage outside of ``amspython``, please see the :ref:`installation guide <installation>` below.
 
-To get started with PLAMS, import ``scm.plams`` into your python script or jupyter notebook.
+To get started with PLAMS, import ``scm.plams`` into your Python script or Jupyter notebook.
 Then, follow one of the :ref:`examples <examples>` to help create your script.
 
 For example, the following is based upon :ref:`Geometry Optimization of Water <WaterOptimizationExample>`,
@@ -90,23 +90,23 @@ To install the latest version of PLAMS into your python environment, simply run 
 To install a specific version of PLAMS (e.g. ``2025.101``), run ``pip install plams==2025.101``.
 
 By default, PLAMS only installs a minimal set of required packages on installation using pip.
-For additional functionality, further optional packages are required.
+For additional functionality, extra optional packages are required.
 Since ``AMS2025``, these are available for installation through extra dependency groups with pip.
 
 The available groups are:
 
 - **chem**: for chemistry packages such as ``RDKit``, ``ase``
-- **analysis**: for packages used to analyze and plot results of calculations e.g. ``scipy``, ``matploblib``, ``networkx``
+- **analysis**: for packages used to analyze and plot results of calculations, e.g. ``scipy``, ``matplotlib``, ``networkx``
 - **ams**: for technical packages for use with the AMS interface
 
 One or more of these can be installed using the command ``pip install 'plams[chem,analysis,ams]'``.
 
-Users of the AMS will also have to install the ``scm.amspipe`` package using the command ``pip install $AMSHOME/scripting/scm/amspipe``.
+Users of AMS will also have to install the ``scm.amspipe`` package using the command ``pip install $AMSHOME/scripting/scm/amspipe``.
 
 A final option is to download PLAMS directly from the `GitHub page <https://github.com/SCM-NV/PLAMS>`_.
 `Released versions <https://github.com/SCM-NV/PLAMS/releases>`_ are available since ``AMS2024.103``.
 The latest (unreleased) development version can be downloaded from the `trunk branch <https://github.com/SCM-NV/PLAMS/archive/refs/heads/trunk.zip>`_.
-Once the downloaded zip file has been extracted, navigate to its location and run ``pip install .`` to install into your python environment.
+Once the downloaded zip file has been extracted, navigate to its location and run ``pip install .`` to install into your Python environment.
 
 
 What's new in PLAMS for AMS2025?
@@ -118,7 +118,7 @@ Added
 * Support for `AMS ChemicalSystem <../Scripting/LibBase/ChemicalSystem.html>`__ within |AMSJob| and |AMSResults|. |AMSJob| can accept a ``ChemicalSystem`` as an input system, and the methods :meth:`~scm.plams.interfaces.adfsuite.ams.AMSResults.get_system`, :meth:`~scm.plams.interfaces.adfsuite.ams.AMSResults.get_input_system` and :meth:`~scm.plams.interfaces.adfsuite.ams.AMSResults.get_main_system` on |AMSResults| return a ``ChemicalSystem``. These provide the option to use a ``ChemicalSystem`` in place of a PLAMS |Molecule|.
 * Support for work functions through :meth:`~scm.plams.interfaces.adfsuite.ams.AMSResults.get_work_function_results` and :func:`~scm.plams.tools.plot.plot_work_function`
 * Interface to the `Serenity program <https://github.com/qcserenity/serenity>`_ through classes such as |SerenityJob|, |SerenitySettings|, and |SerenityResults|.
-* Improved job logging. The method :meth:`~scm.plams.core.basejob.Job.get_errormsg` is enforced on the |Job| base class and job errors now appear in the PLAMS output. In addition a summary csv logfile ``job_logfile.csv`` is created in the main directory with details about job timings and status.
+* Improved job logging. The method :meth:`~scm.plams.core.basejob.Job.get_errormsg` is enforced on the |Job| base class and job errors now appear in the PLAMS output. In addition, a summary CSV logfile ``job_logfile.csv`` is created in the main directory with details about job timings and status.
 * Improved |Settings| access, comparison and manipulation, with additional methods:
     * :meth:`~scm.plams.core.settings.Settings.nested_keys`
     * :meth:`~scm.plams.core.settings.Settings.block_keys`
@@ -139,7 +139,7 @@ Changed
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 * Calling |init| and |finish| functions in a script is now optional
-* Exceptions raised in |prerun| and |postrun| will always be caught and populate error message
+* Exceptions raised in |prerun| and |postrun| will always be caught and populate the error message
 * Functions for optional packages (e.g. ``RDKit``, ``ASE``) are available even when these packages are not installed, but will raise an |MissingOptionalPackageError| when called
 * Global ``config`` is initialized with |ConfigSettings| instead of loading from the standard ``plams_defaults`` file (see |global-settings|)
 * :meth:`~scm.plams.interfaces.adfsuite.ams.AMSResults.get_main_ase_atoms` also includes atomic charges
@@ -159,7 +159,7 @@ Fixed
 
 Deprecated
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-* PLAMS launch script is deprecated in favour of simply running with ``amspython``
+* PLAMS launch script is deprecated in favor of simply running with ``amspython``
 
 Removed
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

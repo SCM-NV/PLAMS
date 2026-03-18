@@ -49,6 +49,7 @@ Engine Hybrid
   End
   Engine ADF ADF-1
   EndEngine
+
   Engine DFTB DFTB-1
   EndEngine
 
@@ -90,19 +91,20 @@ Engine Hybrid
     End
   End
   Engine ADF ADF-1
-     Save TAPE10
-     Save TAPE11
-     Basis
-     PerAtomType
-     Symbol H
-     End
-     PerAtomType
-     Symbol O
-     End
-     End
+    Basis
+      PerAtomType
+        Symbol H
+      End
+      PerAtomType
+        Symbol O
+      End
+    End
+    Save TAPE10
+    Save TAPE11
   EndEngine
   Engine ADF ADF-2
   EndEngine
+
   Engine DFTB DFTB-1
   EndEngine
 

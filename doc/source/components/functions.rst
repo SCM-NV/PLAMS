@@ -21,7 +21,7 @@ Logging
 
 PLAMS features a simple logging mechanism.
 All important actions happening in functions and methods register their activity using log messages.
-These massages can be printed to the standard output and/or saved to the logfile located in the main working folder.
+These messages can be printed to the standard output and/or saved to the logfile located in the main working folder.
 
 Every log message has its "verbosity" defined as an integer number: the higher the number, the more detailed and descriptive the message is.
 In other words, it is a measure of importance of the message.

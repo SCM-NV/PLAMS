@@ -3,12 +3,12 @@ Settings
 
 .. currentmodule:: scm.plams.core.settings
 
-The |Settings| class provides a general purpose data container for various kinds of information that need to be stored and processed by PLAMS environment.
+The |Settings| class provides a general-purpose data container for various kinds of information that need to be stored and processed by the PLAMS environment.
 Other PLAMS objects (like for example |Job|, |JobManager| or |GridRunner|) have their own |Settings| instances that store data defining and adjusting their behavior.
 The global scope |Settings| instance (``config``) is used for global settings.
 
 Some settings which require well-defined structures have their own derived |Settings| classes.
-These still possess all the flexibility of the base class (in having dynamic custom attributes), but also contain a set of required fields with default values, and tool tips.
+These still possess all the flexibility of the base class (in having dynamic custom attributes), but also contain a set of required fields with default values, and tooltips.
 Any derived settings class is interchangeable with the base |Settings| class of the same structure.
 
 
@@ -73,8 +73,8 @@ Tree-like structure could also be achieved with regular dictionaries, but in a r
     >>> s['a']['b']['c']['d'] = 'ABCD'
 
 In the last line of the above example all intermediate |Settings| instances are created and inserted automatically.
-Such a behavior, however, has some downsides -- every time you request a key that is not present in a particular |Settings| instance (for example as a result of a typo), a new empty instance is created and inserted as a value of this key.
-This is different from dictionaries where exception is raised in such a case::
+Such behavior, however, has some downsides -- every time you request a key that is not present in a particular |Settings| instance (for example as a result of a typo), a new empty instance is created and inserted as a value of this key.
+This is different from dictionaries where an exception is raised in such a case::
 
     >>> d = dict()
     >>> d['foo'] = 'bar'
@@ -86,7 +86,7 @@ This is different from dictionaries where exception is raised in such a case::
     >>> x = s['fo']
 
     >>> print(s)
-    fo:            #the value here is an empty Settings instance
+    fo:            # the value here is an empty Settings instance
     foo:    bar
 
 
@@ -179,7 +179,7 @@ Global settings are stored in a public |ConfigSettings| instance named ``config`
 They contain variables adjusting general behavior of PLAMS as well as default settings for various objects (jobs, job manager etc.)
 
 The default values are explained in the description of each property on ``config``.
-It is recommended to have a look at that these options, to give an overview of what behaviour can be configured.
+It is recommended to have a look at these options, to give an overview of what behavior can be configured.
 
 To change a setting for a script, just set the relevant option on the config to the preferred value, after the import statements.
 For example:
@@ -190,7 +190,7 @@ For example:
     config.job.pickle = False
     config.default_jobrunner = JobRunner(parallel=True, maxjobs=8)
 
-The structure for the defined options on the nested settings objects are defined below.
+The structure for the defined options on the nested settings objects is defined below.
 
 .. autoclass:: ConfigSettings
 

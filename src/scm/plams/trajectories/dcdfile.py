@@ -80,6 +80,9 @@ class DCDTrajectoryFile(TrajectoryFile):
         * ``fileobject`` -- Optionally, a file object can be passed instead (filename needs to be set to None)
         * ``ntap``       -- If the file is in write mode, the number of atoms needs to be passed here
         """
+        # File needs to be in binary mode
+        if len(mode) == 1:
+            mode = "".join([mode, "b"])
         TrajectoryFile.__init__(self, filename, mode, fileobject, ntap)
 
         # DCD specific attributes

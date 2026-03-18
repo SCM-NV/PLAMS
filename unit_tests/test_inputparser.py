@@ -6,7 +6,7 @@ import pytest
 from test_helpers import (
     get_mock_import_function,
     skip_if_no_ams_installation,
-    skip_if_no_scm_libbase,
+    skip_if_no_scm_base,
 )
 
 from scm.plams.core.settings import Settings
@@ -154,7 +154,7 @@ End
     graphene_mol.add_atom(Atom(symbol="C", coords=(-1.2300000000000000, -0.7101408299999999, 0.0)))
     graphene_mol.add_atom(Atom(symbol="C", coords=(0.0, 0.0, 0.0)))
     graphene_mol.add_atom(Atom(symbol="C", coords=(0.0, 1.4202816700000001, 0.0)))
-    graphene_mol.lattice = [(2.46, 0.0, 0.0), (0.0, 4.2608449999999998, 0.0), (0.0, 0.0, 80.0)]
+    graphene_mol.lattice = [[2.46, 0.0, 0.0], [0.0, 4.2608449999999998, 0.0], [0.0, 0.0, 80.0]]
 
     yield [
         (water_system_input, water_system_settings, water_mol),
@@ -216,9 +216,9 @@ def test_to_dict_with_scmlibbase_succeeds(system_text_inputs):
 def test_get_system_blocks_from_input_as_molecules(system_text_inputs):
     # If there is no AMS installation the input file will not be present so skip test with a warning
     skip_if_no_ams_installation()
-    skip_if_no_scm_libbase()
+    skip_if_no_scm_base()
 
-    from scm.libbase import InputFile
+    from scm.base import InputFile
 
     from scm.plams.interfaces.adfsuite.inputparser import (
         get_system_blocks_as_molecules_from_input,
@@ -246,11 +246,11 @@ def get_monkeypatched_input_parser(monkeypatch):
     # If there is no AMS installation the input parser will not run so skip test with a warning
     skip_if_no_ams_installation()
 
-    # Mock scm.libbase import failing (even when present in the env)
-    mock_import_function = get_mock_import_function("scm.libbase")
+    # Mock scm.base import failing (even when present in the env)
+    mock_import_function = get_mock_import_function("scm.base")
     monkeypatch.setattr(builtins, "__import__", mock_import_function)
 
-    # Reload the module without scm.libbase
+    # Reload the module without scm.base
     import scm.plams.interfaces.adfsuite.inputparser as inputparser
 
     reload(inputparser)
@@ -269,17 +269,17 @@ def get_input_parser_or_skip():
 
     from scm.plams.interfaces.adfsuite.inputparser import InputParser, InputParserFacade
 
-    # Get an instance of the input parser facade using the scm.libbase parser
+    # Get an instance of the input parser facade using the scm.base parser
     # otherwise skip the test if the package is not loaded
     input_parser = InputParserFacade()
-    if input_parser._has_scm_libbase:
-        from scm.libbase import InputParser as InputParserScmLibbase
+    if input_parser._has_scm_base:
+        from scm.base import InputParser as InputParserScmBase
 
-        assert isinstance(input_parser.parser, InputParserScmLibbase)
+        assert isinstance(input_parser.parser, InputParserScmBase)
         return input_parser
     else:
         assert isinstance(input_parser.parser, InputParser)
-        pytest.skip("Skipping test because optional 'scm.libbase' package is not available")
+        pytest.skip("Skipping test because optional 'scm.base' package is not available")
 
 
 def input_to_settings_succeeds(input_texts, input_parser):

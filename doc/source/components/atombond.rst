@@ -8,6 +8,5 @@ Atom
 Bond
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. autoclass :: scm.plams.mol.bond.Bond
+.. autoclass:: scm.plams.mol.bond.Bond
     :exclude-members: __weakref__
-

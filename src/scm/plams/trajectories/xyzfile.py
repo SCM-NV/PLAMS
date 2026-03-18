@@ -4,6 +4,7 @@ from scm.plams.core.errors import TrajectoryError
 import numpy
 from scm.plams.mol.molecule import Molecule
 from scm.plams.tools.geometry import cell_shape, cellvectors_from_shape
+from scm.plams.core.errors import PlamsError
 from scm.plams.trajectories.trajectoryfile import TrajectoryFile
 
 __all__ = ["XYZTrajectoryFile", "create_xyz_string"]
@@ -85,7 +86,9 @@ class XYZTrajectoryFile(TrajectoryFile):
         >>> xyzout.write_next(molecule=mol, step=0, energy=5.)
     """
 
-    def __init__(self, filename, mode="r", fileobject=None, ntap=None):
+    formats = ["extended", "scm"]
+
+    def __init__(self, filename=None, mode="r", fileobject=None, ntap=None):
         """
         Initiates an XYZTrajectoryFile object
 
@@ -103,12 +106,34 @@ class XYZTrajectoryFile(TrajectoryFile):
         self.include_historydata = False
         self.historydata = None
         self.nveclines = 0
+        self._style = "extended"  # One of ("extended", "scm")
 
         # Required setup before frames can be read/written
         if self.mode == "r":
             self._read_header()
         elif self.mode == "a":
             self._move_cursor_to_append_pos()
+            self.firsttime = False
+
+    @property
+    def style(self):
+        """
+        Returns the style/formatting of this XYZ file
+
+        Note: Can be one of ["extended", "scm"]
+        """
+        return self._style
+
+    @style.setter
+    def style(self, style):
+        """
+        Sets the style/formatting of this XYZ file
+
+        * ``style`` -- String - One of ["extended", "scm"]
+        """
+        if not style.lower() in self.formats:
+            raise PlamsError("Style needs to be one of [%s]" % ", ".join(self.formats))
+        self._style = style.lower()
 
     def store_historydata(self):
         """
@@ -249,6 +274,14 @@ class XYZTrajectoryFile(TrajectoryFile):
                 self.elements = elements
         cell = self._convert_cell(cell)
 
+        # Include a check on the size of coords?
+        if len(coords) != len(self.elements):
+            raise PlamsError("The coordinates do not match the rest of the trajectory")
+
+        if self.style == "scm" and self.firsttime:
+            self.nveclines = 0 if cell is None else len(cell)
+            self.firsttime = False
+
         self._write_moldata(coords, cell, historydata)
 
         self.position += 1
@@ -257,6 +290,7 @@ class XYZTrajectoryFile(TrajectoryFile):
         """
         Write all molecular info to file
         """
+        write_vecs = self.nveclines > 0
         if historydata is None:
             historydata = {}
         if self.include_historydata and len(historydata) > 0:
@@ -266,19 +300,15 @@ class XYZTrajectoryFile(TrajectoryFile):
             energy = 0.0
             if "Energy" in historydata:
                 energy = historydata["Energy"]
-            box = None
-            if cell is not None:
-                # box = PDBMolecule().box_from_vectors(cell)
-                box = cell_shape(cell)
             name = self.name
             if "Name" in historydata:
                 name = historydata["Name"]
             line = None
             if "Line" in historydata:
                 line = historydata["Line"]
-            block = create_xyz_string(self.elements, coords, energy, box, step, name, line)
+            block = create_xyz_string(self.elements, coords, cell, energy, step, name, line, write_vecs)
         else:
-            block = create_xyz_string(self.elements, coords)
+            block = create_xyz_string(self.elements, coords, cell, write_vecs=write_vecs)
         self.file_object.write(block)
 
     def _rewind_to_first_frame(self):
@@ -299,7 +329,7 @@ class XYZTrajectoryFile(TrajectoryFile):
             self.read_next(read=False)
 
 
-def create_xyz_string(elements, coords, energy=None, box=None, step=None, name="PlamsMol", line=None):
+def create_xyz_string(elements, coords, cell, energy=None, step=None, name="PlamsMol", line=None, write_vecs=False):
     """
     Write an XYZ file based on the elements and the coordinates of the atoms
     """
@@ -310,7 +340,8 @@ def create_xyz_string(elements, coords, energy=None, box=None, step=None, name="
         if energy is None:
             energy = 0.0
         comment = "%-40s%6i %16.6f" % (name, step, energy)
-        if box is not None:
+        if cell is not None:
+            box = cell_shape(cell)
             for value in box:
                 comment += "%7.2f" % (value)
         block += comment
@@ -320,6 +351,14 @@ def create_xyz_string(elements, coords, energy=None, box=None, step=None, name="
         for x in crd:
             block += "%20.10f " % (x)
         block += "\n"
+    if cell is not None and write_vecs:
+        for i, vec in enumerate(cell):
+            if (vec**2).sum() < 1e-10:
+                break
+            block += "VEC%i " % (i + 1)
+            for x in vec:
+                block += "%20.10f " % (x)
+            block += "\n"
     return block
 
 

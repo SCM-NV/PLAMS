@@ -6,10 +6,19 @@ Initial imports
 
 .. code:: ipython3
 
-   from scm.plams import *
+   import scm.plams as plams
+
+   try:
+       from scm.plams import view  # view molecule using AMSview in a Jupyter Notebook in AMS2026+
+   except ImportError:
+       from scm.plams import plot_molecule  # plot molecule in a Jupyter Notebook in AMS2023+
+
+       def view(molecule, **kwargs):
+           plot_molecule(molecule)
+
 
    # this line is not required in AMS2025+
-   init()
+   plams.init()
 
 ::
 
@@ -23,16 +32,21 @@ Manual molecule definition
 
 .. code:: ipython3
 
-   molecule = Molecule()
-   molecule.add_atom(Atom(symbol="O", coords=(0, 0, 0)))
-   molecule.add_atom(Atom(symbol="H", coords=(1, 0, 0)))
-   molecule.add_atom(Atom(symbol="H", coords=(0, 1, 0)))
+   molecule = plams.Molecule()
+   molecule.add_atom(plams.Atom(symbol="O", coords=(0, 0, 0)))
+   molecule.add_atom(plams.Atom(symbol="H", coords=(1, 0, 0)))
+   molecule.add_atom(plams.Atom(symbol="H", coords=(0, 1, 0)))
 
 To see the input that will be passed to AMS, create an AMSJob and print the input:
 
 .. code:: ipython3
 
-   print(AMSJob(molecule=molecule).get_input())
+   def print_ams_input(molecule):
+       print(plams.AMSJob(molecule=molecule).get_input())
+
+
+   print_ams_input(molecule)
+   view(molecule, guess_bonds=True, width=200, height=200)
 
 ::
 
@@ -44,6 +58,8 @@ To see the input that will be passed to AMS, create an AMSJob and print the inpu
      End
    End
 
+.. figure:: ams_settings_system_files/ams_settings_system_6_1.png
+
 Lattice vectors: 1D-periodic
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -52,7 +68,10 @@ For periodic systems in 1 dimension, the lattice vector must be along the x dire
 .. code:: ipython3
 
    molecule.lattice = [[10, 0, 0]]
-   print(AMSJob(molecule=molecule).get_input())
+   print_ams_input(molecule)
+   view(
+       molecule, guess_bonds=True, show_lattice_vectors=True, show_unit_cell_edges=False, padding=-3, width=600, height=300
+   )
 
 ::
 
@@ -67,6 +86,8 @@ For periodic systems in 1 dimension, the lattice vector must be along the x dire
      End
    End
 
+.. figure:: ams_settings_system_files/ams_settings_system_8_1.png
+
 Lattice vectors: 2D-periodic
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -78,7 +99,10 @@ For 2 dimensions, the two lattice vectors must lie in the xy plane (with 0 compo
        [10, 0, 0],
        [0, 11, 0],
    ]
-   print(AMSJob(molecule=molecule).get_input())
+   print_ams_input(molecule)
+   view(
+       molecule, guess_bonds=True, show_lattice_vectors=True, show_unit_cell_edges=False, padding=-1, width=300, height=300
+   )
 
 ::
 
@@ -94,13 +118,18 @@ For 2 dimensions, the two lattice vectors must lie in the xy plane (with 0 compo
      End
    End
 
+.. figure:: ams_settings_system_files/ams_settings_system_10_1.png
+
 Lattice vectors: 3D-periodic
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code:: ipython3
 
    molecule.lattice = [[10, 0, 0], [0, 11, 0], [-1, 0, 12]]
-   print(AMSJob(molecule=molecule).get_input())
+   print_ams_input(molecule)
+   view(
+       molecule, guess_bonds=True, show_lattice_vectors=True, show_unit_cell_edges=False, padding=-2, width=300, height=300
+   )
 
 ::
 
@@ -117,13 +146,16 @@ Lattice vectors: 3D-periodic
      End
    End
 
+.. figure:: ams_settings_system_files/ams_settings_system_12_1.png
+
 Delete lattice vectors
 ~~~~~~~~~~~~~~~~~~~~~~
 
 .. code:: ipython3
 
    molecule.lattice = []
-   print(AMSJob(molecule=molecule).get_input())
+   print_ams_input(molecule)
+   view(molecule, guess_bonds=True, width=200, height=200)
 
 ::
 
@@ -135,13 +167,15 @@ Delete lattice vectors
      End
    End
 
+.. figure:: ams_settings_system_files/ams_settings_system_14_1.png
+
 Charge
 ~~~~~~
 
 .. code:: ipython3
 
    molecule.properties.charge = -1
-   print(AMSJob(molecule=molecule).get_input())
+   print_ams_input(molecule)
 
 ::
 
@@ -192,7 +226,7 @@ Isotopes (atomic masses)
 .. code:: ipython3
 
    molecule[2].properties.mass = 2.014
-   print(AMSJob(molecule=molecule).get_input())
+   print_ams_input(molecule)
 
 ::
 
@@ -221,7 +255,8 @@ Use Python sets to specify regions. In this way, one atom can belong to multiple
    molecule[1].properties.region = {"region1"}
    molecule[2].properties.region = {"region1"}
    molecule[3].properties.region = {"region1", "region2"}
-   print(AMSJob(molecule=molecule).get_input())
+   print_ams_input(molecule)
+   view(molecule, guess_bonds=True, width=200, height=200, show_regions=True)
 
 ::
 
@@ -233,6 +268,8 @@ Use Python sets to specify regions. In this way, one atom can belong to multiple
      End
    End
 
+.. figure:: ams_settings_system_files/ams_settings_system_25_1.png
+
 Force field types
 ~~~~~~~~~~~~~~~~~
 
@@ -243,7 +280,7 @@ Some force fields need to know the specific atom type and not just the chemical 
    molecule[1].properties.ForceField.Type = "OW"  # these types would depend on what type of force field you use!
    molecule[2].properties.ForceField.Type = "HW"
    molecule[3].properties.ForceField.Type = "HW"
-   print(AMSJob(molecule=molecule).get_input())
+   print_ams_input(molecule)
 
 ::
 
@@ -263,9 +300,9 @@ Loop over the atoms and set ``atom.properties`` to an empty ``Settings()``:
 .. code:: ipython3
 
    for at in molecule:
-       at.properties = Settings()
+       at.properties = plams.Settings()
 
-   print(AMSJob(molecule=molecule).get_input())
+   print_ams_input(molecule)
 
 ::
 
@@ -297,7 +334,8 @@ If you need to add bonds manually in PLAMS you can do it as follows:
 
    molecule.add_bond(molecule[1], molecule[2], order=1.0)
    molecule.add_bond(molecule[1], molecule[3], order=1.0)
-   print(AMSJob(molecule=molecule).get_input())
+   print_ams_input(molecule)
+   view(molecule, guess_bonds=True, width=200, height=200)
 
 ::
 
@@ -312,6 +350,8 @@ If you need to add bonds manually in PLAMS you can do it as follows:
         1 3 1.0
      End
    End
+
+.. figure:: ams_settings_system_files/ams_settings_system_31_1.png
 
 Multiple systems
 ~~~~~~~~~~~~~~~~
@@ -328,15 +368,15 @@ Let’s first define two ``Molecule`` in the normal way:
 
 .. code:: ipython3
 
-   molecule1 = Molecule()
-   molecule1.add_atom(Atom(symbol="O", coords=(0, 0, 0)))
-   molecule1.add_atom(Atom(symbol="H", coords=(1, 0, 0)))
-   molecule1.add_atom(Atom(symbol="H", coords=(0, 1, 0)))
+   molecule1 = plams.Molecule()
+   molecule1.add_atom(plams.Atom(symbol="O", coords=(0, 0, 0)))
+   molecule1.add_atom(plams.Atom(symbol="H", coords=(1, 0, 0)))
+   molecule1.add_atom(plams.Atom(symbol="H", coords=(0, 1, 0)))
 
-   molecule2 = Molecule()
-   molecule2.add_atom(Atom(symbol="O", coords=(0, 0, 0)))
-   molecule2.add_atom(Atom(symbol="H", coords=(3.33333, 0, 0)))
-   molecule2.add_atom(Atom(symbol="H", coords=(0, 5.555555, 0)))
+   molecule2 = plams.Molecule()
+   molecule2.add_atom(plams.Atom(symbol="O", coords=(0, 0, 0)))
+   molecule2.add_atom(plams.Atom(symbol="H", coords=(3.33333, 0, 0)))
+   molecule2.add_atom(plams.Atom(symbol="H", coords=(0, 5.555555, 0)))
 
 Then create the ``mol_dict`` dictionary:
 
@@ -351,7 +391,7 @@ Pass the ``mol_dict`` as the ``molecule`` argument to ``AMSJob``:
 
 .. code:: ipython3
 
-   print(AMSJob(molecule=mol_dict).get_input())
+   print_ams_input(mol_dict)
 
 ::
 

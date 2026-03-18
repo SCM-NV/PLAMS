@@ -8,7 +8,7 @@ CP2K
 Settings
 ~~~~~~~~~~~~~~
 
-The cp2k_ input is rather complex one compared to other computational codes, but its input is structured as a set of nested block and sub-blocks that can be easily represented by the |Settings| class.
+The cp2k_ input is rather complex compared to other computational codes, but its input is structured as a set of nested blocks and sub-blocks that can be easily represented by the |Settings| class.
 Like the other interfaces, the *CP2K* input file is generated using the *input* branch of the job settings.
 For instance, a single point calculation for pentacene::
 
@@ -42,7 +42,7 @@ For instance, a single point calculation for pentacene::
     penta.input['global'].project  = "example"
     penta.input['global'].run_type = "energy_force"
 
-The input generated during the execution of the cp2k_ job is similar to: ::
+The input generated during the execution of the cp2k_ job is similar to::
 
     &FORCE_EVAL
       &DFT
@@ -98,12 +98,12 @@ The input generated during the execution of the cp2k_ job is similar to: ::
 
 PLAMS automatically creates the indented structure of the previous example together with the special character *&* at the beginning and end of each section, and finally the keyword *END* at the end of each section.
 
-Notice that *CP2K* requires the explicit declaration of the basis set together with the charge and the name of the potential used for each one of the atoms.
+Notice that *CP2K* requires the explicit declaration of the basis set together with the charge and the name of the potential used for each atom.
 In the previous example the basis for the carbon is *DZVP-MOLOPT-SR-GTH*, while the potential is *GTH-PBE* and the charge *q4*.
 
 The input parser also allows for header values like in this example *&LOCALIZE T  &END* by using the ``<some_section>._h`` (for header) notation in the |Settings| instance.
 
-Inclusion of external files by using the *@INCLUDE* notation of Cp2k is supported. Also the *@SET* and *@IF* keys can be used, just replace the *@* sign by ``at_`` in the definition of your |Settings|.
+Inclusion of external files by using the *@INCLUDE* notation of CP2K is supported. Also the *@SET* and *@IF* keys can be used, just replace the *@* sign by ``at_`` in the definition of your |Settings|.
 If you need some files to be copied to the actual execution directory, pass them to the constructor using the ``copy=`` option. See the API below.
 
 
@@ -119,7 +119,7 @@ A cubic box can be easily specified by::
 
   penta.input.force_eval.subsys.cell.ABC = "[angstrom] 50 50 50"
 
-That results in a simulation cube of 50 cubic angstroms.
+That results in a simulation cube of 50 cubic angstrom.
 For a more detailed description of the *cp2k* input see manual_.
 
 .. _cp2k: https://www.cp2k.org/
@@ -142,8 +142,8 @@ A |Molecule| can be recreated from a |Settings| instance using the |Cp2kSettings
 API
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. autoclass:: Cp2kJob()
+.. autoclass:: Cp2kJob
 
-.. autoclass:: Cp2kResults()
+.. autoclass:: Cp2kResults
 
-.. autofunction:: Cp2kSettings2Mol()
+.. autofunction:: Cp2kSettings2Mol

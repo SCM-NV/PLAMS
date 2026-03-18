@@ -18,6 +18,7 @@ from typing import (
     Iterable,
     Iterator,
     List,
+    Protocol,
 )
 from typing_extensions import Never
 
@@ -39,6 +40,7 @@ if TYPE_CHECKING:
     from scm.plams.core.jobmanager import JobManager
     from scm.plams.core.jobrunner import JobRunner
     from types import TracebackType
+    from datetime import datetime
 
 TSelf = TypeVar("TSelf", bound="Settings")
 
@@ -169,7 +171,7 @@ class Settings(dict):
                 self[name] = other[name]
         return self
 
-    def update(self, other: Mapping[Hashable, Any]):  # type: ignore
+    def update(self, other: Mapping[Hashable, Any]):  # type: ignore[no-untyped-def,override]
         """Update this instance with data from *other*, overwriting existing keys. Nested |Settings| instances are updated recursively.
 
         In the following example ``s`` and ``o`` are previously prepared |Settings| instances::
@@ -256,7 +258,7 @@ class Settings(dict):
         lowkey = key.lower()
         for k in self:
             try:
-                if k.lower() == lowkey:  # type: ignore
+                if k.lower() == lowkey:  # type: ignore[attr-defined]
                     return k
             except (AttributeError, TypeError):
                 pass
@@ -280,7 +282,7 @@ class Settings(dict):
         """Like regular ``setdefault``, but ignore the case and if the value is a dict, convert it to |Settings|."""
         if isinstance(default, dict) and not isinstance(default, Settings):
             default = Settings(default)
-        return dict.setdefault(self, self.find_case(key), default)  # type: ignore
+        return dict.setdefault(self, self.find_case(key), default)  # type: ignore[arg-type,return-value]
 
     def as_dict(self) -> Dict:
         """Return a copy of this instance with all |Settings| replaced by regular Python dictionaries."""
@@ -482,7 +484,7 @@ class Settings(dict):
         block_keys = list(self.block_keys(flatten_list, include_empty))
         for bk in block_keys:
             yield bk
-            for k, v in iter_block(self.get_nested(bk)):  # type: ignore
+            for k, v in iter_block(self.get_nested(bk)):  # type: ignore[arg-type]
                 # Maintain ordering by skipping branch keys here
                 fk = bk + (k,)
                 if (include_empty or v) and fk not in block_keys:
@@ -587,7 +589,7 @@ class Settings(dict):
 
         def _concatenate(key_ret: Tuple, sequence: Iterable) -> None:
             # Switch from Settings.items() to enumerate() if a list is encountered
-            for k, v in iter_type(sequence):  # type: ignore
+            for k, v in iter_type(sequence):  # type: ignore[union-attr]
                 k = key_ret + (k,)
                 if isinstance(v, nested_type) and v:  # Empty lists or Settings instances will return ``False``
                     _concatenate(k, v)
@@ -741,8 +743,8 @@ class SuppressMissing(contextlib.AbstractContextManager):
     def __enter__(self) -> None:
         """Enter the :class:`SuppressMissing` context manager: delete :meth:`.Settings.__missing__` at the class level."""
 
-        @wraps(self.missing)  # type: ignore
-        def __missing__(self, name: Hashable) -> Never:
+        @wraps(self.missing)  # type: ignore[arg-type]
+        def __missing__(self, name: Hashable) -> Never:  # type: ignore[no-untyped-def]
             raise KeyError(name)
 
         # The __missing__ method is replaced for as long as the context manager is open
@@ -911,6 +913,7 @@ class JobSettings(Settings):
         self.save = "all"
         self.runscript = RunScriptSettings()
         self.link_files = True
+        self.on_status_change = None
 
     @property
     def pickle(self) -> bool:
@@ -978,6 +981,43 @@ class JobSettings(Settings):
     @link_files.setter
     def link_files(self, value: bool) -> None:
         self["link_files"] = value
+
+    class OnStatusChangeCallback(Protocol):
+        """
+        Definition for a callback which is fired on a |Job| status change.
+        """
+
+        def __call__(
+            self,
+            *,
+            name: str = ...,
+            path: Optional[str] = ...,
+            status: str = ...,
+            at: "datetime" = ...,
+            **kwargs: Any,
+        ) -> Any: ...
+
+    @property
+    def on_status_change(self) -> Optional[OnStatusChangeCallback]:
+        """
+        Callback function which is called whenever the status of a job changes.
+        This can be used for example to send a notification whenever a job is complete or errors.
+
+        The callback should adhere to the :class:`~scm.plams.core.settings.JobSettings.OnStatusChangeCallback` protocol.
+        Example usage:
+
+        .. code-block:: python
+
+            >>> def notify(name: str, path: Optional[str], status: str, at: datetime, **_) -> None:
+            >>>     ...
+            >>> config.job.on_status_change = notify
+
+        """
+        return self["on_status_change"]
+
+    @on_status_change.setter
+    def on_status_change(self, value: Optional[OnStatusChangeCallback]) -> None:
+        self["on_status_change"] = value
 
 
 class JobManagerSettings(Settings):
@@ -1049,14 +1089,15 @@ class ConfigSettings(Settings):
         self.job = JobSettings()
         self.log = LogSettings()
         self.saferun = SafeRunSettings()
+        self.atexit_timeout = 30
 
         # Default job runner and job manager are lazily initialised on first access
         # This is to allow users to change their settings before initialisation (due to side effects in init)
         # Values are held inside a lazy wrapper to allow lazy values to be copied between settings instances
         # Make sure to do the initialisation inside a lock to avoid race-conditions between multiple threads
         self.__lazylock__ = threading.Lock()  # N.B. nomenclature used purely to avoid adding to settings dictionary
-        self.default_jobrunner = LazyWrapper(factory=self._jobrunner_factory)
-        self.default_jobmanager = LazyWrapper(factory=self._jobmanager_factory)
+        self.default_jobrunner = LazyWrapper(factory=self._jobrunner_factory)  # type: ignore[assignment]
+        self.default_jobmanager = LazyWrapper(factory=self._jobmanager_factory)  # type: ignore[assignment]
 
     @property
     def init(self) -> bool:
@@ -1126,10 +1167,21 @@ class ConfigSettings(Settings):
         self["daemon_threads"] = value
 
     @property
+    def atexit_timeout(self) -> int:
+        """
+        Maximum seconds to wait in atexit function calls, to allow threads to finish up before shutting them down.
+        Defaults to ``30`` seconds.
+        """
+        return self["atexit_timeout"]
+
+    @atexit_timeout.setter
+    def atexit_timeout(self, value: int) -> None:
+        self["atexit_timeout"] = value
+
+    @property
     def erase_workdir(self) -> bool:
         """
         When enabled, the entire main working folder is deleted at the end of script. Defaults to ``False``.
-        :return:
         """
         return self["erase_workdir"]
 
@@ -1200,7 +1252,7 @@ class ConfigSettings(Settings):
         return self["default_jobrunner"]
 
     @default_jobrunner.setter
-    def default_jobrunner(self, value: Union["JobRunner", LazyWrapper["JobRunner"]]) -> None:
+    def default_jobrunner(self, value: "JobRunner") -> None:
         with self.__lazylock__:
             self["default_jobrunner"] = value
 
@@ -1222,7 +1274,7 @@ class ConfigSettings(Settings):
         return self["default_jobmanager"]
 
     @default_jobmanager.setter
-    def default_jobmanager(self, value: Union["JobManager", LazyWrapper["JobManager"]]) -> None:
+    def default_jobmanager(self, value: "JobManager") -> None:
         with self.__lazylock__:
             self["default_jobmanager"] = value
 
