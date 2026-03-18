@@ -3,7 +3,7 @@ import os
 import re
 from os.path import join as opj
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, cast
 
 import numpy as np
 
@@ -87,7 +87,7 @@ class ConformersResults(Results):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         Results.__init__(self, *args, **kwargs)
         self._conformers: Optional[ConformersCollection] = None
-        self.rkf = None
+        self.rkf: Optional[KFFile] = None
 
     def collect(self) -> None:
         """Collect files present in the job folder.
@@ -173,10 +173,13 @@ class ConformersResults(Results):
         return str(self._conformers)
 
     def get_energy_landscape(self) -> AMSResults.EnergyLandscape:
-        # TODO how is this possible?
-        el = AMSResults.EnergyLandscape(None)
+        # Conformers results are not AMSResults, so initialize the landscape container manually.
+        el = AMSResults.EnergyLandscape.__new__(AMSResults.EnergyLandscape)
+        el._states = []
+        el._fragments = []
+        el._fstates = []
         for energy, mol in zip(self.get_energies(), self.get_conformers()):
-            state = AMSResults.EnergyLandscape.State(el, None, energy, mol, 1, False)
+            state = AMSResults.EnergyLandscape.State(el, "", energy, mol, 1, False)
             el._states.append(state)
         return el
 
@@ -311,5 +314,5 @@ class ConformersJob(SingleJob):
             p = os.path.dirname(p)
         # molecule = molecule or Molecule.read_userin(path + "/conformers.rkf", program="conformers")
         ret = super().load_external(p, settings, molecule, finalize, jobname)
-        return ret
+        return cast("ConformersJob", ret)
         #
