@@ -8,18 +8,19 @@ Initial imports
 
 .. code:: ipython3
 
-   import scm.plams as plams
    import sys
-   from scm.conformers import ConformersJob
+   import os
+   import random
    import numpy as np
    import matplotlib.pyplot as plt
-   import os
+   import scm.plams as plams
+   from scm.conformers import ConformersJob
 
    try:
        from scm.plams import view  # view molecule using AMSview in a Jupyter Notebook in AMS2026+
 
        _has_view = True
-   except ImportError:
+   except ImpoGrtError:
        from scm.plams import plot_molecule  # plot molecule in a Jupyter Notebook in AMS2023+
 
        _has_view = False
@@ -28,11 +29,17 @@ Initial imports
            plot_molecule(molecule, ax=ax)
 
 
+   # This seed will used in the initial dimer creation and for the starting MD velocities in conformers generation
+   # Due to numerical aspects it does not guarantee full reproducibility.
+   seed = random.randint(1, 10000000)
+   print(f"Seed used for stochastic aspects is {seed}.")
+
    # this line is not required in AMS2025+
    plams.init();
 
 ::
 
+   Seed used for stochastic aspects is 489563.
    PLAMS working folder: /path/plams/examples/ConformersMultipleMolecules/plams_workdir
 
 Single alanine molecule
@@ -44,7 +51,12 @@ Single alanine molecule
    alanine = plams.from_smiles(smiles)
    view(alanine, height=300, width=300)
 
-.. figure:: conformers_files/conformers_4_0.png
+::
+
+   [19.03|15:42:16] Starting Xvfb...
+   [19.03|15:42:16] Xvfb started
+
+.. figure:: conformers_files/conformers_4_1.png
 
 Initial system: alanine dimer
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -54,9 +66,31 @@ Pack two alanine molecules in a sphere with a density of 0.5 kg/L.
 .. code:: ipython3
 
    density = 0.5
-   mol = plams.packmol(alanine, n_molecules=2, density=density, sphere=True)
+   mol = plams.packmol(alanine, n_molecules=2, density=density, sphere=True, seed=seed)
 
-Translate the molecule to be centered around the origin (needed for SphericalWall later):
+Optimize the dimer structure prior to the conformer search.
+
+.. code:: ipython3
+
+   s = plams.Settings()
+   s.input.GFNFF = plams.Settings()
+   s.input.ams.Task = "GeometryOptimization"
+   s.input.ams.GeometryOptimization.Convergence.Quality = "VeryGood"
+   s.input.ams.GeometryOptimization.Maxiterations = 1300
+   s.input.ams.GeometryOptimization.Method = "Quasi-Newton"
+
+   job = plams.AMSJob(molecule=mol, settings=s)
+   job.run()
+   mol = job.results.get_main_molecule()
+
+::
+
+   [19.03|15:42:22] JOB plamsjob STARTED
+   [19.03|15:42:22] JOB plamsjob RUNNING
+   [19.03|15:42:24] JOB plamsjob FINISHED
+   [19.03|15:42:24] JOB plamsjob SUCCESSFUL
+
+Translate the system to be centered around the origin (needed for SphericalWall later):
 
 .. code:: ipython3
 
@@ -66,7 +100,7 @@ Translate the molecule to be centered around the origin (needed for SphericalWal
 
    view(mol, direction="along_pca3")
 
-.. figure:: conformers_files/conformers_10_0.png
+.. figure:: conformers_files/conformers_12_0.png
 
 Calculation setup
 ~~~~~~~~~~~~~~~~~
@@ -84,12 +118,14 @@ To determine the radius of the ``SphericalWall`` we measure the size of the init
 
 ::
 
-   Largest distance between atoms: 8.361 ang.
-   Radius: 5.560 ang.
+   Largest distance between atoms: 6.591 ang.
+   Radius: 4.383 ang.
 
-Now we can set up the Crest conformer generation job, with the appropriate spherical wall constraining the molecules close together.
+Now we can set up the Crest conformer generation job, with the appropriate spherical wall constraining the molecules close together. The ``NMolDynStepsFactor`` keyword ensures that the metadynamics and regulat molecular dynamics simulations used in a crest exploration are three times longer than the default. The default setting is based on single molecule flexibility. For multiple molecules, a little more exploration is required.
 
 .. code:: ipython3
+
+   nsteps = 3200
 
    settings = plams.Settings()
    settings.input.ams.EngineAddons.WallPotential.Enabled = "Yes"
@@ -98,12 +134,14 @@ Now we can set up the Crest conformer generation job, with the appropriate spher
    settings.input.ams.Output.KeepWorkDir = "Yes"
    settings.input.ams.GeometryOptimization.MaxConvergenceTime = "High"
    settings.input.ams.Generator.CREST.NCycles = 3  # at most 3 CREST cycles for this demo
+   settings.input.ams.Generator.RNGSeed = seed
+   settings.input.ams.Generator.CREST.NMolDynStepsFactor = 3
    settings.input.GFNFF = plams.Settings()
 
 Run the conformers job
 ~~~~~~~~~~~~~~~~~~~~~~
 
-Now we can run the conformer generation job.
+Now we can run the conformer generation job. This job will run for approximately 30 minutes.
 
 .. code:: ipython3
 
@@ -113,27 +151,50 @@ Now we can run the conformer generation job.
 
 ::
 
-   [12.01|12:36:00] JOB conformers STARTED
-   [12.01|12:36:00] JOB conformers RUNNING
-   [12.01|12:41:35] JOB conformers FINISHED
-   [12.01|12:41:35] JOB conformers SUCCESSFUL
+   [19.03|15:42:44] JOB conformers STARTED
+   [19.03|15:42:44] JOB conformers RUNNING
+   [19.03|16:24:02] JOB conformers FINISHED
+   [19.03|16:24:02] JOB conformers SUCCESSFUL
 
 
 
 
 
-   <scm.conformers.plams.interface.ConformersResults at 0x1731ef880>
+   <scm.conformers.plams.interface.ConformersResults at 0x121950e20>
+
+Now, remove the wall and reoptimize
 
 .. code:: ipython3
 
-   rkf = job.results.rkfpath()
+   if "EngineAddons" in settings.input.ams:
+       del settings.input.ams.EngineAddons
+   settings.input.ams.Task = "Optimize"
+   settings.input.ams.InputConformersSet = job.results.rkfpath()
+   opt_job = ConformersJob(settings=settings)
+   opt_job.run()
+
+::
+
+   [19.03|16:31:04] JOB conformers STARTED
+   [19.03|16:31:04] Renaming job conformers to conformers.002
+   [19.03|16:31:04] JOB conformers.002 RUNNING
+   [19.03|16:36:49] JOB conformers.002 FINISHED
+   [19.03|16:36:49] JOB conformers.002 SUCCESSFUL
+
+
+
+
+
+   <scm.conformers.plams.interface.ConformersResults at 0x122bac340>
+
+.. code:: ipython3
+
+   rkf = opt_job.results.rkfpath()
    print(f"Conformers stored in {rkf}")
 
 ::
 
-   Conformers stored in /path/plams/examples/ConformersMultipleMolecules/plams_workdir/conformers/conformers.rkf
-
-This job will run for approximately 15 minutes.
+   Conformers stored in /path/plams/examples/ConformersMultipleMolecules/plams_workdir/conformers.002/conformers.rkf
 
 Results
 ~~~~~~~
@@ -176,16 +237,14 @@ Here we plot the three lowest-energy conformers.
 
 .. code:: ipython3
 
-   plot_conformers(job)
+   plot_conformers(opt_job)
 
-.. figure:: conformers_files/conformers_23_0.png
+.. figure:: conformers_files/conformers_26_0.png
 
 You can also open the conformers in AMSmovie to browse all 1000+ conformers:
 
 .. code:: ipython3
 
-   # Open AMSmovie in a Jupyter Notebook, equivalent to the shell command:
-   # amsmovie /path/plams/examples/ConformersMultipleMolecules/plams_workdir/conformers/conformers.rkf
    !amsmovie {rkf}
 
 Finally in AMS2025+, you can also inspect the conformer data using the JobAnalysis tool.
@@ -197,7 +256,7 @@ Finally in AMS2025+, you can also inspect the conformer data using the JobAnalys
 
        ja = (
            JobAnalysis(standard_fields=None)
-           .add_job(job)
+           .add_job(opt_job)
            .add_field(
                "Id",
                lambda j: list(range(1, len(j.results.get_conformers()) + 1)),
@@ -232,25 +291,25 @@ Finally in AMS2025+, you can also inspect the conformer data using the JobAnalys
 ============ ====== =====
 Conformer Id E      P
 ============ ====== =====
-1            0.00   0.175
-2            0.01   0.173
-3            0.31   0.104
-4            0.33   0.100
-5            0.59   0.065
-6            0.87   0.040
-7            0.89   0.039
-8            1.10   0.028
-9            1.14   0.026
-10           1.36   0.018
+1            0.00   0.172
+2            0.14   0.135
+3            0.30   0.104
+4            0.30   0.103
+5            0.34   0.097
+6            0.48   0.076
+7            0.92   0.036
+8            0.94   0.035
+9            0.95   0.034
+10           1.08   0.028
 …            …      …
-1062         256.89 0.000
-1063         306.67 0.000
-1064         326.40 0.000
-1065         369.67 0.000
-1066         371.07 0.000
-1067         415.00 0.000
-1068         415.08 0.000
-1069         470.42 0.000
-1070         502.31 0.000
-1071         666.28 0.000
+2474         24.80  0.000
+2475         24.87  0.000
+2476         94.53  0.000
+2477         95.63  0.000
+2478         96.05  0.000
+2479         100.79 0.000
+2480         101.51 0.000
+2481         102.07 0.000
+2482         106.84 0.000
+2483         111.20 0.000
 ============ ====== =====

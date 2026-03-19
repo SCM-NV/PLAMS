@@ -7,18 +7,19 @@
 
 # ## Initial imports
 
-import scm.plams as plams
 import sys
-from scm.conformers import ConformersJob
+import os
+import random
 import numpy as np
 import matplotlib.pyplot as plt
-import os
+import scm.plams as plams
+from scm.conformers import ConformersJob
 
 try:
     from scm.plams import view  # view molecule using AMSview in a Jupyter Notebook in AMS2026+
 
     _has_view = True
-except ImportError:
+except ImpoGrtError:
     from scm.plams import plot_molecule  # plot molecule in a Jupyter Notebook in AMS2023+
 
     _has_view = False
@@ -26,6 +27,11 @@ except ImportError:
     def view(molecule, ax=None, **kwargs):
         plot_molecule(molecule, ax=ax)
 
+
+# This seed will used in the initial dimer creation and for the starting MD velocities in conformers generation
+# Due to numerical aspects it does not guarantee full reproducibility.
+seed = random.randint(1, 10000000)
+print(f"Seed used for stochastic aspects is {seed}.")
 
 # this line is not required in AMS2025+
 plams.init()
@@ -43,10 +49,24 @@ view(alanine, height=300, width=300)
 # Pack two alanine molecules in a sphere with a density of 0.5 kg/L.
 
 density = 0.5
-mol = plams.packmol(alanine, n_molecules=2, density=density, sphere=True)
+mol = plams.packmol(alanine, n_molecules=2, density=density, sphere=True, seed=seed)
 
 
-# Translate the molecule to be centered around the origin (needed for SphericalWall later):
+# Optimize the dimer structure prior to the conformer search.
+
+s = plams.Settings()
+s.input.GFNFF = plams.Settings()
+s.input.ams.Task = "GeometryOptimization"
+s.input.ams.GeometryOptimization.Convergence.Quality = "VeryGood"
+s.input.ams.GeometryOptimization.Maxiterations = 1300
+s.input.ams.GeometryOptimization.Method = "Quasi-Newton"
+
+job = plams.AMSJob(molecule=mol, settings=s)
+job.run()
+mol = job.results.get_main_molecule()
+
+
+# Translate the system to be centered around the origin (needed for SphericalWall later):
 
 mol.translate(-np.array(mol.get_center_of_mass()))
 
@@ -66,7 +86,9 @@ print(f"Largest distance between atoms: {max_dist:.3f} ang.")
 print(f"Radius: {radius:.3f} ang.")
 
 
-# Now we can set up the Crest conformer generation job, with the appropriate spherical wall constraining the molecules close together.
+# Now we can set up the Crest conformer generation job, with the appropriate spherical wall constraining the molecules close together. The `NMolDynStepsFactor` keyword ensures that the metadynamics and regulat molecular dynamics simulations used in a crest exploration are three times longer than the default. The default setting is based on single molecule flexibility. For multiple molecules, a little more exploration is required.
+
+nsteps = 3200
 
 settings = plams.Settings()
 settings.input.ams.EngineAddons.WallPotential.Enabled = "Yes"
@@ -75,23 +97,33 @@ settings.input.ams.Generator.Method = "CREST"
 settings.input.ams.Output.KeepWorkDir = "Yes"
 settings.input.ams.GeometryOptimization.MaxConvergenceTime = "High"
 settings.input.ams.Generator.CREST.NCycles = 3  # at most 3 CREST cycles for this demo
+settings.input.ams.Generator.RNGSeed = seed
+settings.input.ams.Generator.CREST.NMolDynStepsFactor = 3
 settings.input.GFNFF = plams.Settings()
 
 
 # ## Run the conformers job
 
-# Now we can run the conformer generation job.
+# Now we can run the conformer generation job. This job will run for approximately 30 minutes.
 
 job = ConformersJob(molecule=mol, settings=settings)
 job.run()
 # ConformersJob.load_external("plams_workdir/conformers/conformers.rkf")  # load from disk instead of running the job
 
 
-rkf = job.results.rkfpath()
+# Now, remove the wall and reoptimize
+
+if "EngineAddons" in settings.input.ams:
+    del settings.input.ams.EngineAddons
+settings.input.ams.Task = "Optimize"
+settings.input.ams.InputConformersSet = job.results.rkfpath()
+opt_job = ConformersJob(settings=settings)
+opt_job.run()
+
+
+rkf = opt_job.results.rkfpath()
 print(f"Conformers stored in {rkf}")
 
-
-# This job will run for approximately 15 minutes.
 
 # ## Results
 # Here we plot the three lowest-energy conformers.
@@ -130,13 +162,10 @@ def plot_conformers(job: ConformersJob, indices=None, temperature=298, unit="kca
             ax.set_title(f"#{i+1}\nΔE = {E:.2f} kcal/mol\nPop.: {population:.3f} (T = {temperature} K)")
 
 
-plot_conformers(job)
+plot_conformers(opt_job)
 
 
 # You can also open the conformers in AMSmovie to browse all 1000+ conformers:
-
-# Open AMSmovie in a Jupyter Notebook, equivalent to the shell command:
-# amsmovie /path/plams/examples/ConformersMultipleMolecules/plams_workdir/conformers/conformers.rkf
 
 
 # Finally in AMS2025+, you can also inspect the conformer data using the JobAnalysis tool.
@@ -146,7 +175,7 @@ try:
 
     ja = (
         JobAnalysis(standard_fields=None)
-        .add_job(job)
+        .add_job(opt_job)
         .add_field(
             "Id",
             lambda j: list(range(1, len(j.results.get_conformers()) + 1)),

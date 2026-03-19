@@ -1,21 +1,10 @@
 .. _ConformersMultipleMoleculesExample:
 
-Conformers Generation with Multiple Molecules
-=============================================
+ConformersMultipleMolecules
+==============================
 
-.. image:: conformers_files/conformers_23_0.png
-
-.. seealso::
-
-   * :ref:`conformers_interface` PLAMS interface
-
-   * :ref:`ConformersGenerationExample` PLAMS example
-
-   * :ref:`Conformers for COSMO-RS <ADFCOSMORSConformers>`
-
-Example illustrating how to generate conformers with AMS.
-
-**This example is compatible with AMS2024+**.
+..
+   Feel free to modify the above label, header, and add any custom information here
 
 .. include:: ConformersMultipleMolecules.common_header.rst
 .. include:: conformers.ipynb.rst
