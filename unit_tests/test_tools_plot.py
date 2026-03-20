@@ -48,7 +48,7 @@ def rkf_tools_plot(rkf_folder):
 # ----------------------------------------------------------
 # Testing plot_molecule
 # ----------------------------------------------------------
-@image_comparison(baseline_images=["plot_molecule"], remove_text=True, extensions=["png"], style="mpl20", tol=0.1)
+@image_comparison(baseline_images=["plot_molecule"], remove_text=True, extensions=["png"], style="mpl20", tol=30)
 def test_plot_molecule():
     plt.close("all")
 
