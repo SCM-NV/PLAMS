@@ -104,11 +104,11 @@ settings.input.GFNFF = plams.Settings()
 
 # ## Run the conformers job
 
-# Now we can run the conformer generation job. This job will run for approximately 30 minutes.
+# Now we can run the conformer generation job. This job will run somewhere between 30 minutes and 1 hour.
 
 job = ConformersJob(molecule=mol, settings=settings)
 job.run()
-# ConformersJob.load_external("plams_workdir/conformers/conformers.rkf")  # load from disk instead of running the job
+# job = ConformersJob.load_external("plams_workdir/conformers/conformers.rkf")  # load from disk instead of running the job
 
 
 # Now, remove the wall and reoptimize
@@ -168,6 +168,41 @@ plot_conformers(opt_job)
 # You can also open the conformers in AMSmovie to browse all 1000+ conformers:
 
 
+# The `conformerset` attribute holds information about the full set of conformers.
+
+conformerset = opt_job.results.conformerset
+print("Number of conforrmers: ", len(conformerset))
+
+
+# ### Filtering out duplicates
+# This conformerset does not contain any duplicates. However, there is no single definition of the term duplicates when applied to conformers. By default, duplicates are defined based on energy and rotational constants, the latter quantifying the 3D shape of the system. The filtering method uses thresholds for energy and rotational constants, which have been thoroughly tested for (mostly small) single molecules systems. If the user feels that the stored conformers are too similar, these thresholds can of course be changed. Below we refilter the stored conformerset using more lenient thresholds (systems with greater differences will be considered duplicates).
+
+s = plams.Settings()
+s.input.ams.Task = "Filter"
+s.input.ams.InputConformersSet = rkf
+s.input.ams.Equivalence.CREST.EnergyThreshold = 0.2  # default is 0.05
+s.input.ams.Equivalence.CREST.ScaledRotationalConstantSettings.RotationalConstantThreshold = 0.01  # default is 0.003
+
+filter_job = ConformersJob(settings=s)
+filter_job.run()
+conformerset = filter_job.results.conformerset
+print("Number of conformers: ", len(conformerset))
+
+
+# Alternatively, a filtering method can be applied that uses more local comparisons. The native AMS duplicate filter uses the interatomic distance matrix and torsion angles to determine if two structures are duplicates. This approach may be more appropriate for systems with multiple molecules, because the method only takes into account intra-molecular changes. On the other hand, this type of filtering is more time consuming, while in most cases the effect on the conformer set will not be extreme.
+
+s = plams.Settings()
+s.input.ams.Task = "Filter"
+s.input.ams.InputConformersSet = rkf
+s.input.ams.Equivalence.Method = "AMS"
+
+filter_job = ConformersJob(settings=s)
+filter_job.run()
+conformerset = filter_job.results.conformerset
+print("Number of AMS conformers: ", len(conformerset))
+
+
+# ### Analysis
 # Finally in AMS2025+, you can also inspect the conformer data using the JobAnalysis tool.
 
 try:

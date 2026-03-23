@@ -39,8 +39,8 @@ Initial imports
 
 ::
 
-   Seed used for stochastic aspects is 489563.
-   PLAMS working folder: /path/plams/examples/ConformersMultipleMolecules/plams_workdir
+   Seed used for stochastic aspects is 3982282.
+   PLAMS working folder: /path/plams/examples/ConformersMultipleMolecules/plams_workdir.002
 
 Single alanine molecule
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -53,8 +53,8 @@ Single alanine molecule
 
 ::
 
-   [19.03|15:42:16] Starting Xvfb...
-   [19.03|15:42:16] Xvfb started
+   [23.03|17:00:07] Starting Xvfb...
+   [23.03|17:00:07] Xvfb started
 
 .. figure:: conformers_files/conformers_4_1.png
 
@@ -85,10 +85,10 @@ Optimize the dimer structure prior to the conformer search.
 
 ::
 
-   [19.03|15:42:22] JOB plamsjob STARTED
-   [19.03|15:42:22] JOB plamsjob RUNNING
-   [19.03|15:42:24] JOB plamsjob FINISHED
-   [19.03|15:42:24] JOB plamsjob SUCCESSFUL
+   [23.03|17:00:15] JOB plamsjob STARTED
+   [23.03|17:00:15] JOB plamsjob RUNNING
+   [23.03|17:00:17] JOB plamsjob FINISHED
+   [23.03|17:00:17] JOB plamsjob SUCCESSFUL
 
 Translate the system to be centered around the origin (needed for SphericalWall later):
 
@@ -118,8 +118,8 @@ To determine the radius of the ``SphericalWall`` we measure the size of the init
 
 ::
 
-   Largest distance between atoms: 6.591 ang.
-   Radius: 4.383 ang.
+   Largest distance between atoms: 8.116 ang.
+   Radius: 5.397 ang.
 
 Now we can set up the Crest conformer generation job, with the appropriate spherical wall constraining the molecules close together. The ``NMolDynStepsFactor`` keyword ensures that the metadynamics and regulat molecular dynamics simulations used in a crest exploration are three times longer than the default. The default setting is based on single molecule flexibility. For multiple molecules, a little more exploration is required.
 
@@ -141,26 +141,13 @@ Now we can set up the Crest conformer generation job, with the appropriate spher
 Run the conformers job
 ~~~~~~~~~~~~~~~~~~~~~~
 
-Now we can run the conformer generation job. This job will run for approximately 30 minutes.
+Now we can run the conformer generation job. This job will run somewhere between 30 minutes and 1 hour.
 
 .. code:: ipython3
 
    job = ConformersJob(molecule=mol, settings=settings)
    job.run()
-   # ConformersJob.load_external("plams_workdir/conformers/conformers.rkf")  # load from disk instead of running the job
-
-::
-
-   [19.03|15:42:44] JOB conformers STARTED
-   [19.03|15:42:44] JOB conformers RUNNING
-   [19.03|16:24:02] JOB conformers FINISHED
-   [19.03|16:24:02] JOB conformers SUCCESSFUL
-
-
-
-
-
-   <scm.conformers.plams.interface.ConformersResults at 0x121950e20>
+   # job = ConformersJob.load_external("plams_workdir/conformers/conformers.rkf")  # load from disk instead of running the job
 
 Now, remove the wall and reoptimize
 
@@ -175,17 +162,17 @@ Now, remove the wall and reoptimize
 
 ::
 
-   [19.03|16:31:04] JOB conformers STARTED
-   [19.03|16:31:04] Renaming job conformers to conformers.002
-   [19.03|16:31:04] JOB conformers.002 RUNNING
-   [19.03|16:36:49] JOB conformers.002 FINISHED
-   [19.03|16:36:49] JOB conformers.002 SUCCESSFUL
+   [23.03|17:02:22] JOB conformers STARTED
+   [23.03|17:02:22] Renaming job conformers to conformers.002
+   [23.03|17:02:22] JOB conformers.002 RUNNING
+   [23.03|17:06:18] JOB conformers.002 FINISHED
+   [23.03|17:06:19] JOB conformers.002 SUCCESSFUL
 
 
 
 
 
-   <scm.conformers.plams.interface.ConformersResults at 0x122bac340>
+   <scm.conformers.plams.interface.ConformersResults at 0x12671e850>
 
 .. code:: ipython3
 
@@ -194,7 +181,7 @@ Now, remove the wall and reoptimize
 
 ::
 
-   Conformers stored in /path/plams/examples/ConformersMultipleMolecules/plams_workdir/conformers.002/conformers.rkf
+   Conformers stored in /path/plams/examples/ConformersMultipleMolecules/plams_workdir.002/conformers.002/conformers.rkf
 
 Results
 ~~~~~~~
@@ -247,6 +234,70 @@ You can also open the conformers in AMSmovie to browse all 1000+ conformers:
 
    !amsmovie {rkf}
 
+The ``conformerset`` attribute holds information about the full set of conformers.
+
+.. code:: ipython3
+
+   conformerset = opt_job.results.conformerset
+   print("Number of conforrmers: ", len(conformerset))
+
+::
+
+   Number of conforrmers:  3605
+
+Filtering out duplicates
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+This conformerset does not contain any duplicates. However, there is no single definition of the term duplicates when applied to conformers. By default, duplicates are defined based on energy and rotational constants, the latter quantifying the 3D shape of the system. The filtering method uses thresholds for energy and rotational constants, which have been thoroughly tested for (mostly small) single molecules systems. If the user feels that the stored conformers are too similar, these thresholds can of course be changed. Below we refilter the stored conformerset using more lenient thresholds (systems with greater differences will be considered duplicates).
+
+.. code:: ipython3
+
+   s = plams.Settings()
+   s.input.ams.Task = "Filter"
+   s.input.ams.InputConformersSet = rkf
+   s.input.ams.Equivalence.CREST.EnergyThreshold = 0.2  # default is 0.05
+   s.input.ams.Equivalence.CREST.ScaledRotationalConstantSettings.RotationalConstantThreshold = 0.01  # default is 0.003
+
+   filter_job = ConformersJob(settings=s)
+   filter_job.run()
+   conformerset = filter_job.results.conformerset
+   print("Number of conformers: ", len(conformerset))
+
+::
+
+   [23.03|17:07:40] JOB conformers STARTED
+   [23.03|17:07:40] Renaming job conformers to conformers.003
+   [23.03|17:07:40] JOB conformers.003 RUNNING
+   [23.03|17:08:20] JOB conformers.003 FINISHED
+   [23.03|17:08:21] JOB conformers.003 SUCCESSFUL
+   Number of conformers:  3306
+
+Alternatively, a filtering method can be applied that uses more local comparisons. The native AMS duplicate filter uses the interatomic distance matrix and torsion angles to determine if two structures are duplicates. This approach may be more appropriate for systems with multiple molecules, because the method only takes into account intra-molecular changes. On the other hand, this type of filtering is more time consuming, while in most cases the effect on the conformer set will not be extreme.
+
+.. code:: ipython3
+
+   s = plams.Settings()
+   s.input.ams.Task = "Filter"
+   s.input.ams.InputConformersSet = rkf
+   s.input.ams.Equivalence.Method = "AMS"
+
+   filter_job = ConformersJob(settings=s)
+   filter_job.run()
+   conformerset = filter_job.results.conformerset
+   print("Number of AMS conformers: ", len(conformerset))
+
+::
+
+   [23.03|17:08:31] JOB conformers STARTED
+   [23.03|17:08:31] Renaming job conformers to conformers.004
+   [23.03|17:08:31] JOB conformers.004 RUNNING
+   [23.03|17:10:16] JOB conformers.004 FINISHED
+   [23.03|17:10:17] JOB conformers.004 SUCCESSFUL
+   Number of AMS conformers:  3589
+
+Analysis
+~~~~~~~~
+
 Finally in AMS2025+, you can also inspect the conformer data using the JobAnalysis tool.
 
 .. code:: ipython3
@@ -291,25 +342,25 @@ Finally in AMS2025+, you can also inspect the conformer data using the JobAnalys
 ============ ====== =====
 Conformer Id E      P
 ============ ====== =====
-1            0.00   0.172
-2            0.14   0.135
-3            0.30   0.104
-4            0.30   0.103
-5            0.34   0.097
-6            0.48   0.076
-7            0.92   0.036
-8            0.94   0.035
-9            0.95   0.034
-10           1.08   0.028
+1            0.00   0.084
+2            0.01   0.083
+3            0.01   0.082
+4            0.07   0.074
+5            0.10   0.070
+6            0.21   0.059
+7            0.23   0.057
+8            0.31   0.050
+9            0.31   0.049
+10           0.33   0.048
 …            …      …
-2474         24.80  0.000
-2475         24.87  0.000
-2476         94.53  0.000
-2477         95.63  0.000
-2478         96.05  0.000
-2479         100.79 0.000
-2480         101.51 0.000
-2481         102.07 0.000
-2482         106.84 0.000
-2483         111.20 0.000
+3596         100.84 0.000
+3597         101.11 0.000
+3598         101.77 0.000
+3599         102.06 0.000
+3600         102.61 0.000
+3601         103.40 0.000
+3602         104.58 0.000
+3603         106.33 0.000
+3604         107.74 0.000
+3605         111.33 0.000
 ============ ====== =====
