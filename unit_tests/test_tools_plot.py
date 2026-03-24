@@ -18,6 +18,7 @@ from scm.plams.mol.molecule import Molecule
 from scm.plams.recipes.md.trajectoryanalysis import AMSMSDJob, AMSMSDResults
 from scm.plams.tools.plot import (
     get_correlation_xy,
+    linear_fit_extrapolate_to_0,
     plot_band_structure,
     plot_phonons_band_structure,
     plot_phonons_dos,
@@ -34,6 +35,23 @@ from test_helpers import skip_if_no_scm_pisa
 matplotlib.use("Agg")
 
 
+def test_linear_fit_extrapolate_to_0():
+    fit_x, fit_y, slope, intercept = linear_fit_extrapolate_to_0([1.0, 2.0, 3.0], [3.0, 5.0, 7.0])
+
+    assert slope == pytest.approx(2.0)
+    assert intercept == pytest.approx(1.0)
+    assert fit_x.tolist() == pytest.approx([1.0, 2.0, 3.0, 0.0])
+    assert fit_y.tolist() == pytest.approx([3.0, 5.0, 7.0, 1.0])
+
+    fit_x, fit_y, slope, intercept = linear_fit_extrapolate_to_0([0.0, 1.0, 2.0], [1.0, 3.0, 5.0])
+
+    assert slope == pytest.approx(2.0)
+    assert intercept == pytest.approx(1.0)
+    assert fit_x.tolist() == pytest.approx([0.0, 1.0, 2.0])
+    assert fit_y.tolist() == pytest.approx([1.0, 3.0, 5.0])
+    assert fit_x.tolist().count(0.0) == 1
+
+
 @pytest.fixture
 def run_calculations():
     run_calculations = False  # Manual toggle whether to re-run AMS calculations
@@ -48,7 +66,13 @@ def rkf_tools_plot(rkf_folder):
 # ----------------------------------------------------------
 # Testing plot_molecule
 # ----------------------------------------------------------
-@image_comparison(baseline_images=["plot_molecule"], remove_text=True, extensions=["png"], style="mpl20", tol=30)
+@image_comparison(
+    baseline_images=["plot_molecule"],
+    remove_text=True,
+    extensions=["png"],
+    style="mpl20",
+    tol=30,
+)
 def test_plot_molecule():
     plt.close("all")
 
@@ -74,7 +98,13 @@ def test_plot_molecule():
 # ----------------------------------------------------------
 # Testing plot_grid_molecules
 # ----------------------------------------------------------
-@image_comparison(baseline_images=["plot_grid_molecules"], remove_text=True, extensions=["png"], style="mpl20", tol=25)
+@image_comparison(
+    baseline_images=["plot_grid_molecules"],
+    remove_text=True,
+    extensions=["png"],
+    style="mpl20",
+    tol=25,
+)
 def test_plot_grid_molecules():
     plt.close("all")
     ethanol = from_smiles("CCO")
@@ -146,7 +176,13 @@ def test_plot_grid_molecules_options_products():
 # ----------------------------------------------------------
 # Testing plot_band_structure
 # ----------------------------------------------------------
-@image_comparison(baseline_images=["plot_band_structure"], remove_text=True, extensions=["png"], style="mpl20", tol=3)
+@image_comparison(
+    baseline_images=["plot_band_structure"],
+    remove_text=True,
+    extensions=["png"],
+    style="mpl20",
+    tol=3,
+)
 def test_plot_band_structure(run_calculations, rkf_tools_plot):
     plt.close("all")
 
@@ -184,7 +220,11 @@ def test_plot_band_structure(run_calculations, rkf_tools_plot):
 # Testing plot_phonons_band_structure
 # ----------------------------------------------------------
 @image_comparison(
-    baseline_images=["plot_phonons_band_structure"], remove_text=True, extensions=["png"], style="mpl20", tol=3
+    baseline_images=["plot_phonons_band_structure"],
+    remove_text=True,
+    extensions=["png"],
+    style="mpl20",
+    tol=3,
 )
 def test_plot_phonons_band_structure(run_calculations, rkf_tools_plot):
     plt.close("all")
@@ -220,7 +260,13 @@ def test_plot_phonons_band_structure(run_calculations, rkf_tools_plot):
 # ----------------------------------------------------------
 # Testing plot_phonons_dos
 # ----------------------------------------------------------
-@image_comparison(baseline_images=["plot_phonons_dos"], remove_text=True, extensions=["png"], style="mpl20", tol=3)
+@image_comparison(
+    baseline_images=["plot_phonons_dos"],
+    remove_text=True,
+    extensions=["png"],
+    style="mpl20",
+    tol=3,
+)
 def test_plot_phonons_dos(run_calculations, rkf_tools_plot):
     plt.close("all")
 
@@ -255,7 +301,13 @@ def test_plot_phonons_dos(run_calculations, rkf_tools_plot):
 # ----------------------------------------------------------
 # Testing plot_correlation & get_correlation_xy
 # ----------------------------------------------------------
-@image_comparison(baseline_images=["plot_correlation"], remove_text=True, extensions=["png"], style="mpl20", tol=1.0)
+@image_comparison(
+    baseline_images=["plot_correlation"],
+    remove_text=True,
+    extensions=["png"],
+    style="mpl20",
+    tol=1.0,
+)
 def test_plot_correlation(run_calculations, rkf_tools_plot):
     plt.close("all")
 
@@ -357,7 +409,13 @@ def test_plot_correlation(run_calculations, rkf_tools_plot):
 # ----------------------------------------------------------
 # Testing plot_msd
 # ----------------------------------------------------------
-@image_comparison(baseline_images=["plot_msd"], remove_text=True, extensions=["png"], style="mpl20", tol=4)
+@image_comparison(
+    baseline_images=["plot_msd"],
+    remove_text=True,
+    extensions=["png"],
+    style="mpl20",
+    tol=4,
+)
 def test_plot_msd(run_calculations, rkf_tools_plot, xyz_folder):
     plt.close("all")
 
@@ -394,7 +452,13 @@ def test_plot_msd(run_calculations, rkf_tools_plot, xyz_folder):
     plot_msd(md_job)
 
 
-@image_comparison(baseline_images=["plot_msd_pisa"], remove_text=True, extensions=["png"], style="mpl20", tol=10)
+@image_comparison(
+    baseline_images=["plot_msd_pisa"],
+    remove_text=True,
+    extensions=["png"],
+    style="mpl20",
+    tol=10,
+)
 def test_plot_msd_with_pisa(run_calculations, rkf_tools_plot, xyz_folder):
     skip_if_no_scm_pisa()
 
@@ -460,7 +524,13 @@ def test_plot_msd_with_pisa(run_calculations, rkf_tools_plot, xyz_folder):
 # ----------------------------------------------------------
 # Testing plot_work_function
 # ----------------------------------------------------------
-@image_comparison(baseline_images=["plot_work_function"], remove_text=True, extensions=["png"], style="mpl20", tol=11)
+@image_comparison(
+    baseline_images=["plot_work_function"],
+    remove_text=True,
+    extensions=["png"],
+    style="mpl20",
+    tol=11,
+)
 def test_plot_work_function(run_calculations, rkf_tools_plot):
     plt.close("all")
 
