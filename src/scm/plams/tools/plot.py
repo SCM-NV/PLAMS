@@ -46,6 +46,7 @@ __all__ = [
 ]
 
 
+@requires_optional_package("scipy")
 def linear_fit_extrapolate_to_0(x: Sequence[float], y: Sequence[float]) -> Tuple[np.ndarray, np.ndarray, float, float]:
     """
     Perform a linear regression on ``x`` and ``y`` and return the fit extended to ``x = 0``.
@@ -61,10 +62,7 @@ def linear_fit_extrapolate_to_0(x: Sequence[float], y: Sequence[float]) -> Tuple
 
     If ``0`` is already present in ``x``, it is not appended a second time.
     """
-    try:
-        from scipy.stats import linregress
-    except ImportError:
-        raise MissingOptionalPackageError("scipy")
+    from scipy.stats import linregress
 
     result = linregress(x, y)
     fit_x_values = list(x)
