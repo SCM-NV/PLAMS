@@ -333,6 +333,8 @@ def plot_molecule(
 
     if not keep_axis:
         ax.axis("off")
+    else:
+        ax.axis("on")
 
     return ax
 
