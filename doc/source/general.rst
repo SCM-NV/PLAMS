@@ -33,24 +33,21 @@ For most use cases, no specific installation outside of AMS is required. For usa
 To get started with PLAMS, import ``scm.plams`` into your Python script or Jupyter notebook.
 Then, follow one of the :ref:`examples <examples>` to help create your script.
 
-For example, the following is based upon :ref:`Geometry Optimization of Water <WaterOptimizationExample>`,
-and also makes use of `PISA <../pisa/index.html>`__, also included in ``amspython``.
+For example, the following is based upon :ref:`Geometry Optimization of Water <WaterOptimizationExample>`.
 
 .. code:: ipython3
 
     # water_opt.py
-    from scm.plams import from_smiles, AMSJob
-    from scm.input_classes import drivers, engines
+    from scm.plams import from_smiles, Settings, AMSJob
 
     water = from_smiles("O")
 
-    driver = drivers.AMS()
-    driver.Task = "GeometryOptimization"
-    driver.Properties.NormalModes = "Yes"
-    driver.Engine = engines.ForceField()
-    driver.Engine.Type = "UFF"
+    settings = Settings()
+    settings.input.ams.Task = "GeometryOptimization"
+    settings.input.ams.Properties.NormalModes = "Yes"
+    settings.input.ForceField.Type = "UFF"
 
-    job = AMSJob(molecule=water, settings=driver, name="water_opt")
+    job = AMSJob(molecule=water, settings=settings, name="water_opt")
     results = job.run()
 
     print("Optimized geometry:")
