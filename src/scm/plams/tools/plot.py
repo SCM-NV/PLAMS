@@ -331,10 +331,11 @@ def plot_molecule(
 
     plot_atoms(molecule, ax=ax, **kwargs)
 
-    if not keep_axis:
-        ax.axis("off")
-    else:
+    if keep_axis:
         ax.axis("on")
+    else:
+        ax.axis("off")
+        
 
     return ax
 
