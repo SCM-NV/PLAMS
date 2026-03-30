@@ -12,7 +12,7 @@ try:
     from scm.plams import view  # view molecule using AMSview in a Jupyter Notebook in AMS2026+
 
     _has_view = True
-except ImpoGrtError:
+except ImportError:
     from scm.plams import plot_molecule  # plot molecule in a Jupyter Notebook in AMS2023+
 
     _has_view = False
@@ -21,10 +21,10 @@ except ImpoGrtError:
         plot_molecule(molecule, ax=ax)
 
 
-config.default_jobrunner.parallel = JobRunner(parallel=True, maxjobs=2)
-
 # this line is not required in AMS2025+
 init()
+
+config.default_jobrunner = JobRunner(parallel=True, maxjobs=2)
 
 
 # ## Setup Molecules

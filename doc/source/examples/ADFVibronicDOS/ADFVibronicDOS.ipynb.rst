@@ -16,7 +16,7 @@ Import PLAMS components and set up to run jobs in tandem.
        from scm.plams import view  # view molecule using AMSview in a Jupyter Notebook in AMS2026+
 
        _has_view = True
-   except ImpoGrtError:
+   except ImportError:
        from scm.plams import plot_molecule  # plot molecule in a Jupyter Notebook in AMS2023+
 
        _has_view = False
@@ -26,10 +26,14 @@ Import PLAMS components and set up to run jobs in tandem.
 
 .. code:: ipython3
 
-   config.default_jobrunner.parallel = JobRunner(parallel=True, maxjobs=2)
-
    # this line is not required in AMS2025+
    init()
+
+   config.default_jobrunner = JobRunner(parallel=True, maxjobs=2)
+
+::
+
+   PLAMS working folder: /path/plams/examples/ADFVibronicDOS/plams_workdir
 
 Setup Molecules
 ~~~~~~~~~~~~~~~
@@ -54,7 +58,12 @@ Create the NO2 molecules using pre-optimized geometries (usually the geometry op
 
    view(no2_radical, height=100, width=100)
 
-.. figure:: ADFVibronicDOS_files/ADFVibronicDOS_5_0.png
+::
+
+   [30.03|12:53:34] Starting Xvfb...
+   [30.03|12:53:34] Xvfb started
+
+.. figure:: ADFVibronicDOS_files/ADFVibronicDOS_5_1.png
 
 Calculate Vibrational Frequencies
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -89,14 +98,14 @@ Create the settings objects for the ADF donor/acceptor vibrational frequencies c
 
 ::
 
-   [26.03|17:44:04] JOB fsradical STARTED
-   [26.03|17:44:04] JOB fsanion STARTED
-   [26.03|17:44:04] JOB fsradical RUNNING
-   [26.03|17:44:04] JOB fsanion RUNNING
-   [26.03|17:44:12] JOB fsanion FINISHED
-   [26.03|17:44:12] JOB fsanion SUCCESSFUL
-   [26.03|17:44:13] JOB fsradical FINISHED
-   [26.03|17:44:13] JOB fsradical SUCCESSFUL
+   [30.03|12:53:41] JOB fsradical STARTED
+   [30.03|12:53:41] JOB fsanion STARTED
+   [30.03|12:53:41] JOB fsradical RUNNING
+   [30.03|12:53:41] JOB fsanion RUNNING
+   [30.03|12:53:46] JOB fsanion FINISHED
+   [30.03|12:53:46] JOB fsanion SUCCESSFUL
+   [30.03|12:53:47] JOB fsradical FINISHED
+   [30.03|12:53:47] JOB fsradical SUCCESSFUL
 
 We can view the resulting vibrational modes in amsspectra
 
@@ -130,14 +139,14 @@ Use Frank-Condon jobs to calculate the vibronic spectra.
 
 ::
 
-   [30.03|10:07:58] JOB fcfabs STARTED
-   [30.03|10:07:58] JOB fcfemi STARTED
-   [30.03|10:07:58] JOB fcfabs RUNNING
-   [30.03|10:07:58] JOB fcfemi RUNNING
-   [30.03|10:08:00] JOB fcfemi FINISHED
-   [30.03|10:08:00] JOB fcfemi SUCCESSFUL
-   [30.03|10:08:00] JOB fcfabs FINISHED
-   [30.03|10:08:00] JOB fcfabs SUCCESSFUL
+   [30.03|12:53:58] JOB fcfabs STARTED
+   [30.03|12:53:58] JOB fcfemi STARTED
+   [30.03|12:53:58] JOB fcfabs RUNNING
+   [30.03|12:53:58] JOB fcfemi RUNNING
+   [30.03|12:53:59] JOB fcfabs FINISHED
+   [30.03|12:53:59] JOB fcfabs SUCCESSFUL
+   [30.03|12:53:59] JOB fcfemi FINISHED
+   [30.03|12:53:59] JOB fcfemi SUCCESSFUL
 
 Calculate Density of States
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
