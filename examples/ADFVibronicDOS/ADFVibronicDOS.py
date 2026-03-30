@@ -6,6 +6,19 @@
 
 from scm.plams import Settings, AMSJob, Molecule, Atom, FCFJob, config, JobRunner, init
 from scm.plams.recipes.fcf_dos import FCFDOS
+import matplotlib.pyplot as plt
+
+try:
+    from scm.plams import view  # view molecule using AMSview in a Jupyter Notebook in AMS2026+
+
+    _has_view = True
+except ImpoGrtError:
+    from scm.plams import plot_molecule  # plot molecule in a Jupyter Notebook in AMS2023+
+
+    _has_view = False
+
+    def view(molecule, ax=None, **kwargs):
+        plot_molecule(molecule, ax=ax)
 
 
 config.default_jobrunner.parallel = JobRunner(parallel=True, maxjobs=2)
@@ -15,17 +28,22 @@ init()
 
 
 # ## Setup Molecules
-# Create the NO2 molecules using pre-optimized geometries (usually the geometry optimization step would come first).
+# Create the NO<sub>2</sub> molecules using pre-optimized geometries (usually the geometry optimization step would come first).
 
 no2_radical = Molecule()
 no2_radical.add_atom(Atom(atnum=7, coords=(0.0, 0.0, -0.01857566)))
 no2_radical.add_atom(Atom(atnum=8, coords=(0.0, 1.09915770, -0.49171967)))
 no2_radical.add_atom(Atom(atnum=8, coords=(0.0, -1.09915770, -0.49171967)))
+no2_radical.guess_bonds()
 
 no2_anion = Molecule()
 no2_anion.add_atom(Atom(atnum=7, coords=(0.0, 0.0, 0.12041)))
 no2_anion.add_atom(Atom(atnum=8, coords=(0.0, 1.070642, -0.555172)))
 no2_anion.add_atom(Atom(atnum=8, coords=(0.0, -1.070642, -0.555172)))
+no2_anion.guess_bonds()
+
+
+view(no2_radical, height=100, width=100)
 
 
 # ## Calculate Vibrational Frequencies
@@ -53,6 +71,11 @@ freq_job_radical = AMSJob(molecule=no2_radical, settings=settings_freq_radical, 
 freq_job_anion = AMSJob(molecule=no2_anion, settings=settings_freq_anion, name="fsanion")
 
 freq_results = (freq_job_radical.run(), freq_job_anion.run())
+
+
+# We can view the resulting vibrational modes in amsspectra
+
+rkf = freq_results[0].rkfpath(file="adf")
 
 
 # ## Calculate Vibronic Spectra

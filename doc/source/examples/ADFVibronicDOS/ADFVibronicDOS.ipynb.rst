@@ -10,6 +10,19 @@ Import PLAMS components and set up to run jobs in tandem.
 
    from scm.plams import Settings, AMSJob, Molecule, Atom, FCFJob, config, JobRunner, init
    from scm.plams.recipes.fcf_dos import FCFDOS
+   import matplotlib.pyplot as plt
+
+   try:
+       from scm.plams import view  # view molecule using AMSview in a Jupyter Notebook in AMS2026+
+
+       _has_view = True
+   except ImpoGrtError:
+       from scm.plams import plot_molecule  # plot molecule in a Jupyter Notebook in AMS2023+
+
+       _has_view = False
+
+       def view(molecule, ax=None, **kwargs):
+           plot_molecule(molecule, ax=ax)
 
 .. code:: ipython3
 
@@ -17,10 +30,6 @@ Import PLAMS components and set up to run jobs in tandem.
 
    # this line is not required in AMS2025+
    init()
-
-::
-
-   PLAMS working folder: /path/plams/examples/ADFVibronicDOS/plams_workdir
 
 Setup Molecules
 ~~~~~~~~~~~~~~~
@@ -33,11 +42,19 @@ Create the NO2 molecules using pre-optimized geometries (usually the geometry op
    no2_radical.add_atom(Atom(atnum=7, coords=(0.0, 0.0, -0.01857566)))
    no2_radical.add_atom(Atom(atnum=8, coords=(0.0, 1.09915770, -0.49171967)))
    no2_radical.add_atom(Atom(atnum=8, coords=(0.0, -1.09915770, -0.49171967)))
+   no2_radical.guess_bonds()
 
    no2_anion = Molecule()
    no2_anion.add_atom(Atom(atnum=7, coords=(0.0, 0.0, 0.12041)))
    no2_anion.add_atom(Atom(atnum=8, coords=(0.0, 1.070642, -0.555172)))
    no2_anion.add_atom(Atom(atnum=8, coords=(0.0, -1.070642, -0.555172)))
+   no2_anion.guess_bonds()
+
+.. code:: ipython3
+
+   view(no2_radical, height=100, width=100)
+
+.. figure:: ADFVibronicDOS_files/ADFVibronicDOS_5_0.png
 
 Calculate Vibrational Frequencies
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -72,14 +89,21 @@ Create the settings objects for the ADF donor/acceptor vibrational frequencies c
 
 ::
 
-   [10.02|14:22:57] JOB fsradical STARTED
-   [10.02|14:22:57] JOB fsradical RUNNING
-   [10.02|14:23:08] JOB fsradical FINISHED
-   [10.02|14:23:08] JOB fsradical SUCCESSFUL
-   [10.02|14:23:08] JOB fsanion STARTED
-   [10.02|14:23:08] JOB fsanion RUNNING
-   [10.02|14:23:17] JOB fsanion FINISHED
-   [10.02|14:23:17] JOB fsanion SUCCESSFUL
+   [26.03|17:44:04] JOB fsradical STARTED
+   [26.03|17:44:04] JOB fsanion STARTED
+   [26.03|17:44:04] JOB fsradical RUNNING
+   [26.03|17:44:04] JOB fsanion RUNNING
+   [26.03|17:44:12] JOB fsanion FINISHED
+   [26.03|17:44:12] JOB fsanion SUCCESSFUL
+   [26.03|17:44:13] JOB fsradical FINISHED
+   [26.03|17:44:13] JOB fsradical SUCCESSFUL
+
+We can view the resulting vibrational modes in amsspectra
+
+.. code:: ipython3
+
+   rkf = freq_results[0].rkfpath(file="adf")
+   !amsspectra {rkf}
 
 Calculate Vibronic Spectra
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -106,14 +130,14 @@ Use Frank-Condon jobs to calculate the vibronic spectra.
 
 ::
 
-   [10.02|14:23:17] JOB fcfabs STARTED
-   [10.02|14:23:17] JOB fcfabs RUNNING
-   [10.02|14:23:19] JOB fcfabs FINISHED
-   [10.02|14:23:19] JOB fcfabs SUCCESSFUL
-   [10.02|14:23:19] JOB fcfemi STARTED
-   [10.02|14:23:19] JOB fcfemi RUNNING
-   [10.02|14:23:20] JOB fcfemi FINISHED
-   [10.02|14:23:20] JOB fcfemi SUCCESSFUL
+   [30.03|10:07:58] JOB fcfabs STARTED
+   [30.03|10:07:58] JOB fcfemi STARTED
+   [30.03|10:07:58] JOB fcfabs RUNNING
+   [30.03|10:07:58] JOB fcfemi RUNNING
+   [30.03|10:08:00] JOB fcfemi FINISHED
+   [30.03|10:08:00] JOB fcfemi SUCCESSFUL
+   [30.03|10:08:00] JOB fcfabs FINISHED
+   [30.03|10:08:00] JOB fcfabs SUCCESSFUL
 
 Calculate Density of States
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
