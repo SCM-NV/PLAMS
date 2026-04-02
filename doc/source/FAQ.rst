@@ -18,6 +18,6 @@ Where can I find some example scripts?
 A good example of a multi-step PLAMS workflow with DFTB and BAND is given in our recent `video tutorial <https://www.youtube.com/watch?v=1-gN6HJHseM>`_.
 Download: :download:`workflow.py <https://downloads.scm.com/distr/workflow.py>`
 
-For several simple and more advanced workflows, take a look at the :ref:`Examples <examples>` section of this PLAMS manual.
+For several simple and more advanced workflows, see the `Python Examples collection <../PythonExamples/all-examples.html>`__.
 
 Another common PLAMS application is the post-processing of calculation results. A good example of this is found in the analysis section of the `Battery Discharge tutorial <../Tutorials/MolecularDynamicsAndMonteCarlo/GCMCLiSBattery.html>`__.

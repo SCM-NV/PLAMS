@@ -5,7 +5,7 @@ Getting Started
 
 This section contains introductory information about installing and running PLAMS.
 
-For quick-start guides on a wider range of topics within PLAMS, see the :ref:`examples`.
+For quick-start guides on a wider range of topics within PLAMS, see the `Python Examples collection <../PythonExamples/all-examples.html>`__.
 
 Overview
 --------
@@ -31,9 +31,9 @@ PLAMS is available to all users of AMS "out of the box" as part of the `AMS Pyth
 For most use cases, no specific installation outside of AMS is required. For usage outside of ``amspython``, please see the :ref:`installation guide <installation>` below.
 
 To get started with PLAMS, import ``scm.plams`` into your Python script or Jupyter notebook.
-Then, follow one of the :ref:`examples <examples>` to help create your script.
+Then, follow one of the `Python Examples <../PythonExamples/all-examples.html>`__ to help create your script.
 
-For example, the following is based upon :ref:`Geometry Optimization of Water <WaterOptimizationExample>`.
+For example, the following is based upon the `water optimization example <../PythonExamples/water-optimization/index.html>`__.
 
 .. code:: ipython3
 
@@ -69,7 +69,7 @@ Running the command ``$AMSBIN/amspython water_opt.py`` produces the successful o
        (1)--1.0--(2)
        (1)--1.0--(3)
 
-For more advanced workflows including usage of other AMS engines, see the other :ref:`examples <examples>`.
+For more advanced workflows including usage of other AMS engines, see the other `Python Examples <../PythonExamples/all-examples.html>`__.
 
 
 .. _installation:
@@ -218,15 +218,15 @@ What's new in PLAMS for AMS2024?
 What's new in PLAMS for AMS2023?
 --------------------------------------
 
-* The :ref:`AMSCalculator` class for running any AMS engine with ASE (see: :ref:`ASECalculatorExample`)
+* The :ref:`AMSCalculator` class for running any AMS engine with ASE (see: `ASE calculator <../PythonExamples/ase-calculator/index.html>`__)
 
-* Classes for calculating :ref:`reduction and oxidation potentials  <RedoxExample>` with ADF and optionally COSMO-RS
+* Classes for calculating `reduction and oxidation potentials <../PythonExamples/reduction-oxidation-potentials/index.html>`__ with ADF and optionally COSMO-RS
 
-* The :ref:`ADFCOSMORSCompoundJob <ADFCOSMORSCompound>` class for running jobs equivalent to "Task COSMO-RS Compound" in the AMS GUI. Such a job generates a .coskf file for use with COSMO-RS.
+* The :class:`~scm.plams.recipes.adfcosmorscompound.ADFCOSMORSCompoundJob` class for running jobs equivalent to "Task COSMO-RS Compound" in the AMS GUI (see: `COSMO-RS compound example <../PythonExamples/cosmo-rs-compound/index.html>`__). Such a job generates a .coskf file for use with COSMO-RS.
 
-* The calculation of the :ref:`vibronic density of states<fcf_dos>` has been added to PLAMS.
+* The calculation of the `vibronic density of states <../PythonExamples/adf-vibronic-dos/index.html>`__ has been added to PLAMS.
 
-* Classes for running and restarting :ref:`molecular dynamics (MD) jobs with AMS <AMSMDJob>`
+* Classes for running and restarting molecular dynamics (MD) jobs with AMS (see: `Molecular dynamics with Python <../PythonExamples/molecular-dynamics-intro/index.html>`__)
 
 * A class for generating and analyzing :ref:`conformers <conformers_interface>`
 
@@ -238,10 +238,10 @@ What's new in PLAMS for AMS2023?
 
 * :ref:`PlottingTools` for plotting a molecule or ASE Atoms inside a Jupyter notebook
 
-* :ref:`PlottingTools` for plotting the :ref:`electronic band structure <BandStructureExample>`
+* :ref:`PlottingTools` for plotting the `electronic band structure <../PythonExamples/bandstructure-band/index.html>`__
 
 * Additions to |AMSResults|: get_homo_energies(), get_lumo_energies, get_smallest_homo_lumo_gap()
 
 * Additions to |Molecule|: guess_atomic_charges(), set_density(), get_unique_bonds(), get_unique_angles()
 
-* Many new :ref:`examples`
+* Many new `Python Examples <../PythonExamples/all-examples.html>`__

@@ -69,7 +69,7 @@ Reaction energies
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 *New in AMS2026*: The ``balance`` function is new in AMS2026. For usage, see
-the :ref:`BalanceReactionEquationsExample` example.
+the `Balance reaction equations example <../../PythonExamples/balance-reaction-equations/index.html>`__.
 
 Import paths::
 
@@ -92,7 +92,7 @@ Plotting tools
 
 .. seealso::
 
-    * :ref:`BandStructureExample`
+    * `Band structure with BAND <../../PythonExamples/bandstructure-band/index.html>`__
 
 Tools for creating plots with matplotlib.
 

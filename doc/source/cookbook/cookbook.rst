@@ -286,7 +286,7 @@ Generate a liquid or gas mixture
                       n_atoms=200, 
                       density=0.9)
 
-See :ref:`PackMolExample` for more examples on how to construct liquid or gas mixtures and solid/liquid or solid/gas interfaces.
+See the `Packmol example <../../PythonExamples/pack-mol-example/index.html>`__ for more examples on how to construct liquid or gas mixtures and solid/liquid or solid/gas interfaces.
 
 Write an ams.rkf-like trajectory
 ---------------------------------
@@ -304,7 +304,7 @@ AMS-like .rkf file so that you can visualize them in the GUI module AMSmovie.
 Convert a trajectory to ams.rkf with bond guessing
 ---------------------------------------------------------
 
-See :ref:`ConvertToAMSRKFTrajectory`
+See the `Convert to ams.rkf trajectory example <../../PythonExamples/convert-to-ams-rkf-trajectory/index.html>`__.
 
 Pre-optimize a molecule
 ------------------------------------

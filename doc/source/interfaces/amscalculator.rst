@@ -13,7 +13,7 @@ together with ASE.
 
 .. seealso::
 
-    **Example**: :ref:`ASECalculatorExample` 
+    **Example**: `ASE calculator <../../PythonExamples/ase-calculator/index.html>`__ 
 
     **Engine ASE**: Couple `external ASE calculators <../../ASE/index.html>`__ to the AMS Driver 
 
@@ -45,7 +45,7 @@ The total charge is thus obtained as ``sum(Atoms.get_initial_charges())+Atoms.in
 See the ASE documentation for details on initial charges and info.
 
 .. seealso::
-   **Example**: :ref:`ChargedAMSCalculatorExample`
+   **Example**: `Charged AMS calculator <../../PythonExamples/charged-ams-calculator/index.html>`__
 
 AMS standalone and worker mode
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
