@@ -4,13 +4,14 @@ from typing_extensions import LiteralString
 if TYPE_CHECKING:
     from scm.plams.tools.kftools import KFFile, TRead
     from scm.plams.mol.molecule import Atom
+    import matplotlib.pyplot as plt
 
 from scm.plams.core.errors import FileError, PlamsError
 from scm.plams.interfaces.adfsuite.scmjob import SCMJob, SCMResults
 from scm.plams.interfaces.adfsuite.inputparser import input_to_settings
 from scm.plams.core.settings import Settings
 from scm.plams.mol.molecule import Molecule
-from scm.plams.core.functions import log
+from scm.plams.core.functions import log, requires_optional_package
 
 __all__ = ["AMSAnalysisJob", "AMSAnalysisResults", "convert_to_unicode"]
 
@@ -109,6 +110,76 @@ class AMSAnalysisPlot:
         Get the dimensonality of the plot
         """
         return len(self.x)
+
+    @requires_optional_package("matplotlib")
+    def plot(
+        self,
+        ax: Optional["plt.Axes"] = None,
+        include_sigma: bool = True,
+        xlim: Optional[Tuple[float, float]] = None,
+        ylim: Optional[Tuple[float, float]] = None,
+        title: Optional[str] = None,
+    ) -> "plt.Axes":
+        """
+        Plot this data with matplotlib and return the axis.
+
+        For 1D data, this plots ``y`` versus ``x`` (with optional error bars from ``y_sigma``).
+        For 2D data, this shows a colored scatter plot where color corresponds to ``y``.
+
+        ``include_sigma`` controls whether ``y_sigma`` is shown (if available).
+        ``xlim`` and ``ylim`` can be used to override axis ranges.
+        ``title`` overrides the default title (``self.name``).
+        """
+        import matplotlib.pyplot as plt
+
+        def _axis_label(name: Optional[str], unit: Optional[str]) -> str:
+            if name is None:
+                return ""
+            if unit:
+                return f"{name} ({unit})"
+            return name
+
+        if self.y is None or len(self.x) == 0:
+            raise PlamsError("AMSAnalysisPlot.plot(): no plot data available.")
+
+        if ax is None:
+            _, ax = plt.subplots()
+
+        ndims = self.get_dimensions()
+        y_label = _axis_label(self.y_name, self.y_units)
+        has_sigma = include_sigma and self.y_sigma is not None and len(self.y_sigma) == len(self.y)
+
+        if ndims == 1:
+            x_label = _axis_label(self.x_names[0], self.x_units[0])
+            if has_sigma:
+                ax.errorbar(self.x[0], self.y, yerr=self.y_sigma, linestyle="-")
+            else:
+                ax.plot(self.x[0], self.y, "-")
+            ax.set_xlabel(x_label)
+            ax.set_ylabel(y_label)
+        elif ndims == 2:
+            x_label = _axis_label(self.x_names[0], self.x_units[0])
+            y2_label = _axis_label(self.x_names[1], self.x_units[1])
+            mappable = ax.scatter(self.x[0], self.x[1], c=self.y)
+            ax.set_xlabel(x_label)
+            ax.set_ylabel(y2_label)
+            ax.figure.colorbar(mappable, ax=ax, label=y_label)
+        else:
+            raise PlamsError(
+                f"AMSAnalysisPlot.plot(): plotting dimensionality {ndims} is not supported by matplotlib helper."
+            )
+
+        if title is not None:
+            ax.set_title(title)
+        elif self.name is not None:
+            ax.set_title(self.name)
+
+        if xlim is not None:
+            ax.set_xlim(*xlim)
+        if ylim is not None:
+            ax.set_ylim(*ylim)
+
+        return ax
 
     def write(self, outfilename: Optional[str] = None) -> LiteralString:
         """
