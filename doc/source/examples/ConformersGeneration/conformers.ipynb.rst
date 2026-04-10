@@ -12,7 +12,7 @@ Initial imports
    import matplotlib.pyplot as plt
    import numpy as np
 
-   from scm.conformers import ConformersJob
+   from scm.plams import ConformersJob
    from scm.plams import *
 
    try:
@@ -33,7 +33,7 @@ Initial imports
 
 ::
 
-   PLAMS working folder: /path/plams/examples/ConformersGeneration/plams_workdir
+   PLAMS working folder: /path/plams/examples/ConformersGeneration/plams_workdir.002
 
 Initial structure
 ~~~~~~~~~~~~~~~~~
@@ -96,10 +96,10 @@ Run conformer generation
 
 ::
 
-   [12.01|12:38:41] JOB generate STARTED
-   [12.01|12:38:41] JOB generate RUNNING
-   [12.01|12:40:18] JOB generate FINISHED
-   [12.01|12:40:18] JOB generate SUCCESSFUL
+   [12.09|16:10:47] JOB generate STARTED
+   [12.09|16:10:47] JOB generate RUNNING
+   [12.09|16:10:51] JOB generate FINISHED
+   [12.09|16:10:51] JOB generate SUCCESSFUL
 
 Conformer generation results
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -127,39 +127,6 @@ Some helper functions
 
    def get_conformers(job: ConformersJob):
        return job.results.get_conformers()
-
-
-   def plot_conformers(job: ConformersJob, indices=None, temperature=298, unit="kcal/mol", lowest=True):
-       molecules = get_conformers(job)
-       energies = get_energies(job, unit)
-       populations = get_populations(job, temperature)
-
-       if isinstance(indices, int):
-           N_plot = min(indices, len(energies))
-           if lowest:
-               indices = list(range(N_plot))
-           else:
-               indices = np.linspace(0, len(energies) - 1, N_plot, dtype=np.int32)
-       if indices is None:
-           indices = list(range(min(3, len(energies))))
-
-       fig, axes = plt.subplots(1, len(indices), figsize=(12, 4))
-       if len(indices) == 1:
-           axes = [axes]
-
-       for ax, i in zip(axes, indices):
-           mol = molecules[i]
-           E = energies[i]
-           population = populations[i]
-
-           if _has_view:
-               img = view(mol, width=300, height=300)
-               ax.imshow(img)
-               ax.axis("off")
-               ax.set_title(f"#{i+1}\nΔE = {E:.2f} kcal/mol\nPop.: {population:.3f} (T = {temperature} K)")
-           else:
-               view(mol, ax=ax)
-               ax.set_title(f"#{i+1}\nΔE = {E:.2f} kcal/mol\nPop.: {population:.3f} (T = {temperature} K)")
 
 .. code:: ipython3
 
@@ -222,26 +189,27 @@ You can also see the **relative populations** of these conformers at the specifi
 ============ ============= ================
 Conformer Id ΔE [kcal/mol] Pop. (T = 298 K)
 ============ ============= ================
-1            0.00          0.703
-2            1.00          0.129
-3            1.01          0.128
-4            1.85          0.031
-5            2.89          0.005
-6            3.14          0.003
-7            5.02          0.000
-8            5.30          0.000
-9            5.67          0.000
-10           7.62          0.000
-11           15.59         0.000
-12           16.98         0.000
-13           17.27         0.000
-14           19.96         0.000
-15           21.08         0.000
+1            0.00          0.503
+2            0.30          0.302
+3            0.67          0.162
+4            2.11          0.014
+5            2.12          0.014
+6            2.89          0.004
+7            3.84          0.001
+8            6.71          0.000
+9            13.42         0.000
+10           14.07         0.000
+11           15.25         0.000
+12           15.79         0.000
+13           15.83         0.000
+14           17.77         0.000
+15           18.79         0.000
+16           23.98         0.000
 ============ ============= ================
 
 .. code:: ipython3
 
-   plot_conformers(generate_job, 4, temperature=temperature, unit=unit, lowest=True)
+   generate_job.results.plot_conformers(4, temperature=temperature, unit=unit, lowest=True);
 
 .. figure:: conformers_files/conformers_18_0.png
 
@@ -267,7 +235,7 @@ Below, the most stable conformers (within 8 kcal/mol of the most stable conforme
 
 ::
 
-   InputConformersSet /path/plams/examples/ConformersGeneration/plams_workdir/generate/conformers.rkf
+   InputConformersSet /path/plams/examples/ConformersGeneration/plams_workdir.002/generate/conformers.rkf
 
    InputMaxEnergy 8.0
 
@@ -283,10 +251,10 @@ Below, the most stable conformers (within 8 kcal/mol of the most stable conforme
 
 ::
 
-   [12.01|12:40:23] JOB reoptimize STARTED
-   [12.01|12:40:23] JOB reoptimize RUNNING
-   [12.01|12:40:28] JOB reoptimize FINISHED
-   [12.01|12:40:28] JOB reoptimize SUCCESSFUL
+   [12.09|16:11:00] JOB reoptimize STARTED
+   [12.09|16:11:00] JOB reoptimize RUNNING
+   [12.09|16:11:02] JOB reoptimize FINISHED
+   [12.09|16:11:02] JOB reoptimize SUCCESSFUL
 
 .. code:: ipython3
 
@@ -295,21 +263,18 @@ Below, the most stable conformers (within 8 kcal/mol of the most stable conforme
 ============ ============= ================
 Conformer Id ΔE [kcal/mol] Pop. (T = 298 K)
 ============ ============= ================
-1            0.00          0.253
-2            0.04          0.237
-3            0.29          0.154
-4            0.51          0.106
-5            0.60          0.091
-6            0.94          0.052
-7            0.96          0.050
-8            1.05          0.043
-9            1.97          0.009
-10           2.37          0.005
+1            0.00          0.540
+2            0.64          0.184
+3            0.84          0.131
+4            1.09          0.086
+5            1.82          0.025
+6            1.90          0.022
+7            2.25          0.012
 ============ ============= ================
 
 .. code:: ipython3
 
-   plot_conformers(reoptimize_job, 4, temperature=temperature, unit=unit, lowest=True)
+   reoptimize_job.results.plot_conformers(4, temperature=temperature, unit=unit, lowest=True);
 
 .. figure:: conformers_files/conformers_23_0.png
 
@@ -335,10 +300,10 @@ The **Score** task runs **SinglePoint** jobs on the conformers in a set. This le
 
 ::
 
-   [12.01|12:40:33] JOB score STARTED
-   [12.01|12:40:33] JOB score RUNNING
-   [12.01|12:40:37] JOB score FINISHED
-   [12.01|12:40:37] JOB score SUCCESSFUL
+   [12.09|16:11:09] JOB score STARTED
+   [12.09|16:11:09] JOB score RUNNING
+   [12.09|16:11:10] JOB score FINISHED
+   [12.09|16:11:10] JOB score SUCCESSFUL
 
 .. code:: ipython3
 
@@ -347,21 +312,18 @@ The **Score** task runs **SinglePoint** jobs on the conformers in a set. This le
 ============ ============= ================
 Conformer Id ΔE [kcal/mol] Pop. (T = 298 K)
 ============ ============= ================
-1            0.00          0.386
-2            0.28          0.241
-3            0.68          0.123
-4            0.88          0.087
-5            1.00          0.071
-6            1.35          0.039
-7            1.49          0.031
-8            1.84          0.017
-9            3.02          0.002
-10           3.36          0.001
+1            0.00          0.654
+2            0.89          0.146
+3            0.93          0.136
+4            1.70          0.037
+5            2.12          0.018
+6            2.60          0.008
+7            4.01          0.001
 ============ ============= ================
 
 .. code:: ipython3
 
-   plot_conformers(score_job, 4, temperature=temperature, unit=unit, lowest=True)
+   score_job.results.plot_conformers(4, temperature=temperature, unit=unit, lowest=True);
 
 .. figure:: conformers_files/conformers_27_0.png
 
@@ -388,10 +350,10 @@ Below, we filter the conformers set to only the conformers within 1 kcal/mol of 
 
 ::
 
-   [12.01|12:40:41] JOB filter STARTED
-   [12.01|12:40:41] JOB filter RUNNING
-   [12.01|12:40:42] JOB filter FINISHED
-   [12.01|12:40:42] JOB filter SUCCESSFUL
+   [12.09|16:11:15] JOB filter STARTED
+   [12.09|16:11:15] JOB filter RUNNING
+   [12.09|16:11:15] JOB filter FINISHED
+   [12.09|16:11:15] JOB filter SUCCESSFUL
 
 .. code:: ipython3
 
@@ -400,16 +362,14 @@ Below, we filter the conformers set to only the conformers within 1 kcal/mol of 
 ============ ============= ================
 Conformer Id ΔE [kcal/mol] Pop. (T = 298 K)
 ============ ============= ================
-1            0.00          0.425
-2            0.28          0.265
-3            0.68          0.136
-4            0.88          0.096
-5            1.00          0.079
+1            0.00          0.699
+2            0.89          0.156
+3            0.93          0.145
 ============ ============= ================
 
 .. code:: ipython3
 
-   plot_conformers(filter_job, 4, temperature=temperature, unit=unit, lowest=True)
+   filter_job.results.plot_conformers(4, temperature=temperature, unit=unit, lowest=True);
 
 .. figure:: conformers_files/conformers_32_0.png
 

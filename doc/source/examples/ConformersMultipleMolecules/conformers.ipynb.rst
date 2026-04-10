@@ -10,7 +10,7 @@ Initial imports
 
    import scm.plams as plams
    import sys
-   from scm.conformers import ConformersJob
+   from scm.plams import ConformersJob
    import numpy as np
    import matplotlib.pyplot as plt
    import os
@@ -33,7 +33,7 @@ Initial imports
 
 ::
 
-   PLAMS working folder: /path/plams/examples/ConformersMultipleMolecules/plams_workdir
+   PLAMS working folder: /path/plams/examples/ConformersMultipleMolecules/plams_workdir.003
 
 Single alanine molecule
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -84,8 +84,8 @@ To determine the radius of the ``SphericalWall`` we measure the size of the init
 
 ::
 
-   Largest distance between atoms: 8.361 ang.
-   Radius: 5.560 ang.
+   Largest distance between atoms: 9.909 ang.
+   Radius: 6.589 ang.
 
 Now we can set up the Crest conformer generation job, with the appropriate spherical wall constraining the molecules close together.
 
@@ -113,16 +113,16 @@ Now we can run the conformer generation job.
 
 ::
 
-   [12.01|12:36:00] JOB conformers STARTED
-   [12.01|12:36:00] JOB conformers RUNNING
-   [12.01|12:41:35] JOB conformers FINISHED
-   [12.01|12:41:35] JOB conformers SUCCESSFUL
+   [12.09|16:12:17] JOB conformers STARTED
+   [12.09|16:12:17] JOB conformers RUNNING
+   [12.09|16:16:13] JOB conformers FINISHED
+   [12.09|16:16:14] JOB conformers SUCCESSFUL
 
 
 
 
 
-   <scm.conformers.plams.interface.ConformersResults at 0x1731ef880>
+   <scm.plams.interfaces.adfsuite.conformers.ConformersResults at 0x7a0c23f46ac0>
 
 .. code:: ipython3
 
@@ -131,7 +131,7 @@ Now we can run the conformer generation job.
 
 ::
 
-   Conformers stored in /path/plams/examples/ConformersMultipleMolecules/plams_workdir/conformers/conformers.rkf
+   Conformers stored in /path/plams/examples/ConformersMultipleMolecules/plams_workdir.003/conformers/conformers.rkf
 
 This job will run for approximately 15 minutes.
 
@@ -142,10 +142,7 @@ Here we plot the three lowest-energy conformers.
 
 .. code:: ipython3
 
-   def plot_conformers(job: ConformersJob, indices=None, temperature=298, unit="kcal/mol", lowest=True):
-       molecules = job.results.get_conformers()
-       energies = job.results.get_relative_energies(unit)
-       populations = job.results.get_boltzmann_distribution(temperature)
+   job.results.plot_conformers();
 
        if isinstance(indices, int):
            N_plot = min(indices, len(energies))
@@ -227,28 +224,28 @@ Finally in AMS2025+, you can also inspect the conformer data using the JobAnalys
    except ImportError:
        pass
 
-============ ====== =====
-Conformer Id E      P
-============ ====== =====
-1            0.00   0.175
-2            0.01   0.173
-3            0.31   0.104
-4            0.33   0.100
-5            0.59   0.065
-6            0.87   0.040
-7            0.89   0.039
-8            1.10   0.028
-9            1.14   0.026
-10           1.36   0.018
-…            …      …
-1062         256.89 0.000
-1063         306.67 0.000
-1064         326.40 0.000
-1065         369.67 0.000
-1066         371.07 0.000
-1067         415.00 0.000
-1068         415.08 0.000
-1069         470.42 0.000
-1070         502.31 0.000
-1071         666.28 0.000
-============ ====== =====
+============ ======= =====
+Conformer Id E       P
+============ ======= =====
+1            0.00    0.077
+2            0.01    0.076
+3            0.01    0.076
+4            0.07    0.069
+5            0.10    0.065
+6            0.15    0.059
+7            0.21    0.054
+8            0.23    0.052
+9            0.31    0.046
+10           0.32    0.045
+…            …       …
+940          931.03  0.000
+941          954.43  0.000
+942          998.90  0.000
+943          1195.50 0.000
+944          1226.73 0.000
+945          1256.35 0.000
+946          1273.11 0.000
+947          1285.97 0.000
+948          1307.95 0.000
+949          1311.18 0.000
+============ ======= =====

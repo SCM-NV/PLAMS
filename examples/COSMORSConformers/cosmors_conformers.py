@@ -5,7 +5,7 @@
 
 from scm.plams.recipes.adfcosmorsconformers import ADFCOSMORSConfJob, ADFCOSMORSConfFilter
 from scm.plams import Molecule, from_smiles, Settings, init, config, JobRunner
-from scm.conformers import ConformersJob
+from scm.plams import ConformersJob
 
 # this line is not required in AMS2025+
 init()

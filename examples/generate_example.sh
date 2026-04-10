@@ -52,24 +52,24 @@ nb_file="${name}.ipynb"
 echo "Using ipynb '${name}' for example generation"
 
 echo "Running black formatter for '${nb_file}'"
-$AMSBIN/amspython -m black -t py38  -l 120 "${example_dir}/${nb_file}"
+$AMSBIN/uv run --with black[jupyter] -m black -t py38  -l 120 "${example_dir}/${nb_file}"
 
 # create the .py file
 # remove any get_ipython calls (generated if a cell contains for example_dir !amsmovie)
 py_file="${name}.py"
-$AMSBIN/amspython -m nbconvert --to python --stdout --no-prompt "${example_dir}/${nb_file}" | sed "1s# python# amspython#; /get_ipython/d" > "${example_dir}/${py_file}"
+$AMSBIN/uv run --with nbconvert --with ipython -m nbconvert --to python --stdout --no-prompt "${example_dir}/${nb_file}" | sed "1s# python# amspython#; /get_ipython/d" > "${example_dir}/${py_file}"
 
 echo "Generated the python file '${example_dir}/${py_file}'"
 
 echo "Running black formatter for '${py_file}'"
-$AMSBIN/amspython -m black -t py38  -l 120 "${example_dir}/${py_file}"
+$AMSBIN/uv run --with black -m black -t py38  -l 120 "${example_dir}/${py_file}"
 
 # create the .rst file
 # do this via markdown as this gives better control over the pandoc conversion e.g. the width of lines for tables
 md_file="${name}.md"
 rst_file="${name}.rst"
 rst_ipynb_file="${name}.ipynb.rst"
-$AMSBIN/amspython -m nbconvert --Exporter.preprocessors="nbconvert_utils.PlamsPreprocessor" --to markdown "${example_dir}/${nb_file}"
+$AMSBIN/uv run --with nbconvert -m nbconvert --Exporter.preprocessors="nbconvert_utils.PlamsPreprocessor" --to markdown "${example_dir}/${nb_file}"
 pandoc --from markdown --to rst --columns=2000 "${example_dir}/${md_file}" -o "${example_dir}/${rst_file}"
 
 # perform some post-manipulation
@@ -78,13 +78,13 @@ pandoc --from markdown --to rst --columns=2000 "${example_dir}/${md_file}" -o "$
 # - remove figure captions
 if [ "$(uname)" = "Darwin" ]; then
     sed -i '' -e "
-    s#/.*/plams/#/path/plams/#g;
+    s#/.*/[Pp][Ll][Aa][Mm][Ss]/#/path/plams/#g;
     s#code:: python#code:: ipython3#g;
     /^\.\. figure:: / {n;N;N; d;}
     " "${example_dir}/${nb_file}" "${example_dir}/${rst_file}"
 else
     sed -i -e "
-    s#/.*/plams/#/path/plams/#g;
+    s#/.*/[Pp][Ll][Aa][Mm][Ss]/#/path/plams/#g;
     s#code:: python#code:: ipython3#g;
     /^\.\. figure:: / {n;N;N; d;}
     " "${example_dir}/${nb_file}" "${example_dir}/${rst_file}"
@@ -97,18 +97,7 @@ Worked Example
 
 EOF
 
-awk '
-  /^-{3,}/ {
-    dash_count = length($0)
-    tildes = "";              #
-    for (i = 1; i <= dash_count; i++) {
-      tildes = tildes "~"
-    }
-    print tildes
-    next
-  }
-  { print }
-' "${example_dir}/${rst_file}" >> "${example_dir}/${rst_ipynb_file}"
+sed '/^----*/ { s/-/~/g; }' "${example_dir}/${rst_file}" >> "${example_dir}/${rst_ipynb_file}"
 
 # move the required files over to the doc directory
 cp "${example_dir}/${rst_ipynb_file}" "${target_dir}/"

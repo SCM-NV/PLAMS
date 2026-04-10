@@ -9,7 +9,7 @@ import sys
 import matplotlib.pyplot as plt
 import numpy as np
 
-from scm.conformers import ConformersJob
+from scm.plams import ConformersJob
 from scm.plams import *
 
 try:
@@ -28,12 +28,10 @@ except ImportError:
 # this line is not required in AMS2025+
 init()
 
-
 # ## Initial structure
 
 molecule = from_smiles("OC(CC1c2ccccc2Sc2ccccc21)CN1CCCC1")
 view(molecule, width=300, height=300)
-
 
 # ## Generate conformers with RDKit and UFF
 # The fastest way to generate conformers is to use RDKit with the UFF force field.
@@ -48,17 +46,14 @@ s.input.ams.Generator.Method = "RDKit"  # default
 s.input.ams.Generator.RDKit.InitialNConformers = 16  # optional, non-default
 s.input.ForceField.Type = "UFF"  # default
 
-
 # ### Conformer generation input file
 
 print(ConformersJob(settings=s).get_input())
-
 
 # ### Run conformer generation
 
 generate_job = ConformersJob(name="generate", molecule=molecule, settings=s)
 generate_job.run()
-
 
 # ## Conformer generation results
 
@@ -83,39 +78,6 @@ def get_population_header(temperature=298):
 
 def get_conformers(job: ConformersJob):
     return job.results.get_conformers()
-
-
-def plot_conformers(job: ConformersJob, indices=None, temperature=298, unit="kcal/mol", lowest=True):
-    molecules = get_conformers(job)
-    energies = get_energies(job, unit)
-    populations = get_populations(job, temperature)
-
-    if isinstance(indices, int):
-        N_plot = min(indices, len(energies))
-        if lowest:
-            indices = list(range(N_plot))
-        else:
-            indices = np.linspace(0, len(energies) - 1, N_plot, dtype=np.int32)
-    if indices is None:
-        indices = list(range(min(3, len(energies))))
-
-    fig, axes = plt.subplots(1, len(indices), figsize=(12, 4))
-    if len(indices) == 1:
-        axes = [axes]
-
-    for ax, i in zip(axes, indices):
-        mol = molecules[i]
-        E = energies[i]
-        population = populations[i]
-
-        if _has_view:
-            img = view(mol, width=300, height=300)
-            ax.imshow(img)
-            ax.axis("off")
-            ax.set_title(f"#{i+1}\nΔE = {E:.2f} kcal/mol\nPop.: {population:.3f} (T = {temperature} K)")
-        else:
-            view(mol, ax=ax)
-            ax.set_title(f"#{i+1}\nΔE = {E:.2f} kcal/mol\nPop.: {population:.3f} (T = {temperature} K)")
 
 
 try:
@@ -168,12 +130,9 @@ except ImportError:
 unit = "kcal/mol"
 temperature = 298
 
-
 print_results(generate_job, temperature, unit)
 
-
-plot_conformers(generate_job, 4, temperature=temperature, unit=unit, lowest=True)
-
+generate_job.results.plot_conformers(4, temperature=temperature, unit=unit, lowest=True)
 
 # ## Re-optimize conformers with GFNFF
 #
@@ -192,15 +151,11 @@ s.input.GFNFF  # or choose a different engine if you don't have a GFNFF license
 reoptimize_job = ConformersJob(settings=s, name="reoptimize")
 print(reoptimize_job.get_input())
 
-
 reoptimize_job.run()
-
 
 print_results(reoptimize_job, temperature=temperature, unit=unit)
 
-
-plot_conformers(reoptimize_job, 4, temperature=temperature, unit=unit, lowest=True)
-
+reoptimize_job.results.plot_conformers(4, temperature=temperature, unit=unit, lowest=True)
 
 # ## Score conformers with DFTB
 #
@@ -219,12 +174,9 @@ s.input.DFTB.Model = "GFN1-xTB"  # or choose a different engine if you don't hav
 score_job = ConformersJob(settings=s, name="score")
 score_job.run()
 
-
 print_results(score_job, temperature=temperature, unit=unit)
 
-
-plot_conformers(score_job, 4, temperature=temperature, unit=unit, lowest=True)
-
+score_job.results.plot_conformers(4, temperature=temperature, unit=unit, lowest=True)
 
 # Here, you see that from the conformers in the set, **DFTB predicts a different lowest-energy conformer than GFNFF** (compare to previous figure).
 
@@ -244,12 +196,9 @@ s.input.ams.InputMaxEnergy = 1.0
 filter_job = ConformersJob(settings=s, name="filter")
 filter_job.run()
 
-
 print_results(filter_job, temperature=temperature, unit=unit)
 
-
-plot_conformers(filter_job, 4, temperature=temperature, unit=unit, lowest=True)
-
+filter_job.results.plot_conformers(4, temperature=temperature, unit=unit, lowest=True)
 
 # The structures and energies are identical to before. However, the relative populations changed slightly as there are now fewer conformers in the set.
 

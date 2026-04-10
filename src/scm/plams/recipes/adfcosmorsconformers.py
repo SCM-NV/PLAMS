@@ -1,12 +1,13 @@
-from scm.plams.interfaces.adfsuite.ams import AMSJob
-from scm.plams.tools.kftools import KFFile
-from scm.plams.mol.molecule import Molecule
+import os
+
+from scm.plams import ConformersJob
 from scm.plams.core.basejob import MultiJob
 from scm.plams.core.results import Results
 from scm.plams.core.settings import Settings
-from scm.conformers import ConformersJob
+from scm.plams.interfaces.adfsuite.ams import AMSJob
+from scm.plams.mol.molecule import Molecule
 from scm.plams.recipes.adfcosmorscompound import ADFCOSMORSCompoundJob
-import os
+from scm.plams.tools.kftools import KFFile
 
 
 class ADFCOSMORSConfFilter:
