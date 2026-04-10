@@ -21,11 +21,20 @@ config.job.runscript.nproc = 1  # Number of cores for each job
 config.log.stdout = 1  # Suppress plams output
 
 
+# Optional compound metadata keyed by molecule name. This metadata is passed to ADFCOSMORSCompoundJob via `mol_info`, written to the "Compound Data" section of the generated COSKF file, and used by AMSCrs GUI and `pyCRS.Database` to search compounds.
+
+mol_info_by_name = {
+    "CO": {"CAS": "630-08-0", "IUPAC": "Carbon monoxide", "Other Name": ""},
+    "H2O": {"CAS": "7732-18-5", "IUPAC": "Water", "Other Name": ""},
+}
+
+
 molecules = read_molecules("./compounds_xyz")
 
 results = []
 for name, mol in molecules.items():
-    job = ADFCOSMORSCompoundJob(molecule=mol, coskf_name=name, coskf_dir="test_coskfs_xyz")
+    mol_info = mol_info_by_name.get(name)
+    job = ADFCOSMORSCompoundJob(molecule=mol, coskf_name=name, coskf_dir="test_coskfs_xyz", mol_info=mol_info)
     results.append(job.run())
 
 
@@ -51,14 +60,16 @@ for name, smiles in zip(rd_names, rd_smiles):
 
 results = []
 for name, mol in molecules.items():
+    mol_info = mol_info_by_name.get(name)
     job = ADFCOSMORSCompoundJob(
         molecule=mol,  # The initial structure
         coskf_name=name,  # a name to be used for coskf file
         coskf_dir="test_coskfs_smiles",  # a directory to put the .coskf files generated
         preoptimization="GFN1-xTB",  # perform preoptimize or not
         singlepoint=False,  # run a singlepoint in gasphase and solvation calculation without geometry optimization. Cannot be combined with `preoptimization`
-        name=name,
-    )  # an optional name for the calculation directory
+        name=name,  # an optional name for the calculation directory
+        mol_info=mol_info,  # compound information to be stored in the Compound Data section of the COSKF file
+    )
     results.append(job.run())
 
 

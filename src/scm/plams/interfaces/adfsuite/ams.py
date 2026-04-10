@@ -2941,10 +2941,10 @@ class AMSJob(SingleJob):
             nn_flag = f"1-{nnode}" if nnode > 1 else f"{nnode}"
             ret += f'export SCM_SRUN_OPTIONS="$SCM_SRUN_OPTIONS -N {nn_flag}"\n'
         if _has_scm_pisa and isinstance(self.settings.input, DriverBlock):
-            if self.settings.input.Engine.name == "QuantumESPRESSO":
+            if self.settings.input.Engine.name in ("QuantumESPRESSO", "VASP"):
                 ret += "export SCM_DISABLE_MPI=1\n"
         else:
-            if "QuantumEspresso" in self.settings.input:
+            if "QuantumEspresso" in self.settings.input or "VASP" in self.settings.input:
                 ret += "export SCM_DISABLE_MPI=1\n"
         if "preamble_lines" in self.settings.runscript:
             for line in self.settings.runscript.preamble_lines:

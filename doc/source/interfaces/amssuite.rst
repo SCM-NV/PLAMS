@@ -35,5 +35,6 @@ All possible input keywords and options are covered, as well as extraction of ar
     crs
     params
     conformers
+    recipes
     reactionsdiscovery
     zacros

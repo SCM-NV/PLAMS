@@ -1,10 +1,28 @@
-from typing import List, Optional, Tuple, Union, TYPE_CHECKING, Dict, Any, Literal, cast
+from typing import (
+    List,
+    Optional,
+    Tuple,
+    Union,
+    TYPE_CHECKING,
+    Dict,
+    Any,
+    Literal,
+    cast,
+    Sequence,
+)
 import numpy as np
 
 from scm.plams.core.errors import MissingOptionalPackageError
 from scm.plams.core.functions import requires_optional_package
 from scm.plams.interfaces.adfsuite.ams import AMSJob
 from scm.plams.mol.molecule import Molecule
+
+try:
+    from scm.base import ChemicalSystem
+
+    _has_scm_chemsys = True
+except ImportError:
+    _has_scm_chemsys = False
 
 if TYPE_CHECKING:
     import matplotlib.pyplot as plt
@@ -14,16 +32,46 @@ if TYPE_CHECKING:
     from scm.plams.recipes.md.trajectoryanalysis import AMSMSDJob
 
 __all__ = [
+    "linear_fit_extrapolate_to_0",
     "plot_band_structure",
     "plot_phonons_band_structure",
     "plot_phonons_dos",
     "plot_phonons_thermodynamic_properties",
     "plot_molecule",
+    "plot_image_grid",
     "plot_correlation",
     "plot_msd",
     "plot_work_function",
     "plot_grid_molecules",
 ]
+
+
+@requires_optional_package("scipy")
+def linear_fit_extrapolate_to_0(x: Sequence[float], y: Sequence[float]) -> Tuple[np.ndarray, np.ndarray, float, float]:
+    """
+    Perform a linear regression on ``x`` and ``y`` and return the fit extended to ``x = 0``.
+
+    x: sequence of float
+        X values for the linear regression.
+
+    y: sequence of float
+        Y values for the linear regression.
+
+    Returns: tuple
+        ``fit_x``, ``fit_y``, ``slope``, ``intercept``.
+
+    If ``0`` is already present in ``x``, it is not appended a second time.
+    """
+    from scipy.stats import linregress
+
+    result = linregress(x, y)
+    fit_x_values = list(x)
+    if 0 not in fit_x_values:
+        fit_x_values.append(0.0)
+    fit_x = np.array(fit_x_values, dtype=float)
+    fit_y = result.slope * fit_x + result.intercept
+
+    return fit_x, fit_y, result.slope, result.intercept
 
 
 @requires_optional_package("matplotlib")
@@ -255,12 +303,26 @@ def plot_phonons_dos(
         ax.plot(energy, total_dos, color="black", label="Total DOS", linestyle="-", zorder=1)
 
     elif dos_type == "species":
-        ax.plot(energy, total_dos, color="black", label="Total DOS", linestyle="-", zorder=-1)
+        ax.plot(
+            energy,
+            total_dos,
+            color="black",
+            label="Total DOS",
+            linestyle="-",
+            zorder=-1,
+        )
         for i, (l, v) in enumerate(dos_per_species.items()):
             ax.plot(energy, v, label=f"pDOS {l}", dashes=[3, i + 1, 2], zorder=i)
 
     elif dos_type == "atoms":
-        ax.plot(energy, total_dos, color="black", label="Total DOS", linestyle="-", zorder=-1)
+        ax.plot(
+            energy,
+            total_dos,
+            color="black",
+            label="Total DOS",
+            linestyle="-",
+            zorder=-1,
+        )
         for i, (l, v) in enumerate(dos_per_atom.items()):
             ax.plot(energy, v, label=f"pDOS {l}", dashes=[3, i + 1, 2], zorder=i)
 
@@ -274,7 +336,10 @@ def plot_phonons_dos(
 
 @requires_optional_package("matplotlib")
 def plot_phonons_thermodynamic_properties(
-    temperature: List[float], properties: Dict[str, List[float]], units: Dict[str, str], ax: Optional["plt.Axes"] = None
+    temperature: List[float],
+    properties: Dict[str, List[float]],
+    units: Dict[str, str],
+    ax: Optional["plt.Axes"] = None,
 ) -> "plt.Axes":
     """
     Plots the phonons thermodynamic properties from DFTB, BAND or QuantumEspresso engines with matplotlib.
@@ -302,7 +367,14 @@ def plot_phonons_thermodynamic_properties(
         _, ax = plt.subplots()
 
     for i, (label, prop) in enumerate(properties.items()):
-        ax.plot(temperature, prop, label=label + " (" + units[label] + ")", linestyle="-", lw=2, zorder=1)
+        ax.plot(
+            temperature,
+            prop,
+            label=label + " (" + units[label] + ")",
+            linestyle="-",
+            lw=2,
+            zorder=1,
+        )
 
     plt.legend()
 
@@ -341,7 +413,7 @@ def plot_molecule(
 
 @requires_optional_package("rdkit")
 def plot_grid_molecules(
-    molecules: List[Molecule],
+    molecules: List[Union[Molecule, "ChemicalSystem"]],
     legends: Optional[List[str]] = None,
     molsPerRow: int = 2,
     subImgSize: Tuple[int, int] = (200, 200),
@@ -403,6 +475,72 @@ def plot_grid_molecules(
     return img
 
 
+@requires_optional_package("matplotlib")
+def plot_image_grid(
+    images: Dict[str, "PilImage.Image"],
+    rows: Optional[int] = None,
+    cols: Optional[int] = None,
+    figsize: Optional[Tuple[float, float]] = None,
+    show_labels: bool = True,
+    save_path: Optional[Union[str, "PathLike"]] = None,
+) -> np.ndarray:
+    """Plot a dictionary of images in a matplotlib grid.
+
+    :param images: dictionary with labels as keys and images as values; iteration order determines image order in the grid
+    :param rows: number of rows in the grid; if ``None``, infer from ``cols`` and number of images
+    :param cols: number of columns in the grid; if ``None``, infer from ``rows`` and number of images
+    :param figsize: matplotlib figure size; if ``None``, uses a grid-proportional default
+    :param show_labels: whether to show labels above images; labels are taken from dictionary keys
+    :param save_path: optional path to save the plotted grid image using matplotlib ``savefig``
+    :return: 2D numpy array of matplotlib axes with shape ``(rows, cols)``
+    :rtype: np.ndarray
+    """
+    import matplotlib.pyplot as plt
+
+    items = list(images.items())
+    n_images = len(items)
+
+    if n_images == 0:
+        raise ValueError("images must contain at least one image")
+
+    if rows is not None and rows <= 0:
+        raise ValueError(f"rows must be a positive integer when provided, but got {rows}")
+    if cols is not None and cols <= 0:
+        raise ValueError(f"cols must be a positive integer when provided, but got {cols}")
+
+    if rows is None and cols is None:
+        cols = int(np.ceil(np.sqrt(n_images)))
+        rows = int(np.ceil(n_images / cols))
+    elif rows is None:
+        rows = int(np.ceil(n_images / cols))  # type: ignore[operator]
+    elif cols is None:
+        cols = int(np.ceil(n_images / rows))
+
+    grid_size = rows * cols  # type: ignore[operator]
+    if n_images > grid_size:
+        raise ValueError(f"Grid of shape ({rows}, {cols}) can hold at most {grid_size} images, but got {n_images}")
+
+    if figsize is None:
+        figsize = ((4.0 * cols), (4.0 * rows))  # type: ignore[operator]
+    fig, axes = plt.subplots(rows, cols, figsize=figsize)  # type: ignore[arg-type]
+    axes = np.array(axes, dtype=object).reshape(rows, cols)  # type: ignore[arg-type]
+
+    for ax in axes.flat:
+        ax.axis("off")
+
+    for i, (key, image) in enumerate(items):
+        row, col = divmod(i, cols)  # type: ignore[operator]
+        ax = cast(Any, axes[row, col])
+        ax.imshow(image)
+        if show_labels:
+            ax.set_title(key)
+
+    if save_path is not None:
+        fig.savefig(save_path)
+
+    return axes
+
+
 def get_correlation_xy(
     job1: Union[AMSJob, List[AMSJob]],
     job2: Union[AMSJob, List[AMSJob]],
@@ -428,16 +566,26 @@ def get_correlation_xy(
     data2 = []
     for j1, j2 in zip(job1, job2):
         try:
-            d1 = cast(Union[List[float], float], j1.results.readrkf(section, variable, file=file))
+            d1 = cast(
+                Union[List[float], float],
+                j1.results.readrkf(section, variable, file=file),
+            )
         except KeyError:
-            d1 = cast(Union[List[float], float], j1.results.get_history_property(variable, history_section=section))
+            d1 = cast(
+                Union[List[float], float],
+                j1.results.get_history_property(variable, history_section=section),
+            )
         d1a = np.ravel(d1) * multiplier
 
         try:
-            d2 = cast(Union[List[float], float], j2.results.readrkf(alt_section, alt_variable, file=file))
+            d2 = cast(
+                Union[List[float], float],
+                j2.results.readrkf(alt_section, alt_variable, file=file),
+            )
         except KeyError:
             d2 = cast(
-                Union[List[float], float], j2.results.get_history_property(alt_variable, history_section=alt_section)
+                Union[List[float], float],
+                j2.results.get_history_property(alt_variable, history_section=alt_section),
             )
         d2a = np.ravel(d2) * multiplier
 
@@ -623,7 +771,9 @@ def plot_correlation(
 
 @requires_optional_package("matplotlib")
 def plot_msd(
-    job: "AMSMSDJob", start_time_fit_fs: Optional[float] = None, ax: Optional["plt.Axes"] = None
+    job: "AMSMSDJob",
+    start_time_fit_fs: Optional[float] = None,
+    ax: Optional["plt.Axes"] = None,
 ) -> "plt.Axes":
     """
     job: AMSMSDJob
@@ -749,11 +899,29 @@ def plot_work_function(
 
     # Otherwise:
     else:
-        ax.plot([x0, x0 + 0.3 * (x1 - x0)], [Vvacuum[0], Vvacuum[0]], color="black", linestyle="dashed", linewidth=1)
+        ax.plot(
+            [x0, x0 + 0.3 * (x1 - x0)],
+            [Vvacuum[0], Vvacuum[0]],
+            color="black",
+            linestyle="dashed",
+            linewidth=1,
+        )
         ax.text(x0, Vvacuum[0] + 0.1, "Pot. vacuum", fontsize=11, color="black")
 
-        ax.plot([x1, x1 - 0.3 * (x1 - x0)], [Vvacuum[1], Vvacuum[1]], color="black", linestyle="dashed", linewidth=1)
-        ax.text(x1 - 0.3 * (x1 - x0), Vvacuum[1] + 0.1, "Pot. vacuum", fontsize=11, color="black")
+        ax.plot(
+            [x1, x1 - 0.3 * (x1 - x0)],
+            [Vvacuum[1], Vvacuum[1]],
+            color="black",
+            linestyle="dashed",
+            linewidth=1,
+        )
+        ax.text(
+            x1 - 0.3 * (x1 - x0),
+            Vvacuum[1] + 0.1,
+            "Pot. vacuum",
+            fontsize=11,
+            color="black",
+        )
 
         head_length = 0.4
         ax.arrow(
@@ -766,7 +934,13 @@ def plot_work_function(
             fc="black",
             ec="black",
         )
-        ax.text(x0 + 0.02 * (x1 - x0), (Vvacuum[0] + Efermi) / 2, f"WF={WF[0]:.1f} eV", fontsize=11, color="black")
+        ax.text(
+            x0 + 0.02 * (x1 - x0),
+            (Vvacuum[0] + Efermi) / 2,
+            f"WF={WF[0]:.1f} eV",
+            fontsize=11,
+            color="black",
+        )
         ax.arrow(
             x0 + 1.0 * (x1 - x0),
             Efermi,

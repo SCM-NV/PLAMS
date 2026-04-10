@@ -27,6 +27,9 @@ This changelog is effective from the 2025 releases.
 * Added a `balance` function to `scm.plams.tools.reaction`, which returns a `ReactionEquation`
 * `view` function to visualize molecules/chemical systems using AMSView
 * `config.job.on_status_change` callback which fires any time a job status is updated
+* `plot_image_grid` to plot multiple images (e.g. those generated from `view`) in a grid format
+* `linear_fit_extrapolate_to_0` in `scm.plams.tools.plot` and `moving_average` in `scm.plams.tools.postprocess_results` for reuse in plotting and analysis workflows
+* `AMSAnalysisPlot.plot` method to plot results directly with matplotlib
 
 ### Changed
 * `JobAnalysis` returns an updated copy on modification instead of performing the operation in-place
@@ -107,7 +110,5 @@ This changelog is effective from the 2025 releases.
 ### Removed
 * Legacy `BANDJob`, `DFTBJob`, `UFFJob`, `MOPACJob`, `ReaxFFJob`, `CSHessianADFJob` and `ADFJob` have been removed
 * Exception classes `AMSPipeDecodeError`, `AMSPipeError`, `AMSPipeInvalidArgumentError`, `AMSPipeLogicError`, `AMSPipeRuntimeError`, `AMSPipeUnknownArgumentError`, `AMSPipeUnknownMethodError`, `AMSPipeUnknownVersionError`, were moved from scm.plams to scm.amspipe.
-
-
 
 

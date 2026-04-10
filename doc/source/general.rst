@@ -5,7 +5,7 @@ Getting Started
 
 This section contains introductory information about installing and running PLAMS.
 
-For quick-start guides on a wider range of topics within PLAMS, see the :ref:`examples`.
+For quick-start guides on a wider range of topics within PLAMS, see the `Python Examples collection <../PythonExamples/all-examples.html>`__.
 
 Overview
 --------
@@ -31,26 +31,23 @@ PLAMS is available to all users of AMS "out of the box" as part of the `AMS Pyth
 For most use cases, no specific installation outside of AMS is required. For usage outside of ``amspython``, please see the :ref:`installation guide <installation>` below.
 
 To get started with PLAMS, import ``scm.plams`` into your Python script or Jupyter notebook.
-Then, follow one of the :ref:`examples <examples>` to help create your script.
+Then, follow one of the `Python Examples <../PythonExamples/all-examples.html>`__ to help create your script.
 
-For example, the following is based upon :ref:`Geometry Optimization of Water <WaterOptimizationExample>`,
-and also makes use of `PISA <../pisa/index.html>`__, also included in ``amspython``.
+For example, the following is based upon the `water optimization example <../PythonExamples/water-optimization/index.html>`__.
 
 .. code:: ipython3
 
     # water_opt.py
-    from scm.plams import from_smiles, AMSJob
-    from scm.input_classes import drivers, engines
+    from scm.plams import from_smiles, Settings, AMSJob
 
     water = from_smiles("O")
 
-    driver = drivers.AMS()
-    driver.Task = "GeometryOptimization"
-    driver.Properties.NormalModes = "Yes"
-    driver.Engine = engines.ForceField()
-    driver.Engine.Type = "UFF"
+    settings = Settings()
+    settings.input.ams.Task = "GeometryOptimization"
+    settings.input.ams.Properties.NormalModes = "Yes"
+    settings.input.ForceField.Type = "UFF"
 
-    job = AMSJob(molecule=water, settings=driver, name="water_opt")
+    job = AMSJob(molecule=water, settings=settings, name="water_opt")
     results = job.run()
 
     print("Optimized geometry:")
@@ -72,7 +69,7 @@ Running the command ``$AMSBIN/amspython water_opt.py`` produces the successful o
        (1)--1.0--(2)
        (1)--1.0--(3)
 
-For more advanced workflows including usage of other AMS engines, see the other :ref:`examples <examples>`.
+For more advanced workflows including usage of other AMS engines, see the other `Python Examples <../PythonExamples/all-examples.html>`__.
 
 
 .. _installation:
@@ -108,6 +105,47 @@ A final option is to download PLAMS directly from the `GitHub page <https://gith
 The latest (unreleased) development version can be downloaded from the `trunk branch <https://github.com/SCM-NV/PLAMS/archive/refs/heads/trunk.zip>`_.
 Once the downloaded zip file has been extracted, navigate to its location and run ``pip install .`` to install into your Python environment.
 
+
+What's new in PLAMS for AMS2026?
+--------------------------------------
+
+Added
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* Improved molecular visualization. The :func:`~scm.plams.tools.view.view` function allows visualization of molecules and chemical systems using AMSView, which can be easily rendered in a Jupyter notebook or saved as images.
+* Improvements to the |JobAnalysis| tool for collecting and analyzing job results, with additional methods:
+    * :meth:`~scm.plams.tools.job_analysis.JobAnalysis.add_rkf_field` to simplify adding values from an RKF file to the analysis
+    * :meth:`~scm.plams.tools.job_analysis.JobAnalysis.get_settings_field_key` and :meth:`~scm.plams.tools.job_analysis.JobAnalysis.get_rkf_field_key` methods to simplify getting the keys for analysis fields
+* Additional functionality to assist with workflows:
+    * :func:`~scm.plams.core.functions.jobs_in_directory` context manager to allow jobs to run in a subdirectory of the PLAMS working directory
+    * :meth:`~scm.plams.core.basejob.Job.delete` and :meth:`~scm.plams.core.basejob.Job.rename` methods for deleting/renaming job files and directories
+    * :meth:`~scm.plams.core.settings.JobSettings.on_status_change` callback, available on global ``config``, which fires any time a job status is updated and allows notifications when jobs finish or error
+    * :func:`~scm.plams.core.functions.config_context` context manager and :func:`~scm.plams.core.functions.get_config` function allow context-based override of global ``config`` settings
+* Additional methods to get results from AMS calculations:
+    * :meth:`~scm.plams.interfaces.adfsuite.ams.AMSResults.get_pvdos` method to get partial vibrational spectra
+    * :meth:`~scm.plams.interfaces.adfsuite.ams.AMSResults.get_main_engine_name`
+    * :meth:`~scm.plams.interfaces.adfsuite.ams.AMSResults.get_reduced_masses`
+* Dedicated job for Energy Decomposition Analysis in BAND |BANDFragmentJob|
+* Method :meth:`~scm.plams.tools.reaction.balance` to find a balanced :class:`~scm.plams.tools.reaction.ReactionEquation`
+* Many type hints added across the code to aid scripting through an IDE
+
+Changed
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* :class:`~scm.plams.interfaces.adfsuite.amsanalysis.AMSAnalysisJob` has PISA support, accepts multiple |AMSJob| instances as input, and no longer overwrites user-supplied input settings
+* :meth:`~scm.plams.interfaces.adfsuite.ams.AMSResults.get_normal_modes` explicitly gives the option to return mass-weighted Hessian eigenvectors
+* |JobAnalysis| returns an updated copy on modification instead of performing operations in-place
+* :func:`~scm.plams.interfaces.molecule.packmol.packmol` function made more flexible, now accepting a single ``None`` value for ``n_molecules`` if two of ``n_atoms``, ``density`` and ``box_bounds`` are specified (the missing value is then auto-calculated)
+
+Fixed
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* Method to guess density in :func:`~scm.plams.interfaces.molecule.packmol.packmol_around` changed to resolve large underestimations in molecular volumes
+
+Deprecated
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* :func:`~scm.plams.core.functions.add_to_class` decorator is deprecated in favor of using standalone functions or subclasses
 
 What's new in PLAMS for AMS2025?
 --------------------------------------
@@ -180,15 +218,15 @@ What's new in PLAMS for AMS2024?
 What's new in PLAMS for AMS2023?
 --------------------------------------
 
-* The :ref:`AMSCalculator` class for running any AMS engine with ASE (see: :ref:`ASECalculatorExample`)
+* The :ref:`AMSCalculator` class for running any AMS engine with ASE (see: `ASE calculator <../PythonExamples/ase-calculator/index.html>`__)
 
-* Classes for calculating :ref:`reduction and oxidation potentials  <RedoxExample>` with ADF and optionally COSMO-RS
+* Classes for calculating `reduction and oxidation potentials <../PythonExamples/reduction-oxidation-potentials/index.html>`__ with ADF and optionally COSMO-RS
 
-* The :ref:`ADFCOSMORSCompoundJob <ADFCOSMORSCompound>` class for running jobs equivalent to "Task COSMO-RS Compound" in the AMS GUI. Such a job generates a .coskf file for use with COSMO-RS.
+* The :class:`~scm.plams.recipes.adfcosmorscompound.ADFCOSMORSCompoundJob` class for running jobs equivalent to "Task COSMO-RS Compound" in the AMS GUI (see: `COSMO-RS compound example <../PythonExamples/cosmo-rs-compound/index.html>`__). Such a job generates a .coskf file for use with COSMO-RS.
 
-* The calculation of the :ref:`vibronic density of states<fcf_dos>` has been added to PLAMS.
+* The calculation of the `vibronic density of states <../PythonExamples/adf-vibronic-dos/index.html>`__ has been added to PLAMS.
 
-* Classes for running and restarting :ref:`molecular dynamics (MD) jobs with AMS <AMSMDJob>`
+* Classes for running and restarting molecular dynamics (MD) jobs with AMS (see: `Molecular dynamics with Python <../PythonExamples/molecular-dynamics-intro/index.html>`__)
 
 * A class for generating and analyzing :ref:`conformers <conformers_interface>`
 
@@ -200,10 +238,10 @@ What's new in PLAMS for AMS2023?
 
 * :ref:`PlottingTools` for plotting a molecule or ASE Atoms inside a Jupyter notebook
 
-* :ref:`PlottingTools` for plotting the :ref:`electronic band structure <BandStructureExample>`
+* :ref:`PlottingTools` for plotting the `electronic band structure <../PythonExamples/bandstructure-band/index.html>`__
 
 * Additions to |AMSResults|: get_homo_energies(), get_lumo_energies, get_smallest_homo_lumo_gap()
 
 * Additions to |Molecule|: guess_atomic_charges(), set_density(), get_unique_bonds(), get_unique_angles()
 
-* Many new :ref:`examples`
+* Many new `Python Examples <../PythonExamples/all-examples.html>`__
