@@ -318,27 +318,25 @@ def view(
         config.open_window = open_window
         config.timeout = 10 if not config.open_window else None
 
-    backends = _view_backends_cache
-
     # Resolve only the requested backend, or walk the precedence order lazily for "auto".
-    if config.backend != "auto" and config.backend not in backends:
+    if config.backend != "auto" and config.backend not in _view_backends_cache:
         raise ValueError(f"View backend '{config.backend}' not recognized")
 
     if config.backend == "auto":
         selected_backend = None
-        for name, backend in backends.items():
-            if backend.is_available():
-                selected_backend = backend.backend
+        for name, lazy_backend in _view_backends_cache.items():
+            if lazy_backend.is_available():
+                selected_backend = lazy_backend.backend
                 break
 
         if selected_backend is None:
-            errors = "\n\t".join(f"{name}: {backends[name].error}" for name in backends)
+            errors = "\n\t".join(f"{name}: {_view_backends_cache[name].error}" for name in _view_backends_cache)
             raise RuntimeError(f"No backends available for view.\nErrors were:\n\t{errors}")
     else:
-        backend = backends[config.backend]
-        if not backend.is_available():
-            raise RuntimeError(f"Backend '{config.backend}' not available for view.\nError was: {backend.error}")
-        selected_backend = backend.backend
+        lazy_backend = _view_backends_cache[config.backend]
+        if not lazy_backend.is_available():
+            raise RuntimeError(f"Backend '{config.backend}' not available for view.\nError was: {lazy_backend.error}")
+        selected_backend = lazy_backend.backend
 
     # Validation to help prevent crashing due to bad options
     config.validate()
