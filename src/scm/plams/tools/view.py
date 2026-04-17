@@ -12,7 +12,6 @@ from typing import (
     Dict,
     Generator,
     Any,
-    TypeVar,
     Type,
     ClassVar,
 )
@@ -45,8 +44,6 @@ except ImportError:
 
 if TYPE_CHECKING:
     from PIL import Image as PilImage
-
-TBackend = TypeVar("TBackend", bound="_ViewBackend")
 
 __all__ = ["ViewConfig", "view"]
 
@@ -244,9 +241,6 @@ class ViewConfig:
             raise ValueError(f"open_window must be a boolean value, but was '{self.open_window}'")
 
 
-_view_backends_cache: Optional[Dict[str, Tuple["_ViewBackend", bool, Optional[Exception]]]] = None
-
-
 @requires_optional_package("PIL")
 def view(
     system: Union[Molecule, "ChemicalSystem"],
@@ -288,7 +282,6 @@ def view(
     :param open_window: override to open AMSview in a dedicated window
     :return: image of the molecule generated using AMSView
     """
-    global _view_backends_cache
     # Set up config objects, applying any config overrides from the keyword args
     config = config or ViewConfig()
     if width is not None:
@@ -325,40 +318,25 @@ def view(
         config.open_window = open_window
         config.timeout = 10 if not config.open_window else None
 
-    # On first call check which backends are available
-    if _view_backends_cache is None:
-
-        def check_backend_available(b: TBackend) -> Tuple[TBackend, bool, Optional[Exception]]:
-            try:
-                b.check_available()
-                return b, True, None
-            except Exception as ex:
-                return b, False, ex
-
-        backends = {
-            "amsview": check_backend_available(_AmsViewBackend()),
-            "amsview_xvfb": check_backend_available(_AmsViewXvfbBackend()),
-            "ase_plot": check_backend_available(_AsePlotBackend()),
-        }
-        _view_backends_cache = backends
-    else:
-        backends = _view_backends_cache
-
-    # On subsequent calls get the available backend
-    if config.backend != "auto" and config.backend not in backends:
-        raise ValueError(f"View backend '{config.backend}' not recognised")
+    # Resolve only the requested backend, or walk the precedence order lazily for "auto".
+    if config.backend != "auto" and config.backend not in _view_backends_cache:
+        raise ValueError(f"View backend '{config.backend}' not recognized")
 
     if config.backend == "auto":
-        available_backends = [v for v in backends.values() if v[1]]
-        if not any(available_backends):
-            errors = "\n\t".join([f"{k}: {err}" for k, (_, __, err) in backends.items()])
+        selected_backend = None
+        for name, lazy_backend in _view_backends_cache.items():
+            if lazy_backend.is_available():
+                selected_backend = lazy_backend.backend
+                break
+
+        if selected_backend is None:
+            errors = "\n\t".join(f"{name}: {_view_backends_cache[name].error}" for name in _view_backends_cache)
             raise RuntimeError(f"No backends available for view.\nErrors were:\n\t{errors}")
-        else:
-            selected_backend, _, __ = available_backends[0]
     else:
-        selected_backend, available, error = backends[config.backend]
-        if not available:
-            raise RuntimeError(f"Backend '{config.backend}' not available for view.\nError was: {error}")
+        lazy_backend = _view_backends_cache[config.backend]
+        if not lazy_backend.is_available():
+            raise RuntimeError(f"Backend '{config.backend}' not available for view.\nError was: {lazy_backend.error}")
+        selected_backend = lazy_backend.backend
 
     # Validation to help prevent crashing due to bad options
     config.validate()
@@ -1140,3 +1118,45 @@ class _AsePlotBackend(_ViewBackend):
             angles = Rotation.from_matrix(rotation.as_matrix()).as_euler("xyz", degrees=True)
 
         return ",".join(f"{ang:.2f}{ax}" for ang, ax in zip(angles, "xyz"))
+
+
+class _LazyViewBackend:
+    """
+    Wrap a backend and cache the outcome of its first availability check.
+    """
+
+    def __init__(self, backend: "_ViewBackend"):
+        self.backend = backend
+        self._available: Optional[bool] = None
+        self._error: Optional[Exception] = None
+
+    def is_available(self) -> bool:
+        """
+        Check if backend is available and cache the result.
+        """
+        if self._available is None:
+            try:
+                self.backend.check_available()
+                self._available = True
+                self._error = None
+            except Exception as ex:
+                self._available = False
+                self._error = ex
+
+        return self._available
+
+    @property
+    def error(self) -> Optional[Exception]:
+        """
+        Get error associated with this backend, if applicable.
+        """
+        self.is_available()
+        return self._error
+
+
+# Create a cache of the view backends which are lazily instantiated on first usage
+_view_backends_cache: Dict[str, "_LazyViewBackend"] = {
+    "amsview": _LazyViewBackend(_AmsViewBackend()),
+    "amsview_xvfb": _LazyViewBackend(_AmsViewXvfbBackend()),
+    "ase_plot": _LazyViewBackend(_AsePlotBackend()),
+}

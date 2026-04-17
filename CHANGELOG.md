@@ -11,6 +11,11 @@ This changelog is effective from the 2025 releases.
 
 ## [Unreleased]
 
+### Fixed
+* `view` checks backend availability lazily
+
+## 2026.101
+
 ### Added
 * `AMSAnalysisJobs` now have Pisa support, accept multiple AMSJobs as input, and no longer overwrite user supplied input settings.
 * `context_config` and `get_context` methods to allow context-based override of global `config` settings
