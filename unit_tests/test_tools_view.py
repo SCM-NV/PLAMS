@@ -6,7 +6,15 @@ import numpy as np
 from scm.plams.interfaces.adfsuite.errors import AMSExecutionError
 from scm.plams.interfaces.adfsuite.ams import AMSJob
 from scm.plams.interfaces.molecule.rdkit import from_smiles
-from scm.plams.tools.view import view, ViewConfig, _AmsViewBackend, _AmsViewXvfbBackend, _XvfbManager, _AsePlotBackend
+from scm.plams.tools.view import (
+    view,
+    ViewConfig,
+    _AmsViewBackend,
+    _AmsViewXvfbBackend,
+    _XvfbManager,
+    _AsePlotBackend,
+    _LazyViewBackend,
+)
 from scm.plams.mol.molecule import Molecule
 from test_helpers import skip_if_windows
 
@@ -25,33 +33,99 @@ def water(xyz_folder):
     return water
 
 
+class TestLazyViewBacked:
+
+    @pytest.fixture
+    def backend(self):
+        mock = MagicMock()
+        mock.check_available.return_value = True
+        return _LazyViewBackend(mock)
+
+    def test_new_lazy_view_backend_uninitialized(self, backend):
+        assert backend._available is None
+        assert backend._error is None
+
+    def test_lazy_backend_checked_available_only_once(self, backend):
+        assert backend.is_available()
+        assert backend.is_available()
+        assert backend.backend.check_available.call_count == 1
+
+
 class TestView:
 
-    def test_backends_cache(self, water):
-        # Given backend cache with no successful backends
-        import scm.plams.tools.view as viewer
-
-        viewer._view_backends_cache = {
-            "amsview": (_AmsViewBackend(), False, RuntimeError("something went wrong")),
-            "amsview_xvfb": (_AmsViewXvfbBackend(), False, RuntimeError("something also went wrong")),
-            "ase_plot": (_AsePlotBackend(), False, RuntimeError("something else went wrong")),
+    @staticmethod
+    def get_new_view_backends_cache():
+        return {
+            "amsview": _LazyViewBackend(_AmsViewBackend()),
+            "amsview_xvfb": _LazyViewBackend(_AmsViewXvfbBackend()),
+            "ase_plot": _LazyViewBackend(_AsePlotBackend()),
         }
 
-        # When view
-        # Then raises error
-        with pytest.raises(RuntimeError):
-            view(water, backend="auto")
-        with pytest.raises(RuntimeError):
-            view(water, backend="amsview")
+    def test_backends_cache2(self, water):
+        # Given backend cache
+        import scm.plams.tools.view as viewer
 
-        # Given backend cache with successful backend
-        viewer._view_backends_cache["ase_plot"] = (_AsePlotBackend(), True, None)
+        viewer._view_backends_cache = self.get_new_view_backends_cache()
 
-        # When view
-        # Then succeeds
-        view(water, backend="auto")
+        def check_available_errors():
+            raise RuntimeError("Something went wrong.")
 
-        viewer._view_backends_cache = None
+        # When view with auto and first backend available
+        with patch.object(_AmsViewBackend, "check_available", return_value=True):
+            with patch.object(_AmsViewBackend, "generate_image", return_value=MagicMock()):
+                view(water, backend="auto")
+
+            # Then only first backend checked
+            assert viewer._view_backends_cache["amsview"]._available
+            assert viewer._view_backends_cache["amsview_xvfb"]._available is None
+            assert viewer._view_backends_cache["ase_plot"]._available is None
+
+        # When view with a specific later backend
+        with patch.object(_AsePlotBackend, "check_available", return_value=True):
+            with patch.object(_AsePlotBackend, "generate_image", return_value=MagicMock()):
+                view(water, backend="ase_plot")
+
+            # Then only specific backend checked
+            assert viewer._view_backends_cache["amsview"]._available
+            assert viewer._view_backends_cache["amsview_xvfb"]._available is None
+            assert viewer._view_backends_cache["ase_plot"]._available
+
+        # When view with auto and first backend unavailable
+        viewer._view_backends_cache = self.get_new_view_backends_cache()
+
+        with patch.object(_AmsViewBackend, "check_available", side_effect=check_available_errors):
+            with patch.object(_AmsViewXvfbBackend, "check_available", return_value=True):
+                with patch.object(_AmsViewXvfbBackend, "generate_image", return_value=MagicMock()):
+                    view(water, backend="auto")
+
+            # Then backends checked until one is available
+            assert not viewer._view_backends_cache["amsview"]._available
+            assert viewer._view_backends_cache["amsview_xvfb"]._available
+            assert viewer._view_backends_cache["ase_plot"]._available is None
+
+            # Then unavailable backend errors
+            with pytest.raises(RuntimeError):
+                view(water, backend="amsview")
+
+        # When view with auto and no backends available
+        viewer._view_backends_cache = self.get_new_view_backends_cache()
+        with patch.object(_AmsViewBackend, "check_available", side_effect=check_available_errors):
+            with patch.object(_AmsViewXvfbBackend, "check_available", side_effect=check_available_errors):
+                with patch.object(_AsePlotBackend, "check_available", side_effect=check_available_errors):
+                    # Then auto backend errors
+                    with pytest.raises(RuntimeError):
+                        view(water, backend="auto")
+
+                    # Then specific backend errors
+                    with pytest.raises(RuntimeError):
+                        view(water, backend="amsview")
+
+                    # Then all backend checkeds
+                    assert not viewer._view_backends_cache["amsview"]._available
+                    assert not viewer._view_backends_cache["amsview_xvfb"]._available
+                    assert not viewer._view_backends_cache["ase_plot"]._available
+
+        viewer._view_backends_cache = self.get_new_view_backends_cache()
 
 
 class TestAmsViewBackend:
