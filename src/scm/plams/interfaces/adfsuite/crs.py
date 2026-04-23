@@ -2,10 +2,11 @@ import inspect
 import os
 import subprocess
 from itertools import cycle
-from typing import Optional, List, Dict, TYPE_CHECKING, Set, Union, Any, Tuple, cast
+from typing import Optional, List, Dict, TYPE_CHECKING, Set, Union, Any, Tuple, Sequence, cast
 
 import numpy as np
 
+from scm.plams.core.settings import Settings
 from scm.plams.interfaces.adfsuite.scmjob import SCMJob, SCMResults
 from scm.plams.tools.units import Units
 from scm.plams.core.functions import log
@@ -496,6 +497,132 @@ class CRSJob(SCMJob):
     _command = "crs"
     _result_type = CRSResults
     _subblock_end = "end"
+    PROBLEM_TYPES: Tuple[str, ...] = (
+        "ACTIVITYCOEF",
+        "BINMIXCOEF",
+        "BOILINGPOINT",
+        "COMPOSITIONLINE",
+        "FLASHPOINT",
+        "LLE",
+        "LOGP",
+        "PUREBOILINGPOINT",
+        "PURESIGMAPOTENTIAL",
+        "PURESIGMAPROFILE",
+        "PURESOLUBILITY",
+        "PUREVAPORPRESSURE",
+        "SIGMAPOTENTIAL",
+        "SIGMAPROFILE",
+        "SOLUBILITY",
+        "STABILITY",
+        "TERNARYMIX",
+        "VAPORPRESSURE",
+    )
+    COMPOUND_KEYS: Dict[str, Dict[str, str]] = {
+        "name": {
+            "description": "Optional compound name label.",
+        },
+        "frac1": {
+            "description": "Phase-1 mole fraction, or mass fraction when MASSFRACTION is used.",
+            "unit": "fraction",
+        },
+        "frac2": {
+            "description": "Phase-2 mole fraction, or mass fraction when MASSFRACTION is used.",
+            "unit": "fraction",
+        },
+        "nring": {
+            "description": "COSMO-RS ring-atom count parameter for the compound.",
+            "unit": "count",
+        },
+        "meltingpoint": {
+            "description": "Pure-compound melting point for solubility calculations.",
+            "unit": "K",
+        },
+        "hfusion": {
+            "description": "Pure-compound enthalpy of fusion for solubility calculations.",
+            "unit": "kcal/mol",
+        },
+        "cpfusion": {
+            "description": "Pure-compound heat capacity of fusion for solubility calculations.",
+            "unit": "kcal/(mol K)",
+        },
+        "scalearea": {
+            "description": "Expert scaling factor for the COSMO surface area.",
+            "unit": "dimensionless",
+        },
+        "pvap": {
+            "description": "Pure-compound vapor pressure used together with tvap.",
+            "unit": "bar",
+        },
+        "tvap": {
+            "description": "Temperature corresponding to pvap.",
+            "unit": "K",
+        },
+        "vp_equation": {
+            "description": "Vapor-pressure correlation name such as Antoine or VPM1.",
+        },
+        "vp_params": {
+            "description": "Coefficients for the selected vapor-pressure correlation.",
+        },
+        "density": {
+            "description": "Pure-compound density used for solvent-molecule volume calculations.",
+            "unit": "kg/L",
+        },
+        "polymer": {
+            "description": "Treat the compound as a polymer using monomer data from the COSMO result file.",
+        },
+        "averagemwpoly": {
+            "description": "Average molecular weight for polymer compounds.",
+            "unit": "g/mol",
+        },
+        "flashpoint": {
+            "description": "Pure-compound flash point.",
+            "unit": "K",
+        },
+        "dielectric_const": {
+            "description": "Dielectric constant of the solvent.",
+        },
+        "drophbond": {
+            "description": "Disable hydrogen-bond terms for this compound.",
+        },
+        "cosmofile": {
+            "description": "Treat the file as an ASCII .cosmo file instead of a KF-based COSMO result file.",
+        },
+        "compkffile": {
+            "description": "Treat the file as a FastSigma-generated .compkf file.",
+        },
+        "sigmafile": {
+            "description": "Treat the file as an ASCII sigma profile file.",
+        },
+        "FORM": {
+            "description": "Multiple-form settings for the compound, including conformers and associated/dissociated forms."
+        },
+    }
+    _COMPOUND_TEMPLATE_KEYS = tuple(key for key in COMPOUND_KEYS if key != "FORM")
+    _COMPOUND_TEMPLATE_KEY_SET = frozenset(_COMPOUND_TEMPLATE_KEYS)
+    FORM_KEYS: Dict[str, Dict[str, str]] = {
+        "name": {
+            "description": "Optional form name label.",
+        },
+        "count": {
+            "description": "Relative count or multiplicity of the form within the compound.",
+        },
+        "nring": {
+            "description": "COSMO-RS ring-atom count parameter for the form.",
+            "unit": "count",
+        },
+        "Hcorr": {
+            "description": "Enthalpy correction for this form when modeling multiple forms of a compound.",
+            "unit": "kcal/mol",
+        },
+        "Scorr": {
+            "description": "Entropy correction for this form when modeling multiple forms of a compound.",
+            "unit": "kcal/mol",
+        },
+        "drophbond": {
+            "description": "Disable hydrogen-bond terms for this form.",
+        },
+    }
+    _FORM_KEY_SET = frozenset(FORM_KEYS)
 
     def __init__(self, **kwargs: Any) -> None:
         """Initialize a :class:`CRSJob` instance."""
@@ -514,6 +641,427 @@ class CRSJob(SCMJob):
         if not name.endswith(".coskf"):
             name += ".coskf"
         return os.path.join(CRSJob.database(), name)
+
+    @staticmethod
+    def _default_database_coskf(name: str) -> str:
+        """Return the intended ADFCRS-2018 path for *name* without requiring a configured AMS installation."""
+        if not name.endswith(".coskf"):
+            name += ".coskf"
+        try:
+            return CRSJob.coskf_from_database(name)
+        except (FileNotFoundError, KeyError):
+            return os.path.join("$SCM_PKG_ADFCRSDIR", "ADFCRS-2018", name)
+
+    @staticmethod
+    def compound_template(
+        path: str,
+        *,
+        name: Optional[str] = None,
+        frac1: Optional[float] = None,
+        frac2: Optional[float] = None,
+        nring: Optional[int] = None,
+        meltingpoint: Optional[float] = None,
+        hfusion: Optional[float] = None,
+        cpfusion: Optional[float] = None,
+        scalearea: Optional[float] = None,
+        pvap: Optional[float] = None,
+        tvap: Optional[float] = None,
+        vp_equation: Optional[str] = None,
+        vp_params: Optional[str] = None,
+        density: Optional[float] = None,
+        polymer: Optional[bool] = None,
+        averagemwpoly: Optional[float] = None,
+        flashpoint: Optional[float] = None,
+        dielectric_const: Optional[float] = None,
+        drophbond: Optional[bool] = None,
+        cosmofile: Optional[bool] = None,
+        compkffile: Optional[bool] = None,
+        sigmafile: Optional[bool] = None,
+    ) -> Settings:
+        """Create a compound settings block with the given path and explicit COMPOUND keyword/value pairs."""
+        compound = Settings()
+        compound._h = path
+
+        if nring is None and path.lower().endswith(".coskf"):
+            try:
+                nring = CRSJob._read_or_determine_nring(path)
+            except Exception:
+                nring = None
+
+        compound_values = {
+            "name": name,
+            "frac1": frac1,
+            "frac2": frac2,
+            "nring": nring,
+            "meltingpoint": meltingpoint,
+            "hfusion": hfusion,
+            "cpfusion": cpfusion,
+            "scalearea": scalearea,
+            "pvap": pvap,
+            "tvap": tvap,
+            "vp_equation": vp_equation,
+            "vp_params": vp_params,
+            "density": density,
+            "polymer": polymer,
+            "averagemwpoly": averagemwpoly,
+            "flashpoint": flashpoint,
+            "dielectric_const": dielectric_const,
+            "drophbond": drophbond,
+            "cosmofile": cosmofile,
+            "compkffile": compkffile,
+            "sigmafile": sigmafile,
+        }
+        for key, value in compound_values.items():
+            if value is not None:
+                compound[key] = value
+        return compound
+
+    @staticmethod
+    def _compound_template(
+        path: str,
+        *,
+        name: Optional[str] = None,
+        frac1: Optional[float] = None,
+        frac2: Optional[float] = None,
+        nring: Optional[int] = None,
+        meltingpoint: Optional[float] = None,
+        hfusion: Optional[float] = None,
+        cpfusion: Optional[float] = None,
+        scalearea: Optional[float] = None,
+        pvap: Optional[float] = None,
+        tvap: Optional[float] = None,
+        vp_equation: Optional[str] = None,
+        vp_params: Optional[str] = None,
+        density: Optional[float] = None,
+        polymer: Optional[bool] = None,
+        averagemwpoly: Optional[float] = None,
+        flashpoint: Optional[float] = None,
+        dielectric_const: Optional[float] = None,
+        drophbond: Optional[bool] = None,
+        cosmofile: Optional[bool] = None,
+        compkffile: Optional[bool] = None,
+        sigmafile: Optional[bool] = None,
+    ) -> Settings:
+        """Backward-compatible wrapper for :meth:`compound_template`."""
+        return CRSJob.compound_template(
+            path,
+            name=name,
+            frac1=frac1,
+            frac2=frac2,
+            nring=nring,
+            meltingpoint=meltingpoint,
+            hfusion=hfusion,
+            cpfusion=cpfusion,
+            scalearea=scalearea,
+            pvap=pvap,
+            tvap=tvap,
+            vp_equation=vp_equation,
+            vp_params=vp_params,
+            density=density,
+            polymer=polymer,
+            averagemwpoly=averagemwpoly,
+            flashpoint=flashpoint,
+            dielectric_const=dielectric_const,
+            drophbond=drophbond,
+            cosmofile=cosmofile,
+            compkffile=compkffile,
+            sigmafile=sigmafile,
+        )
+
+    @staticmethod
+    def _normalize_multispecies_form(form: Settings) -> Settings:
+        """Validate and normalize a FORM block for use in multispecies compounds."""
+        if not isinstance(form, Settings):
+            raise TypeError(f"FORM entries must be Settings instances, got {type(form).__name__}")
+
+        path = getattr(form, "_h", None)
+        if not path:
+            raise ValueError("FORM entries must define a non-empty _h header/path")
+
+        invalid_keys = sorted(set(form.keys()) - CRSJob._FORM_KEY_SET - {"_h"})
+        if invalid_keys:
+            allowed = ", ".join(CRSJob.FORM_KEYS)
+            invalid = ", ".join(invalid_keys)
+            raise ValueError(f"Unsupported FORM key(s): {invalid}. Allowed keys: {allowed}")
+        return form
+
+    @staticmethod
+    def _flatten_multispecies_forms(forms: Sequence[Any]) -> List[Any]:
+        """Normalize variadic or list-based FORM input into a flat list of Settings entries."""
+        if len(forms) == 1 and isinstance(forms[0], Sequence) and not isinstance(forms[0], Settings):
+            flattened = list(forms[0])
+        else:
+            flattened = list(forms)
+
+        if not flattened:
+            raise ValueError("_multispecies_template requires at least one FORM entry")
+        return flattened
+
+    @staticmethod
+    def multispecies_template(*forms: Any, **compound_kwargs: Any) -> Settings:
+        """Create a compound settings block with nested FORM blocks for multispecies compounds."""
+        if "FORM" in compound_kwargs:
+            raise ValueError("FORM must be passed via the forms argument, not as a COMPOUND keyword")
+
+        invalid_keys = sorted(set(compound_kwargs) - CRSJob._COMPOUND_TEMPLATE_KEY_SET)
+        if invalid_keys:
+            allowed = ", ".join(CRSJob._COMPOUND_TEMPLATE_KEYS)
+            invalid = ", ".join(invalid_keys)
+            raise ValueError(f"Unsupported COMPOUND key(s): {invalid}. Allowed keys: {allowed}")
+
+        compound = Settings()
+        for key, value in compound_kwargs.items():
+            compound[key] = value
+
+        normalized_forms = CRSJob._flatten_multispecies_forms(forms)
+        compound.form = [CRSJob._normalize_multispecies_form(form) for form in normalized_forms]
+        return compound
+
+    @staticmethod
+    def _multispecies_template(*forms: Any, **compound_kwargs: Any) -> Settings:
+        """Backward-compatible wrapper for :meth:`multispecies_template`."""
+        return CRSJob.multispecies_template(*forms, **compound_kwargs)
+
+    @staticmethod
+    def _read_or_determine_nring(coskf_file: str) -> int:
+        """Read Nring from a COSKF file, or determine it from the molecular graph if missing."""
+        from scm.plams.mol.molecule import Molecule
+        from scm.plams.tools.kftools import KFFile
+
+        kf = KFFile(coskf_file)
+        try:
+            compound_data = kf.read_section("Compound Data")
+            nring = compound_data.get("Nring")
+            if nring is not None:
+                return int(nring)
+        except Exception:
+            pass
+
+        mol = Molecule(coskf_file)
+        rings = mol.locate_rings()
+        flatten_atoms = [atom for subring in rings for atom in subring]
+        return len(set(flatten_atoms))
+
+    @staticmethod
+    def conformers_template(
+        path: str,
+        *,
+        name: Optional[str] = None,
+        count: Optional[float] = None,
+        nring: Optional[int] = None,
+        Hcorr: Optional[float] = None,
+        Scorr: Optional[float] = None,
+        drophbond: Optional[bool] = None,
+    ) -> Settings:
+        """Create a single FORM settings block from one conformer COSMO file."""
+        if not path:
+            raise ValueError("_conformers_template requires a non-empty conformer path")
+        form = Settings()
+        form._h = path
+
+        if nring is None:
+            try:
+                nring = CRSJob._read_or_determine_nring(path)
+            except Exception:
+                nring = None
+
+        form_values = {
+            "name": name,
+            "count": count,
+            "nring": nring,
+            "Hcorr": Hcorr,
+            "Scorr": Scorr,
+            "drophbond": drophbond,
+        }
+        for key, value in form_values.items():
+            if value is not None:
+                form[key] = value
+        return CRSJob._normalize_multispecies_form(form)
+
+    @staticmethod
+    def _conformers_template(
+        path: str,
+        *,
+        name: Optional[str] = None,
+        count: Optional[float] = None,
+        nring: Optional[int] = None,
+        Hcorr: Optional[float] = None,
+        Scorr: Optional[float] = None,
+        drophbond: Optional[bool] = None,
+    ) -> Settings:
+        """Backward-compatible wrapper for :meth:`conformers_template`."""
+        return CRSJob.conformers_template(
+            path,
+            name=name,
+            count=count,
+            nring=nring,
+            Hcorr=Hcorr,
+            Scorr=Scorr,
+            drophbond=drophbond,
+        )
+
+    @staticmethod
+    def problem_types() -> Tuple[str, ...]:
+        """Return the supported COSMO-RS problem types."""
+        return CRSJob.PROBLEM_TYPES
+
+    @staticmethod
+    def compound_keys() -> Dict[str, Dict[str, str]]:
+        """Return metadata for supported COSMO-RS COMPOUND subkeys used on ordinary compounds."""
+        return {key: value.copy() for key, value in CRSJob.COMPOUND_KEYS.items()}
+
+    @staticmethod
+    def form_keys() -> Dict[str, Dict[str, str]]:
+        """Return metadata for FORM subkeys used for multiple forms such as conformers of a compound."""
+        return {key: value.copy() for key, value in CRSJob.FORM_KEYS.items()}
+
+    @staticmethod
+    def settings_template(problem_type: str) -> Settings:
+        """Return a suggested :class:`~scm.plams.core.settings.Settings` template for a COSMO-RS problem type.
+
+        The returned settings contain default ADFCRS-2018 compounds for common workflows and can be edited before use.
+
+        Example:
+
+        .. code:: python
+
+            >>> s = CRSJob.settings_template("LLE")
+            >>> job = CRSJob(settings=s)
+        """
+        if not isinstance(problem_type, str):
+            raise TypeError(f"problem_type must be a string, got {type(problem_type).__name__}")
+
+        water = CRSJob._default_database_coskf("Water")
+        octanol = CRSJob._default_database_coskf("1-Octanol")
+        hexanone = CRSJob._default_database_coskf("2-Hexanone")
+        methanol = CRSJob._default_database_coskf("Methanol")
+        ethanol = CRSJob._default_database_coskf("Ethanol")
+        benzene = CRSJob._default_database_coskf("Benzene")
+
+        normalized = problem_type.upper()
+        s = Settings()
+        s.input.property._h = normalized
+
+        def compounds(*items: Tuple[str, Dict[str, Any]]) -> List[Settings]:
+            return [CRSJob.compound_template(path, **kwargs) for path, kwargs in items]
+
+        pure_types = {"PURESIGMAPROFILE", "PURESIGMAPOTENTIAL", "PUREVAPORPRESSURE", "PUREBOILINGPOINT"}
+        ternary_types = {"TERNARYMIX", "STABILITY", "LLE"}
+        supported_types = set(CRSJob.problem_types())
+
+        if normalized not in supported_types:
+            supported = ", ".join(CRSJob.problem_types())
+            raise ValueError(f"Unsupported COSMO-RS problem type '{problem_type}'. Supported types: {supported}")
+
+        if normalized in pure_types:
+            s.input.compound = compounds((methanol, {"frac1": 1.0}))
+            if normalized == "PUREVAPORPRESSURE":
+                s.input.temperature = "273.15 373.15 10"
+            elif normalized == "PUREBOILINGPOINT":
+                s.input.pressure = "0.101325 1.01325 10"
+            return s
+
+        if normalized == "ACTIVITYCOEF":
+            s.input.temperature = 298.15
+            s.input.compound = compounds(
+                (water, {"frac1": 1.0}),
+                (benzene, {}),
+                (ethanol, {}),
+                (methanol, {}),
+            )
+            return s
+
+        if normalized in {"SIGMAPROFILE", "SIGMAPOTENTIAL"}:
+            s.input.temperature = 298.15
+            s.input.compound = compounds((water, {"frac1": 0.5}), (ethanol, {"frac1": 0.5}))
+            return s
+
+        if normalized == "VAPORPRESSURE":
+            s.input.temperature = 298.15
+            s.input.compound = compounds(
+                (water, {"frac1": 0.25, "pvap": 1.0, "tvap": 373.15}),
+                (methanol, {"frac1": 0.25}),
+                (ethanol, {"frac1": 0.25, "vp_equation": "Antoine", "vp_params": "5.37229 1670.409 -40.191 0.0 0.0"}),
+                (
+                    hexanone,
+                    {
+                        "frac1": 0.25,
+                        "vp_equation": "VPM1",
+                        "vp_params": "-6474.348470271438 -6.057589837807771 0.003390587477679571 51.07134238467479 0.0",
+                    },
+                ),
+            )
+            return s
+
+        if normalized == "FLASHPOINT":
+            s.input.massfraction = ""
+            s.input.compound = compounds((ethanol, {"frac1": 0.442, "flashpoint": 286.0}), (water, {"frac1": 0.558}))
+            return s
+
+        if normalized == "BINMIXCOEF":
+            s.input.temperature = 298.14
+            s.input.property.Nfrac = 50
+            s.input.property.isotherm = ""
+            s.input.compound = compounds((water, {"frac1": 0.5}), (methanol, {"frac1": 0.5}))
+            return s
+
+        if normalized == "BOILINGPOINT":
+            s.input.pressure = "0.101325 1.01325 10"
+            s.input.compound = compounds(
+                (water, {"frac1": 0.25, "pvap": 1.0, "tvap": 373.15}),
+                (methanol, {"frac1": 0.25}),
+                (ethanol, {"frac1": 0.25, "vp_equation": "Antoine", "vp_params": "5.37229 1670.409 -40.191 0.0 0.0"}),
+                (
+                    hexanone,
+                    {
+                        "frac1": 0.25,
+                        "vp_equation": "VPM1",
+                        "vp_params": "-6474.348470271438 -6.057589837807771 0.003390587477679571 51.07134238467479 0.0",
+                    },
+                ),
+            )
+            return s
+
+        if normalized in ternary_types:
+            s.input.temperature = 298.15
+            if normalized == "TERNARYMIX":
+                s.input.property.Nfrac = 20
+                s.input.property.isobar = ""
+            s.input.compound = compounds((water, {"frac1": 0.4}), (ethanol, {"frac1": 0.4}), (benzene, {"frac1": 0.2}))
+            return s
+
+        if normalized == "LOGP":
+            s.input.temperature = 298.15
+            s.input.property.volumequotient = 6.766
+            s.input.compound = compounds(
+                (octanol, {"frac1": 0.725, "frac2": 0.0}),
+                (water, {"frac1": 0.275, "frac2": 1.0}),
+                (benzene, {}),
+                (ethanol, {}),
+                (methanol, {}),
+            )
+            return s
+
+        if normalized == "COMPOSITIONLINE":
+            s.input.pressure = 1.01325
+            s.input.property.Nfrac = 10
+            s.input.property.isobar = ""
+            s.input.compound = compounds(
+                (water, {"frac1": 0.0, "frac2": 0.9}),
+                (ethanol, {"frac1": 0.3, "frac2": 0.1}),
+                (benzene, {"frac1": 0.7, "frac2": 0.0}),
+            )
+            return s
+
+        if normalized == "SOLUBILITY":
+            s.input.temperature = "273.15 283.15 10"
+            s.input.property.DensitySolvent = 1.0
+            s.input.compound = compounds((water, {"frac1": 1.0}), (benzene, {"frac1": 0.0, "meltingpoint": 278.7, "hfusion": 2.37}))
+            return s
+
+        s.input.temperature = "273.15 373.15 10"
+        s.input.compound = compounds((water, {"frac1": 1.0}), (benzene, {"frac1": 0.0}))
+        return s
 
     @staticmethod
     def cos_to_coskf(filename: str) -> str:
