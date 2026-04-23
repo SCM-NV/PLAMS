@@ -2,7 +2,7 @@ import inspect
 import os
 import subprocess
 from itertools import cycle
-from typing import Optional, List, Dict, TYPE_CHECKING, Set, Union, Any, Tuple, Sequence, cast
+from typing import Optional, List, Dict, TYPE_CHECKING, Set, Union, Any, Tuple, Sequence, cast, Literal
 
 import numpy as np
 
@@ -10,12 +10,34 @@ from scm.plams.core.settings import Settings
 from scm.plams.interfaces.adfsuite.scmjob import SCMJob, SCMResults
 from scm.plams.tools.units import Units
 from scm.plams.core.functions import log
+from pathlib import Path
 
 if TYPE_CHECKING:
     import pandas as pd
     from matplotlib.figure import Figure
 
 __all__ = ["CRSResults", "CRSJob"]
+
+ProblemType = Literal[
+    "ACTIVITYCOEF",
+    "BINMIXCOEF",
+    "BOILINGPOINT",
+    "COMPOSITIONLINE",
+    "FLASHPOINT",
+    "LLE",
+    "LOGP",
+    "PUREBOILINGPOINT",
+    "PURESIGMAPOTENTIAL",
+    "PURESIGMAPROFILE",
+    "PURESOLUBILITY",
+    "PUREVAPORPRESSURE",
+    "SIGMAPOTENTIAL",
+    "SIGMAPROFILE",
+    "SOLUBILITY",
+    "STABILITY",
+    "TERNARYMIX",
+    "VAPORPRESSURE",
+]
 
 
 class CRSResults(SCMResults):
@@ -497,26 +519,137 @@ class CRSJob(SCMJob):
     _command = "crs"
     _result_type = CRSResults
     _subblock_end = "end"
-    PROBLEM_TYPES: Tuple[str, ...] = (
-        "ACTIVITYCOEF",
-        "BINMIXCOEF",
-        "BOILINGPOINT",
-        "COMPOSITIONLINE",
-        "FLASHPOINT",
-        "LLE",
-        "LOGP",
-        "PUREBOILINGPOINT",
-        "PURESIGMAPOTENTIAL",
-        "PURESIGMAPROFILE",
-        "PURESOLUBILITY",
-        "PUREVAPORPRESSURE",
-        "SIGMAPOTENTIAL",
-        "SIGMAPROFILE",
-        "SOLUBILITY",
-        "STABILITY",
-        "TERNARYMIX",
-        "VAPORPRESSURE",
-    )
+    _PROBLEM_TYPE_METADATA: Dict[str, Dict[str, Any]] = {
+        "ACTIVITYCOEF": {
+            "description": "Activity coefficients in a solvent mixture, with optional Henry-law related inputs.",
+            "top_level_keys": ["temperature"],
+            "property_keys": ["densitysolvent"],
+            "compound_keys": ["frac1", "pvap", "tvap", "vp_equation", "vp_params"],
+            "category": "multisolute",
+        },
+        "BINMIXCOEF": {
+            "description": "Binary mixture coefficients over a composition range.",
+            "top_level_keys": ["temperature"],
+            "property_keys": ["Nfrac", "isotherm", "isobar", "flashpoint"],
+            "compound_keys": ["frac1"],
+            "category": "binary",
+            "comment": "Use only one of isotherm, isobar, or flashpoint at a time.",
+        },
+        "BOILINGPOINT": {
+            "description": "Boiling temperature of a mixture for a pressure range.",
+            "top_level_keys": ["pressure"],
+            "property_keys": [],
+            "compound_keys": ["frac1", "pvap", "tvap", "vp_equation", "vp_params"],
+            "category": "mixture",
+        },
+        "COMPOSITIONLINE": {
+            "description": "Composition-line calculation between two endpoint phase compositions.",
+            "top_level_keys": ["pressure"],
+            "property_keys": ["Nfrac", "isotherm", "isobar", "flashpoint"],
+            "compound_keys": ["frac1", "frac2"],
+            "category": "binary",
+            "comment": "Use only one of isotherm, isobar, or flashpoint at a time.",
+        },
+        "FLASHPOINT": {
+            "description": "Flash point of a mixture using user-supplied pure-compound flash points.",
+            "top_level_keys": ["massfraction"],
+            "property_keys": [],
+            "compound_keys": ["frac1", "flashpoint"],
+            "category": "mixture",
+        },
+        "LLE": {
+            "description": "Liquid-liquid equilibrium for a ternary mixture.",
+            "top_level_keys": ["temperature"],
+            "property_keys": [],
+            "compound_keys": ["frac1"],
+            "category": "ternary",
+        },
+        "LOGP": {
+            "description": "Partition coefficients between two immiscible solvent phases.",
+            "top_level_keys": ["temperature"],
+            "property_keys": ["volumequotient"],
+            "compound_keys": ["frac1", "frac2"],
+            "category": "binary",
+        },
+        "PUREBOILINGPOINT": {
+            "description": "Pure-compound boiling point over a pressure range.",
+            "top_level_keys": ["pressure"],
+            "property_keys": [],
+            "compound_keys": [],
+            "category": "pure",
+        },
+        "PURESIGMAPOTENTIAL": {
+            "description": "Sigma potential for pure compounds.",
+            "top_level_keys": [],
+            "property_keys": ["Nprofile", "SigmaMax"],
+            "compound_keys": ["frac1"],
+            "category": "pure",
+        },
+        "PURESIGMAPROFILE": {
+            "description": "Sigma profile for pure compounds.",
+            "top_level_keys": [],
+            "property_keys": ["Nprofile", "SigmaMax"],
+            "compound_keys": ["frac1"],
+            "category": "pure",
+        },
+        "PURESOLUBILITY": {
+            "description": "Solubility of a solute in pure solvents over a temperature range.",
+            "top_level_keys": ["temperature", "pressure"],
+            "property_keys": ["isobar"],
+            "compound_keys": ["frac1", "meltingpoint", "hfusion", "cpfusion"],
+            "category": "pure",
+        },
+        "PUREVAPORPRESSURE": {
+            "description": "Pure-compound vapor pressure over a temperature range.",
+            "top_level_keys": ["temperature"],
+            "property_keys": [],
+            "compound_keys": [],
+            "category": "pure",
+        },
+        "SIGMAPOTENTIAL": {
+            "description": "Sigma potential for a solvent mixture.",
+            "top_level_keys": ["temperature"],
+            "property_keys": ["Nprofile", "SigmaMax"],
+            "compound_keys": ["frac1"],
+            "category": "mixture",
+        },
+        "SIGMAPROFILE": {
+            "description": "Sigma profile for a solvent mixture.",
+            "top_level_keys": ["temperature"],
+            "property_keys": ["Nprofile", "SigmaMax"],
+            "compound_keys": ["frac1"],
+            "category": "mixture",
+        },
+        "SOLUBILITY": {
+            "description": "Solubility of solutes in a solvent mixture or under gas-pressure conditions.",
+            "top_level_keys": ["temperature", "pressure"],
+            "property_keys": ["DensitySolvent", "isobar"],
+            "compound_keys": ["frac1", "meltingpoint", "hfusion", "cpfusion"],
+            "category": "multisolute",
+        },
+        "STABILITY": {
+            "description": "Michelsen tangent-plane-distance stability test for a feed composition.",
+            "top_level_keys": ["temperature"],
+            "property_keys": [],
+            "compound_keys": ["frac1"],
+            "category": "ternary",
+        },
+        "TERNARYMIX": {
+            "description": "Ternary mixture property sweep over composition space.",
+            "top_level_keys": ["temperature"],
+            "property_keys": ["Nfrac", "isotherm", "isobar", "flashpoint"],
+            "compound_keys": ["frac1"],
+            "category": "ternary",
+            "comment": "Use only one of isotherm, isobar, or flashpoint at a time.",
+        },
+        "VAPORPRESSURE": {
+            "description": "Vapor pressure of a mixture at fixed temperature.",
+            "top_level_keys": ["temperature"],
+            "property_keys": [],
+            "compound_keys": ["frac1", "pvap", "tvap", "vp_equation", "vp_params"],
+            "category": "mixture",
+        },
+    }
     COMPOUND_KEYS: Dict[str, Dict[str, str]] = {
         "name": {
             "description": "Optional compound name label.",
@@ -597,8 +730,8 @@ class CRSJob(SCMJob):
             "description": "Multiple-form settings for the compound, including conformers and associated/dissociated forms."
         },
     }
-    _COMPOUND_TEMPLATE_KEYS = tuple(key for key in COMPOUND_KEYS if key != "FORM")
-    _COMPOUND_TEMPLATE_KEY_SET = frozenset(_COMPOUND_TEMPLATE_KEYS)
+    _compound_block_KEYS = tuple(key for key in COMPOUND_KEYS if key != "FORM")
+    _compound_block_KEY_SET = frozenset(_compound_block_KEYS)
     FORM_KEYS: Dict[str, Dict[str, str]] = {
         "name": {
             "description": "Optional form name label.",
@@ -653,7 +786,7 @@ class CRSJob(SCMJob):
             return os.path.join("$SCM_PKG_ADFCRSDIR", "ADFCRS-2018", name)
 
     @staticmethod
-    def compound_template(
+    def compound_block(
         path: str,
         *,
         name: Optional[str] = None,
@@ -717,58 +850,6 @@ class CRSJob(SCMJob):
         return compound
 
     @staticmethod
-    def _compound_template(
-        path: str,
-        *,
-        name: Optional[str] = None,
-        frac1: Optional[float] = None,
-        frac2: Optional[float] = None,
-        nring: Optional[int] = None,
-        meltingpoint: Optional[float] = None,
-        hfusion: Optional[float] = None,
-        cpfusion: Optional[float] = None,
-        scalearea: Optional[float] = None,
-        pvap: Optional[float] = None,
-        tvap: Optional[float] = None,
-        vp_equation: Optional[str] = None,
-        vp_params: Optional[str] = None,
-        density: Optional[float] = None,
-        polymer: Optional[bool] = None,
-        averagemwpoly: Optional[float] = None,
-        flashpoint: Optional[float] = None,
-        dielectric_const: Optional[float] = None,
-        drophbond: Optional[bool] = None,
-        cosmofile: Optional[bool] = None,
-        compkffile: Optional[bool] = None,
-        sigmafile: Optional[bool] = None,
-    ) -> Settings:
-        """Backward-compatible wrapper for :meth:`compound_template`."""
-        return CRSJob.compound_template(
-            path,
-            name=name,
-            frac1=frac1,
-            frac2=frac2,
-            nring=nring,
-            meltingpoint=meltingpoint,
-            hfusion=hfusion,
-            cpfusion=cpfusion,
-            scalearea=scalearea,
-            pvap=pvap,
-            tvap=tvap,
-            vp_equation=vp_equation,
-            vp_params=vp_params,
-            density=density,
-            polymer=polymer,
-            averagemwpoly=averagemwpoly,
-            flashpoint=flashpoint,
-            dielectric_const=dielectric_const,
-            drophbond=drophbond,
-            cosmofile=cosmofile,
-            compkffile=compkffile,
-            sigmafile=sigmafile,
-        )
-
-    @staticmethod
     def _normalize_multispecies_form(form: Settings) -> Settings:
         """Validate and normalize a FORM block for use in multispecies compounds."""
         if not isinstance(form, Settings):
@@ -794,18 +875,34 @@ class CRSJob(SCMJob):
             flattened = list(forms)
 
         if not flattened:
-            raise ValueError("_multispecies_template requires at least one FORM entry")
+            raise ValueError("multispecies_block requires at least one FORM entry")
         return flattened
 
     @staticmethod
-    def multispecies_template(*forms: Any, **compound_kwargs: Any) -> Settings:
-        """Create a compound settings block with nested FORM blocks for multispecies compounds."""
+    def multispecies_block(*forms: Any, **compound_kwargs: Any) -> Settings:
+        """Create a compound settings block with nested FORM blocks for multispecies compounds.
+
+        This is useful for compounds represented by multiple conformers or other forms.
+
+        Example:
+            form0 = CRSJob.form_block("conf_0.coskf", Hcorr=0.0)
+            form1 = CRSJob.form_block("conf_1.coskf", Hcorr=0.5)
+
+            compound = CRSJob.multispecies_block(
+                form0,
+                form1,
+                name="my_compound",
+                frac1=1.0,
+            )
+
+        The returned block is meant to go into ``settings.input.compound``.
+        """
         if "FORM" in compound_kwargs:
             raise ValueError("FORM must be passed via the forms argument, not as a COMPOUND keyword")
 
-        invalid_keys = sorted(set(compound_kwargs) - CRSJob._COMPOUND_TEMPLATE_KEY_SET)
+        invalid_keys = sorted(set(compound_kwargs) - CRSJob._compound_block_KEY_SET)
         if invalid_keys:
-            allowed = ", ".join(CRSJob._COMPOUND_TEMPLATE_KEYS)
+            allowed = ", ".join(CRSJob._compound_block_KEYS)
             invalid = ", ".join(invalid_keys)
             raise ValueError(f"Unsupported COMPOUND key(s): {invalid}. Allowed keys: {allowed}")
 
@@ -816,11 +913,6 @@ class CRSJob(SCMJob):
         normalized_forms = CRSJob._flatten_multispecies_forms(forms)
         compound.form = [CRSJob._normalize_multispecies_form(form) for form in normalized_forms]
         return compound
-
-    @staticmethod
-    def _multispecies_template(*forms: Any, **compound_kwargs: Any) -> Settings:
-        """Backward-compatible wrapper for :meth:`multispecies_template`."""
-        return CRSJob.multispecies_template(*forms, **compound_kwargs)
 
     @staticmethod
     def _read_or_determine_nring(coskf_file: str) -> int:
@@ -843,7 +935,7 @@ class CRSJob(SCMJob):
         return len(set(flatten_atoms))
 
     @staticmethod
-    def conformers_template(
+    def form_block(
         path: str,
         *,
         name: Optional[str] = None,
@@ -855,7 +947,7 @@ class CRSJob(SCMJob):
     ) -> Settings:
         """Create a single FORM settings block from one conformer COSMO file."""
         if not path:
-            raise ValueError("_conformers_template requires a non-empty conformer path")
+            raise ValueError("form_block requires a non-empty conformer path")
         form = Settings()
         form._h = path
 
@@ -879,31 +971,31 @@ class CRSJob(SCMJob):
         return CRSJob._normalize_multispecies_form(form)
 
     @staticmethod
-    def _conformers_template(
-        path: str,
-        *,
-        name: Optional[str] = None,
-        count: Optional[float] = None,
-        nring: Optional[int] = None,
-        Hcorr: Optional[float] = None,
-        Scorr: Optional[float] = None,
-        drophbond: Optional[bool] = None,
-    ) -> Settings:
-        """Backward-compatible wrapper for :meth:`conformers_template`."""
-        return CRSJob.conformers_template(
-            path,
-            name=name,
-            count=count,
-            nring=nring,
-            Hcorr=Hcorr,
-            Scorr=Scorr,
-            drophbond=drophbond,
-        )
-
-    @staticmethod
     def problem_types() -> Tuple[str, ...]:
         """Return the supported COSMO-RS problem types."""
-        return CRSJob.PROBLEM_TYPES
+        return tuple(CRSJob._PROBLEM_TYPE_METADATA)
+
+    @staticmethod
+    def _normalize_problem_type(problem_type: str) -> str:
+        """Normalize and validate a COSMO-RS problem type."""
+        if not isinstance(problem_type, str):
+            raise TypeError(f"problem_type must be a string, got {type(problem_type).__name__}")
+
+        normalized = problem_type.upper()
+        if normalized not in CRSJob._PROBLEM_TYPE_METADATA:
+            supported = ", ".join(CRSJob.problem_types())
+            raise ValueError(f"Unsupported COSMO-RS problem type '{problem_type}'. Supported types: {supported}")
+        return normalized
+
+    @staticmethod
+    def problem_type_metadata(problem_type: ProblemType) -> Dict[str, Any]:
+        """Return discoverability metadata for a COSMO-RS problem type."""
+        normalized = CRSJob._normalize_problem_type(problem_type)
+        data = CRSJob._PROBLEM_TYPE_METADATA[normalized]
+        return {
+            key: value.copy() if isinstance(value, list) else value
+            for key, value in data.items()
+        }
 
     @staticmethod
     def compound_keys() -> Dict[str, Dict[str, str]]:
@@ -916,21 +1008,85 @@ class CRSJob(SCMJob):
         return {key: value.copy() for key, value in CRSJob.FORM_KEYS.items()}
 
     @staticmethod
-    def settings_template(problem_type: str) -> Settings:
-        """Return a suggested :class:`~scm.plams.core.settings.Settings` template for a COSMO-RS problem type.
+    def property_block(
+        problem_type: ProblemType,
+        *,
+        volumequotient: Optional[float] = None,
+        nfrac: Optional[int] = None,
+        isotherm: Optional[bool] = None,
+        isobar: Optional[bool] = None,
+        flashpoint: Optional[bool] = None,
+        nprofile: Optional[int] = None,
+        sigmamax: Optional[float] = None,
+    ) -> Settings:
+        """Return only the PROPERTY-block defaults for a COSMO-RS problem type."""
+        normalized = CRSJob._normalize_problem_type(problem_type)
+        s = Settings()
+        s.input.property._h = normalized
 
-        The returned settings contain default ADFCRS-2018 compounds for common workflows and can be edited before use.
+        if volumequotient is not None and normalized != "LOGP":
+            log(f"problem type '{problem_type}' ignores volumequotient", level=3)
+        if nfrac is not None and normalized not in {"BINMIXCOEF", "TERNARYMIX", "COMPOSITIONLINE"}:
+            log(f"problem type '{problem_type}' ignores nfrac", level=3)
 
-        Example:
+        allowed_profile_types = {"BINMIXCOEF", "TERNARYMIX", "COMPOSITIONLINE"}
+        solubility_types = {"SOLUBILITY", "PURESOLUBILITY"}
 
-        .. code:: python
+        unsupported_mode_flags = []
+        if isotherm is not None and normalized not in allowed_profile_types:
+            unsupported_mode_flags.append("isotherm")
+        if flashpoint is not None and normalized not in allowed_profile_types:
+            unsupported_mode_flags.append("flashpoint")
+        if isobar is not None and normalized not in (allowed_profile_types | solubility_types):
+            unsupported_mode_flags.append("isobar")
 
-            >>> s = CRSJob.settings_template("LLE")
-            >>> job = CRSJob(settings=s)
-        """
-        if not isinstance(problem_type, str):
-            raise TypeError(f"problem_type must be a string, got {type(problem_type).__name__}")
+        if unsupported_mode_flags:
+            log(
+                f"problem type '{problem_type}' ignores {', '.join(unsupported_mode_flags)}",
+                level=3,
+            )
 
+        if (nprofile is not None or sigmamax is not None) and normalized not in {
+            "PURESIGMAPOTENTIAL",
+            "PURESIGMAPROFILE",
+            "SIGMAPOTENTIAL",
+            "SIGMAPROFILE",
+        }:
+            log(f"problem type {problem_type} ignores nprofile and sigmamax", level=3)
+
+        if normalized == "LOGP" and volumequotient is not None:
+            s.input.property.volumequotient = volumequotient
+        elif normalized == "LOGP":
+            log(
+                f"volumequotient is not provided for problem type '{problem_type}'; "
+                "the phase volume ratio will be estimated automatically from density or COSMO volume data.",
+                level=3,
+            )
+        if normalized in {"BINMIXCOEF", "TERNARYMIX", "COMPOSITIONLINE"}:
+            selected_flags = [name for name, enabled in (("isotherm", isotherm), ("isobar", isobar), ("flashpoint", flashpoint)) if enabled]
+            if len(selected_flags) > 1:
+                raise ValueError("Use only one of isotherm, isobar, or flashpoint at a time")
+            if isotherm:
+                selected_profile = "isotherm"
+            elif isobar:
+                selected_profile = "isobar"
+            elif flashpoint:
+                selected_profile = "flashpoint"
+            else:
+                selected_profile = "isotherm"
+            s.input.property.Nfrac = nfrac if nfrac is not None else 10
+            s.input.property[selected_profile] = ""
+
+        if normalized in {"PURESIGMAPOTENTIAL", "PURESIGMAPROFILE", "SIGMAPOTENTIAL", "SIGMAPROFILE"}:
+            s.input.property.Nprofile = nprofile if nprofile else 50
+            s.input.property.SigmaMax = sigmamax if sigmamax else 0.025
+
+        return s
+
+
+    @staticmethod
+    def job_settings_template(problem_type: ProblemType) -> Settings:
+        """Return a full default :class:`~scm.plams.core.settings.Settings` object for a COSMO-RS problem type."""
         water = CRSJob._default_database_coskf("Water")
         octanol = CRSJob._default_database_coskf("1-Octanol")
         hexanone = CRSJob._default_database_coskf("2-Hexanone")
@@ -938,129 +1094,154 @@ class CRSJob(SCMJob):
         ethanol = CRSJob._default_database_coskf("Ethanol")
         benzene = CRSJob._default_database_coskf("Benzene")
 
-        normalized = problem_type.upper()
-        s = Settings()
-        s.input.property._h = normalized
-
-        def compounds(*items: Tuple[str, Dict[str, Any]]) -> List[Settings]:
-            return [CRSJob.compound_template(path, **kwargs) for path, kwargs in items]
-
-        pure_types = {"PURESIGMAPROFILE", "PURESIGMAPOTENTIAL", "PUREVAPORPRESSURE", "PUREBOILINGPOINT"}
-        ternary_types = {"TERNARYMIX", "STABILITY", "LLE"}
-        supported_types = set(CRSJob.problem_types())
-
-        if normalized not in supported_types:
-            supported = ", ".join(CRSJob.problem_types())
-            raise ValueError(f"Unsupported COSMO-RS problem type '{problem_type}'. Supported types: {supported}")
-
-        if normalized in pure_types:
-            s.input.compound = compounds((methanol, {"frac1": 1.0}))
-            if normalized == "PUREVAPORPRESSURE":
-                s.input.temperature = "273.15 373.15 10"
-            elif normalized == "PUREBOILINGPOINT":
-                s.input.pressure = "0.101325 1.01325 10"
-            return s
+        normalized = CRSJob._normalize_problem_type(problem_type)
 
         if normalized == "ACTIVITYCOEF":
+            s = CRSJob.property_block(normalized)
             s.input.temperature = 298.15
-            s.input.compound = compounds(
-                (water, {"frac1": 1.0}),
-                (benzene, {}),
-                (ethanol, {}),
-                (methanol, {}),
-            )
-            return s
-
-        if normalized in {"SIGMAPROFILE", "SIGMAPOTENTIAL"}:
-            s.input.temperature = 298.15
-            s.input.compound = compounds((water, {"frac1": 0.5}), (ethanol, {"frac1": 0.5}))
-            return s
-
-        if normalized == "VAPORPRESSURE":
-            s.input.temperature = 298.15
-            s.input.compound = compounds(
-                (water, {"frac1": 0.25, "pvap": 1.0, "tvap": 373.15}),
-                (methanol, {"frac1": 0.25}),
-                (ethanol, {"frac1": 0.25, "vp_equation": "Antoine", "vp_params": "5.37229 1670.409 -40.191 0.0 0.0"}),
-                (
-                    hexanone,
-                    {
-                        "frac1": 0.25,
-                        "vp_equation": "VPM1",
-                        "vp_params": "-6474.348470271438 -6.057589837807771 0.003390587477679571 51.07134238467479 0.0",
-                    },
-                ),
-            )
-            return s
-
-        if normalized == "FLASHPOINT":
-            s.input.massfraction = ""
-            s.input.compound = compounds((ethanol, {"frac1": 0.442, "flashpoint": 286.0}), (water, {"frac1": 0.558}))
-            return s
-
-        if normalized == "BINMIXCOEF":
-            s.input.temperature = 298.14
-            s.input.property.Nfrac = 50
-            s.input.property.isotherm = ""
-            s.input.compound = compounds((water, {"frac1": 0.5}), (methanol, {"frac1": 0.5}))
-            return s
-
-        if normalized == "BOILINGPOINT":
-            s.input.pressure = "0.101325 1.01325 10"
-            s.input.compound = compounds(
-                (water, {"frac1": 0.25, "pvap": 1.0, "tvap": 373.15}),
-                (methanol, {"frac1": 0.25}),
-                (ethanol, {"frac1": 0.25, "vp_equation": "Antoine", "vp_params": "5.37229 1670.409 -40.191 0.0 0.0"}),
-                (
-                    hexanone,
-                    {
-                        "frac1": 0.25,
-                        "vp_equation": "VPM1",
-                        "vp_params": "-6474.348470271438 -6.057589837807771 0.003390587477679571 51.07134238467479 0.0",
-                    },
-                ),
-            )
-            return s
-
-        if normalized in ternary_types:
-            s.input.temperature = 298.15
-            if normalized == "TERNARYMIX":
-                s.input.property.Nfrac = 20
-                s.input.property.isobar = ""
-            s.input.compound = compounds((water, {"frac1": 0.4}), (ethanol, {"frac1": 0.4}), (benzene, {"frac1": 0.2}))
+            s.input.compound = [
+                CRSJob.compound_block(water, frac1=1.0),
+                CRSJob.compound_block(benzene),
+                CRSJob.compound_block(ethanol),
+                CRSJob.compound_block(methanol),
+            ]
             return s
 
         if normalized == "LOGP":
+            s = CRSJob.property_block(normalized, volumequotient=6.766)
             s.input.temperature = 298.15
-            s.input.property.volumequotient = 6.766
-            s.input.compound = compounds(
-                (octanol, {"frac1": 0.725, "frac2": 0.0}),
-                (water, {"frac1": 0.275, "frac2": 1.0}),
-                (benzene, {}),
-                (ethanol, {}),
-                (methanol, {}),
-            )
-            return s
-
-        if normalized == "COMPOSITIONLINE":
-            s.input.pressure = 1.01325
-            s.input.property.Nfrac = 10
-            s.input.property.isobar = ""
-            s.input.compound = compounds(
-                (water, {"frac1": 0.0, "frac2": 0.9}),
-                (ethanol, {"frac1": 0.3, "frac2": 0.1}),
-                (benzene, {"frac1": 0.7, "frac2": 0.0}),
-            )
+            s.input.compound = [
+                CRSJob.compound_block(octanol, frac1=0.725, frac2=0.0),
+                CRSJob.compound_block(water, frac1=0.275, frac2=1.0),
+                CRSJob.compound_block(benzene),
+                CRSJob.compound_block(ethanol),
+                CRSJob.compound_block(methanol),
+            ]
             return s
 
         if normalized == "SOLUBILITY":
+            s = CRSJob.property_block(normalized)
             s.input.temperature = "273.15 283.15 10"
             s.input.property.DensitySolvent = 1.0
-            s.input.compound = compounds((water, {"frac1": 1.0}), (benzene, {"frac1": 0.0, "meltingpoint": 278.7, "hfusion": 2.37}))
+            s.input.compound = [
+                CRSJob.compound_block(water, frac1=1.0),
+                CRSJob.compound_block(benzene, frac1=0.0, meltingpoint=278.7, hfusion=2.37),
+            ]
             return s
 
+        if normalized in {"VAPORPRESSURE", "BOILINGPOINT"}:
+            s = CRSJob.property_block(normalized)
+            if normalized == "VAPORPRESSURE":
+                s.input.temperature = 298.15
+            else:
+                s.input.pressure = "0.101325 1.01325 10"
+            s.input.compound = [
+                CRSJob.compound_block(water, frac1=0.25, pvap=1.0, tvap=373.15),
+                CRSJob.compound_block(methanol, frac1=0.25),
+                CRSJob.compound_block(
+                    ethanol,
+                    frac1=0.25,
+                    vp_equation="Antoine",
+                    vp_params="5.37229 1670.409 -40.191 0.0 0.0",
+                ),
+                CRSJob.compound_block(
+                    hexanone,
+                    frac1=0.25,
+                    vp_equation="VPM1",
+                    vp_params="-6474.348470271438 -6.057589837807771 0.003390587477679571 51.07134238467479 0.0",
+                ),
+            ]
+            return s
+
+        if normalized == "FLASHPOINT":
+            s = CRSJob.property_block(normalized)
+            s.input.massfraction = ""
+            s.input.compound = [
+                CRSJob.compound_block(ethanol, frac1=0.442, flashpoint=286.0),
+                CRSJob.compound_block(water, frac1=0.558),
+            ]
+            return s
+
+        if normalized in {"STABILITY", "LLE"}:
+            s = CRSJob.property_block(normalized)
+            s.input.temperature = 298.15
+            s.input.compound = [
+                CRSJob.compound_block(water, frac1=0.4),
+                CRSJob.compound_block(ethanol, frac1=0.4),
+                CRSJob.compound_block(benzene, frac1=0.2),
+            ]
+            return s
+
+        if normalized == "BINMIXCOEF":
+            s = CRSJob.property_block(normalized, nfrac=50, isotherm=True)
+            s.input.temperature = 298.14
+            s.input.compound = [
+                CRSJob.compound_block(water, frac1=0.5),
+                CRSJob.compound_block(methanol, frac1=0.5),
+            ]
+            return s
+
+        if normalized == "TERNARYMIX":
+            s = CRSJob.property_block(normalized, nfrac=20, isobar=True)
+            s.input.temperature = 298.15
+            s.input.compound = [
+                CRSJob.compound_block(water, frac1=0.4),
+                CRSJob.compound_block(ethanol, frac1=0.4),
+                CRSJob.compound_block(benzene, frac1=0.2),
+            ]
+            return s
+
+        if normalized == "COMPOSITIONLINE":
+            s = CRSJob.property_block(normalized, nfrac=10, isobar=True)
+            s.input.pressure = 1.01325
+            s.input.compound = [
+                CRSJob.compound_block(water, frac1=0.0, frac2=0.9),
+                CRSJob.compound_block(ethanol, frac1=0.3, frac2=0.1),
+                CRSJob.compound_block(benzene, frac1=0.7, frac2=0.0),
+            ]
+            return s
+
+        if normalized == "PURESOLUBILITY":
+            s = CRSJob.property_block(normalized)
+            s.input.temperature = "273.15 373.15 10"
+            s.input.compound = [
+                CRSJob.compound_block(water, frac1=1.0),
+                CRSJob.compound_block(benzene, frac1=0.0),
+            ]
+            return s
+
+        if normalized == "PUREVAPORPRESSURE":
+            s = CRSJob.property_block(normalized)
+            s.input.temperature = "273.15 373.15 10"
+            s.input.compound = [CRSJob.compound_block(methanol, frac1=1.0)]
+            return s
+
+        if normalized == "PUREBOILINGPOINT":
+            s = CRSJob.property_block(normalized)
+            s.input.pressure = "0.101325 1.01325 10"
+            s.input.compound = [CRSJob.compound_block(methanol, frac1=1.0)]
+            return s
+
+        if normalized in {"PURESIGMAPROFILE", "PURESIGMAPOTENTIAL"}:
+            s = CRSJob.property_block(normalized)
+            s.input.compound = [CRSJob.compound_block(methanol, frac1=1.0)]
+            return s
+
+        if normalized in {"SIGMAPROFILE", "SIGMAPOTENTIAL"}:
+            s = CRSJob.property_block(normalized)
+            s.input.temperature = 298.15
+            s.input.compound = [
+                CRSJob.compound_block(water, frac1=0.5),
+                CRSJob.compound_block(ethanol, frac1=0.5),
+            ]
+            return s
+
+        s = CRSJob.property_block(normalized)
         s.input.temperature = "273.15 373.15 10"
-        s.input.compound = compounds((water, {"frac1": 1.0}), (benzene, {"frac1": 0.0}))
+        s.input.compound = [
+            CRSJob.compound_block(water, frac1=1.0),
+            CRSJob.compound_block(benzene, frac1=0.0),
+        ]
         return s
 
     @staticmethod
