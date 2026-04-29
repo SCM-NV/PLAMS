@@ -11,6 +11,11 @@ This changelog is effective from the 2025 releases.
 
 ## [Unreleased]
 
+### Changed
+* `view` function uses stdin mode for AMSview, reducing overhead for image creation
+
+## 2026.102
+
 ### Fixed
 * `view` checks backend availability lazily
 
