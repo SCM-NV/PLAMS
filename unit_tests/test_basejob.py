@@ -544,7 +544,8 @@ sleep 0.0 && sed 's/input/output/g' plamsjob.in
         with patch("scm.plams.core.functions._logger", logger):
             with patch("sys.stdout", new_callable=StringIO) as mock_stdout:
                 job1 = DummySingleJob(cmd="not_a_cmd")
-                job2 = DummySingleJob(cmd="x\n" * 50)
+                missing_cmd = "plams_missing_command_for_stdout_test"
+                job2 = DummySingleJob(cmd=f"{missing_cmd}\n" * 50)
 
                 job1.run()
                 job2.run()
@@ -556,7 +557,7 @@ sleep 0.0 && sed 's/input/output/g' plamsjob.in
                     re.DOTALL,
                 )
                 assert re.match(
-                    f".*Error message for job {job2.name} was:.* 3: x: (command ){{0,1}}not found.* 32: x: (command ){{0,1}}not found.*(see output for full error)",
+                    f".*Error message for job {job2.name} was:.* 3: {missing_cmd}: (command ){{0,1}}not found.* 32: {missing_cmd}: (command ){{0,1}}not found.*(see output for full error)",
                     stdout,
                     re.DOTALL,
                 )
