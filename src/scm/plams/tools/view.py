@@ -642,9 +642,8 @@ class _AMSViewManager:
     """
     Manage a persistent AMSview process that accepts commands over stdin.
 
-    This manager is thread-safe: calls to :meth:`view` are serialized through the
-    single AMSview process, so commands and temporary output files cannot
-    interleave.
+    This manager is thread-safe: render transactions are serialized through the
+    single AMSview process, so commands and temporary output files cannot interleave.
     """
 
     _instance: ClassVar[Optional[Self]] = None
@@ -657,13 +656,10 @@ class _AMSViewManager:
                 cls._instance = super().__new__(cls)
         return cls._instance
 
-    def __init__(self, config: Optional[ViewConfig] = None):
+    def __init__(self) -> None:
         if self._initialized:
-            if config is not None:
-                self.config = config
             return
 
-        self.config = config
         self._lock = RLock()
         self._proc: Optional[subprocess.Popen] = None
         self._initialized = True
@@ -731,14 +727,26 @@ class _AMSViewManager:
         with self._lock:
             input_path = _AmsViewBackend.write_system_input(system)
             img_path, cleanup_image = _AmsViewBackend.get_image_path(config)
+            final_img_path = img_path
+
+            if config.picture_path:
+                final_img_path = str(config.picture_path)
+                target_dir = os.path.dirname(os.path.abspath(final_img_path)) or None
+                fd, img_path = tempfile.mkstemp(suffix=".png", dir=target_dir)
+                os.close(fd)
+                os.remove(img_path)
+                cleanup_image = True
 
             try:
                 command = _AmsViewBackend.get_command(system, config, input_path, img_path)
-                previous_stat = os.stat(img_path) if os.path.exists(img_path) else None
                 self._send_command(command)
-                self._wait_for_image(img_path, config, previous_stat)
+                self._wait_for_image(img_path, config)
 
-                return _AmsViewBackend.load_and_resize_image(img_path, config)
+                img = _AmsViewBackend.load_and_resize_image(img_path, config)
+                if config.picture_path:
+                    os.replace(img_path, final_img_path)
+                    cleanup_image = False
+                return img
             except (BrokenPipeError, OSError, TimeoutError, RuntimeError) as ex:
                 self.close()
                 raise AMSExecutionError("amsview -stdin -batch", str(ex))
@@ -791,7 +799,7 @@ class _AMSViewManager:
             ),
         )
 
-    def _wait_for_image(self, img_path: str, config: ViewConfig, previous_stat: Optional[os.stat_result]) -> None:
+    def _wait_for_image(self, img_path: str, config: ViewConfig) -> None:
         start = time.time()
         poll_interval = 0.05
         while True:
@@ -800,12 +808,7 @@ class _AMSViewManager:
 
             if os.path.exists(img_path):
                 stat = os.stat(img_path)
-                changed = (
-                    previous_stat is None
-                    or stat.st_mtime_ns != previous_stat.st_mtime_ns
-                    or stat.st_size != previous_stat.st_size
-                )
-                if stat.st_size > 0 and changed and self._is_readable_image(img_path):
+                if stat.st_size > 0 and self._is_readable_image(img_path):
                     return
 
             if config.timeout is not None and time.time() - start >= config.timeout:

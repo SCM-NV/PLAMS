@@ -511,17 +511,27 @@ class TestAMSViewManager:
         img_path = tmp_path / "image.png"
         PilImage.new("RGB", (1, 1)).save(img_path)
 
-        manager._wait_for_image(str(img_path), ViewConfig(timeout=1), None)
+        manager._wait_for_image(str(img_path), ViewConfig(timeout=1))
 
-    def test_wait_for_image_rejects_unchanged_existing_picture_path(self, tmp_path):
+    def test_existing_picture_path_is_replaced_from_temp_render(self, water, tmp_path):
         manager = _AMSViewManager()
-        manager._proc = _FakeProcess()
         img_path = tmp_path / "image.png"
-        PilImage.new("RGB", (1, 1)).save(img_path)
-        previous_stat = os.stat(img_path)
+        PilImage.new("RGB", (1, 1), color="red").save(img_path)
+        image = MagicMock()
 
-        with pytest.raises(TimeoutError):
-            manager._wait_for_image(str(img_path), ViewConfig(timeout=0), previous_stat)
+        def write_render(path, config):
+            assert path != str(img_path)
+            PilImage.new("RGB", (1, 1), color="blue").save(path)
+
+        with patch.object(manager, "_send_command") as mock_send_command, patch.object(
+            manager, "_wait_for_image", side_effect=write_render
+        ), patch.object(_AmsViewBackend, "load_and_resize_image", return_value=image):
+            actual = manager._generate_image(water, ViewConfig(timeout=1, picture_path=img_path))
+
+        assert actual is image
+        command = mock_send_command.call_args.args[0]
+        assert command[command.index("-save") + 1] != str(img_path)
+        assert PilImage.open(img_path).getpixel((0, 0)) == (0, 0, 255)
 
     def test_wait_for_image_waits_until_image_is_readable(self, tmp_path):
         manager = _AMSViewManager()
@@ -538,7 +548,7 @@ class TestAMSViewManager:
             return True
 
         with patch.object(manager, "_is_readable_image", side_effect=make_readable):
-            manager._wait_for_image(str(img_path), ViewConfig(timeout=1), None)
+            manager._wait_for_image(str(img_path), ViewConfig(timeout=1))
 
     def test_close_instance_closes_singleton(self):
         manager = _AMSViewManager()
