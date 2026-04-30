@@ -1,7 +1,11 @@
 import os
+import subprocess
 import pytest
+import threading
+import time
 from unittest.mock import patch, MagicMock
 import numpy as np
+from PIL import Image as PilImage
 
 from scm.plams.interfaces.adfsuite.errors import AMSExecutionError
 from scm.plams.interfaces.adfsuite.ams import AMSJob
@@ -9,6 +13,7 @@ from scm.plams.interfaces.molecule.rdkit import from_smiles
 from scm.plams.tools.view import (
     view,
     ViewConfig,
+    _AMSViewManager,
     _AmsViewBackend,
     _AmsViewXvfbBackend,
     _XvfbManager,
@@ -134,10 +139,7 @@ class TestAmsViewBackend:
 
     def test_check_available(self, monkeypatch):
         monkeypatch.setenv("AMSBIN", "test/ams")
-        with patch("subprocess.run") as mock_run:
-            response = MagicMock()
-            response.stderr = "something went wrong"
-            mock_run.return_value = response
+        with patch.object(_AMSViewManager, "_generate_image", side_effect=RuntimeError("something went wrong")):
             with pytest.raises(AMSExecutionError):
                 self.backend.check_available()
 
@@ -189,6 +191,27 @@ class TestAmsViewBackend:
 
         command = str.join(" ", command[1:])
         assert command == expected
+
+    def test_open_window_saves_with_manager_then_opens_window(self, water, tmp_path):
+        if self.backend is not _AmsViewBackend:
+            pytest.skip("open_window is disabled for this backend")
+
+        input_path = tmp_path / "water.in"
+        input_path.write_text("")
+        image = MagicMock()
+
+        with patch.object(_AMSViewManager, "_generate_image", return_value=image) as mock_generate, patch.object(
+            self.backend, "write_system_input", return_value=str(input_path)
+        ), patch.object(self.backend, "run_command") as mock_run_command:
+            actual = self.backend.generate_image(water, ViewConfig(open_window=True))
+
+        assert actual is image
+        save_config = mock_generate.call_args.args[1]
+        assert not save_config.open_window
+        assert save_config.timeout == 10
+        command, open_config = mock_run_command.call_args.args
+        assert open_config.open_window
+        assert "-save" not in command
 
     @pytest.mark.parametrize(
         "normal_basis, normal, lattice, expected",
@@ -279,6 +302,261 @@ class TestAmsViewBackend:
     def test_get_view_plane_with_unhappy_direction(self, direction, water):
         with pytest.raises(ValueError):
             self.backend.get_view_plane(water, ViewConfig(direction=direction))
+
+
+class _FakeStdin:
+
+    def __init__(self, fail_on_write=False):
+        self.commands = []
+        self.closed = False
+        self.fail_on_write = fail_on_write
+
+    def write(self, data):
+        if self.fail_on_write:
+            raise BrokenPipeError("broken pipe")
+        self.commands.append(data)
+
+    def flush(self):
+        pass
+
+    def close(self):
+        self.closed = True
+
+
+class _FakeProcess:
+
+    def __init__(self, returncode=None, fail_on_write=False, wait_raises=False):
+        self.returncode = returncode
+        self.stdin = _FakeStdin(fail_on_write=fail_on_write)
+        self.terminated = False
+        self.killed = False
+        self.wait_raises = wait_raises
+
+    def poll(self):
+        return self.returncode
+
+    def terminate(self):
+        self.terminated = True
+
+    def kill(self):
+        self.killed = True
+        self.returncode = -9
+
+    def wait(self, timeout=None):
+        if self.wait_raises:
+            raise subprocess.TimeoutExpired("amsview", timeout)
+        self.returncode = 0
+
+
+class TestAMSViewManager:
+
+    @pytest.fixture(autouse=True)
+    def close_singleton(self):
+        _AMSViewManager.close_instance()
+        yield
+        _AMSViewManager.close_instance()
+
+    def test_singleton(self):
+        assert _AMSViewManager() is _AMSViewManager()
+
+    def test_reuses_process(self, water):
+        manager = _AMSViewManager()
+        proc = _FakeProcess()
+        image = MagicMock()
+
+        with patch("subprocess.Popen", return_value=proc) as mock_popen, patch.object(
+            _AMSViewManager, "_wait_for_image"
+        ), patch.object(_AmsViewBackend, "load_and_resize_image", return_value=image):
+            assert manager._generate_image(water, ViewConfig(timeout=1)) is image
+            assert manager._generate_image(water, ViewConfig(timeout=1)) is image
+
+        assert mock_popen.call_count == 1
+        assert proc.stdin.commands[0].startswith('"')
+        assert "-save" in proc.stdin.commands[0]
+        assert len(proc.stdin.commands) == 2
+
+    def test_restarts_dead_process_on_next_call(self, water):
+        manager = _AMSViewManager()
+        dead_proc = _FakeProcess(returncode=1)
+        live_proc = _FakeProcess()
+
+        with patch("subprocess.Popen", side_effect=[dead_proc, live_proc]) as mock_popen, patch.object(
+            _AMSViewManager, "_wait_for_image"
+        ), patch.object(_AmsViewBackend, "load_and_resize_image", return_value=MagicMock()):
+            manager._ensure_started()
+            manager._generate_image(water, ViewConfig(timeout=1))
+
+        assert mock_popen.call_count == 2
+        assert len(live_proc.stdin.commands) == 1
+
+    def test_broken_stdin_closes_and_raises(self, water):
+        manager = _AMSViewManager()
+        broken_proc = _FakeProcess(fail_on_write=True)
+
+        with patch("subprocess.Popen", return_value=broken_proc) as mock_popen, patch.object(
+            _AMSViewManager, "_wait_for_image"
+        ):
+            with pytest.raises(AMSExecutionError):
+                manager._generate_image(water, ViewConfig(timeout=1))
+
+        assert mock_popen.call_count == 1
+        assert broken_proc.terminated
+        assert manager._proc is None
+
+    def test_timeout_closes_and_raises(self, water):
+        manager = _AMSViewManager()
+        proc = _FakeProcess()
+
+        with patch("subprocess.Popen", return_value=proc) as mock_popen, patch.object(
+            _AMSViewManager, "_wait_for_image", side_effect=TimeoutError("timeout")
+        ):
+            with pytest.raises(AMSExecutionError):
+                manager._generate_image(water, ViewConfig(timeout=1))
+
+        assert mock_popen.call_count == 1
+        assert proc.terminated
+        assert manager._proc is None
+
+    def test_close_terminates_then_kills_if_needed(self):
+        manager = _AMSViewManager()
+        proc = _FakeProcess(wait_raises=True)
+        manager._proc = proc
+
+        manager.close(timeout=0.01)
+        manager.close(timeout=0.01)
+
+        assert proc.stdin.closed
+        assert proc.terminated
+        assert proc.killed
+        assert manager._proc is None
+
+    def test_close_allows_later_restart(self, water):
+        manager = _AMSViewManager()
+        first_proc = _FakeProcess()
+        second_proc = _FakeProcess()
+
+        with patch("subprocess.Popen", side_effect=[first_proc, second_proc]) as mock_popen, patch.object(
+            _AMSViewManager, "_wait_for_image"
+        ), patch.object(_AmsViewBackend, "load_and_resize_image", return_value=MagicMock()):
+            manager._generate_image(water, ViewConfig(timeout=1))
+            manager.close()
+            manager._generate_image(water, ViewConfig(timeout=1))
+
+        assert mock_popen.call_count == 2
+        assert first_proc.terminated
+        assert len(second_proc.stdin.commands) == 1
+
+    def test_context_manager_closes(self):
+        proc = _FakeProcess()
+        with patch("subprocess.Popen", return_value=proc):
+            with _AMSViewManager() as manager:
+                manager._ensure_started()
+
+        assert proc.terminated
+
+    def test_thread_safe_generate_image(self, tmp_path):
+        manager = _AMSViewManager()
+        active = 0
+        max_active = 0
+        temp_paths = [tmp_path / f"{idx}.in" for idx in range(3)]
+        for path in temp_paths:
+            path.write_text("")
+
+        def send_command(command):
+            nonlocal active, max_active
+            active += 1
+            max_active = max(max_active, active)
+            time.sleep(0.05)
+            active -= 1
+
+        with patch.object(
+            _AmsViewBackend, "write_system_input", side_effect=[str(path) for path in temp_paths]
+        ), patch.object(
+            _AmsViewBackend, "get_image_path", return_value=(str(tmp_path / "image.png"), False)
+        ), patch.object(
+            manager, "_send_command", side_effect=send_command
+        ), patch.object(
+            manager, "_wait_for_image"
+        ), patch.object(
+            _AmsViewBackend, "load_and_resize_image", return_value=MagicMock()
+        ):
+            threads = [
+                threading.Thread(
+                    target=manager._generate_image,
+                    args=(MagicMock(), ViewConfig(timeout=1, normal=(0.0, 0.0, 1.0))),
+                )
+                for _ in range(3)
+            ]
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join()
+
+        assert max_active == 1
+
+    def test_send_command_quotes_arguments(self):
+        manager = _AMSViewManager()
+        proc = _FakeProcess()
+        manager._proc = proc
+
+        manager._send_command(
+            ["/ams/bin/amsview", "path with spaces/file.in", "-viewplane", "0 0 1", "-labelcolor", "#00AAFF"]
+        )
+
+        assert proc.stdin.commands[0] == '"path with spaces/file.in" "-viewplane" "0 0 1" "-labelcolor" "#00AAFF"\n'
+
+    def test_wait_for_image_accepts_fast_completed_render(self, tmp_path):
+        manager = _AMSViewManager()
+        manager._proc = _FakeProcess()
+        img_path = tmp_path / "image.png"
+        PilImage.new("RGB", (1, 1)).save(img_path)
+
+        manager._wait_for_image(str(img_path), ViewConfig(timeout=1))
+
+    def test_existing_picture_path_is_replaced_from_temp_render(self, water, tmp_path):
+        manager = _AMSViewManager()
+        img_path = tmp_path / "image.png"
+        PilImage.new("RGB", (1, 1), color="red").save(img_path)
+        image = MagicMock()
+
+        def write_render(path, config):
+            assert path != str(img_path)
+            PilImage.new("RGB", (1, 1), color="blue").save(path)
+
+        with patch.object(manager, "_send_command") as mock_send_command, patch.object(
+            manager, "_wait_for_image", side_effect=write_render
+        ), patch.object(_AmsViewBackend, "load_and_resize_image", return_value=image):
+            actual = manager._generate_image(water, ViewConfig(timeout=1, picture_path=img_path))
+
+        assert actual is image
+        command = mock_send_command.call_args.args[0]
+        assert command[command.index("-save") + 1] != str(img_path)
+        assert PilImage.open(img_path).getpixel((0, 0)) == (0, 0, 255)
+
+    def test_wait_for_image_waits_until_image_is_readable(self, tmp_path):
+        manager = _AMSViewManager()
+        manager._proc = _FakeProcess()
+        img_path = tmp_path / "image.png"
+        img_path.write_bytes(b"not yet a png")
+        calls = [0]
+
+        def make_readable(path):
+            calls[0] += 1
+            if calls[0] == 1:
+                return False
+            PilImage.new("RGB", (1, 1)).save(path)
+            return True
+
+        with patch.object(manager, "_is_readable_image", side_effect=make_readable):
+            manager._wait_for_image(str(img_path), ViewConfig(timeout=1))
+
+    def test_close_instance_closes_singleton(self):
+        manager = _AMSViewManager()
+
+        with patch.object(manager, "close") as mock_close:
+            _AMSViewManager.close_instance()
+
+        mock_close.assert_called_once()
 
 
 class TestAmsViewXvfbBackend(TestAmsViewBackend):

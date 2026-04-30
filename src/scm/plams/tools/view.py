@@ -1,6 +1,7 @@
 import os
 import re
 import subprocess
+import tempfile
 from typing import (
     Optional,
     Tuple,
@@ -19,7 +20,7 @@ from typing_extensions import Self
 
 import numpy as np
 from dataclasses import dataclass, replace
-from threading import Lock
+from threading import Lock, RLock
 import select
 import time
 from contextlib import contextmanager
@@ -510,7 +511,11 @@ class _AmsViewBackend(_ViewBackend):
 
     @classmethod
     def get_command(
-        cls, system: Union[Molecule, "ChemicalSystem"], config: ViewConfig, input_path: str, img_path: str
+        cls,
+        system: Union[Molecule, "ChemicalSystem"],
+        config: ViewConfig,
+        input_path: str,
+        img_path: str,
     ) -> List[str]:
         """
         Generate command for AMSview
@@ -568,10 +573,10 @@ class _AmsViewBackend(_ViewBackend):
         run_with_timeout(command, timeout=config.timeout)
 
     @classmethod
-    def generate_image(cls, system: Union[Molecule, "ChemicalSystem"], config: ViewConfig) -> "PilImage.Image":
-        from PIL import Image as PilImage
-
-        # Write temporary input file
+    def write_system_input(cls, system: Union[Molecule, "ChemicalSystem"]) -> str:
+        """
+        Write the system to a temporary AMS input file and return the path.
+        """
         with NamedTemporaryFile(mode="w", suffix=".in", delete=False) as input_file:
             input_path = input_file.name
             if isinstance(system, Molecule):
@@ -582,41 +587,248 @@ class _AmsViewBackend(_ViewBackend):
                 raise ValueError(
                     f"System must be a PLAMS Molecule or a ChemicalSystem, but was {type(system).__name__}"
                 )
+        return input_path
 
+    @staticmethod
+    def get_image_path(config: ViewConfig) -> Tuple[str, bool]:
+        """
+        Get the path to write an image to, and whether the caller should delete it.
+        """
         if config.picture_path:
-            img_path = str(config.picture_path)
-        else:
-            with NamedTemporaryFile(mode="wb", suffix=".png", delete=False) as img_file:
-                img_path = img_file.name
+            return str(config.picture_path), False
 
-        # Build and execute command
-        command = cls.get_command(system, config, input_path, img_path)
-        try:
-            # For open-window, we run command twice, once to generate the image and the second to view
-            # as both cannot be combined without the window auto-closing
-            if config.open_window:
-                save_config = replace(config, open_window=False, timeout=10)
-                save_command = cls.get_command(system, save_config, input_path, img_path)
-                cls.run_command(save_command, save_config)
-            cls.run_command(command, config)
+        fd, img_path = tempfile.mkstemp(suffix=".png")
+        os.close(fd)
+        os.remove(img_path)
+        return img_path, True
 
-            # Open image file and resize, making sure to maintain aspect ratio as AMSView may not generate with precise dimensions
-            img = PilImage.open(img_path)
-            img_width, img_height = img.size
-            aspect_ratio = img_width / img_height
-            resized_img = img.resize(
-                (config.width, int(np.ceil(config.width / aspect_ratio))),
-                resample=PilImage.Resampling.LANCZOS,
-                reducing_gap=3.0,
-            )
-        except subprocess.CalledProcessError as ex:
-            raise AMSExecutionError(" ".join(command), ex.stderr)
-        finally:
-            os.remove(input_path)
-            if not config.picture_path:
+    @staticmethod
+    def load_and_resize_image(img_path: str, config: ViewConfig) -> "PilImage.Image":
+        """
+        Open image file and resize, making sure to maintain aspect ratio as AMSView may not generate with precise dimensions.
+        """
+        from PIL import Image as PilImage
+
+        img = PilImage.open(img_path)
+        img_width, img_height = img.size
+        aspect_ratio = img_width / img_height
+        return img.resize(
+            (config.width, int(np.ceil(config.width / aspect_ratio))),
+            resample=PilImage.Resampling.LANCZOS,
+            reducing_gap=3.0,
+        )
+
+    @classmethod
+    def generate_image(cls, system: Union[Molecule, "ChemicalSystem"], config: ViewConfig) -> "PilImage.Image":
+        if config.open_window:
+            save_config = replace(config, open_window=False, timeout=10)
+            img = _AMSViewManager()._generate_image(system, save_config)
+
+            input_path = cls.write_system_input(system)
+            command = cls.get_command(system, config, input_path, "")
+            try:
+                cls.run_command(command, config)
+            except subprocess.CalledProcessError as ex:
+                raise AMSExecutionError(" ".join(command), ex.stderr)
+            finally:
+                os.remove(input_path)
+
+            return img
+
+        return _AMSViewManager()._generate_image(system, config)
+
+
+class _AMSViewManager:
+    """
+    Manage a persistent AMSview process that accepts commands over stdin.
+
+    This manager is thread-safe: render transactions are serialized through the
+    single AMSview process, so commands and temporary output files cannot interleave.
+    """
+
+    _instance: ClassVar[Optional[Self]] = None
+    _instance_lock: ClassVar[Lock] = Lock()
+    _initialized: bool = False
+
+    def __new__(cls: Type[Self], *args: Any, **kwargs: Any) -> Self:
+        with cls._instance_lock:
+            if cls._instance is None:
+                cls._instance = super().__new__(cls)
+        return cls._instance
+
+    def __init__(self) -> None:
+        if self._initialized:
+            return
+
+        self._lock = RLock()
+        self._proc: Optional[subprocess.Popen] = None
+        self._initialized = True
+
+    def __enter__(self) -> "_AMSViewManager":
+        return self
+
+    def __exit__(self, exc_type: Any, exc_value: Any, traceback: Any) -> None:
+        self.close()
+
+    @property
+    def is_running(self) -> bool:
+        """
+        Check whether the managed AMSview process is currently running.
+        """
+        return self._proc is not None and self._proc.poll() is None
+
+    def close(self, timeout: float = 2.0) -> None:
+        """
+        Close the managed AMSview process, if it is running.
+
+        The shutdown is best effort: close stdin first to let AMSview notice EOF,
+        then terminate, and finally kill if it still does not exit.
+        """
+        with self._lock:
+            proc = self._proc
+            self._proc = None
+
+            if proc is None:
+                return
+
+            if proc.stdin is not None and not proc.stdin.closed:
+                try:
+                    proc.stdin.close()
+                except OSError:
+                    pass
+
+            if proc.poll() is not None:
+                return
+
+            try:
+                proc.terminate()
+                proc.wait(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                try:
+                    proc.kill()
+                    proc.wait(timeout=timeout)
+                except (OSError, subprocess.TimeoutExpired):
+                    pass
+            except OSError:
+                pass
+
+    @classmethod
+    def close_instance(cls) -> None:
+        """
+        Close the singleton AMSview process, if it has been created.
+        """
+        with cls._instance_lock:
+            manager = cls._instance
+
+        if manager is not None:
+            manager.close()
+
+    def _generate_image(self, system: Union[Molecule, "ChemicalSystem"], config: ViewConfig) -> "PilImage.Image":
+        with self._lock:
+            input_path = _AmsViewBackend.write_system_input(system)
+            img_path, cleanup_image = _AmsViewBackend.get_image_path(config)
+            final_img_path = img_path
+
+            if config.picture_path:
+                final_img_path = str(config.picture_path)
+                target_dir = os.path.dirname(os.path.abspath(final_img_path)) or None
+                fd, img_path = tempfile.mkstemp(suffix=".png", dir=target_dir)
+                os.close(fd)
                 os.remove(img_path)
+                cleanup_image = True
 
-        return resized_img
+            try:
+                command = _AmsViewBackend.get_command(system, config, input_path, img_path)
+                self._send_command(command)
+                self._wait_for_image(img_path, config)
+
+                img = _AmsViewBackend.load_and_resize_image(img_path, config)
+                if config.picture_path:
+                    os.replace(img_path, final_img_path)
+                    cleanup_image = False
+                return img
+            except (BrokenPipeError, OSError, TimeoutError, RuntimeError) as ex:
+                self.close()
+                raise AMSExecutionError("amsview -stdin -batch", str(ex))
+            finally:
+                os.remove(input_path)
+                if cleanup_image and os.path.exists(img_path):
+                    os.remove(img_path)
+
+    def _send_command(self, command: List[str]) -> None:
+        self._ensure_started()
+        if self._proc is None or self._proc.stdin is None:
+            raise RuntimeError("AMSview process has no stdin")
+        if self._proc.poll() is not None:
+            raise RuntimeError("AMSview process is not running")
+
+        replacements = {
+            "\\": "\\\\",
+            '"': '\\"',
+            "$": "\\$",
+            "[": "\\[",
+            "]": "\\]",
+            "\n": "\\n",
+            "\r": "\\r",
+        }
+        quoted_args = []
+        for arg in command[1:]:
+            quoted = '"' + "".join(replacements.get(char, char) for char in str(arg)) + '"'
+            quoted_args.append(quoted)
+        stdin_command = " ".join(quoted_args) + "\n"
+        self._proc.stdin.write(stdin_command)
+        self._proc.stdin.flush()
+
+    def _ensure_started(self) -> None:
+        if self.is_running:
+            return
+
+        if self._proc is not None:
+            self.close()
+
+        self._proc = subprocess.Popen(
+            [os.path.expandvars("$AMSBIN/amsview"), "-stdin", "-batch"],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            encoding="utf-8",
+            start_new_session=(os.name == "posix"),
+            creationflags=(
+                subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0  # type: ignore[attr-defined]
+            ),
+        )
+
+    def _wait_for_image(self, img_path: str, config: ViewConfig) -> None:
+        start = time.time()
+        poll_interval = 0.05
+        while True:
+            if self._proc is not None and self._proc.poll() is not None:
+                raise RuntimeError("AMSview process exited before writing image")
+
+            if os.path.exists(img_path):
+                stat = os.stat(img_path)
+                if stat.st_size > 0 and self._is_readable_image(img_path):
+                    return
+
+            if config.timeout is not None and time.time() - start >= config.timeout:
+                raise TimeoutError(f"AMSview did not write image '{img_path}' within {config.timeout} seconds")
+
+            time.sleep(poll_interval)
+
+    @staticmethod
+    def _is_readable_image(img_path: str) -> bool:
+        from PIL import Image as PilImage, UnidentifiedImageError
+
+        try:
+            with PilImage.open(img_path) as img:
+                img.verify()
+            return True
+        except (OSError, UnidentifiedImageError):
+            return False
+
+
+atexit.register(_AMSViewManager.close_instance)
 
 
 class _AmsViewXvfbBackend(_AmsViewBackend):
@@ -642,7 +854,21 @@ class _AmsViewXvfbBackend(_AmsViewBackend):
         # do not open the AMSview window with xvfb, otherwise it will hang
         if config.open_window:
             config = replace(config, open_window=False, timeout=10)
-        return super().generate_image(system, config)
+
+        input_path = cls.write_system_input(system)
+        img_path, cleanup_image = cls.get_image_path(config)
+
+        command = cls.get_command(system, config, input_path, img_path)
+        try:
+            cls.run_command(command, config)
+
+            return cls.load_and_resize_image(img_path, config)
+        except subprocess.CalledProcessError as ex:
+            raise AMSExecutionError(" ".join(command), ex.stderr)
+        finally:
+            os.remove(input_path)
+            if cleanup_image and os.path.exists(img_path):
+                os.remove(img_path)
 
 
 class _XvfbManager:
