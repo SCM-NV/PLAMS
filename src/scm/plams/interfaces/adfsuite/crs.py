@@ -519,243 +519,550 @@ class CRSJob(SCMJob):
     _command = "crs"
     _result_type = CRSResults
     _subblock_end = "end"
-    _PROBLEM_TYPE_METADATA: Dict[str, Dict[str, Any]] = {
+    _PROPERTY_TYPE_METADATA: Dict[str, Dict[str, Any]] = {
         "ACTIVITYCOEF": {
             "description": "Activity coefficients in a solvent mixture, with optional Henry-law related inputs.",
-            "top_level_keys": ["temperature"],
+            "top_level_keys": ["temperature", "massfraction"],
             "property_keys": ["densitysolvent"],
-            "compound_keys": ["frac1", "pvap", "tvap", "vp_equation", "vp_params"],
-            "category": "multisolute",
+            "compound_keys": ["frac1", "density", "pvap", "tvap", "vp_equation", "vp_params"],
+            "system_type": "multisolute",
+            "notes": [
+                "Henry's-law constants depend on solvent molar volume and gas-phase chemical potential.",
+                "Solvent molar volume uses densitysolvent first, then pure-compound density/molar-mass data, then COSMO volume estimates.",
+                "Vapor-pressure inputs affect Henry's-law constants through gas-phase chemical-potential corrections.",
+            ],
         },
         "BINMIXCOEF": {
-            "description": "Binary mixture coefficients over a composition range.",
-            "top_level_keys": ["temperature"],
-            "property_keys": ["Nfrac", "isotherm", "isobar", "flashpoint"],
-            "compound_keys": ["frac1"],
-            "category": "binary",
-            "comment": "Use only one of isotherm, isobar, or flashpoint at a time.",
+            "description": "Binary-mixture coefficients over a composition range.",
+            "top_level_keys": ["temperature", "pressure", "massfraction"],
+            "property_keys": ["nfrac", "isotherm", "isobar", "flashpoint"],
+            "compound_keys": ["frac1", "pvap", "tvap", "vp_equation", "vp_params", "flashpoint"],
+            "system_type": "binary",
+            "notes": [
+                "Use only one of isotherm, isobar, or flashpoint at a time.",
+                "isotherm uses temperature; isobar uses pressure; flashpoint uses pure-compound flashpoint inputs.",
+                "The binary mixture is evaluated at  (nfrac+5) compositions.",
+                "Vapor-pressure inputs affect VLE/flash results through gas-phase chemical-potential corrections.",
+            ],
         },
         "BOILINGPOINT": {
             "description": "Boiling temperature of a mixture for a pressure range.",
-            "top_level_keys": ["pressure"],
+            "top_level_keys": ["pressure", "massfraction"],
             "property_keys": [],
             "compound_keys": ["frac1", "pvap", "tvap", "vp_equation", "vp_params"],
-            "category": "mixture",
+            "system_type": "mixture",
+            "notes": [
+                "Vapor-pressure inputs affect boiling-point results through gas-phase chemical-potential corrections.",
+            ],
         },
         "COMPOSITIONLINE": {
             "description": "Composition-line calculation between two endpoint phase compositions.",
-            "top_level_keys": ["pressure"],
-            "property_keys": ["Nfrac", "isotherm", "isobar", "flashpoint"],
-            "compound_keys": ["frac1", "frac2"],
-            "category": "binary",
-            "comment": "Use only one of isotherm, isobar, or flashpoint at a time.",
+            "top_level_keys": ["temperature", "pressure", "massfraction"],
+            "property_keys": ["nfrac", "isotherm", "isobar", "flashpoint"],
+            "compound_keys": ["frac1", "frac2", "pvap", "tvap", "vp_equation", "vp_params", "flashpoint"],
+            "system_type": "binary",
+            "notes": [
+                "frac1 and frac2 define the endpoint phase compositions.",
+                "Use only one of isotherm, isobar, or flashpoint at a time.",
+                "The mixture is evaluated at (nfrac+1) compositions.",
+                "Vapor-pressure inputs affect VLE/flash results through gas-phase chemical-potential corrections.",
+            ],
         },
         "FLASHPOINT": {
             "description": "Flash point of a mixture using user-supplied pure-compound flash points.",
             "top_level_keys": ["massfraction"],
             "property_keys": [],
-            "compound_keys": ["frac1", "flashpoint"],
-            "category": "mixture",
+            "compound_keys": ["frac1", "flashpoint", "pvap", "tvap", "vp_equation", "vp_params"],
+            "system_type": "mixture",
+            "notes": [
+                "Use pure-compound flashpoint inputs for flammable components.",
+                "Vapor-pressure inputs affect flash results through gas-phase chemical-potential corrections.",
+            ],
         },
         "LLE": {
             "description": "Liquid-liquid equilibrium for a ternary mixture.",
-            "top_level_keys": ["temperature"],
+            "top_level_keys": ["temperature", "massfraction"],
             "property_keys": [],
             "compound_keys": ["frac1"],
-            "category": "ternary",
+            "system_type": "mixture",
         },
         "LOGP": {
             "description": "Partition coefficients between two immiscible solvent phases.",
-            "top_level_keys": ["temperature"],
+            "top_level_keys": ["temperature", "massfraction"],
             "property_keys": ["volumequotient"],
-            "compound_keys": ["frac1", "frac2"],
-            "category": "binary",
+            "compound_keys": ["frac1", "frac2", "density"],
+            "system_type": "mixture",
+            "notes": [
+                "volumequotient sets the solvent-1/solvent-2 molar-volume ratio; otherwise it is estimated from density/molar-mass data or COSMO volumes.",
+            ],
         },
         "PUREBOILINGPOINT": {
             "description": "Pure-compound boiling point over a pressure range.",
             "top_level_keys": ["pressure"],
             "property_keys": [],
-            "compound_keys": [],
-            "category": "pure",
+            "compound_keys": ["pvap", "tvap", "vp_equation", "vp_params"],
+            "system_type": "pure",
+            "notes": [
+                "Vapor-pressure inputs affect boiling-point results through gas-phase chemical-potential corrections.",
+            ],
         },
         "PURESIGMAPOTENTIAL": {
             "description": "Sigma potential for pure compounds.",
             "top_level_keys": [],
-            "property_keys": ["Nprofile", "SigmaMax"],
+            "property_keys": ["nprofile", "sigmamax"],
             "compound_keys": ["frac1"],
-            "category": "pure",
+            "system_type": "pure",
         },
         "PURESIGMAPROFILE": {
             "description": "Sigma profile for pure compounds.",
             "top_level_keys": [],
-            "property_keys": ["Nprofile", "SigmaMax"],
+            "property_keys": ["nprofile", "sigmamax"],
             "compound_keys": ["frac1"],
-            "category": "pure",
+            "system_type": "pure",
         },
         "PURESOLUBILITY": {
             "description": "Solubility of a solute in pure solvents over a temperature range.",
             "top_level_keys": ["temperature", "pressure"],
             "property_keys": ["isobar"],
-            "compound_keys": ["frac1", "meltingpoint", "hfusion", "cpfusion"],
-            "category": "pure",
+            "compound_keys": [
+                "frac1",
+                "meltingpoint",
+                "hfusion",
+                "cpfusion",
+                "density",
+                "pvap",
+                "tvap",
+                "vp_equation",
+                "vp_params",
+            ],
+            "system_type": "pure",
+            "notes": [
+                "Compound density affects solubility reported in volume-based units.",
+                "For solid solutes, provide meltingpoint, hfusion, and optionally cpfusion.",
+                "For liquid solutes, LLE is usually more appropriate.",
+                "For gas solutes, use isobar with pressure set to the solute partial vapor pressure.",
+                "Vapor-pressure inputs affect gas-solubility results through gas-phase chemical-potential corrections.",
+            ],
         },
         "PUREVAPORPRESSURE": {
             "description": "Pure-compound vapor pressure over a temperature range.",
             "top_level_keys": ["temperature"],
             "property_keys": [],
-            "compound_keys": [],
-            "category": "pure",
+            "compound_keys": ["pvap", "tvap", "vp_equation", "vp_params"],
+            "system_type": "pure",
+            "notes": [
+                "Vapor-pressure inputs affect vapor-pressure results through gas-phase chemical-potential corrections.",
+            ],
         },
         "SIGMAPOTENTIAL": {
             "description": "Sigma potential for a solvent mixture.",
-            "top_level_keys": ["temperature"],
-            "property_keys": ["Nprofile", "SigmaMax"],
+            "top_level_keys": ["temperature", "massfraction"],
+            "property_keys": ["nprofile", "sigmamax"],
             "compound_keys": ["frac1"],
-            "category": "mixture",
+            "system_type": "mixture",
         },
         "SIGMAPROFILE": {
             "description": "Sigma profile for a solvent mixture.",
-            "top_level_keys": ["temperature"],
-            "property_keys": ["Nprofile", "SigmaMax"],
+            "top_level_keys": ["temperature", "massfraction"],
+            "property_keys": ["nprofile", "sigmamax"],
             "compound_keys": ["frac1"],
-            "category": "mixture",
+            "system_type": "mixture",
         },
         "SOLUBILITY": {
             "description": "Solubility of solutes in a solvent mixture or under gas-pressure conditions.",
-            "top_level_keys": ["temperature", "pressure"],
+            "top_level_keys": ["temperature", "pressure", "massfraction"],
             "property_keys": ["DensitySolvent", "isobar"],
-            "compound_keys": ["frac1", "meltingpoint", "hfusion", "cpfusion"],
-            "category": "multisolute",
+            "compound_keys": [
+                "frac1",
+                "meltingpoint",
+                "hfusion",
+                "cpfusion",
+                "density",
+                "pvap",
+                "tvap",
+                "vp_equation",
+                "vp_params",
+            ],
+            "system_type": "multisolute",
+            "notes": [
+                "DensitySolvent or compound density affects solubility reported in volume-based units.",
+                "For solid solutes, provide meltingpoint, hfusion, and optionally cpfusion.",
+                "For liquid solutes, LLE is usually more appropriate.",
+                "For gas solutes, use isobar with pressure set to the solute partial vapor pressure.",
+                "Vapor-pressure inputs affect gas-solubility results through gas-phase chemical-potential corrections.",
+            ],
         },
         "STABILITY": {
             "description": "Michelsen tangent-plane-distance stability test for a feed composition.",
-            "top_level_keys": ["temperature"],
+            "top_level_keys": ["temperature", "massfraction"],
             "property_keys": [],
             "compound_keys": ["frac1"],
-            "category": "ternary",
+            "system_type": "mixture",
         },
         "TERNARYMIX": {
             "description": "Ternary mixture property sweep over composition space.",
-            "top_level_keys": ["temperature"],
-            "property_keys": ["Nfrac", "isotherm", "isobar", "flashpoint"],
-            "compound_keys": ["frac1"],
-            "category": "ternary",
-            "comment": "Use only one of isotherm, isobar, or flashpoint at a time.",
+            "top_level_keys": ["temperature", "pressure", "massfraction"],
+            "property_keys": ["nfrac", "isotherm", "isobar", "flashpoint"],
+            "compound_keys": ["frac1", "pvap", "tvap", "vp_equation", "vp_params", "flashpoint"],
+            "system_type": "ternary",
+            "notes": [
+                "Use only one of isotherm, isobar, or flashpoint at a time.",
+                "isotherm uses temperature; isobar uses pressure; flashpoint uses pure-compound flashpoint inputs.",
+                "The ternary mixture is evaluated at (nfrac+1)*(nfrac+2)/2 compositions.",
+                "Vapor-pressure inputs affect VLE/flash results through gas-phase chemical-potential corrections.",
+            ],
         },
         "VAPORPRESSURE": {
             "description": "Vapor pressure of a mixture at fixed temperature.",
-            "top_level_keys": ["temperature"],
+            "top_level_keys": ["temperature", "massfraction"],
             "property_keys": [],
             "compound_keys": ["frac1", "pvap", "tvap", "vp_equation", "vp_params"],
-            "category": "mixture",
+            "system_type": "mixture",
+            "notes": [
+                "Vapor-pressure inputs affect mixture vapor-pressure results through gas-phase chemical-potential corrections.",
+            ],
         },
     }
-    COMPOUND_KEYS: Dict[str, Dict[str, str]] = {
+
+    _METHODS = (
+        "COSMORS",
+        "COSMO-RS",
+        "COSMOSAC",
+        "COSMOSAC2013",
+        "COSMOSAC2016",
+        "COSMOSACDHB",
+        "COSMOSACDHB-MESP",
+    )
+    _METHOD_ALIASES = {"COSMORS": "COSMO-RS", "COSMOSAC": "COSMOSAC2013"}
+    _DEFAULT_DISPERSION_PARAMETERS = {
+        "H": -0.0340,
+        "C": -0.0356,
+        "N": -0.0224,
+        "O": -0.0333,
+        "F": -0.026,
+        "Si": -0.04,
+        "P": -0.045,
+        "S": -0.052,
+        "Cl": -0.0485,
+        "Br": -0.055,
+        "I": -0.062,
+    }
+    _METHOD_PARAMETERS_METADATA: Dict[str, Dict[str, Dict[str, Any]]] = {
+        "COSMO-RS": {
+            "CRSParameters": {
+                "rav": 0.400,
+                "aprime": 1510.0,
+                "fcorr": 2.802,
+                "chb": 8850.0,
+                "sigmahbond": 0.00854,
+                "aeff": 6.94,
+                "lambda": 0.130,
+                "omega": -0.212,
+                "eta": -9.65,
+                "chortf": 0.816,
+                "hb_hnof": True,
+                "hb_temp": True,
+                "combi2005": True,
+            },
+            "Dispersion": _DEFAULT_DISPERSION_PARAMETERS,
+        },
+        "COSMOSAC2013": {
+            "SACParameters": {
+                "aeff": 6.4813,
+                "sigma0": 0.01233,
+                "qn": 79.532,
+                "aes": 7877.13,
+                "cohoh": 5786.72,
+                "cotot": 2739.58,
+                "cohot": 4707.75,
+                "rav": 0.51,
+                "qs": 0.57,
+                "hb_hnof": True,
+                "hb_notemp": True,
+            },
+            "Epsilon": {
+                "H": 338.13,
+                "C.sp3": 29160.92,
+                "C.sp2": 30951.83,
+                "C.sp": 20685.98,
+                "N.sp3": 23488.54,
+                "N.sp2": 22663.38,
+                "N.sp": 6390.40,
+                "O.sp3-H": 8527.06,
+                "O.sp3": 8484.38,
+                "O.sp2": 6736.85,
+                "O.sp2-N": 12145.28,
+                "F": 8435.13,
+                "P": 82512.21,
+                "S": 56067.81,
+                "Cl": 45065.19,
+                "Br": 62947.83,
+                "I": 105910.88,
+            },
+        },
+        "COSMOSAC2016": {
+            "SACParameters": {
+                "aeff": 5.8447,
+                "fdecay": 3.57,
+                "sigma0": 0.007,
+                "rn": 66.69,
+                "qn": 79.53,
+                "aes": 5920.84,
+                "bes": 1.3950e8,
+                "cohoh": 3551.1,
+                "cotot": 1077.26,
+                "cohot": 3099.31,
+                "omega": -0.212,
+                "eta": -9.00,
+                "hb_hnof": True,
+                "hb_notemp": True,
+            },
+            "Dispersion": _DEFAULT_DISPERSION_PARAMETERS,
+        },
+        "COSMOSACDHB": {
+            "SACParameters": {
+                "aeff": 5.8447,
+                "fdecay": 3.57,
+                "sigma0": 0.0063,
+                "rn": 66.69,
+                "qn": 79.53,
+                "aes": 5920.84,
+                "bes": 1.3950e8,
+                "cohoh": 33306.83,
+                "cotot": 33306.83,
+                "cohot": 33306.83,
+                "rhbcut": 1.4432,
+                "omega": -0.212,
+                "eta": -9.00,
+                "hb_hnof": True,
+                "hb_notemp": True,
+            },
+            "Dispersion": _DEFAULT_DISPERSION_PARAMETERS,
+        },
+        "COSMOSACDHB-MESP": {
+            "SACParameters": {
+                "aeff": 5.8447,
+                "fdecay": 3.57,
+                "sigma0": 0.0063,
+                "rn": 66.69,
+                "qn": 79.53,
+                "aes": 5920.84,
+                "bes": 1.3950e8,
+                "cohoh": 34234.17,
+                "cotot": 34234.17,
+                "cohot": 34234.17,
+                "rhbcut": 1.3871,
+                "omega": -0.212,
+                "eta": -9.00,
+                "hb_hnof": True,
+                "hb_notemp": True,
+            },
+            "Dispersion": _DEFAULT_DISPERSION_PARAMETERS,
+        },
+    }
+
+    _COMPOUND_KEY_METADATA: Dict[str, Dict[str, str]] = {
         "name": {
             "description": "Optional compound name label.",
+            "type": "str",
         },
         "frac1": {
             "description": "Phase-1 mole fraction, or mass fraction when MASSFRACTION is used.",
+            "type": "float",
             "unit": "fraction",
         },
         "frac2": {
             "description": "Phase-2 mole fraction, or mass fraction when MASSFRACTION is used.",
+            "type": "float",
             "unit": "fraction",
         },
         "nring": {
             "description": "COSMO-RS ring-atom count parameter for the compound.",
+            "type": "int",
             "unit": "count",
         },
         "meltingpoint": {
             "description": "Pure-compound melting point for solubility calculations.",
+            "type": "float",
             "unit": "K",
         },
         "hfusion": {
             "description": "Pure-compound enthalpy of fusion for solubility calculations.",
+            "type": "float",
             "unit": "kcal/mol",
         },
         "cpfusion": {
             "description": "Pure-compound heat capacity of fusion for solubility calculations.",
+            "type": "float",
             "unit": "kcal/(mol K)",
         },
         "scalearea": {
             "description": "Expert scaling factor for the COSMO surface area.",
+            "type": "float",
             "unit": "dimensionless",
         },
         "pvap": {
             "description": "Pure-compound vapor pressure used together with tvap.",
+            "type": "float",
             "unit": "bar",
         },
         "tvap": {
             "description": "Temperature corresponding to pvap.",
+            "type": "float",
             "unit": "K",
         },
         "vp_equation": {
             "description": "Vapor-pressure correlation name such as Antoine or VPM1.",
+            "type": "str",
         },
         "vp_params": {
             "description": "Coefficients for the selected vapor-pressure correlation.",
+            "type": "str",
         },
         "density": {
             "description": "Pure-compound density used for solvent-molecule volume calculations.",
+            "type": "float",
             "unit": "kg/L",
         },
         "polymer": {
             "description": "Treat the compound as a polymer using monomer data from the COSMO result file.",
+            "type": "bool",
         },
         "averagemwpoly": {
             "description": "Average molecular weight for polymer compounds.",
+            "type": "float",
             "unit": "g/mol",
         },
         "flashpoint": {
             "description": "Pure-compound flash point.",
+            "type": "float",
             "unit": "K",
         },
         "dielectric_const": {
             "description": "Dielectric constant of the solvent.",
+            "type": "float",
         },
         "drophbond": {
             "description": "Disable hydrogen-bond terms for this compound.",
+            "type": "bool",
         },
         "cosmofile": {
             "description": "Treat the file as an ASCII .cosmo file instead of a KF-based COSMO result file.",
+            "type": "bool",
         },
         "compkffile": {
             "description": "Treat the file as a FastSigma-generated .compkf file.",
+            "type": "bool",
         },
         "sigmafile": {
             "description": "Treat the file as an ASCII sigma profile file.",
+            "type": "bool",
         },
-        "FORM": {
-            "description": "Multiple-form settings for the compound, including conformers and associated/dissociated forms."
+        "form": {
+            "description": "Multiple-form settings for the compound, including conformers and associated/dissociated forms.",
+            "type": "block",
         },
     }
-    _compound_block_KEYS = tuple(key for key in COMPOUND_KEYS if key != "FORM")
+    _compound_block_KEYS = tuple(key for key in _COMPOUND_KEY_METADATA if key != "form")
     _compound_block_KEY_SET = frozenset(_compound_block_KEYS)
-    FORM_KEYS: Dict[str, Dict[str, str]] = {
+    _FORM_KEY_METADATA: Dict[str, Dict[str, str]] = {
         "name": {
             "description": "Optional form name label.",
+            "type": "str",
         },
         "count": {
-            "description": "Relative count or multiplicity of the form within the compound.",
+            "description": "Relative count of this form within the compound, e.g. form A: 1, form B: 1.",
+            "type": "float",
         },
         "nring": {
             "description": "COSMO-RS ring-atom count parameter for the form.",
+            "type": "int",
             "unit": "count",
         },
         "Hcorr": {
             "description": "Enthalpy correction for this form when modeling multiple forms of a compound.",
+            "type": "float",
             "unit": "kcal/mol",
         },
         "Scorr": {
             "description": "Entropy correction for this form when modeling multiple forms of a compound.",
+            "type": "float",
             "unit": "kcal/mol",
         },
         "drophbond": {
             "description": "Disable hydrogen-bond terms for this form.",
+            "type": "bool",
+        },
+        "species": {
+            "description": "Optional nested species list for multispecies forms.",
+            "type": "block",
         },
     }
-    _FORM_KEY_SET = frozenset(FORM_KEYS)
+    _FORM_KEY_SET = frozenset(_FORM_KEY_METADATA)
+    _SPECIES_KEY_METADATA: Dict[str, Dict[str, str]] = {
+        "name": {
+            "description": "Optional species name label.",
+            "type": "str",
+        },
+        "count": {
+            "description": "Stoichiometric count of this species within the form, e.g. Mg2+: 1, Cl-: 2.",
+            "type": "float",
+        },
+        "nring": {
+            "description": "COSMO-RS ring-atom count parameter for the species.",
+            "type": "int",
+            "unit": "count",
+        },
+        "Hcorr": {
+            "description": "Enthalpy correction for this species.",
+            "type": "float",
+            "unit": "kcal/mol",
+        },
+        "Scorr": {
+            "description": "Entropy correction for this species.",
+            "type": "float",
+            "unit": "kcal/mol",
+        },
+        "drophbond": {
+            "description": "Disable hydrogen-bond terms for this species.",
+            "type": "bool",
+        },
+        "structure": {
+            "description": "One or more nested structure entries for this species.",
+            "type": "block",
+        },
+    }
+    _SPECIES_KEY_SET = frozenset(_SPECIES_KEY_METADATA)
+    _STRUCTURE_KEY_METADATA: Dict[str, Dict[str, str]] = {
+        "name": {
+            "description": "Optional structure name label.",
+            "type": "str",
+        },
+        "count": {
+            "description": "Relative count of this structure within the species, e.g. structure A: 1, structure B: 1",
+            "type": "float",
+        },
+        "nring": {
+            "description": "COSMO-RS ring-atom count parameter for the structure.",
+            "type": "int",
+            "unit": "count",
+        },
+        "Hcorr": {
+            "description": "Enthalpy correction for this structure.",
+            "type": "float",
+            "unit": "kcal/mol",
+        },
+        "Scorr": {
+            "description": "Entropy correction for this structure.",
+            "type": "float",
+            "unit": "kcal/mol",
+        },
+        "drophbond": {
+            "description": "Disable hydrogen-bond terms for this structure.",
+            "type": "bool",
+        },
+    }
+    _STRUCTURE_KEY_SET = frozenset(_STRUCTURE_KEY_METADATA)
 
     def __init__(self, **kwargs: Any) -> None:
         """Initialize a :class:`CRSJob` instance."""
@@ -786,9 +1093,268 @@ class CRSJob(SCMJob):
             return os.path.join("$SCM_PKG_ADFCRSDIR", "ADFCRS-2018", name)
 
     @staticmethod
-    def compound_block(
-        path: str,
+    def property_types() -> Tuple[str, ...]:
+        """Return the supported COSMO-RS problem types."""
+        return tuple(CRSJob._PROPERTY_TYPE_METADATA)
+
+    @staticmethod
+    def _normalize_choice(
+        value: str,
         *,
+        value_name: str,
+        allowed: Sequence[str],
+        aliases: Optional[Dict[str, str]] = None,
+        supported_values: Optional[Sequence[str]] = None,
+    ) -> str:
+        """Normalize and validate a string choice against supported values."""
+        if not isinstance(value, str):
+            raise TypeError(f"{value_name} must be a string, got {type(value).__name__}")
+
+        normalized = value.upper()
+        if aliases is not None:
+            normalized = aliases.get(normalized, normalized)
+        if normalized not in allowed:
+            supported = ", ".join(supported_values if supported_values is not None else allowed)
+            raise ValueError(f"Unsupported {value_name} {value!r}. Supported values: {supported}")
+        return normalized
+
+    @staticmethod
+    def _normalize_property_type(property_type: str) -> str:
+        """Normalize and validate a COSMO-RS problem type."""
+        return CRSJob._normalize_choice(
+            property_type,
+            value_name="property_type",
+            allowed=CRSJob._PROPERTY_TYPE_METADATA,
+            supported_values=CRSJob.property_types(),
+        )
+
+    @staticmethod
+    def property_type_metadata(
+        property_type: ProblemType,
+        as_summary: bool = False,
+    ) -> Union[Dict[str, Any], Tuple[str, ...]]:
+        """Return discoverability metadata for a COSMO-RS problem type."""
+        normalized = CRSJob._normalize_property_type(property_type)
+        data = CRSJob._PROPERTY_TYPE_METADATA[normalized]
+        metadata = {
+            key: value.copy() if isinstance(value, list) else value
+            for key, value in data.items()
+        }
+        if not as_summary:
+            return metadata
+
+        summary = [
+            f"{normalized}: {metadata['description']}",
+            f"system_type: {metadata['system_type']}",
+            f"top_level_keys: {', '.join(metadata['top_level_keys']) or '-'}",
+            f"property_keys: {', '.join(metadata['property_keys']) or '-'}",
+            f"compound_keys: {', '.join(metadata['compound_keys']) or '-'}",
+        ]
+        for note in metadata.get("notes", []):
+            summary.append(f"note: {note}")
+        return tuple(summary)
+
+    @staticmethod
+    def _property_type_keys(property_type: str) -> Set[str]:
+        """Return PROPERTY-block keys supported by a normalized property type."""
+        return set(CRSJob._PROPERTY_TYPE_METADATA[property_type]["property_keys"])
+
+    @staticmethod
+    def _log_unsupported_property_options(property_type: str, options: Dict[str, Any]) -> None:
+        """Log provided property-block options that are not supported for *property_type*."""
+        supported_keys = CRSJob._property_type_keys(property_type)
+        unsupported = [
+            option_name
+            for option_name, value in options.items()
+            if value is not None and option_name not in supported_keys
+        ]
+        if unsupported:
+            log(f"problem type '{property_type}' ignores {', '.join(unsupported)}", level=3)
+
+    @staticmethod
+    def property_block(
+        property_type: ProblemType,
+        *,
+        volumequotient: Optional[float] = None,
+        nfrac: Optional[int] = None,
+        isotherm: Optional[bool] = None,
+        isobar: Optional[bool] = None,
+        flashpoint: Optional[bool] = None,
+        nprofile: Optional[int] = None,
+        sigmamax: Optional[float] = None,
+    ) -> Settings:
+        """Return only the PROPERTY-block defaults for a COSMO-RS problem type."""
+        normalized = CRSJob._normalize_property_type(property_type)
+        s = Settings()
+        s.input.property._h = normalized
+
+        options = {
+            "volumequotient": volumequotient,
+            "nfrac": nfrac,
+            "isotherm": isotherm,
+            "isobar": isobar,
+            "flashpoint": flashpoint,
+            "nprofile": nprofile,
+            "sigmamax": sigmamax,
+        }
+        CRSJob._log_unsupported_property_options(normalized, options)
+        property_keys = CRSJob._property_type_keys(normalized)
+
+        if "volumequotient" in property_keys:
+            if volumequotient is not None:
+                s.input.property.volumequotient = volumequotient
+            else:
+                log(
+                    f"volumequotient is not provided for problem type '{property_type}'; "
+                    "the phase volume ratio will be estimated automatically from density or COSMO volume data.",
+                    level=3,
+                )
+
+        if "nfrac" in property_keys:
+            mode_flags = (("isotherm", isotherm), ("isobar", isobar), ("flashpoint", flashpoint))
+            selected_flags = [name for name, enabled in mode_flags if enabled]
+            if len(selected_flags) > 1:
+                raise ValueError("Use only one of isotherm, isobar, or flashpoint at a time")
+            selected_profile = selected_flags[0] if selected_flags else "isotherm"
+            s.input.property.nfrac = nfrac if nfrac is not None else 10
+            s.input.property[selected_profile] = ""
+
+        if "nprofile" in property_keys and "sigmamax" in property_keys:
+            s.input.property.nprofile = nprofile if nprofile else 50
+            s.input.property.sigmamax = sigmamax if sigmamax else 0.025
+
+        if normalized in {"SOLUBILITY", "PURESOLUBILITY"} and isobar:
+            s.input.property.isobar = ""
+
+        return s
+
+
+    @staticmethod
+    def methods() -> Tuple[str, ...]:
+        """Return the supported COSMO-RS/SAC methods."""
+        return CRSJob._METHODS
+
+    @staticmethod
+    def _set_non_none(block: Settings, values: Dict[str, Any]) -> Settings:
+        for key, value in values.items():
+            if value is not None:
+                block[key] = value
+        return block
+
+    @staticmethod
+    def _normalize_method(method: str) -> str:
+        """Normalize and validate a COSMO-RS/SAC method name."""
+        return CRSJob._normalize_choice(
+            method,
+            value_name="method",
+            allowed=CRSJob._METHODS,
+            aliases=CRSJob._METHOD_ALIASES,
+            supported_values=CRSJob.methods(),
+        )
+
+    @staticmethod
+    def _set_method_parameters(
+        block: Settings,
+        parameters: Dict[str, Any],
+        block_name: str,
+        method_name: str,
+    ) -> None:
+        """Set validated method parameters on a CRS method subblock."""
+
+        method_metadata = CRSJob._METHOD_PARAMETERS_METADATA.get(method_name, {})
+        if block_name not in method_metadata:
+            raise ValueError(f"{block_name} is not supported for method {method_name!r}")
+
+        allowed_keys = set(method_metadata[block_name])
+
+        if block_name in {"CRSParameters", "SACParameters"}:
+            allowed_keys.update({"hb_all", "hb_hnof", "hb_temp", "hb_notemp"})
+
+        if block_name == "CRSParameters":
+            allowed_keys.update({"combi1998", "combi2005"})
+
+        for key, value in parameters.items():
+            normalized_key = key.lower()
+            if normalized_key not in allowed_keys:
+                allowed = ", ".join(sorted(allowed_keys))
+                raise ValueError(f"Unsupported {block_name} key {key!r}. Allowed keys: {allowed}")
+            if value is not None:
+                block[normalized_key] = value
+
+
+    @staticmethod
+    def _copy_method_parameter_defaults(method: str) -> Dict[str, Dict[str, Any]]:
+        """Return a copy of default method parameters for a normalized method."""
+        defaults = CRSJob._METHOD_PARAMETERS_METADATA.get(method, {})
+        return {block_name: values.copy() for block_name, values in defaults.items()}
+
+    @staticmethod
+    def method_block(
+        method: str = "COSMO-RS",
+        *,
+        include_defaults: bool = False,
+        crsparameters: Optional[Dict[str, Any]] = None,
+        sacparameters: Optional[Dict[str, Any]] = None,
+        dispersion: Optional[Dict[str, float]] = None,
+        epsilon: Optional[Dict[str, float]] = None,
+    ) -> Settings:
+        """Return method-selection and method-parameter settings for COSMO-RS/SAC.
+        The method name and validated parameter names are case-insensitive.
+        """
+        s = Settings()
+        normalized_method = CRSJob._normalize_method(method)
+        s.input.method = normalized_method
+
+        method_parameter_defaults = CRSJob._copy_method_parameter_defaults(normalized_method) if include_defaults else {}
+
+        for block_name, user_parameters in (
+            ("CRSParameters", crsparameters),
+            ("SACParameters", sacparameters),
+        ):
+            parameters = {
+                **method_parameter_defaults.get(block_name, {}),
+                **(user_parameters or {}),
+            }
+            if parameters:
+                CRSJob._set_method_parameters(
+                    s.input[block_name],
+                    parameters,
+                    block_name,
+                    normalized_method,
+                )
+
+        for block_name, user_parameters in (
+            ("Dispersion", dispersion),
+            ("Epsilon", epsilon),
+        ):
+            parameters = {
+                **method_parameter_defaults.get(block_name, {}),
+                **(user_parameters or {}),
+            }
+            # parameters = {key: value for key, value in parameters.items() if value is not None}
+            if parameters:
+                CRSJob._set_non_none(s.input[block_name], parameters)
+                # block = s.input[block_name]
+                # for key, value in parameters.items():
+                #     block[key] = value
+
+        return s
+
+    @staticmethod
+    def _infer_nring_if_missing(path: str, nring: Optional[int]) -> Optional[int]:
+        if nring is not None:
+            return nring
+        try:
+            return CRSJob._read_or_determine_nring(path)
+        except Exception:
+            return None
+
+
+    @staticmethod
+    def compound_block(
+        path: Optional[str] = None,
+        *,
+        forms: Optional[Union[Settings, Sequence[Settings]]] = None,
         name: Optional[str] = None,
         frac1: Optional[float] = None,
         frac2: Optional[float] = None,
@@ -811,15 +1377,46 @@ class CRSJob(SCMJob):
         compkffile: Optional[bool] = None,
         sigmafile: Optional[bool] = None,
     ) -> Settings:
-        """Create a compound settings block with the given path and explicit COMPOUND keyword/value pairs."""
-        compound = Settings()
-        compound._h = path
+        """Create a COMPOUND settings block from a compound path or FORM entries.
 
-        if nring is None and path.lower().endswith(".coskf"):
-            try:
-                nring = CRSJob._read_or_determine_nring(path)
-            except Exception:
-                nring = None
+        Pass either ``path`` for a single-file compound or ``forms`` for a compound
+        with nested FORM blocks.
+
+        Example:
+            benzene = CRSJob.compound_block(
+                "benzene.coskf",
+                name="benzene",
+                frac1=0.3,
+                meltingpoint=278.7,
+                hfusion=2.37,
+            )
+
+            form0 = CRSJob.form_block("conf_0.coskf", Hcorr=0.0)
+            form1 = CRSJob.form_block("conf_1.coskf", Hcorr=0.5)
+            compound = CRSJob.compound_block(
+                forms=[form0, form1],
+                name="solute",
+                frac1=1.0,
+            )
+        """
+
+        if path is not None and forms is not None:
+            raise ValueError("compound_block accepts either a compound path or FORM entries, not both")
+        if path is None and forms is None:
+            raise ValueError("compound_block requires either a compound path or FORM entries")
+        if path == "":
+            raise ValueError("compound_block requires a non-empty compound path")
+
+        compound = Settings()
+
+        if path is not None:
+            compound._h = path
+            nring = CRSJob._infer_nring_if_missing(path, nring)
+        else:
+            compound.form = [
+                CRSJob._normalize_form(form)
+                for form in CRSJob._ensure_settings_list(forms, "forms")
+            ]
 
         compound_values = {
             "name": name,
@@ -844,100 +1441,16 @@ class CRSJob(SCMJob):
             "compkffile": compkffile,
             "sigmafile": sigmafile,
         }
-        for key, value in compound_values.items():
-            if value is not None:
-                compound[key] = value
+
+        CRSJob._set_non_none(compound, compound_values)
+
         return compound
-
-    @staticmethod
-    def _normalize_multispecies_form(form: Settings) -> Settings:
-        """Validate and normalize a FORM block for use in multispecies compounds."""
-        if not isinstance(form, Settings):
-            raise TypeError(f"FORM entries must be Settings instances, got {type(form).__name__}")
-
-        path = getattr(form, "_h", None)
-        if not path:
-            raise ValueError("FORM entries must define a non-empty _h header/path")
-
-        invalid_keys = sorted(set(form.keys()) - CRSJob._FORM_KEY_SET - {"_h"})
-        if invalid_keys:
-            allowed = ", ".join(CRSJob.FORM_KEYS)
-            invalid = ", ".join(invalid_keys)
-            raise ValueError(f"Unsupported FORM key(s): {invalid}. Allowed keys: {allowed}")
-        return form
-
-    @staticmethod
-    def _flatten_multispecies_forms(forms: Sequence[Any]) -> List[Any]:
-        """Normalize variadic or list-based FORM input into a flat list of Settings entries."""
-        if len(forms) == 1 and isinstance(forms[0], Sequence) and not isinstance(forms[0], Settings):
-            flattened = list(forms[0])
-        else:
-            flattened = list(forms)
-
-        if not flattened:
-            raise ValueError("multispecies_block requires at least one FORM entry")
-        return flattened
-
-    @staticmethod
-    def multispecies_block(*forms: Any, **compound_kwargs: Any) -> Settings:
-        """Create a compound settings block with nested FORM blocks for multispecies compounds.
-
-        This is useful for compounds represented by multiple conformers or other forms.
-
-        Example:
-            form0 = CRSJob.form_block("conf_0.coskf", Hcorr=0.0)
-            form1 = CRSJob.form_block("conf_1.coskf", Hcorr=0.5)
-
-            compound = CRSJob.multispecies_block(
-                form0,
-                form1,
-                name="my_compound",
-                frac1=1.0,
-            )
-
-        The returned block is meant to go into ``settings.input.compound``.
-        """
-        if "FORM" in compound_kwargs:
-            raise ValueError("FORM must be passed via the forms argument, not as a COMPOUND keyword")
-
-        invalid_keys = sorted(set(compound_kwargs) - CRSJob._compound_block_KEY_SET)
-        if invalid_keys:
-            allowed = ", ".join(CRSJob._compound_block_KEYS)
-            invalid = ", ".join(invalid_keys)
-            raise ValueError(f"Unsupported COMPOUND key(s): {invalid}. Allowed keys: {allowed}")
-
-        compound = Settings()
-        for key, value in compound_kwargs.items():
-            compound[key] = value
-
-        normalized_forms = CRSJob._flatten_multispecies_forms(forms)
-        compound.form = [CRSJob._normalize_multispecies_form(form) for form in normalized_forms]
-        return compound
-
-    @staticmethod
-    def _read_or_determine_nring(coskf_file: str) -> int:
-        """Read Nring from a COSKF file, or determine it from the molecular graph if missing."""
-        from scm.plams.mol.molecule import Molecule
-        from scm.plams.tools.kftools import KFFile
-
-        kf = KFFile(coskf_file)
-        try:
-            compound_data = kf.read_section("Compound Data")
-            nring = compound_data.get("Nring")
-            if nring is not None:
-                return int(nring)
-        except Exception:
-            pass
-
-        mol = Molecule(coskf_file)
-        rings = mol.locate_rings()
-        flatten_atoms = [atom for subring in rings for atom in subring]
-        return len(set(flatten_atoms))
 
     @staticmethod
     def form_block(
-        path: str,
+        path: Optional[str] = None,
         *,
+        species: Optional[Union[Settings, Sequence[Settings]]] = None,
         name: Optional[str] = None,
         count: Optional[float] = None,
         nring: Optional[int] = None,
@@ -945,17 +1458,39 @@ class CRSJob(SCMJob):
         Scorr: Optional[float] = None,
         drophbond: Optional[bool] = None,
     ) -> Settings:
-        """Create a single FORM settings block from one conformer COSMO file."""
-        if not path:
-            raise ValueError("form_block requires a non-empty conformer path")
-        form = Settings()
-        form._h = path
+        """Create a FORM settings block from a form path or SPECIES entries.
 
-        if nring is None:
-            try:
-                nring = CRSJob._read_or_determine_nring(path)
-            except Exception:
-                nring = None
+        Pass either ``path`` for a single-file form or ``species`` for a form with
+        nested SPECIES blocks.
+
+        Example:
+            neutral = CRSJob.form_block("lowest_energy_conformer.coskf")
+
+            mg = CRSJob.species_block("mg.coskf", name="Mg2+", count=1.0)
+            cl = CRSJob.species_block("cl.coskf", name="Cl-", count=2.0)
+            ion = CRSJob.form_block(
+                species=[mg, cl],
+                name="MgCl2 dissociated ion",
+                count=1.0,
+            )
+        """
+        if path is not None and species is not None:
+            raise ValueError("form_block accepts either a form path or SPECIES entries, not both")
+        if path is None and species is None:
+            raise ValueError("form_block requires either a form path or SPECIES entries")
+        if path == "":
+            raise ValueError("form_block requires a non-empty form path")
+
+        form = Settings()
+
+        if path is not None:
+            form._h = path
+            nring = CRSJob._infer_nring_if_missing(path, nring)
+        else:
+            form.species = [
+                CRSJob._normalize_species(species_entry)
+                for species_entry in CRSJob._ensure_settings_list(species, "species")
+            ]
 
         form_values = {
             "name": name,
@@ -965,127 +1500,262 @@ class CRSJob(SCMJob):
             "Scorr": Scorr,
             "drophbond": drophbond,
         }
-        for key, value in form_values.items():
-            if value is not None:
-                form[key] = value
-        return CRSJob._normalize_multispecies_form(form)
+
+        CRSJob._set_non_none(form, form_values)
+
+        return CRSJob._normalize_form(form)
 
     @staticmethod
-    def problem_types() -> Tuple[str, ...]:
-        """Return the supported COSMO-RS problem types."""
-        return tuple(CRSJob._PROBLEM_TYPE_METADATA)
+    def species_block(
+        path: Optional[str] = None,
+        *,
+        structures: Optional[Union[Settings, Sequence[Settings]]] = None,
+        name: Optional[str] = None,
+        count: Optional[float] = None,
+        nring: Optional[int] = None,
+        Hcorr: Optional[float] = None,
+        Scorr: Optional[float] = None,
+        drophbond: Optional[bool] = None,
+    ) -> Settings:
+        """Create a SPECIES settings block from a species path or STRUCTURE entries.
+
+        Pass either ``path`` for a single-file species or ``structures`` for a species
+        with nested STRUCTURE blocks.
+
+        Example:
+            single_anion = CRSJob.species_block("poly_anion.coskf", name="poly_anion", count=1.0)
+
+            structure_a = CRSJob.structure_block("poly_anion_a.coskf", Hcorr=0.0)
+            structure_b = CRSJob.structure_block("poly_anion_b.coskf", Hcorr=0.4)
+            multi_anion = CRSJob.species_block(
+                structures=[structure_a, structure_b],
+                name="poly_anion",
+                count=1.0,
+            )
+        """
+        if path is not None and structures is not None:
+            raise ValueError("species_block accepts either a species path or STRUCTURE entries, not both")
+        if path is None and structures is None:
+            raise ValueError("species_block requires either a species path or STRUCTURE entries")
+        if path == "":
+            raise ValueError("species_block requires a non-empty species path")
+
+        species = Settings()
+
+        if path is not None:
+            species._h = path
+            nring = CRSJob._infer_nring_if_missing(path, nring)
+        else:
+            species.structure = [
+                CRSJob._normalize_structure(structure_entry)
+                for structure_entry in CRSJob._ensure_settings_list(structures, "structures")
+            ]
+
+        species_values = {
+            "name": name,
+            "count": count,
+            "nring": nring,
+            "Hcorr": Hcorr,
+            "Scorr": Scorr,
+            "drophbond": drophbond,
+        }
+        CRSJob._set_non_none(species, species_values)
+
+        return CRSJob._normalize_species(species)
 
     @staticmethod
-    def _normalize_problem_type(problem_type: str) -> str:
-        """Normalize and validate a COSMO-RS problem type."""
-        if not isinstance(problem_type, str):
-            raise TypeError(f"problem_type must be a string, got {type(problem_type).__name__}")
+    def structure_block(
+        path: str,
+        *,
+        name: Optional[str] = None,
+        count: Optional[float] = None,
+        nring: Optional[int] = None,
+        Hcorr: Optional[float] = None,
+        Scorr: Optional[float] = None,
+        drophbond: Optional[bool] = None,
+    ) -> Settings:
+        """Create a STRUCTURE settings block from a structure path.
 
-        normalized = problem_type.upper()
-        if normalized not in CRSJob._PROBLEM_TYPE_METADATA:
-            supported = ", ".join(CRSJob.problem_types())
-            raise ValueError(f"Unsupported COSMO-RS problem type '{problem_type}'. Supported types: {supported}")
-        return normalized
+        Example:
+            structure_a = CRSJob.structure_block(
+                "poly_anion_a.coskf",
+                name="poly_anion conformer A",
+                count=1.0,
+                Hcorr=0.0
+            )
+        """
+        if not path:
+            raise ValueError("structure_block requires a non-empty structure path")
+        structure = Settings()
+        structure._h = path
 
-    @staticmethod
-    def problem_type_metadata(problem_type: ProblemType) -> Dict[str, Any]:
-        """Return discoverability metadata for a COSMO-RS problem type."""
-        normalized = CRSJob._normalize_problem_type(problem_type)
-        data = CRSJob._PROBLEM_TYPE_METADATA[normalized]
-        return {
-            key: value.copy() if isinstance(value, list) else value
-            for key, value in data.items()
+        structure_values = {
+            "name": name,
+            "count": count,
+            "nring": CRSJob._infer_nring_if_missing(path, nring),
+            "Hcorr": Hcorr,
+            "Scorr": Scorr,
+            "drophbond": drophbond,
         }
 
-    @staticmethod
-    def compound_keys() -> Dict[str, Dict[str, str]]:
-        """Return metadata for supported COSMO-RS COMPOUND subkeys used on ordinary compounds."""
-        return {key: value.copy() for key, value in CRSJob.COMPOUND_KEYS.items()}
+        CRSJob._set_non_none(structure, structure_values)
+
+        return CRSJob._normalize_structure(structure)
 
     @staticmethod
-    def form_keys() -> Dict[str, Dict[str, str]]:
+    def _ensure_settings_list(value: Any, block_name: str) -> List[Settings]:
+        """Normalize a single Settings object or a sequence of Settings objects into a non-empty list."""
+        if isinstance(value, Settings):
+            items = [value]
+        elif isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+            items = list(value)
+        else:
+            raise TypeError(f"{block_name} must be a Settings instance or a sequence of Settings instances")
+
+        if not items:
+            raise ValueError(f"{block_name} must contain at least one entry")
+
+        invalid = [type(item).__name__ for item in items if not isinstance(item, Settings)]
+        if invalid:
+            raise TypeError(f"{block_name} entries must be Settings instances, got {', '.join(invalid)}")
+        return items
+
+    @staticmethod
+    def _normalize_form(form: Settings) -> Settings:
+        """Validate and normalize a FORM block for use in multispecies compounds."""
+        if not isinstance(form, Settings):
+            raise TypeError(f"FORM entries must be Settings instances, got {type(form).__name__}")
+
+        path = dict.get(form, "_h", None)
+        has_path = bool(path)
+        has_species = "species" in form and form["species"] not in (None, False)
+        if has_path == has_species:
+            raise ValueError("FORM entries must define exactly one of _h or species")
+
+        invalid_keys = sorted(set(form.keys()) - CRSJob._FORM_KEY_SET - {"_h"})
+        if invalid_keys:
+            allowed = ", ".join(CRSJob._FORM_KEY_METADATA)
+            invalid = ", ".join(invalid_keys)
+            raise ValueError(f"Unsupported FORM key(s): {invalid}. Allowed keys: {allowed}")
+
+        if has_species:
+            form.species = [CRSJob._normalize_species(species) for species in CRSJob._ensure_settings_list(form.species, "species")]
+        return form
+
+    @staticmethod
+    def _normalize_species(species: Settings) -> Settings:
+        """Validate and normalize a SPECIES block nested under FORM."""
+        if not isinstance(species, Settings):
+            raise TypeError(f"SPECIES entries must be Settings instances, got {type(species).__name__}")
+
+        path = dict.get(species, "_h", None)
+        has_path = bool(path)
+        has_structure = "structure" in species and species["structure"] not in (None, False)
+        if has_path == has_structure:
+            raise ValueError("SPECIES entries must define exactly one of _h or structure")
+
+        invalid_keys = sorted(set(species.keys()) - CRSJob._SPECIES_KEY_SET - {"_h"})
+        if invalid_keys:
+            allowed = ", ".join(CRSJob._SPECIES_KEY_METADATA)
+            invalid = ", ".join(invalid_keys)
+            raise ValueError(f"Unsupported SPECIES key(s): {invalid}. Allowed keys: {allowed}")
+
+        if has_structure:
+            species.structure = [CRSJob._normalize_structure(structure) for structure in CRSJob._ensure_settings_list(species.structure, "structure")]
+        return species
+
+    @staticmethod
+    def _normalize_structure(structure: Settings) -> Settings:
+        """Validate and normalize a STRUCTURE block nested under SPECIES."""
+        path = getattr(structure, "_h", None)
+        if not path:
+            raise ValueError("STRUCTURE entries must define a non-empty _h header/path")
+
+        invalid_keys = sorted(set(structure.keys()) - CRSJob._STRUCTURE_KEY_SET - {"_h"})
+        if invalid_keys:
+            allowed = ", ".join(CRSJob._STRUCTURE_KEY_METADATA)
+            invalid = ", ".join(invalid_keys)
+            raise ValueError(f"Unsupported STRUCTURE key(s): {invalid}. Allowed keys: {allowed}")
+        return structure
+
+    @staticmethod
+    def _read_or_determine_nring(coskf_file: str) -> int:
+        """Read Nring from a COSKF file, or determine it from the molecular graph if missing."""
+        from scm.plams.mol.molecule import Molecule
+        from scm.plams.tools.kftools import KFFile
+
+        if coskf_file.lower().endswith(".coskf"):
+            kf = KFFile(coskf_file)
+
+            try:
+                compound_data = kf.read_section("Compound Data")
+                nring = compound_data.get("Nring")
+                if nring is not None:
+                    return int(nring)
+
+            except Exception as exc:
+                log(f"Could not read Nring from COSKF file {coskf_file}; determining it from the molecular graph instead: {exc}", level=3)
+
+        elif coskf_file.lower().endswith(".cosmo"):
+            cosmo_file = coskf_file
+            coskf_file = str(Path(cosmo_file).with_suffix(".coskf"))
+            coskf_file = CRSJob.cos_to_coskf(cosmo_file, coskf_file)
+
+        else:
+            log(f"Nring determination is supported only for COSKF and COSMO files: {coskf_file}", level=3)
+            return 0
+
+        try:
+            mol = Molecule(coskf_file)
+            rings = mol.locate_rings()
+            flatten_atoms = [atom for subring in rings for atom in subring]
+            return len(set(flatten_atoms))
+        except Exception as exc:
+            log(f"Failed to determine Nring from molecular graph for {coskf_file}: {exc}", level=3)
+            return 0
+
+    @staticmethod
+    def _format_key_metadata(key: str, metadata: Dict[str, str]) -> str:
+        """Return a compact display string for one metadata entry."""
+        type_unit = metadata.get("type", "")
+        if metadata.get("unit"):
+            type_unit = f"{type_unit} [{metadata['unit']}]"
+        return f"{key}: {type_unit} - {metadata['description']}"
+
+    @staticmethod
+    def compound_keys(as_summary: bool = False) -> Union[Dict[str, Dict[str, str]], Tuple[str, ...]]:
+        """Return supported COMPOUND subkey metadata, or compact display strings."""
+        metadata = {key: value.copy() for key, value in CRSJob._COMPOUND_KEY_METADATA.items()}
+        if as_summary:
+            return tuple(CRSJob._format_key_metadata(key, value) for key, value in metadata.items())
+        return metadata
+
+    @staticmethod
+    def form_keys(as_summary: bool = False) -> Union[Dict[str, Dict[str, str]], Tuple[str, ...]]:
         """Return metadata for FORM subkeys used for multiple forms such as conformers of a compound."""
-        return {key: value.copy() for key, value in CRSJob.FORM_KEYS.items()}
+        metadata = {key: value.copy() for key, value in CRSJob._FORM_KEY_METADATA.items()}
+        if as_summary:
+            return tuple(CRSJob._format_key_metadata(key, value) for key, value in metadata.items())
+        return metadata
 
     @staticmethod
-    def property_block(
-        problem_type: ProblemType,
-        *,
-        volumequotient: Optional[float] = None,
-        nfrac: Optional[int] = None,
-        isotherm: Optional[bool] = None,
-        isobar: Optional[bool] = None,
-        flashpoint: Optional[bool] = None,
-        nprofile: Optional[int] = None,
-        sigmamax: Optional[float] = None,
-    ) -> Settings:
-        """Return only the PROPERTY-block defaults for a COSMO-RS problem type."""
-        normalized = CRSJob._normalize_problem_type(problem_type)
-        s = Settings()
-        s.input.property._h = normalized
-
-        if volumequotient is not None and normalized != "LOGP":
-            log(f"problem type '{problem_type}' ignores volumequotient", level=3)
-        if nfrac is not None and normalized not in {"BINMIXCOEF", "TERNARYMIX", "COMPOSITIONLINE"}:
-            log(f"problem type '{problem_type}' ignores nfrac", level=3)
-
-        allowed_profile_types = {"BINMIXCOEF", "TERNARYMIX", "COMPOSITIONLINE"}
-        solubility_types = {"SOLUBILITY", "PURESOLUBILITY"}
-
-        unsupported_mode_flags = []
-        if isotherm is not None and normalized not in allowed_profile_types:
-            unsupported_mode_flags.append("isotherm")
-        if flashpoint is not None and normalized not in allowed_profile_types:
-            unsupported_mode_flags.append("flashpoint")
-        if isobar is not None and normalized not in (allowed_profile_types | solubility_types):
-            unsupported_mode_flags.append("isobar")
-
-        if unsupported_mode_flags:
-            log(
-                f"problem type '{problem_type}' ignores {', '.join(unsupported_mode_flags)}",
-                level=3,
-            )
-
-        if (nprofile is not None or sigmamax is not None) and normalized not in {
-            "PURESIGMAPOTENTIAL",
-            "PURESIGMAPROFILE",
-            "SIGMAPOTENTIAL",
-            "SIGMAPROFILE",
-        }:
-            log(f"problem type {problem_type} ignores nprofile and sigmamax", level=3)
-
-        if normalized == "LOGP" and volumequotient is not None:
-            s.input.property.volumequotient = volumequotient
-        elif normalized == "LOGP":
-            log(
-                f"volumequotient is not provided for problem type '{problem_type}'; "
-                "the phase volume ratio will be estimated automatically from density or COSMO volume data.",
-                level=3,
-            )
-        if normalized in {"BINMIXCOEF", "TERNARYMIX", "COMPOSITIONLINE"}:
-            selected_flags = [name for name, enabled in (("isotherm", isotherm), ("isobar", isobar), ("flashpoint", flashpoint)) if enabled]
-            if len(selected_flags) > 1:
-                raise ValueError("Use only one of isotherm, isobar, or flashpoint at a time")
-            if isotherm:
-                selected_profile = "isotherm"
-            elif isobar:
-                selected_profile = "isobar"
-            elif flashpoint:
-                selected_profile = "flashpoint"
-            else:
-                selected_profile = "isotherm"
-            s.input.property.Nfrac = nfrac if nfrac is not None else 10
-            s.input.property[selected_profile] = ""
-
-        if normalized in {"PURESIGMAPOTENTIAL", "PURESIGMAPROFILE", "SIGMAPOTENTIAL", "SIGMAPROFILE"}:
-            s.input.property.Nprofile = nprofile if nprofile else 50
-            s.input.property.SigmaMax = sigmamax if sigmamax else 0.025
-
-        return s
-
+    def species_keys(as_summary: bool = False) -> Union[Dict[str, Dict[str, str]], Tuple[str, ...]]:
+        """Return metadata for SPECIES subkeys nested under FORM."""
+        metadata = {key: value.copy() for key, value in CRSJob._SPECIES_KEY_METADATA.items()}
+        if as_summary:
+            return tuple(CRSJob._format_key_metadata(key, value) for key, value in metadata.items())
+        return metadata
 
     @staticmethod
-    def job_settings_template(problem_type: ProblemType) -> Settings:
+    def structure_keys(as_summary: bool = False) -> Union[Dict[str, Dict[str, str]], Tuple[str, ...]]:
+        """Return metadata for STRUCTURE subkeys nested under SPECIES."""
+        metadata = {key: value.copy() for key, value in CRSJob._STRUCTURE_KEY_METADATA.items()}
+        if as_summary:
+            return tuple(CRSJob._format_key_metadata(key, value) for key, value in metadata.items())
+        return metadata
+
+    @staticmethod
+    def job_settings_template(property_type: ProblemType) -> Settings:
         """Return a full default :class:`~scm.plams.core.settings.Settings` object for a COSMO-RS problem type."""
         water = CRSJob._default_database_coskf("Water")
         octanol = CRSJob._default_database_coskf("1-Octanol")
@@ -1094,7 +1764,7 @@ class CRSJob(SCMJob):
         ethanol = CRSJob._default_database_coskf("Ethanol")
         benzene = CRSJob._default_database_coskf("Benzene")
 
-        normalized = CRSJob._normalize_problem_type(problem_type)
+        normalized = CRSJob._normalize_property_type(property_type)
 
         if normalized == "ACTIVITYCOEF":
             s = CRSJob.property_block(normalized)
@@ -1245,13 +1915,15 @@ class CRSJob(SCMJob):
         return s
 
     @staticmethod
-    def cos_to_coskf(filename: str) -> str:
+    def cos_to_coskf(filename: str, filename_out: Optional[str] = None) -> str:
         """Convert a .cos file into a .coskf file with the :code:`$AMSBIN/cosmo2kf` command.
 
         Returns the filename of the new .coskf file.
 
         """
-        filename_out = filename + "kf"
+        if filename_out is None:
+            filename_out = filename + "kf"
+
         try:
             amsbin = os.environ["AMSBIN"]
         except KeyError:
