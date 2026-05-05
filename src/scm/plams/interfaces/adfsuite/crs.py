@@ -3,7 +3,7 @@ import os
 import subprocess
 from itertools import cycle
 from typing import Optional, List, Dict, TYPE_CHECKING, Set, Union, Any, Tuple, Sequence, cast, Literal
-
+import copy
 import numpy as np
 
 from scm.plams.core.settings import Settings
@@ -525,11 +525,12 @@ class CRSJob(SCMJob):
             "top_level_keys": ["temperature", "massfraction"],
             "property_keys": ["densitysolvent"],
             "compound_keys": ["frac1", "density", "pvap", "tvap", "vp_equation", "vp_params"],
-            "system_type": "multisolute",
+            "minimal_required_keys": ["temperature", "frac1"],
+            "system_scope": "solvent_mixture_with_solutes",
             "notes": [
-                "Henry's-law constants depend on solvent molar volume and gas-phase chemical potential.",
+                "Henry's-law constants depend on solvent molar volume and gas-phase pseudochemical potential.",
                 "Solvent molar volume uses densitysolvent first, then pure-compound density/molar-mass data, then COSMO volume estimates.",
-                "Vapor-pressure inputs affect Henry's-law constants through gas-phase chemical-potential corrections.",
+                "Vapor-pressure inputs affect Henry's-law constants through gas-phase pseudochemical potential corrections.",
             ],
         },
         "BINMIXCOEF": {
@@ -537,12 +538,13 @@ class CRSJob(SCMJob):
             "top_level_keys": ["temperature", "pressure", "massfraction"],
             "property_keys": ["nfrac", "isotherm", "isobar", "flashpoint"],
             "compound_keys": ["frac1", "pvap", "tvap", "vp_equation", "vp_params", "flashpoint"],
-            "system_type": "binary",
+            "minimal_required_keys": ["temperature"],
+            "system_scope": "binary_mixture",
             "notes": [
                 "Use only one of isotherm, isobar, or flashpoint at a time.",
                 "isotherm uses temperature; isobar uses pressure; flashpoint uses pure-compound flashpoint inputs.",
                 "The binary mixture is evaluated at  (nfrac+5) compositions.",
-                "Vapor-pressure inputs affect VLE/flash results through gas-phase chemical-potential corrections.",
+                "Vapor-pressure inputs affect VLE/flash results through gas-phase pseudochemical potential corrections.",
             ],
         },
         "BOILINGPOINT": {
@@ -550,9 +552,11 @@ class CRSJob(SCMJob):
             "top_level_keys": ["pressure", "massfraction"],
             "property_keys": [],
             "compound_keys": ["frac1", "pvap", "tvap", "vp_equation", "vp_params"],
-            "system_type": "mixture",
+            "minimal_required_keys": ["temperature"],
+            "system_scope": "mixture",
             "notes": [
-                "Vapor-pressure inputs affect boiling-point results through gas-phase chemical-potential corrections.",
+                "pressure may be a single value or a range specified as '0.1 1.0 10'.",
+                "Vapor-pressure inputs affect boiling-point results through gas-phase pseudochemical potential corrections.",
             ],
         },
         "COMPOSITIONLINE": {
@@ -560,12 +564,13 @@ class CRSJob(SCMJob):
             "top_level_keys": ["temperature", "pressure", "massfraction"],
             "property_keys": ["nfrac", "isotherm", "isobar", "flashpoint"],
             "compound_keys": ["frac1", "frac2", "pvap", "tvap", "vp_equation", "vp_params", "flashpoint"],
-            "system_type": "binary",
+            "minimal_required_keys": ["temperature"],
+            "system_scope": "binary_mixture",
             "notes": [
                 "frac1 and frac2 define the endpoint phase compositions.",
                 "Use only one of isotherm, isobar, or flashpoint at a time.",
                 "The mixture is evaluated at (nfrac+1) compositions.",
-                "Vapor-pressure inputs affect VLE/flash results through gas-phase chemical-potential corrections.",
+                "Vapor-pressure inputs affect VLE/flash results through gas-phase pseudochemical potential corrections.",
             ],
         },
         "FLASHPOINT": {
@@ -573,10 +578,11 @@ class CRSJob(SCMJob):
             "top_level_keys": ["massfraction"],
             "property_keys": [],
             "compound_keys": ["frac1", "flashpoint", "pvap", "tvap", "vp_equation", "vp_params"],
-            "system_type": "mixture",
+            "minimal_required_keys": ["frac1"],
+            "system_scope": "mixture",
             "notes": [
                 "Use pure-compound flashpoint inputs for flammable components.",
-                "Vapor-pressure inputs affect flash results through gas-phase chemical-potential corrections.",
+                "Vapor-pressure inputs affect flash results through gas-phase pseudochemical potential corrections.",
             ],
         },
         "LLE": {
@@ -584,14 +590,16 @@ class CRSJob(SCMJob):
             "top_level_keys": ["temperature", "massfraction"],
             "property_keys": [],
             "compound_keys": ["frac1"],
-            "system_type": "mixture",
+            "minimal_required_keys": ["temperature", "frac1"],
+            "system_scope": "mixture",
         },
         "LOGP": {
             "description": "Partition coefficients between two immiscible solvent phases.",
             "top_level_keys": ["temperature", "massfraction"],
             "property_keys": ["volumequotient"],
             "compound_keys": ["frac1", "frac2", "density"],
-            "system_type": "mixture",
+            "minimal_required_keys": ["temperature", "frac1", "frac2"],
+            "system_scope": "mixture",
             "notes": [
                 "volumequotient sets the solvent-1/solvent-2 molar-volume ratio; otherwise it is estimated from density/molar-mass data or COSMO volumes.",
             ],
@@ -601,9 +609,12 @@ class CRSJob(SCMJob):
             "top_level_keys": ["pressure"],
             "property_keys": [],
             "compound_keys": ["pvap", "tvap", "vp_equation", "vp_params"],
-            "system_type": "pure",
+            "minimal_required_keys": ["pressure"],
+            "system_scope": "pure_compounds",
             "notes": [
-                "Vapor-pressure inputs affect boiling-point results through gas-phase chemical-potential corrections.",
+                "Multiple COMPOUND blocks may be supplied; each compound is treated independently as a pure compound.",
+                "pressure may be a single value or a range specified as '0.1 1.0 10'.",
+                "Vapor-pressure inputs affect boiling-point results through gas-phase pseudochemical potential corrections.",
             ],
         },
         "PURESIGMAPOTENTIAL": {
@@ -611,14 +622,22 @@ class CRSJob(SCMJob):
             "top_level_keys": [],
             "property_keys": ["nprofile", "sigmamax"],
             "compound_keys": ["frac1"],
-            "system_type": "pure",
+            "minimal_required_keys": [],
+            "system_scope": "pure_compounds",
+            "notes": [
+                "Multiple COMPOUND blocks may be supplied; each compound is treated independently as a pure compound.",
+            ],
         },
         "PURESIGMAPROFILE": {
             "description": "Sigma profile for pure compounds.",
             "top_level_keys": [],
             "property_keys": ["nprofile", "sigmamax"],
             "compound_keys": ["frac1"],
-            "system_type": "pure",
+            "minimal_required_keys": [],
+            "system_scope": "pure_compounds",
+            "notes": [
+                "Multiple COMPOUND blocks may be supplied; each compound is treated independently as a pure compound.",
+            ],
         },
         "PURESOLUBILITY": {
             "description": "Solubility of a solute in pure solvents over a temperature range.",
@@ -635,13 +654,15 @@ class CRSJob(SCMJob):
                 "vp_equation",
                 "vp_params",
             ],
-            "system_type": "pure",
+            "minimal_required_keys": ["temperature", "frac1", "meltingpoint", "hfusion"],
+            "system_scope": "pure_solvent_with_solute",
             "notes": [
+                "temperature may be a single value or a range specified as '273.15 373.15 10'.",
                 "Compound density affects solubility reported in volume-based units.",
                 "For solid solutes, provide meltingpoint, hfusion, and optionally cpfusion.",
                 "For liquid solutes, LLE is usually more appropriate.",
                 "For gas solutes, use isobar with pressure set to the solute partial vapor pressure.",
-                "Vapor-pressure inputs affect gas-solubility results through gas-phase chemical-potential corrections.",
+                "Vapor-pressure inputs affect gas-solubility results through gas-phase pseudochemical potential corrections.",
             ],
         },
         "PUREVAPORPRESSURE": {
@@ -649,9 +670,12 @@ class CRSJob(SCMJob):
             "top_level_keys": ["temperature"],
             "property_keys": [],
             "compound_keys": ["pvap", "tvap", "vp_equation", "vp_params"],
-            "system_type": "pure",
+            "minimal_required_keys": ["temperature"],
+            "system_scope": "pure_compounds",
             "notes": [
-                "Vapor-pressure inputs affect vapor-pressure results through gas-phase chemical-potential corrections.",
+                "Multiple COMPOUND blocks may be supplied; each compound is treated independently as a pure compound.",
+                "temperature may be a single value or a range specified as '273.15 373.15 10'.",
+                "Vapor-pressure inputs affect vapor-pressure results through gas-phase pseudochemical potential corrections.",
             ],
         },
         "SIGMAPOTENTIAL": {
@@ -659,19 +683,21 @@ class CRSJob(SCMJob):
             "top_level_keys": ["temperature", "massfraction"],
             "property_keys": ["nprofile", "sigmamax"],
             "compound_keys": ["frac1"],
-            "system_type": "mixture",
+            "minimal_required_keys": ["temperature", "frac1"],
+            "system_scope": "mixture",
         },
         "SIGMAPROFILE": {
             "description": "Sigma profile for a solvent mixture.",
             "top_level_keys": ["temperature", "massfraction"],
             "property_keys": ["nprofile", "sigmamax"],
             "compound_keys": ["frac1"],
-            "system_type": "mixture",
+            "minimal_required_keys": ["temperature", "frac1"],
+            "system_scope": "mixture",
         },
         "SOLUBILITY": {
             "description": "Solubility of solutes in a solvent mixture or under gas-pressure conditions.",
             "top_level_keys": ["temperature", "pressure", "massfraction"],
-            "property_keys": ["DensitySolvent", "isobar"],
+            "property_keys": ["densitysolvent", "isobar"],
             "compound_keys": [
                 "frac1",
                 "meltingpoint",
@@ -683,13 +709,15 @@ class CRSJob(SCMJob):
                 "vp_equation",
                 "vp_params",
             ],
-            "system_type": "multisolute",
+            "minimal_required_keys": ["temperature", "frac1", "meltingpoint", "hfusion"],
+            "system_scope": "solvent_with_solutes",
             "notes": [
-                "DensitySolvent or compound density affects solubility reported in volume-based units.",
+                "temperature may be a single value or a range specified as '273.15 373.15 10'.",
+                "densitysolvent or compound density affects solubility reported in volume-based units.",
                 "For solid solutes, provide meltingpoint, hfusion, and optionally cpfusion.",
                 "For liquid solutes, LLE is usually more appropriate.",
                 "For gas solutes, use isobar with pressure set to the solute partial vapor pressure.",
-                "Vapor-pressure inputs affect gas-solubility results through gas-phase chemical-potential corrections.",
+                "Vapor-pressure inputs affect gas-solubility results through gas-phase pseudochemical potential corrections.",
             ],
         },
         "STABILITY": {
@@ -697,19 +725,21 @@ class CRSJob(SCMJob):
             "top_level_keys": ["temperature", "massfraction"],
             "property_keys": [],
             "compound_keys": ["frac1"],
-            "system_type": "mixture",
+            "minimal_required_keys": ["temperature", "frac1"],
+            "system_scope": "mixture",
         },
         "TERNARYMIX": {
             "description": "Ternary mixture property sweep over composition space.",
             "top_level_keys": ["temperature", "pressure", "massfraction"],
             "property_keys": ["nfrac", "isotherm", "isobar", "flashpoint"],
             "compound_keys": ["frac1", "pvap", "tvap", "vp_equation", "vp_params", "flashpoint"],
-            "system_type": "ternary",
+            "minimal_required_keys": ["temperature"],
+            "system_scope": "ternary_mixture",
             "notes": [
                 "Use only one of isotherm, isobar, or flashpoint at a time.",
                 "isotherm uses temperature; isobar uses pressure; flashpoint uses pure-compound flashpoint inputs.",
                 "The ternary mixture is evaluated at (nfrac+1)*(nfrac+2)/2 compositions.",
-                "Vapor-pressure inputs affect VLE/flash results through gas-phase chemical-potential corrections.",
+                "Vapor-pressure inputs affect VLE/flash results through gas-phase pseudochemical potential corrections.",
             ],
         },
         "VAPORPRESSURE": {
@@ -717,13 +747,22 @@ class CRSJob(SCMJob):
             "top_level_keys": ["temperature", "massfraction"],
             "property_keys": [],
             "compound_keys": ["frac1", "pvap", "tvap", "vp_equation", "vp_params"],
-            "system_type": "mixture",
+            "minimal_required_keys": ["temperature", "frac1"],
+            "system_scope": "mixture",
             "notes": [
-                "Vapor-pressure inputs affect mixture vapor-pressure results through gas-phase chemical-potential corrections.",
+                "temperature may be a single value or a range specified as '273.15 373.15 10'.",
+                "Vapor-pressure inputs affect mixture vapor-pressure results through gas-phase pseudochemical potential corrections.",
             ],
         },
     }
-
+    _PROPERTY_KEY_DEFAULTS = {
+        "isotherm": True,
+        "isobar": False,
+        "flashpoint": False,
+        "nfrac": 10,
+        "nprofile": 50,
+        "sigmamax": 0.025,
+    }
     _METHODS = (
         "COSMORS",
         "COSMO-RS",
@@ -1140,15 +1179,17 @@ class CRSJob(SCMJob):
             key: value.copy() if isinstance(value, list) else value
             for key, value in data.items()
         }
+        # metadata = copy.deepcopy(CRSJob._PROPERTY_TYPE_METADATA[normalized])
         if not as_summary:
             return metadata
 
         summary = [
             f"{normalized}: {metadata['description']}",
-            f"system_type: {metadata['system_type']}",
+            f"system_scope: {metadata['system_scope']}",
             f"top_level_keys: {', '.join(metadata['top_level_keys']) or '-'}",
             f"property_keys: {', '.join(metadata['property_keys']) or '-'}",
             f"compound_keys: {', '.join(metadata['compound_keys']) or '-'}",
+            f"minimal_required_keys: {', '.join(metadata['minimal_required_keys']) or '-'}",
         ]
         for note in metadata.get("notes", []):
             summary.append(f"note: {note}")
@@ -1175,7 +1216,9 @@ class CRSJob(SCMJob):
     def property_block(
         property_type: ProblemType,
         *,
+        include_defaults: bool = False,
         volumequotient: Optional[float] = None,
+        densitysolvent: Optional[float] = None,
         nfrac: Optional[int] = None,
         isotherm: Optional[bool] = None,
         isobar: Optional[bool] = None,
@@ -1183,13 +1226,23 @@ class CRSJob(SCMJob):
         nprofile: Optional[int] = None,
         sigmamax: Optional[float] = None,
     ) -> Settings:
-        """Return only the PROPERTY-block defaults for a COSMO-RS problem type."""
+        """Create a PROPERTY block for a COSMO-RS problem type.
+
+        By default, only the property type and explicitly provided options are written.
+        If an option is omitted, CRS uses the default from the input definition.
+        Pass ``include_defaults=True`` to write the documented PROPERTY defaults explicitly.
+
+        ``densitysolvent`` and ``volumequotient`` are presence-sensitive: if omitted,
+        CRS estimates volume information from COSMO volumes, so they are written only
+        when explicitly provided.
+        """
         normalized = CRSJob._normalize_property_type(property_type)
         s = Settings()
         s.input.property._h = normalized
 
         options = {
             "volumequotient": volumequotient,
+            "densitysolvent": densitysolvent,
             "nfrac": nfrac,
             "isotherm": isotherm,
             "isobar": isobar,
@@ -1199,6 +1252,16 @@ class CRSJob(SCMJob):
         }
         CRSJob._log_unsupported_property_options(normalized, options)
         property_keys = CRSJob._property_type_keys(normalized)
+
+        def get_value(key: str, value: Any) -> Any:
+            if value is not None:
+                return value
+            if include_defaults:
+                return CRSJob._PROPERTY_KEY_DEFAULTS.get(key)
+            return None
+
+        if "densitysolvent" in property_keys and densitysolvent is not None:
+            s.input.property.densitysolvent = densitysolvent
 
         if "volumequotient" in property_keys:
             if volumequotient is not None:
@@ -1211,17 +1274,35 @@ class CRSJob(SCMJob):
                 )
 
         if "nfrac" in property_keys:
-            mode_flags = (("isotherm", isotherm), ("isobar", isobar), ("flashpoint", flashpoint))
+            nfrac_value = get_value("nfrac", nfrac)
+            if nfrac_value is not None:
+                s.input.property.nfrac = nfrac_value
+
+            mode_values = {
+                "isotherm": isotherm,
+                "isobar": isobar,
+                "flashpoint": flashpoint,
+            }
+            if include_defaults and all(value is None for value in mode_values.values()):
+                mode_values["isotherm"] = CRSJob._PROPERTY_KEY_DEFAULTS["isotherm"]
+            mode_flags = (
+                ("isotherm", mode_values["isotherm"]),
+                ("isobar", mode_values["isobar"]),
+                ("flashpoint", mode_values["flashpoint"]),
+            )
             selected_flags = [name for name, enabled in mode_flags if enabled]
             if len(selected_flags) > 1:
                 raise ValueError("Use only one of isotherm, isobar, or flashpoint at a time")
-            selected_profile = selected_flags[0] if selected_flags else "isotherm"
-            s.input.property.nfrac = nfrac if nfrac is not None else 10
-            s.input.property[selected_profile] = ""
+            if selected_flags:
+                s.input.property[selected_flags[0]] = ""
 
         if "nprofile" in property_keys and "sigmamax" in property_keys:
-            s.input.property.nprofile = nprofile if nprofile else 50
-            s.input.property.sigmamax = sigmamax if sigmamax else 0.025
+            nprofile_value = get_value("nprofile", nprofile)
+            sigmamax_value = get_value("sigmamax", sigmamax)
+            if nprofile_value is not None:
+                s.input.property.nprofile = nprofile_value
+            if sigmamax_value is not None:
+                s.input.property.sigmamax = sigmamax_value
 
         if normalized in {"SOLUBILITY", "PURESOLUBILITY"} and isobar:
             s.input.property.isobar = ""
@@ -1382,7 +1463,8 @@ class CRSJob(SCMJob):
         Pass either ``path`` for a single-file compound or ``forms`` for a compound
         with nested FORM blocks.
 
-        Example:
+        Example::
+
             benzene = CRSJob.compound_block(
                 "benzene.coskf",
                 name="benzene",
@@ -1463,7 +1545,8 @@ class CRSJob(SCMJob):
         Pass either ``path`` for a single-file form or ``species`` for a form with
         nested SPECIES blocks.
 
-        Example:
+        Example::
+
             neutral = CRSJob.form_block("lowest_energy_conformer.coskf")
 
             mg = CRSJob.species_block("mg.coskf", name="Mg2+", count=1.0)
@@ -1522,7 +1605,8 @@ class CRSJob(SCMJob):
         Pass either ``path`` for a single-file species or ``structures`` for a species
         with nested STRUCTURE blocks.
 
-        Example:
+        Example::
+
             single_anion = CRSJob.species_block("poly_anion.coskf", name="poly_anion", count=1.0)
 
             structure_a = CRSJob.structure_block("poly_anion_a.coskf", Hcorr=0.0)
@@ -1576,7 +1660,8 @@ class CRSJob(SCMJob):
     ) -> Settings:
         """Create a STRUCTURE settings block from a structure path.
 
-        Example:
+        Example::
+
             structure_a = CRSJob.structure_block(
                 "poly_anion_a.coskf",
                 name="poly_anion conformer A",
