@@ -14,7 +14,7 @@ It helps to create analysis tables, with jobs as rows and "analysis fields" as c
 An analysis field is simply a definition for how to extract a value from each job.
 These tables can then be easily visualized in a Jupyter notebook or script, or exported for use with other analysis packages like `pandas <https://pandas.pydata.org/docs/index.html>`_.
 
-For a worked example demonstrating the capabilities and uses of the |JobAnalysis| class, see :ref:`JobAnalysisExample`.
+For a worked example demonstrating the capabilities and uses of the |JobAnalysis| class, see the `Job analysis example <../../PythonExamples/job-analysis/index.html>`__.
 
 Adding Jobs
 ~~~~~~~~~~~

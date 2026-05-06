@@ -21,7 +21,7 @@ In AMS2025, we recommend using ``packmol_around`` over ``packmol_on_slab`` and `
 * ``packmol_on_slab`` (deprecated, for solid/liquid or solid/gas interfaces with 1 or more components in the fluid)
 * ``packmol_in_void`` (deprecated, for packing molecules inside crystal voids)
 
-See the :ref:`Packmol example <PackMolExample>` for all the ways these functions can be used.
+See the `Packmol example <../../PythonExamples/pack-mol-example/index.html>`__ for all the ways these functions can be used.
 
 The above functions accept an ``executable`` argument, which should
 contain the path to the packmol program. If it is not specified, the path to
