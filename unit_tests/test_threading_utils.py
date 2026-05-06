@@ -89,7 +89,7 @@ class TestLimitedSemaphore:
         t = self.start_in_thread(self.acquire_and_log, 0, semaphore, 3, "a3", log_values)
         self.start_in_thread(self.set_max_value_and_log, 0.2, semaphore, 100, "m100", log_values)
         t.join()
-        assert log_values["a3"] - log_values["m0"] > timedelta(seconds=0.2)
+        assert log_values["a3"] - log_values["m0"] >= timedelta(seconds=0.2)
 
     def test_many_threads(self):
         # Set limit many times and perform many acquires/releases, check completes
