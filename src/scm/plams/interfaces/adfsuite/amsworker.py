@@ -1031,6 +1031,9 @@ class AMSWorker:
             return AMSWorkerResults(name, molecule, {}, exc)
 
     def _prepare_system(self, molecule: Union["Molecule", "ChemicalSystem"]) -> None:
+        if _has_scm_chemsys and isinstance(molecule, ChemicalSystem) and molecule.electrostatic_embedding.is_active():
+            raise JobError("AMSWorker does not support ChemicalSystems with electrostatic embedding.")
+
         # This is a good opportunity to let the worker process know about all the results we no longer need ...
         self._prune_restart_cache()
 

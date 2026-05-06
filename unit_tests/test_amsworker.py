@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 import numpy as np
 import pytest
 
+from scm.plams.core.errors import JobError
 from scm.plams.interfaces.adfsuite.amsworker import AMSWorker, AMSWorkerResults
 from scm.plams.mol.molecule import Molecule
 from scm.plams.tools.units import Units
@@ -154,6 +155,19 @@ class TestAMSWorkerWithHydroxideChemicalSystem(TestAMSWorkerWithHydroxideMolecul
     @property
     def expected_atomic_info(self):
         return ["adf.f=myfrag region=hydroxide,oxygen", "mass=2.0141 adf.f=myfrag region=hydrogen,hydroxide"]
+
+    def test_prepare_system_rejects_electrostatic_embedding(self, mol) -> None:
+        mol.electrostatic_embedding.add_multipole([1.0, 2.0, 3.0], [-1.0])
+
+        worker = AMSWorker.__new__(AMSWorker)
+        worker._prune_restart_cache = MagicMock()
+        worker._call = MagicMock()
+
+        with pytest.raises(JobError, match="electrostatic embedding"):
+            worker._prepare_system(mol)
+
+        worker._prune_restart_cache.assert_not_called()
+        worker._call.assert_not_called()
 
 
 class TestAMSWorkerWithWaterMolecule(PrepareSystemTestBase):
