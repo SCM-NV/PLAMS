@@ -77,11 +77,11 @@ class ADFFragmentResults(Results):
                 match = Units.convert(float(match[match_position].split()[split_position]), "au", unit)
                 ret[key] = match
 
-        try_grep_result("E_int", "Total Bonding Energy:", match_position=-2)
-        try_grep_result("E_int_disp", "Dispersion Energy:")
-        try_grep_result("E_Pauli", "Pauli Repulsion (Delta")
-        try_grep_result("E_elstat", "Electrostatic Interaction:")
-        try_grep_result("E_orb", "Total Orbital Interactions:")
+        try_grep_result("E_int", "Total Bonding Energy:", match_position=-2, split_position=3)
+        try_grep_result("E_int_disp", "Dispersion Energy:", split_position=2)
+        try_grep_result("E_Pauli", "Pauli Repulsion (Delta", split_position=4)
+        try_grep_result("E_elstat", "Electrostatic Interaction:", split_position=2)
+        try_grep_result("E_orb", "Total Orbital Interactions:", split_position=3)
 
         ret["E_1"] = res1.get_energy(unit=unit)
         ret["E_2"] = res2.get_energy(unit=unit)
