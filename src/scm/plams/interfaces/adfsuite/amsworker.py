@@ -39,19 +39,24 @@ from scm.plams.interfaces.adfsuite.ams import AMSJob
 from scm.plams.interfaces.molecule.ase import toASE
 from scm.plams.tools.units import Units
 from scm.plams.core.threading_utils import ContextAwareThread
+from scm.plams.mol.molecule import Molecule
 
 if TYPE_CHECKING:
-    from scm.plams.mol.molecule import Molecule
     from ase import Atoms as ASEAtoms
     from scm.amspipe import AMSPipeError
     import psutil
 
-try:
+if TYPE_CHECKING:
     from scm.base import ChemicalSystem
 
-    _has_scm_chemsys = True
-except ImportError:
-    _has_scm_chemsys = False
+    _has_scm_chemsys: bool
+else:
+    try:
+        from scm.base import ChemicalSystem
+
+        _has_scm_chemsys = True
+    except ImportError:
+        _has_scm_chemsys = False
 
 T = TypeVar("T")
 TSelf = TypeVar("TSelf", bound="AMSWorker")
@@ -157,6 +162,7 @@ class AMSWorkerResults:
         if _has_scm_chemsys and isinstance(molecule, ChemicalSystem):
             self._input_system = molecule
         else:
+            assert isinstance(molecule, Molecule)
             self._input_molecule = molecule
 
         self._name = name
@@ -279,7 +285,7 @@ class AMSWorkerResults:
             system_block = str(self._input_system)
             ams_job = AMSJob.from_input(text_input=system_block)
             self._input_molecule = list(ams_job.molecule.values())[0]  # type: ignore[operator,union-attr]
-
+        assert self._input_molecule is not None
         return self._input_molecule.copy()
 
     @requires_optional_package("scm.base")
@@ -1055,6 +1061,7 @@ class AMSWorker:
                 bond_orders = None
 
         else:
+            assert isinstance(molecule, Molecule)
             symbols = np.asarray([atom.symbol for atom in molecule])
             coords = molecule.as_array()
             charge = float(molecule.properties.charge) if "charge" in molecule.properties else 0.0
