@@ -221,7 +221,7 @@ def input_to_settings(
         return input_settings, lines
 
     input_parser = parser or InputParserFacade()
-    if program in ["ams", "acerxn"]:
+    if program in ["ams", "acerxn", "conformers"]:
         # Settings for the program are special:
         # * Root level input needs to go under settings.input.ams.
         # * Engine block needs to go  to settings.input.%engine% where
