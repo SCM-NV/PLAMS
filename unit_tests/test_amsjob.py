@@ -116,7 +116,7 @@ EndEngine
         job_path = test_folder / "plams_workdir" / "test_pickle"
 
         try:
-            results = job.run()
+            job.run()
             if not job.ok():
                 raise Exception
         except Exception:
