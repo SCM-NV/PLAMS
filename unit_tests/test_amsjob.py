@@ -113,20 +113,20 @@ EndEngine
         # Given job with molecule and settings
 
         job = AMSJob(molecule=job_input.molecule, settings=job_input.settings, name="test_pickle")
-        job_path = test_folder/"plams_workdir"/"test_pickle"
+        job_path = test_folder / "plams_workdir" / "test_pickle"
 
         try:
-          raise Exception
-          # results = job.run()
-          # if not job.ok(): raise Exception
+            results = job.run()
+            if not job.ok():
+                raise Exception
         except Exception:
-          print("Warning: The calculation FAILED likely because AMS executable is not available!")
-          print("         So let's load precalculated results.")
-          job_path = test_folder/"result_test_pickle"
+            # The calculation FAILED likely because AMS executable is not available!
+            # So, let's load precalculated results
+            job_path = test_folder / "result_test_pickle"
 
         job_loaded = AMSJob.load_external(path=job_path)
 
-        assert abs(job_loaded.results.get_energy()+5.766288141081061)<1e-8
+        assert abs(job_loaded.results.get_energy() + 5.766288141081061) < 1e-8
 
     def test_get_input_generates_expected_input_string(self, job_input):
         # Given job with molecule and settings
