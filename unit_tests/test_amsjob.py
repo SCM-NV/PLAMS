@@ -112,7 +112,7 @@ EndEngine
     def test_pickle_dumps_and_loads_job_across_platforms_successfully(self, test_folder, job_input):
         # Given job with molecule and settings
 
-        molecule = Molecule(test_folder/"xyz/water.xyz")
+        molecule = Molecule(test_folder / "xyz/water.xyz")
         job = AMSJob(molecule=molecule, settings=job_input.settings, name="test_pickle")
         job_path = test_folder / "plams_workdir" / "test_pickle"
 
