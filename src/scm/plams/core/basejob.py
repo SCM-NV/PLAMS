@@ -957,7 +957,7 @@ class MultiJob(Job, Generic[J]):
         if self.status != JobStatus.CREATED:
             self.results.wait()
 
-        for child in [c for c in self.children]:
+        for child in [c for c in self.children] if isinstance(self.children, list) else self.children.values():
             child.delete()
             self.remove_child(child)
 
