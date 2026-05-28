@@ -836,9 +836,9 @@ class MultiJob(Job, Generic[J]):
     Private attributes ``_active_children`` and ``_lock`` are essential for proper parallel execution. Please do not modify them.
     """
 
-    def __init__(self, children: Optional[List[J]] = None, childrunner: Optional["JobRunner"] = None, **kwargs: Any):
+    def __init__(self, children: Optional[Union[List[J], Dict[str, J]]] = None, childrunner: Optional["JobRunner"] = None, **kwargs: Any):
         Job.__init__(self, **kwargs)
-        self.children: List[J] = [] if children is None else children
+        self.children: Union[List[J], Dict[str, J]] = [] if children is None else children
         self.childrunner = childrunner
         self._active_children = 0
         self._lock = threading.Lock()
