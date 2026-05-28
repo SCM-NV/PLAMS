@@ -21,6 +21,8 @@ from typing import (
     Any,
     Iterator,
     Set,
+    Generic,
+    cast,
 )
 from typing_extensions import ParamSpec, ParamSpecKwargs, Concatenate
 from abc import ABC, abstractmethod
@@ -810,7 +812,7 @@ class SingleJob(Job):
 # ===========================================================================
 
 
-class MultiJob(Job):
+class MultiJob(Job, Generic[J]):
     """Concrete class representing a job that is a container for other jobs.
 
     In addition to constructor arguments and attributes defined by |Job|, the constructor of this class accepts two keyword arguments:
@@ -834,14 +836,14 @@ class MultiJob(Job):
     Private attributes ``_active_children`` and ``_lock`` are essential for proper parallel execution. Please do not modify them.
     """
 
-    def __init__(self, children: Optional[List[Job]] = None, childrunner: Optional["JobRunner"] = None, **kwargs: Any):
+    def __init__(self, children: Optional[List[J]] = None, childrunner: Optional["JobRunner"] = None, **kwargs: Any):
         Job.__init__(self, **kwargs)
-        self.children: List[Job] = [] if children is None else children
+        self.children: List[J] = [] if children is None else children
         self.childrunner = childrunner
         self._active_children = 0
         self._lock = threading.Lock()
 
-    def new_children(self) -> Optional[Union[List[Job], Dict[str, Job]]]:
+    def new_children(self) -> Optional[Union[List[J], Dict[str, J]]]:
         """Generate new children jobs.
 
         This method is useful when some of children jobs are not known beforehand and need to be generated based on other children jobs, like for example in any kind of self-consistent procedure.
@@ -860,7 +862,7 @@ class MultiJob(Job):
         """Check if the execution of this instance was successful, by calling :meth:`Job.ok` of all the children jobs."""
         return all([child.ok() for child in self])
 
-    def other_jobs(self) -> Generator[Job, None, None]:
+    def other_jobs(self) -> Generator[J, None, None]:
         """Iterate through other jobs that belong to this |MultiJob|, but are not in ``children``.
 
         Sometimes |prerun| or |postrun| methods create and run some small jobs that don't end up in ``children`` collection, but are still considered a part of a |MultiJob| instance (their ``parent`` atribute points to the |MultiJob| and their working folder is inside MultiJob's working folder). This method provides an iterator that goes through all such jobs.
@@ -871,9 +873,9 @@ class MultiJob(Job):
             if isinstance(attr, Job) and (
                 (hasattr(attr, "parent") and attr.parent == self) or not hasattr(attr, "parent")
             ):
-                yield attr
+                yield cast(J, attr)
 
-    def remove_child(self, job: Job) -> None:
+    def remove_child(self, job: J) -> None:
         """Remove *job* from children."""
 
         rm = None
@@ -893,7 +895,7 @@ class MultiJob(Job):
         for child in self:
             child.parent = self
 
-    def __iter__(self) -> Iterator[Job]:
+    def __iter__(self) -> Iterator[J]:
         """Iterate through ``children``. If it is a dictionary, iterate through its values."""
         if isinstance(self.children, dict):
             return iter(self.children.values())
@@ -923,7 +925,7 @@ class MultiJob(Job):
 
             if isinstance(new, dict) and isinstance(self.children, dict):
                 self.children.update(new)
-                it: Iterable[Job] = new.values()
+                it: Iterable[J] = new.values()
             elif isinstance(new, list) and isinstance(self.children, list):
                 self.children += new
                 it = new
