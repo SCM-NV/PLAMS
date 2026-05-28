@@ -964,7 +964,7 @@ class MultiJob(Job, Generic[J]):
         super().delete()
 
     @classmethod
-    def apply_to_children(cls, job: Job, func: Callable[[Job], None], recursive: bool = False) -> None:
+    def apply_to_children(cls, job: J, func: Callable[[J], None], recursive: bool = False) -> None:
         """
         Apply the function ``func`` to all children of a |MultiJob| (not the job itself).
         This is a no-op if the job is a |SingleJob|.
