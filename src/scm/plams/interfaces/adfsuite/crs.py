@@ -2,21 +2,35 @@ import inspect
 import os
 import subprocess
 from itertools import cycle
-from typing import Optional, List, Dict, TYPE_CHECKING, Set, Union, Any, Tuple, Sequence, cast, Literal
-import copy
+from typing import (
+    Optional,
+    List,
+    Dict,
+    TYPE_CHECKING,
+    Set,
+    Union,
+    Any,
+    Tuple,
+    Sequence,
+    cast,
+    Literal,
+    NamedTuple,
+)
 import numpy as np
 
 from scm.plams.core.settings import Settings
 from scm.plams.interfaces.adfsuite.scmjob import SCMJob, SCMResults
 from scm.plams.tools.units import Units
 from scm.plams.core.functions import log
+from scm.plams.tools.kftools import KFFile
+
 from pathlib import Path
 
 if TYPE_CHECKING:
     import pandas as pd
     from matplotlib.figure import Figure
 
-__all__ = ["CRSResults", "CRSJob"]
+__all__ = ["CRSResults", "CRSJob", "CRSResultTables"]
 
 ProblemType = Literal[
     "ACTIVITYCOEF",
@@ -40,11 +54,219 @@ ProblemType = Literal[
 ]
 
 
+class CRSResultTables(NamedTuple):
+    """Container returned by :meth:`CRSResults.get_result_table` with ``split=True``."""
+
+    component: "pd.DataFrame"
+    mixture: Optional["pd.DataFrame"]
+    lle: Optional["pd.DataFrame"]
+
+
 class CRSResults(SCMResults):
     """A |SCMResults| subclass for accessing results of |CRSJob|."""
 
     _kfext = ".crskf"
     _rename_map = {"CRSKF": "$JN.crskf"}
+    _RESULT_TABLE_UNSUPPORTED_PROPERTIES = {
+        "SIGMAPROFILE", "PURESIGMAPROFILE", "SIGMAPOTENTIAL", "PURESIGMAPOTENTIAL",
+    }
+    _RESULT_TABLE_LLE_PROPERTIES = {"LLE", "STABILITY", "BINMIXCOEF", "TERNARYMIX"}
+    _RESULT_TABLE_COMPONENT_BASE_COLUMNS = ("property", "mixture", "cid", "name",)
+    _RESULT_TABLE_LLE_BASE_COLUMNS = ("property", "mixture", "tie_line", "cid", "name",)
+
+    _RESULT_TABLE_COMPONENT_DEFAULT_QUANTITIES = (
+        "frac1",
+        "frac2",
+        "solvent fraction",
+        "composition molar fraction",
+        "gamma",
+        "logp",
+        "vapor pressure",
+        "henryc",
+        "henrycnodim",
+        "deltag",
+        "solubility molar fraction",
+        "solubility massfrac",
+        "solubility mol_per_L_solvent",
+        "solubility g_per_L_solvent",
+        "solubility mol_per_L_solution",
+        "solubility g_per_L_solution",
+    )
+    _RESULT_TABLE_COMPONENT_EXTRA_QUANTITIES = (
+        "mu",
+        "mu pure",
+        "mu gas",
+        "mu in solvent 1",
+        "mu in solvent 2",
+        "xI0",
+        "xII0",
+        "E gas",
+        "G solute",
+        "gamma_wf",
+        "gamma_vf",
+        "fh_chi",
+        "poly fraction",
+        "polyrepeats",
+    )
+    _RESULT_TABLE_COMPONENT_KNOWN_QUANTITIES = tuple(
+        dict.fromkeys(
+            _RESULT_TABLE_COMPONENT_DEFAULT_QUANTITIES
+            + _RESULT_TABLE_COMPONENT_EXTRA_QUANTITIES
+        )
+    )
+    _RESULT_TABLE_COMPONENT_EXCLUDED_BY_PROPERTY = {
+        "LLE": ("gamma",),
+        "STABILITY": ("gamma",),
+    }
+    _RESULT_TABLE_MIXTURE_DEFAULT_QUANTITIES = (
+        "temperature",
+        "pressure",
+        "excess G",
+        "excess H",
+        "Gibbs energy of mixing",
+        "Enthalpy of vaporization",
+        "showmiscgap",
+        "unstable",
+        "converged",
+        "phiI",
+        "phiII",
+        "tpd_w",
+        "isobar",
+        "flashpoint",
+    )
+    _RESULT_TABLE_MIXTURE_EXTRA_QUANTITIES = (
+        "Gibbs energy",
+        "status_msg",
+        "llle_detected",
+        "xI_unstable",
+        "xII_unstable",
+        "tpd_w_I",
+        "tpd_w_II",
+        "llle_source_phase",
+        "llle_status_msg",
+        "conv_code",
+        "L_conv_code",
+        "L_status_msg",
+    )
+    _RESULT_TABLE_MIXTURE_KNOWN_QUANTITIES = tuple(
+        dict.fromkeys(
+            _RESULT_TABLE_MIXTURE_DEFAULT_QUANTITIES
+            + _RESULT_TABLE_MIXTURE_EXTRA_QUANTITIES
+        )
+    )
+
+    _RESULT_TABLE_LLE_COLUMN_SPECS = {
+        "x": {"quantities": ("x",), "kind": "component"},
+        "temperature": {"quantities": ("temperature", "xlle"), "kind": "mixture"},
+        "xI": {"quantities": ("xI", "xlle", "xll"), "kind": "component"},
+        "xII": {"quantities": ("xII", "xlle", "xll"), "kind": "component"},
+        "gammaI": {"quantities": ("gammaI",), "kind": "component"},
+        "gammaII": {"quantities": ("gammaII",), "kind": "component"},
+        "actI": {"quantities": ("actI",), "kind": "component"},
+        "actII": {"quantities": ("actII",), "kind": "component"},
+        "converged": {"quantities": ("converged",), "kind": "mixture"},
+        "act_interp": {"quantities": ("xlle", "actxll"), "kind": "derived"},
+        "pressure": {"quantities": ("xlle", "pressure"), "kind": "derived"},
+        "w_min": {"quantities": ("w_min",), "kind": "component", "extra": True},
+        "status_msg": {"quantities": ("status_msg",), "kind": "mixture", "extra": True},
+    }
+    _RESULT_TABLE_LLE_DEFAULT_QUANTITIES = tuple(
+        dict.fromkeys(
+            quantity
+            for spec in _RESULT_TABLE_LLE_COLUMN_SPECS.values()
+            if not spec.get("extra")
+            for quantity in spec["quantities"]
+        )
+    )
+    _RESULT_TABLE_LLE_EXTRA_QUANTITIES = tuple(
+        dict.fromkeys(
+            quantity
+            for spec in _RESULT_TABLE_LLE_COLUMN_SPECS.values()
+            if spec.get("extra")
+            for quantity in spec["quantities"]
+        )
+    )
+    _RESULT_TABLE_LLE_KNOWN_QUANTITIES = tuple(
+        dict.fromkeys(
+            _RESULT_TABLE_LLE_DEFAULT_QUANTITIES
+            + _RESULT_TABLE_LLE_EXTRA_QUANTITIES
+        )
+    )
+    _RESULT_TABLE_QUANTITY_METADATA = {
+        "frac1": {"symbol": "x", "name": "Feed molar composition", "unit": "fraction"},
+        "x": {"symbol": "x", "name": "Feed molar composition", "unit": "fraction"},
+        "frac2": {"symbol": "x_2", "name": "Second feed molar composition", "unit": "fraction"},
+        "composition molar fraction": {"symbol": "x_calc", "name": "Calculated molar composition", "unit": "fraction"},
+        "solvent fraction": {"symbol": "x_solvent", "name": "Solvent fraction", "unit": "fraction"},
+        "poly fraction": {"symbol": "x_poly", "name": "Polymer fraction", "unit": "fraction"},
+        "gamma": {"symbol": "gamma", "name": "Activity coefficient", "unit": "dimensionless"},
+        "gammaI": {"symbol": "gamma_I", "name": "Activity coefficient in phase I", "unit": "dimensionless"},
+        "gammaII": {"symbol": "gamma_II", "name": "Activity coefficient in phase II", "unit": "dimensionless"},
+        "gamma_wf": {"symbol": "gamma_wf", "name": "Weight-fraction activity coefficient", "unit": "dimensionless"},
+        "gamma_vf": {"symbol": "gamma_vf", "name": "Volume-fraction activity coefficient", "unit": "dimensionless"},
+        "logp": {"symbol": "logP", "name": "Log10 partition coefficient", "unit": "dimensionless"},
+        "fh_chi": {"symbol": "chi_FH", "name": "Flory-Huggins chi", "unit": "dimensionless"},
+        "mu": {"symbol": "mu", "name": "Pseudo-chemical potential", "unit": "kcal/mol", "note": "Not a true chemical potential and does not include the ideal mixing term."},
+        "mu pure": {"symbol": "mu_pure", "name": "Pure liquid-phase pseudo-chemical potential", "unit": "kcal/mol"},
+        "mu gas": {"symbol": "mu_gas", "name": "Gas-phase pseudo-chemical potential", "unit": "kcal/mol", "note": "Gas-phase reference pseudo-chemical potential, optionally refined using input vapor pressure data."},
+        "mu in solvent 1": {"symbol": "mu_solv_1", "name": "Pseudo-chemical potential in solvent 1", "unit": "kcal/mol"},
+        "mu in solvent 2": {"symbol": "mu_solv_2", "name": "Pseudo-chemical potential in solvent 2", "unit": "kcal/mol"},
+        "E gas": {"symbol": "E_gas", "name": "Gas-phase energy", "unit": "kcal/mol"},
+        "G solute": {"symbol": "G_solute", "name": "Solute pseudo-energy", "unit": "kcal/mol", "note": "Computed as gas-phase energy plus solvation free energy."},
+        "excess G": {"symbol": "G_excess", "name": "Excess Gibbs energy", "unit": "kcal/mol"},
+        "excess H": {"symbol": "H_excess", "name": "Excess enthalpy", "unit": "kcal/mol"},
+        "Gibbs energy": {"symbol": "G_CRS", "name": "Pseudo-Gibbs energy", "unit": "kcal/mol", "note": "Computed as a composition-weighted sum of pseudo-chemical potentials plus the ideal mixing term; not a true thermodynamic Gibbs energy."},
+        "Gibbs energy of mixing": {"symbol": "DeltaG_mix", "name": "Gibbs energy of mixing", "unit": "kcal/mol"},
+        "Enthalpy of vaporization": {"symbol": "DeltaH_vap", "name": "Enthalpy of vaporization", "unit": "kcal/mol"},
+        "deltag": {"symbol": "DeltaG_solv", "name": "Solvation free energy", "unit": "kcal/mol", "note": "Computed as mu - mu_gas plus a gas-to-solution standard-state Gibbs energy correction; affected by input density or solvent density."},
+        "vapor pressure": {"symbol": "p_vap", "name": "Vapor pressure", "unit": "bar"},
+        "henryc": {"symbol": "H", "name": "Henry's law constant", "unit": "mol/(L atm)", "note": "Henry's law constant computed as exp((mu_gas - mu)/RT) divided by the solvent molar volume."},
+        "henrycnodim": {"symbol": "H_cc", "name": "Dimensionless Henry's law constant", "unit": "dimensionless"},
+        "temperature": {"symbol": "T", "name": "Temperature", "unit": "K"},
+        "pressure": {"symbol": "P", "name": "Pressure", "unit": "bar"},
+        "isobar": {"symbol": "isobar", "name": "Isobaric", "unit": ""},
+        "flashpoint": {"symbol": "flashpoint", "name": "Flash-point calculation", "unit": ""},
+        "showmiscgap": {"symbol": "misc_gap", "name": "Miscibility gap detected", "unit": "", "note": "Estimated by interpolation."},
+        "unstable": {"symbol": "unstable", "name": "TPD unstable", "unit": "", "note": "Indicates instability from the tangent-plane distance test."},
+        "converged": {"symbol": "converged", "name": "LLE converged", "unit": ""},
+        "status_msg": {"symbol": "status", "name": "Status message", "unit": ""},
+        "w_min": {"symbol": "w_min", "name": "Trial-phase composition minimizing TPD(w)", "unit": "fraction"},
+        "tpd_w": {"symbol": "TPD_min", "name": "Minimum tangent-plane distance", "unit": ""},
+        "phiI": {"symbol": "phi_I", "name": "Phase I fraction", "unit": "fraction"},
+        "phiII": {"symbol": "phi_II", "name": "Phase II fraction", "unit": "fraction"},
+        "actI": {"symbol": "a_I", "name": "Activity in phase I", "unit": "dimensionless"},
+        "actII": {"symbol": "a_II", "name": "Activity in phase II", "unit": "dimensionless"},
+        "act_interp": {
+            "symbol": "a*",
+            "name": "Interpolated activity",
+            "unit": "dimensionless",
+            "note": "Estimated from interpolated miscibility-gap data; not from a full LLE calculation.",
+        },
+        "xI": {"symbol": "x_I", "name": "Molar composition in phase I", "unit": "fraction"},
+        "xII": {"symbol": "x_II", "name": "Molar composition in phase II", "unit": "fraction"},
+        "solution molar fraction": {"symbol": "x_sol", "name": "Solubility molar fraction", "unit": "fraction", "note": "Equilibrium molar-fraction solubility; density is only used for volume-based solubilities."},
+        "solubility mol_per_L_solvent": {
+            "symbol": "S_mol_L_solvent",
+            "name": "Solubility in moles per L solvent",
+            "unit": "mol/L solvent",
+        },
+        "solubility g_per_L_solvent": {
+            "symbol": "S_g_L_solvent",
+            "name": "Solubility in grams per L solvent",
+            "unit": "g/L solvent",
+        },
+        "solubility mol_per_L_solution": {
+            "symbol": "S_mol_L_solution",
+            "name": "Solubility in moles per L solution",
+            "unit": "mol/L solution",
+        },
+        "solubility g_per_L_solution": {
+            "symbol": "S_g_L_solution",
+            "name": "Solubility in grams per L solution",
+            "unit": "g/L solution",
+        },
+        "solubility massfrac": {"symbol": "w_solubility", "name": "Solubility mass fraction", "unit": "fraction"},
+    }
 
     @property
     def section(self) -> str:
@@ -145,6 +367,7 @@ class CRSResults(SCMResults):
 
         np_dict: Dict[str, Any] = {"section": section}
         np_dict["ncomp"] = ncomp
+        np_dict["nitems"] = nitems
         chunk_length = 160
         for prop in props:
             tmp = self.readkf(section, prop)
@@ -173,6 +396,469 @@ class CRSResults(SCMResults):
 
         setattr(self, "_prop_dict", np_dict)
         return np_dict
+
+    def get_result_table(
+        self,
+        section: Optional[str] = None,
+        quantities: Union[str, Sequence[str]] = "default",
+        split: bool = False,
+        column_labels: Literal["raw", "key", "symbol", "name", "name_unit"] = "name",
+    ) -> Union["pd.DataFrame", CRSResultTables]:
+        """Return CRS property results as user-friendly pandas dataframe(s).
+
+        By default, this method returns one combined dataframe with one row per
+        ``(mixture, cid)`` pair. With ``split=True`` it returns separate component,
+        mixture, and LLE tables. Sigma profile and sigma potential sections are
+        intentionally handled by :meth:`get_sigma_profile` and
+        :meth:`get_sigma_potential` instead. Quantity selection always uses raw
+        CRS result keys; ``column_labels`` only controls the returned dataframe
+        column names.
+        """
+        pd = self._import_pandas(self.__class__.__name__ + ".get_result_table")
+
+        column_labels = self._normalize_column_label_mode(column_labels)
+        results = self.get_results(section)
+        property_name = self._result_property_name(results, section)
+        if property_name in self._RESULT_TABLE_UNSUPPORTED_PROPERTIES:
+            raise NotImplementedError(
+                "{} results are not supported by get_result_table(); use get_sigma_profile() "
+                "or get_sigma_potential() instead.".format(property_name)
+            )
+
+        component_quantities, mixture_quantities, lle_quantities = self._select_result_table_quantities(
+            results, property_name, quantities
+        )
+        component_names = self._resolve_component_names(results, int(results["ncomp"]))
+        component = self._build_result_component_table(pd, results, property_name, component_quantities, component_names)
+        mixture = self._build_result_mixture_table(pd, results, property_name, mixture_quantities)
+        lle = self._build_result_lle_table(pd, results, property_name, lle_quantities, component_names)
+
+        if split:
+            return CRSResultTables(
+                component=self._rename_column_labels(component, column_labels),
+                mixture=self._rename_column_labels(mixture, column_labels),
+                lle=self._rename_column_labels(lle, column_labels),
+            )
+
+        if mixture is None:
+            return self._rename_column_labels(component, column_labels)
+        combined = component.merge(mixture, on=["property", "mixture"], how="left")
+        return self._rename_column_labels(combined, column_labels)
+
+    def get_result_table_metadata(
+        self,
+        section: Optional[str] = None,
+        quantities: Union[str, Sequence[str]] = "default",
+        split: bool = False,
+    ) -> Union["pd.DataFrame", CRSResultTables]:
+        """Return metadata describing CRS result table quantity columns.
+
+        The returned dataframe describes raw CRS quantity keys, their table type,
+        symbol, descriptive name, unit, and optional note. Quantity selection uses
+        the same raw CRS result keys and defaults as :meth:`get_result_table`.
+        """
+        pd = self._import_pandas(self.__class__.__name__ + ".get_result_table_metadata")
+
+        results = self.get_results(section)
+        property_name = self._result_property_name(results, section)
+        if property_name in self._RESULT_TABLE_UNSUPPORTED_PROPERTIES:
+            raise NotImplementedError(
+                "{} results are not supported by get_result_table_metadata(); use get_sigma_profile() "
+                "or get_sigma_potential() instead.".format(property_name)
+            )
+
+        component_quantities, mixture_quantities, lle_quantities = self._select_result_table_quantities(
+            results, property_name, quantities
+        )
+        lle_columns = self._select_lle_columns(results, property_name, lle_quantities)
+        component = self._build_quantity_metadata_table(pd, "component", component_quantities)
+        mixture = self._build_quantity_metadata_table(pd, "mixture", mixture_quantities)
+        lle = self._build_quantity_metadata_table(pd, "lle", lle_columns)
+
+        if split:
+            return CRSResultTables(component=component, mixture=mixture, lle=lle)
+
+        return pd.concat([component, mixture, lle], ignore_index=True)
+
+    @staticmethod
+    def _normalize_column_label_mode(column_labels: str) -> str:
+        if column_labels == "key":
+            return "raw"
+        allowed = {"raw", "symbol", "name", "name_unit"}
+        if column_labels not in allowed:
+            raise ValueError("column_labels must be one of: raw, symbol, name, name_unit")
+        return column_labels
+
+    @staticmethod
+    def _result_property_name(results: dict, section: Optional[str]) -> str:
+        property_value = results.get("property", section)
+        if property_value is None:
+            raise KeyError("Cannot determine CRS property name.")
+        return str(property_value).rstrip().upper()
+
+    def _format_column_label(self, key: str, column_labels: str) -> str:
+        if column_labels == "raw" or key in {"property", "mixture", "cid", "name", "molmass", "tie_line"}:
+            return key
+
+        metadata = self._RESULT_TABLE_QUANTITY_METADATA.get(key)
+        if metadata is None:
+            return key
+
+        if column_labels == "symbol":
+            return metadata.get("symbol") or key
+        if column_labels == "name":
+            return metadata.get("name") or key
+
+        name = metadata.get("name") or key
+        unit = metadata.get("unit")
+        return "{} [{}]".format(name, unit) if unit else name
+
+    def _rename_column_labels(self, df: Optional["pd.DataFrame"], column_labels: str) -> Optional["pd.DataFrame"]:
+        if df is None:
+            return None
+        return df.rename(columns={column: self._format_column_label(column, column_labels) for column in df.columns})
+
+    def _build_quantity_metadata_table(self, pd: Any, table: str, quantities: Sequence[str]) -> "pd.DataFrame":
+        columns = ["table", "quantity", "symbol", "name", "unit", "note"]
+        rows = []
+        for quantity in quantities:
+            metadata = self._RESULT_TABLE_QUANTITY_METADATA.get(quantity, {})
+            rows.append(
+                {
+                    "table": table,
+                    "quantity": quantity,
+                    "symbol": metadata.get("symbol") or quantity,
+                    "name": metadata.get("name") or quantity,
+                    "unit": metadata.get("unit") or "",
+                    "note": metadata.get("note") or "",
+                }
+            )
+        return pd.DataFrame(rows, columns=columns)
+
+    def _filter_component_quantities(
+        self, property_name: str, quantities: Sequence[str]
+    ) -> Tuple[str, ...]:
+        excluded = set(self._RESULT_TABLE_COMPONENT_EXCLUDED_BY_PROPERTY.get(property_name, ()))
+        return tuple(q for q in quantities if q not in excluded)
+
+    def _select_result_table_quantities(
+        self, results: dict, property_name: str, quantities: Union[str, Sequence[str]]
+    ) -> Tuple[Tuple[str, ...], Tuple[str, ...], Tuple[str, ...]]:
+        available_component, available_mixture, available_lle = self._available_result_table_quantities(
+            results, property_name
+        )
+
+        if quantities == "default":
+            component = tuple(q for q in self._RESULT_TABLE_COMPONENT_DEFAULT_QUANTITIES if q in results)
+            component = self._filter_component_quantities(property_name, component)
+            mixture = tuple(q for q in self._RESULT_TABLE_MIXTURE_DEFAULT_QUANTITIES if q in results)
+            lle = (
+                tuple(q for q in self._RESULT_TABLE_LLE_DEFAULT_QUANTITIES if q in results)
+                if property_name in self._RESULT_TABLE_LLE_PROPERTIES
+                else ()
+            )
+            return component, mixture, lle
+
+        if quantities == "all":
+            component = tuple(q for q in self._RESULT_TABLE_COMPONENT_KNOWN_QUANTITIES if q in results)
+            component = self._filter_component_quantities(property_name, component)
+            mixture = tuple(q for q in self._RESULT_TABLE_MIXTURE_KNOWN_QUANTITIES if q in results)
+            lle = (
+                tuple(q for q in self._RESULT_TABLE_LLE_KNOWN_QUANTITIES if q in results)
+                if property_name in self._RESULT_TABLE_LLE_PROPERTIES
+                else ()
+            )
+            return component, mixture, lle
+
+        if isinstance(quantities, str):
+            raise ValueError("quantities must be 'default', 'all', or a sequence of quantity names.")
+
+        requested = tuple(quantities)
+        known = set(available_component) | set(available_mixture) | set(available_lle)
+        unknown = sorted(set(requested) - known)
+        if unknown:
+            available = ", ".join(sorted(known))
+            raise KeyError("Unknown CRS result quantity/quantities: {}. Available quantities: {}".format(unknown, available))
+
+        component = tuple(q for q in requested if q in available_component)
+        component = self._filter_component_quantities(property_name, component)
+        mixture = tuple(q for q in requested if q in available_mixture)
+        lle = tuple(q for q in requested if q in available_lle)
+        return component, mixture, lle
+
+    def _available_result_table_quantities(
+        self, results: dict, property_name: str
+    ) -> Tuple[Tuple[str, ...], Tuple[str, ...], Tuple[str, ...]]:
+        non_quantity_keys = {
+            "section",
+            "property",
+            "ncomp",
+            "nitems",
+            "name",
+            "filename",
+            "molmass",
+            "usepolyunits",
+            "mixture",
+            "nstruct",
+            "valid structs",
+            "nvalid structs",
+            "comp distribution",
+            "struct names",
+            "ntriangle",
+            "triangle",
+        }
+        component: List[str] = []
+        mixture: List[str] = []
+        lle: List[str] = []
+
+        for key in results:
+            if key in non_quantity_keys:
+                continue
+            if (
+                property_name in self._RESULT_TABLE_LLE_PROPERTIES
+                and key in self._RESULT_TABLE_LLE_KNOWN_QUANTITIES
+            ):
+                lle.append(key)
+            if key in self._RESULT_TABLE_MIXTURE_KNOWN_QUANTITIES:
+                mixture.append(key)
+            if key in self._RESULT_TABLE_COMPONENT_KNOWN_QUANTITIES:
+                component.append(key)
+
+        return tuple(component), tuple(mixture), tuple(lle)
+
+    def _resolve_component_names(self, results: dict, ncomp: int) -> List[str]:
+        name_cache: Dict[str, str] = {}
+        names = []
+        raw_names = results.get("name")
+        for cid in range(ncomp):
+            raw_name = raw_names[cid]
+            cache_key = "" if raw_name is None else str(raw_name)
+            if cache_key not in name_cache:
+                name_cache[cache_key] = self._resolve_compound_name(cache_key)
+            names.append(name_cache[cache_key])
+        return names
+
+    @staticmethod
+    def _resolve_compound_name(name_or_path: str) -> str:
+        if not os.path.isfile(name_or_path):
+            return name_or_path
+
+        rkf = KFFile(name_or_path)
+        try:
+            name = str(rkf.read("Compound Data", "IUPAC")).strip()
+            if name:
+                return name
+        except KeyError:
+            pass
+
+        try:
+            other_name = str(rkf.read("Compound Data", "Other Name")).strip()
+            if other_name:
+                return other_name.split(";")[0].strip() or os.path.basename(name_or_path)
+        except KeyError:
+            pass
+
+        return os.path.basename(name_or_path)
+
+    def _build_result_component_table(
+        self,
+        pd: Any,
+        results: dict,
+        property_name: str,
+        quantities: Sequence[str],
+        component_names: Sequence[str],
+    ) -> "pd.DataFrame":
+        ncomp = int(results["ncomp"])
+        nitems = int(results["nitems"])
+        molmass = np.asarray(results["molmass"]).reshape(-1)
+        rows = []
+        for mixture in range(nitems):
+            for cid in range(ncomp):
+                row: Dict[str, Any] = {
+                    "property": property_name,
+                    "mixture": mixture,
+                    "cid": cid,
+                    "name": component_names[cid],
+                    "molmass": molmass[cid],
+                }
+                for quantity in quantities:
+                    row[quantity] = self._get_component_quantity_value(results[quantity], cid, mixture, ncomp, nitems)
+                rows.append(row)
+
+        # for quantity in quantities:
+        #     print("quantity", quantity)
+        #     self._get_component_quantity_value(results[quantity], cid, mixture, ncomp, nitems, check=True)
+
+        return pd.DataFrame(rows, columns=list(self._RESULT_TABLE_COMPONENT_BASE_COLUMNS) + ["molmass"] + list(quantities))
+
+    def _build_result_mixture_table(
+        self, pd: Any, results: dict, property_name: str, quantities: Sequence[str]
+    ) -> Optional["pd.DataFrame"]:
+        if not quantities:
+            return None
+
+        nitems = int(results["nitems"])
+        lle_not_applicable = bool(results.get("isobar", False)) or bool(results.get("flashpoint", False))
+        rows = []
+        for mixture in range(nitems):
+            row: Dict[str, Any] = {"property": property_name, "mixture": mixture}
+            for quantity in quantities:
+                if quantity == "showmiscgap" and lle_not_applicable:
+                    row[quantity] = np.nan
+                else:
+                    row[quantity] = self._get_mixture_quantity_value(results[quantity], mixture, nitems)
+            rows.append(row)
+
+        # for quantity in quantities:
+        #     print("quantity", quantity)
+        #     self._get_mixture_quantity_value(results[quantity], mixture, nitems, check=True)
+
+        return pd.DataFrame(rows, columns=["property", "mixture"] + list(quantities))
+
+    def _select_lle_columns(
+        self, results: dict, property_name: str, quantities: Sequence[str]
+    ) -> Tuple[str, ...]:
+        if property_name not in self._RESULT_TABLE_LLE_PROPERTIES or not quantities:
+            return ()
+
+        requested = set(quantities)
+        columns = []
+        for column, spec in self._RESULT_TABLE_LLE_COLUMN_SPECS.items():
+            if any(q in requested and q in results for q in spec["quantities"]):
+                columns.append(column)
+        return tuple(columns)
+
+    def _build_result_lle_table(
+        self,
+        pd: Any,
+        results: dict,
+        property_name: str,
+        quantities: Sequence[str],
+        component_names: Sequence[str],
+    ) -> Optional["pd.DataFrame"]:
+        if property_name not in self._RESULT_TABLE_LLE_PROPERTIES:
+            return None
+
+        columns = (
+            self._RESULT_TABLE_LLE_BASE_COLUMNS
+            + self._select_lle_columns(results, property_name, quantities)
+        )
+
+        if not quantities:
+            return pd.DataFrame(columns=columns)
+
+        if property_name in {"LLE", "STABILITY"}:
+            ncomp = int(results["ncomp"])
+            nitems = 1
+            mixture = 0
+            rows = []
+
+            for cid in range(ncomp):
+                row = {
+                    "property": property_name,
+                    "mixture": mixture,
+                    "tie_line": 0,
+                    "cid": cid,
+                    "name": component_names[cid],
+                }
+                for column in columns:
+                    if column in self._RESULT_TABLE_LLE_BASE_COLUMNS:
+                        continue
+                    kind = self._RESULT_TABLE_LLE_COLUMN_SPECS[column]["kind"]
+                    if kind == "component":
+                        row[column] = self._get_component_quantity_value(results[column], cid, mixture, ncomp, nitems)
+                    elif kind == "mixture":
+                        row[column] = self._get_mixture_quantity_value(results[column], mixture, nitems)
+                rows.append(row)
+            return pd.DataFrame(rows, columns=columns)
+
+        if property_name == "BINMIXCOEF":
+            showmiscgap = bool(results.get("showmiscgap"))
+            lle_not_applicable = bool(results.get("isobar", False)) or bool(results.get("flashpoint", False))
+            if not showmiscgap or lle_not_applicable:
+                return pd.DataFrame(columns=columns)
+
+            if int(results["ncomp"]) != 2:
+                raise ValueError("BINMIXCOEF LLE table expects ncomp == 2.")
+
+            xlle = np.asarray(results["xlle"]).ravel()
+            xI = [xlle[0], 1.0 - xlle[0]]
+            xII = [xlle[1], 1.0 - xlle[1]]
+            act_interp = [xlle[6], xlle[7]]
+            pressure, temperature = xlle[2], xlle[3]
+
+            rows = [
+                {
+                    "property": property_name,
+                    "mixture": np.nan,
+                    "tie_line": 0,
+                    "cid": cid,
+                    "name": component_names[cid],
+                    "temperature": temperature,
+                    "pressure": pressure,
+                    "xI": xI[cid],
+                    "xII": xII[cid],
+                    "act_interp": act_interp[cid],
+                }
+                for cid in range(2)
+            ]
+            return pd.DataFrame(rows, columns=columns)
+
+        #case for "TERNARYMIX"
+        showmiscgap = bool(results.get("showmiscgap"))
+        lle_not_applicable = bool(results.get("isobar", False)) or bool(results.get("flashpoint", False))
+        if not showmiscgap or lle_not_applicable:
+            return pd.DataFrame(columns=columns)
+
+        if int(results["ncomp"]) != 3:
+            raise ValueError("TERNARYMIX LLE table expects ncomp == 3.")
+
+        nxll = int(results["nxll"])
+        nitems = int(results["nitems"])
+        xll = np.asarray(results["xll"], dtype=float).ravel().reshape(nxll, 6)
+        actxll = np.asarray(results["actxll"], dtype=float).ravel().reshape(nxll, 3)
+        temperature = self._get_mixture_quantity_value(results["temperature"], 0, nitems)
+
+        rows = [
+            {
+                "property": property_name,
+                "mixture": np.nan,
+                "tie_line": tie_line,
+                "cid": cid,
+                "name": component_names[cid],
+                "temperature": temperature,
+                "xI": xll[tie_line, cid],
+                "xII": xll[tie_line, cid + 3],
+                "act_interp": actxll[tie_line, cid],
+            }
+            for tie_line in range(nxll)
+            for cid in range(3)
+        ]
+        return pd.DataFrame(rows, columns=columns)
+
+    @staticmethod
+    def _get_component_quantity_value(value: Any, cid: int, mixture: int, ncomp: int, nitems: int, check: bool = False) -> Any:
+        array = np.asarray(value)
+        if check: print("Component value array shape:", array.shape)
+        if array.shape == (ncomp, nitems):
+            return array[cid, mixture]
+        if array.shape == (ncomp,):
+            return array[cid]
+        if array.shape == (ncomp * nitems,):
+            return array.reshape(ncomp, nitems)[cid, mixture]
+        return value
+
+    @staticmethod
+    def _get_mixture_quantity_value(value: Any, mixture: int, nitems: int, check: bool = False) -> Any:
+        array = np.asarray(value)
+        if check: print("Mixture value array shape:", array.shape)
+        if array.shape == (nitems,):
+            return array[mixture]
+        if array.shape == (1,):
+            return array[0]
+        if array.shape == ():
+            return value
+        return value
 
     def get_multispecies_dist(self) -> List[Dict[str, List[float]]]:
         """
@@ -305,13 +991,8 @@ class CRSResults(SCMResults):
             dict_Asson = None  # type: ignore[assignment]
 
         if as_df:
-            try:
-                import pandas as pd
-
-                return pd.DataFrame(dict_species), pd.DataFrame(dict_Asson)
-            except ImportError:
-                method = inspect.stack()[2][3]
-                raise ImportError("{}: as_df=True requires the 'pandas' package".format(method))
+            pd = self._import_pandas(inspect.stack()[1][3], "as_df=True requires the 'pandas' package")
+            return pd.DataFrame(dict_species), pd.DataFrame(dict_Asson)
         else:
             return dict_species, dict_Asson
 
@@ -499,13 +1180,17 @@ class CRSResults(SCMResults):
         return ret
 
     @staticmethod
-    def _dict_to_df(array_dict: dict, section: str, x_axis: str) -> "pd.DataFrame":
-        """Attempt to convert a dictionary into a DataFrame."""
+    def _import_pandas(method: str, requirement: str = "this method requires the 'pandas' package") -> Any:
         try:
             import pandas as pd
         except ImportError:
-            method = inspect.stack()[2][3]
-            raise ImportError("{}: as_df=True requires the 'pandas' package".format(method))
+            raise ImportError("{}: {}".format(method, requirement))
+        return pd
+
+    @staticmethod
+    def _dict_to_df(array_dict: dict, section: str, x_axis: str) -> "pd.DataFrame":
+        """Attempt to convert a dictionary into a DataFrame."""
+        pd = CRSResults._import_pandas(inspect.stack()[2][3], "as_df=True requires the 'pandas' package")
 
         index = pd.Index(array_dict.pop(x_axis), name=x_axis)
         df = pd.DataFrame(array_dict, index=index)
@@ -1937,7 +2622,7 @@ class CRSJob(SCMJob):
             return s
 
         if normalized == "TERNARYMIX":
-            s = CRSJob.property_block(normalized, nfrac=20, isobar=True)
+            s = CRSJob.property_block(normalized, nfrac=20)
             s.input.temperature = 298.15
             s.input.compound = [
                 CRSJob.compound_block(water, frac1=0.4),
