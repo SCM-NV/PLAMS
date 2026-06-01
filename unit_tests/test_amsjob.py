@@ -115,20 +115,22 @@ EndEngine
 
         molecule = Molecule(test_folder / "xyz/water.xyz")
         job = AMSJob(molecule=molecule, settings=job_input.settings, name="test_pickle")
-        job_path = test_folder / "plams_workdir" / "test_pickle"
 
+        energy = None
         try:
             job.run()
-            job_loaded = job
-            if not job.ok():
+            if job.ok():
+                energy = job.results.get_energy()
+            else:
                 raise Exception
         except Exception:
             # The calculation FAILED likely because AMS executable is not available!
             # So, let's load precalculated results
             job_path = test_folder / "result_test_pickle" / "test_pickle.dill"
             job_loaded = load_job(job_path)
+            energy = job_loaded.results.get_energy()
 
-        assert abs(job_loaded.results.get_energy() + 5.766288141081061) < 1e-8
+        assert abs(energy + 5.766288141081061) < 1e-8
 
     def test_get_input_generates_expected_input_string(self, job_input):
         # Given job with molecule and settings
