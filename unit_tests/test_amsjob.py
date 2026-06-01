@@ -119,9 +119,9 @@ EndEngine
 
         try:
             job.run()
+            job_loaded = job
             if not job.ok():
                 raise Exception
-            job_loaded = job
         except Exception:
             # The calculation FAILED likely because AMS executable is not available!
             # So, let's load precalculated results
