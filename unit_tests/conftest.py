@@ -68,3 +68,13 @@ def coskf_folder():
     p = Path(__file__).parent.absolute() / "coskf"
     assert p.exists()
     return p
+
+
+@pytest.fixture(scope="session")
+def dill_folder():
+    """
+    Returns the path to the dill fixture folder.
+    """
+    p = Path(__file__).parent.absolute() / "dill"
+    assert p.exists()
+    return p
