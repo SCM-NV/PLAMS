@@ -1925,16 +1925,24 @@ class TestAMSJobPickle:
         job_path = dill_folder / platform_name / f"{job_name}.dill"
 
         # When loading the pickled job via the job manager
-        job = config.default_jobmanager.load_job(str(job_path))
+        default_jobmanager = config.default_jobmanager
+        job1 = default_jobmanager.load_job(str(job_path))
+        config.default_jobmanager = None
+        job2 = AMSJob.load(str(job_path))
+        config.default_jobmanager = default_jobmanager
 
         # Then the job still has the expected AMSJob content
-        assert job is not None
-        assert isinstance(job, AMSJob)
-        assert job.name == job_name
-        assert job.get_input() == TestAMSJob.get_expected_input()
-        assert len(job.molecule) == 3
+        for job in [job1, job2]:
+            assert job is not None
+            assert isinstance(job, AMSJob)
+            assert job.name == job_name
+            assert job.get_input() == TestAMSJob.get_expected_input()
+            assert len(job.molecule) == 3
+            assert job.molecule.properties.source.name == "water.xyz"
 
-    @pytest.mark.skipif(not generate_dill_file , reason="To regenerate .dill file for this platform, set generate_dill_file = True")
+    @pytest.mark.skipif(
+        not generate_dill_file, reason="To regenerate .dill file for this platform, set generate_dill_file = True"
+    )
     def test_pickle_generates_current_platform_dill_fixture(self, dill_folder, xyz_folder):
         # Run simple AMS job and persist .dill file
         platform_name = self.get_current_platform_name()

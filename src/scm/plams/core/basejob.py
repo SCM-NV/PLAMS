@@ -32,7 +32,7 @@ import atexit
 from scm.plams.core.enums import JobStatus, JobStatusType
 from scm.plams.core.errors import FileError, JobError, PlamsError, ResultsError
 from scm.plams.core.functions import get_config, log
-from scm.plams.core.private import sha256, retry
+from scm.plams.core.private import CrossPlatformUnpickler, sha256, retry
 from scm.plams.core.results import Results
 from scm.plams.core.settings import Settings, JobSettings
 from scm.plams.mol.molecule import Molecule
@@ -728,7 +728,11 @@ class SingleJob(Job):
             job = jobmanager.load_job(path)
         else:
             with open(path, "rb") as f_dill:
-                job = pickle.load(f_dill)
+                try:
+                    job = pickle.load(f_dill)
+                except Exception:
+                    f_dill.seek(0)
+                    job = CrossPlatformUnpickler(f_dill).load()
             if job is not None:
                 # For backwards compatibility (before attributes added/converted to properties)
                 if not hasattr(job, "_status"):
