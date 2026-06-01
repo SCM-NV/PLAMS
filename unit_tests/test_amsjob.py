@@ -12,6 +12,7 @@ from pathlib import Path
 from scm.plams.interfaces.adfsuite.ams import AMSJob, AMSResults
 from scm.plams.core.settings import Settings
 from scm.plams.mol.molecule import Atom, Molecule
+from scm.plams import load as load_job
 from test_helpers import skip_if_no_scm_pisa, skip_if_no_scm_base
 
 
@@ -120,12 +121,12 @@ EndEngine
             job.run()
             if not job.ok():
                 raise Exception
+            job_loaded = job
         except Exception:
             # The calculation FAILED likely because AMS executable is not available!
             # So, let's load precalculated results
-            job_path = test_folder / "result_test_pickle"
-
-        job_loaded = AMSJob.load_external(path=job_path)
+            job_path = test_folder / "result_test_pickle" / "test_pickle.dill"
+            job_loaded = load_job(job_path)
 
         assert abs(job_loaded.results.get_energy() + 5.766288141081061) < 1e-8
 
