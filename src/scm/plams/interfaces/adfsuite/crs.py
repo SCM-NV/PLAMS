@@ -164,6 +164,8 @@ class CRSResults(SCMResults):
         "gammaII": {"quantities": ("gammaII",), "kind": "component"},
         "actI": {"quantities": ("actI",), "kind": "component"},
         "actII": {"quantities": ("actII",), "kind": "component"},
+        "phiI": {"quantities": ("phiI",), "kind": "mixture"},
+        "phiII": {"quantities": ("phiII",), "kind": "mixture"},
         "converged": {"quantities": ("converged",), "kind": "mixture"},
         "act_interp": {"quantities": ("xlle", "actxll"), "kind": "derived"},
         "pressure": {"quantities": ("xlle", "pressure"), "kind": "derived"},
