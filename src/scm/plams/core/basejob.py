@@ -889,14 +889,14 @@ class MultiJob(Job, Generic[J]):
 
         rm = None
         for i, j in (
-            self.children.items() if isinstance(self.children, dict) else enumerate(self.children)  # type: ignore[attr-defined]
+            self.children.items() if isinstance(self.children, dict) else enumerate(self.children)  # type: ignore[union-attr]
         ):
             if j == job:
                 rm = i
                 break
         if rm is not None:
-            self.children[rm].parent = None
-            del self.children[rm]
+            self.children[rm].parent = None  # type: ignore[index]
+            del self.children[rm]  # type: ignore[arg-type]
 
     def _get_ready(self) -> None:
         """Get ready for :meth:`~MultiJob._execute`. Count children jobs and set their ``parent`` attribute."""
