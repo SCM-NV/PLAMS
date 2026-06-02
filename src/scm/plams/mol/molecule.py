@@ -2825,6 +2825,9 @@ class Molecule:
         This method is a counterpart of :meth:`from_dict`.
         """
         mol_dict = copy.copy(self.__dict__)
+        # _as_array stores references derived from this molecule and can recurse back into the parent object during serialization,
+        # it will be recreated on from_dict
+        mol_dict.pop("_as_array", None)
         atom_indices = {id(a): i for i, a in enumerate(mol_dict["atoms"])}
         bond_indices = {id(b): i for i, b in enumerate(mol_dict["bonds"])}
         atom_dicts = [copy.copy(a.__dict__) for a in mol_dict["atoms"]]
@@ -2865,6 +2868,7 @@ class Molecule:
             b.__dict__ = b_dict  # type: ignore[assignment]
             b.mol = None
             mol.add_bond(b)
+        mol._as_array = AsArrayContext(mol)
         return mol
 
     @classmethod
