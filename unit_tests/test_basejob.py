@@ -919,13 +919,16 @@ class TestMultiJob:
     But this suite focuses on testing the methods on the job class itself.
     """
 
+    def get_jobs_container(self, jobs):
+        return [j for j in jobs]
+
     def test_run_multiple_independent_single_jobs_all_succeed(self, config):
         runner = JobRunner(parallel=True, maxjobs=3)
         config.sleepstep = 0.1
 
         # Given 3 jobs which are independent
         jobs = [DummySingleJob() for _ in range(3)]
-        multi_job = MultiJob(children=jobs)
+        multi_job = MultiJob(children=self.get_jobs_container(jobs))
 
         # When run multi-job
         multi_job.run(jobrunner=runner).wait()
@@ -942,7 +945,7 @@ class TestMultiJob:
 
         # Given 3 jobs which are independent, one of which fails
         jobs = [DummySingleJob(), DummySingleJob(cmd="not_a_cmd"), DummySingleJob()]
-        multi_job = MultiJob(children=jobs)
+        multi_job = MultiJob(children=self.get_jobs_container(jobs))
 
         # When run multi-job
         multi_job.run(jobrunner=runner).wait()
@@ -968,7 +971,7 @@ class TestMultiJob:
         def postrun(s):
             jobs[1].results.wait()
 
-        multi_job = MultiJob(children=jobs)
+        multi_job = MultiJob(children=self.get_jobs_container(jobs))
 
         # When run multi-job
         multi_job.run(jobrunner=runner).wait()
@@ -994,7 +997,7 @@ class TestMultiJob:
         def postrun(s):
             raise RuntimeError("something went wrong")
 
-        multi_job = MultiJob(children=jobs)
+        multi_job = MultiJob(children=self.get_jobs_container(jobs))
 
         # When run multi-job
         multi_job.run(jobrunner=runner).wait()
@@ -1024,7 +1027,7 @@ class TestMultiJob:
 
         jobs[1]._filename = filename_errors
 
-        multi_job = MultiJob(children=jobs)
+        multi_job = MultiJob(children=self.get_jobs_container(jobs))
 
         # When run multi-job
         multi_job.run(jobrunner=runner).wait()
@@ -1041,8 +1044,8 @@ class TestMultiJob:
 
         # Given multi-job with multiple multi-jobs
         jobs = [[DummySingleJob() for _ in range(3)] for _ in range(3)]
-        multi_jobs = [MultiJob(children=js) for js in jobs]
-        multi_job = MultiJob(children=multi_jobs)
+        multi_jobs = [MultiJob(children=self.get_jobs_container(js)) for js in jobs]
+        multi_job = MultiJob(children=self.get_jobs_container(multi_jobs))
 
         # When run top level job
         multi_job.run(runner=runner).wait()
@@ -1060,8 +1063,8 @@ class TestMultiJob:
 
         # Given multi-job with multiple dependent multi-jobs
         jobs = [[DummySingleJob() for _ in range(3)] for _ in range(3)]
-        multi_jobs = [MultiJob(children=js) for js in jobs]
-        multi_job = MultiJob(children=multi_jobs)
+        multi_jobs = [MultiJob(children=self.get_jobs_container(js)) for js in jobs]
+        multi_job = MultiJob(children=self.get_jobs_container(multi_jobs))
 
         @add_to_instance(jobs[1][0])
         def prerun(s):
@@ -1088,8 +1091,8 @@ class TestMultiJob:
         # Given multi-job with multiple dependent multi-jobs and one which fails
         jobs = [[DummySingleJob() for _ in range(3)] for _ in range(3)]
         jobs[1][1].command = "not a cmd"
-        multi_jobs = [MultiJob(children=js) for js in jobs]
-        multi_job = MultiJob(children=multi_jobs)
+        multi_jobs = [MultiJob(children=self.get_jobs_container(js)) for js in jobs]
+        multi_job = MultiJob(children=self.get_jobs_container(multi_jobs))
 
         # When run top level job
         multi_job.run(runner=runner).wait()
@@ -1121,8 +1124,11 @@ class TestMultiJob:
             for mj in ["A", "B", "C"]:
                 with jobs_in_directory(mj):
                     jobs = [[DummySingleJob(name=f"dummy_{i}_{j}") for i in range(3)] for j in range(3)]
-                    inner_multi_jobs = [MultiJob(children=js, name=f"multi_inner_{i}") for i, js in enumerate(jobs)]
-                    multi_job = MultiJob(children=inner_multi_jobs, name=f"multi_outer_{mj}")
+                    inner_multi_jobs = [
+                        MultiJob(children=self.get_jobs_container(js), name=f"multi_inner_{i}")
+                        for i, js in enumerate(jobs)
+                    ]
+                    multi_job = MultiJob(children=self.get_jobs_container(inner_multi_jobs), name=f"multi_outer_{mj}")
                     multi_job.run(runner=runner)
                     outer_multi_jobs.append(multi_job)
 
@@ -1134,7 +1140,11 @@ class TestMultiJob:
             outer = mj_outer.name.split("_")[-1]
             assert Path(mj_outer.path) == Path(workdir, "results", outer, mj_outer.name)
 
-            for mj_inner in mj_outer.children:
+            if isinstance(mj_outer.children, dict):
+                outer_children = mj_outer.children.values()
+            else:
+                outer_children = mj_outer.children
+            for mj_inner in outer_children:
                 assert mj_inner.ok()
                 assert Path(mj_inner.path) == Path(
                     workdir,
@@ -1144,14 +1154,18 @@ class TestMultiJob:
                     mj_inner.name,
                 )
 
-                for j in mj_inner.children:
+                if isinstance(mj_inner.children, dict):
+                    inner_children = mj_inner.children.values()
+                else:
+                    inner_children = mj_inner.children
+                for j in inner_children:
                     assert j.ok()
                     assert Path(j.path) == Path(workdir, "results", outer, mj_outer.name, mj_inner.name, j.name)
 
     def test_full_name(self):
         job = DummySingleJob(name="dummy_job")
-        inner_multi_job = MultiJob(children=[job], name="multi_inner_job")
-        multi_job = MultiJob(children=[inner_multi_job], name="multi_outer")
+        inner_multi_job = MultiJob(children=self.get_jobs_container([job]), name="multi_inner_job")
+        multi_job = MultiJob(children=self.get_jobs_container([inner_multi_job]), name="multi_outer")
         multi_job.run()
 
         assert multi_job.ok()
@@ -1169,8 +1183,8 @@ class TestMultiJob:
         # Given nested multi-jobs
         job1 = DummySingleJob(name="dummy_job")
         job2 = DummySingleJob(name="dummy_job")
-        inner_multi_job = MultiJob(children=[job1, job2], name="multi_inner_job")
-        multi_job = MultiJob(children=[inner_multi_job], name="multi_outer")
+        inner_multi_job = MultiJob(children=self.get_jobs_container([job1, job2]), name="multi_inner_job")
+        multi_job = MultiJob(children=self.get_jobs_container([inner_multi_job]), name="multi_outer")
 
         # When apply tagging function to non multi-job
         MultiJob.apply_to_children(job1, add_tag)
@@ -1200,7 +1214,7 @@ class TestMultiJob:
     def test_delete_created_multijob(self, config):
         # Given multi job
         jobs = [DummySingleJob() for _ in range(3)]
-        multi_job = MultiJob(children=[j for j in jobs])
+        multi_job = MultiJob(children=self.get_jobs_container([j for j in jobs]))
 
         # When deleted
         multi_job.delete()
@@ -1210,7 +1224,7 @@ class TestMultiJob:
         assert all(j.status == JobStatus.DELETED for j in jobs)
         assert multi_job.path is None
         assert all(j.path is None for j in jobs)
-        assert multi_job.children == []
+        assert len(multi_job.children) == 0
         assert all(j.parent is None for j in jobs)
         with pytest.raises(ResultsError):
             _ = multi_job.results.grep_output("")
@@ -1220,7 +1234,7 @@ class TestMultiJob:
     def test_delete_running_multijob(self, config):
         # Given multi job
         jobs = [DummySingleJob() for _ in range(3)]
-        multi_job = MultiJob(children=[j for j in jobs])
+        multi_job = MultiJob(children=self.get_jobs_container([j for j in jobs]))
         multi_job.run()
         path = multi_job.path
 
@@ -1235,7 +1249,7 @@ class TestMultiJob:
         assert not Path(path).exists()
         assert multi_job.path is None
         assert all(j.path is None for j in jobs)
-        assert multi_job.children == []
+        assert len(multi_job.children) == 0
         assert all(j.parent is None for j in jobs)
         with pytest.raises(ResultsError):
             _ = multi_job.results.grep_output("")
@@ -1245,8 +1259,8 @@ class TestMultiJob:
     def test_delete_nested_multijob(self, config):
         # Given multi job
         jobs = [DummySingleJob() for _ in range(3)]
-        multi_job = MultiJob(children=[j for j in jobs])
-        top_multi_job = MultiJob(children=[multi_job])
+        multi_job = MultiJob(children=self.get_jobs_container([j for j in jobs]))
+        top_multi_job = MultiJob(children=self.get_jobs_container([multi_job]))
         top_multi_job.run()
         path = top_multi_job.path
 
@@ -1265,8 +1279,8 @@ class TestMultiJob:
         assert top_multi_job.path is None
         assert multi_job.path is None
         assert all(j.path is None for j in jobs)
-        assert top_multi_job.children == []
-        assert multi_job.children == []
+        assert len(top_multi_job.children) == 0
+        assert len(multi_job.children) == 0
         assert all(j.parent is None for j in jobs)
         with pytest.raises(ResultsError):
             _ = top_multi_job.results.grep_output("")
@@ -1281,11 +1295,14 @@ class TestMultiJob:
         name1 = f"to-be-renamed-{id}"
         name2 = f"renamed-{id}"
         jobs = [DummySingleJob(name=name1) for _ in range(3)]
-        multi_job = MultiJob(children=[j for j in jobs], name=name1)
+        multi_job = MultiJob(children=self.get_jobs_container([j for j in jobs]), name=name1)
 
         # When renamed
         multi_job.rename(name2)
-        multi_job.children[0].rename(name2)
+        if isinstance(multi_job.children, dict):
+            multi_job.children["job_0"].rename(name2)
+        else:
+            multi_job.children[0].rename(name2)
 
         # Then name changed
         assert multi_job.status == JobStatus.CREATED
@@ -1301,7 +1318,7 @@ class TestMultiJob:
         name1 = f"to-be-renamed-{id}"
         name2 = f"renamed-{id}"
         jobs = [DummySingleJob(name=name1, wait=0.2) for _ in range(3)]
-        multi_job = MultiJob(children=[j for j in jobs], name=name1)
+        multi_job = MultiJob(children=self.get_jobs_container([j for j in jobs]), name=name1)
         multi_job.run()
         path1 = multi_job.path
 
@@ -1342,8 +1359,8 @@ class TestMultiJob:
         name5 = f"middle-renamed-{id}"
         name6 = f"bottom-renamed-{id}"
         jobs = [DummySingleJob(name=name3) for _ in range(3)]
-        multi_job = MultiJob(children=[j for j in jobs], name=name2)
-        top_multi_job = MultiJob(children=[multi_job], name=name1)
+        multi_job = MultiJob(children=self.get_jobs_container([j for j in jobs]), name=name2)
+        top_multi_job = MultiJob(children=self.get_jobs_container([multi_job]), name=name1)
         top_multi_job.run()
         orig_path = top_multi_job.path
 
@@ -1372,3 +1389,14 @@ class TestMultiJob:
             assert job.results.read_file("$JN.in")
             assert job.results.read_file("$JN.out")
             assert job.results.read_file("$JN.run")
+
+
+class TestMultiJobWithJobDict(TestMultiJob):
+    """
+    Test suite for the Multi Job with job dictionaries.
+    Not truly independent as relies upon the job runner/manager and results components.
+    But this suite focuses on testing the methods on the job class itself.
+    """
+
+    def get_jobs_container(self, jobs):
+        return {f"job_{i}": j for i, j in enumerate(jobs)}
