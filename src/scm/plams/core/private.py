@@ -7,6 +7,12 @@ import time
 import warnings
 from contextlib import AbstractContextManager
 from os.path import join as opj
+import pathlib
+
+try:
+    import dill as pickle
+except ImportError:
+    import pickle
 
 from typing import Callable, Dict, NoReturn, List, Optional, TypeVar, Union, Any, Type, Sequence, Mapping
 from typing_extensions import ParamSpec
@@ -235,3 +241,20 @@ def retry(sleep: float = 0.1, maxtries: int = 10) -> Callable[[Callable[P, T]], 
         return wrap2
 
     return wrap1
+
+
+# ===========================================================================
+
+
+class CrossPlatformUnpickler(pickle.Unpickler):
+    """
+    Utility class to unpickle jobs which may contain platform-specific elements e.g. paths.
+    """
+
+    def find_class(self, module: str, name: str) -> Any:
+        if module == "pathlib":
+            if name == "WindowsPath":
+                return pathlib.PureWindowsPath
+            if name == "PosixPath":
+                return pathlib.PurePosixPath
+        return super().find_class(module, name)
