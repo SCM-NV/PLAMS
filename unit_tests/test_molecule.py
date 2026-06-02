@@ -604,6 +604,8 @@ class TestBenzene(MoleculeTestBase):
                 self._compare_attrs(bond, bond_ref)
 
         assert mol.label(5) == mol2.label(5) == mol3.label(5)
+        np.testing.assert_allclose(np.array(mol), np.array(mol2))
+        np.testing.assert_allclose(np.array(mol2), np.array(mol3))
 
     def test_get_moments_of_inertia(self, mol):
         expected = np.array([86.81739308, 86.8173935, 173.63478658])

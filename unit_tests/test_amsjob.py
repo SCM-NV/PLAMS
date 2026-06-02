@@ -5,8 +5,11 @@ from unittest.mock import MagicMock, patch
 from collections import namedtuple
 from io import StringIO
 import os
+import shutil
+import sys
 import time
 import threading
+from pathlib import Path
 
 from scm.plams.interfaces.adfsuite.ams import AMSJob, AMSResults
 from scm.plams.core.settings import Settings
@@ -1903,3 +1906,63 @@ License file: ./license.txt"""
         # Error in prerun
         job._error_msg = "RuntimeError: something went wrong"
         assert job.get_errormsg() == "RuntimeError: something went wrong"
+
+
+class TestAMSJobPickle:
+
+    generate_dill_file = False
+
+    @staticmethod
+    def get_current_platform_name():
+        if sys.platform.startswith("win"):
+            return "windows"
+        return "unix"
+
+    @pytest.mark.parametrize("platform_name", ["unix", "windows"])
+    def test_pickle_loads_job_successfully_multiplatform(self, config, dill_folder, platform_name):
+        # Given a dill fixture created on another platform
+        job_name = "pickle_test"
+        job_path = dill_folder / platform_name / f"{job_name}.dill"
+
+        # When loading the pickled job via the job manager
+        default_jobmanager = config.default_jobmanager
+        job1 = default_jobmanager.load_job(str(job_path))
+        config.default_jobmanager = None
+        job2 = AMSJob.load(str(job_path))
+        config.default_jobmanager = default_jobmanager
+
+        # Then the job still has the expected AMSJob content
+        for job in [job1, job2]:
+            assert job is not None
+            assert isinstance(job, AMSJob)
+            assert job.name == job_name
+            assert job.get_input() == TestAMSJob.get_expected_input()
+            assert len(job.molecule) == 3
+            assert job.molecule.properties.source.name == "water.xyz"
+
+    @pytest.mark.skipif(
+        not generate_dill_file, reason="To regenerate .dill file for this platform, set generate_dill_file = True"
+    )
+    def test_pickle_generates_current_platform_dill_fixture(self, dill_folder, xyz_folder):
+        # Run simple AMS job and persist .dill file
+        platform_name = self.get_current_platform_name()
+        platform_dir = dill_folder / platform_name
+        job_name = "pickle_test"
+        target_dill_path = platform_dir / f"{job_name}.dill"
+        platform_dir.mkdir(parents=True, exist_ok=True)
+
+        if target_dill_path.exists():
+            target_dill_path.unlink()
+
+        mol = Molecule(xyz_folder / "water.xyz")
+
+        settings = Settings()
+        settings.input.ams.Task = "GeometryOptimization"
+        settings.input.ams.Properties.NormalModes = "Yes"
+        settings.input.DFTB.Model = "GFN1-xTB"
+
+        job = AMSJob(name=job_name, molecule=mol, settings=settings)
+
+        job.run()
+        job.results.wait()
+        shutil.copy2(Path(job.path) / f"{job_name}.dill", target_dill_path)
