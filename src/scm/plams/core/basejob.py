@@ -160,9 +160,7 @@ class Job(ABC):
 
     _result_type = Results
 
-    def __init__(
-        self, name: str = "plamsjob", settings: Optional[Settings] = None, depend: Optional[List["Job"]] = None
-    ):
+    def __init__(self, name: str = "plamsjob", settings: Optional[Settings] = None, depend: Optional[List["Job"]] = None):
         if os.path.sep in name:
             raise PlamsError(f"Job name cannot contain {os.path.sep}")
         self._status_log: List[Tuple[datetime.datetime, str]] = []
@@ -211,25 +209,18 @@ class Job(ABC):
         self._status_log.append((at, str(value)))
 
         # Send notification via callback if needed
-        on_status_change = (
-            getattr(getattr(self, "settings", JobSettings()), "on_status_change", None)
-            or get_config().job.on_status_change
-        )
+        on_status_change = getattr(getattr(self, "settings", JobSettings()), "on_status_change", None) or get_config().job.on_status_change
         if on_status_change is None:
             return
 
-        def safe_on_status_change(
-            cb: JobSettings.OnStatusChangeCallback, name: str, path: Optional[str], status: str, at: datetime.datetime
-        ) -> None:
+        def safe_on_status_change(cb: JobSettings.OnStatusChangeCallback, name: str, path: Optional[str], status: str, at: datetime.datetime) -> None:
             try:
                 cb(name=name, path=path, status=status, at=at)
             except Exception as e:
                 log(f"on_status_change callback execution raised {e}", 5)
 
         try:
-            future = _status_change_callback_threadpool.submit(
-                safe_on_status_change, on_status_change, self.name, self.path, str(value), at
-            )
+            future = _status_change_callback_threadpool.submit(safe_on_status_change, on_status_change, self.name, self.path, str(value), at)
             with _status_change_callback_lock:
                 _status_change_callback_futures.add(future)
             future.add_done_callback(lambda f: _status_change_callback_futures.discard(f))
@@ -245,9 +236,7 @@ class Job(ABC):
         """
         return self._status_log
 
-    def run(
-        self, jobrunner: Optional["JobRunner"] = None, jobmanager: Optional["JobManager"] = None, **kwargs: Any
-    ) -> Results:
+    def run(self, jobrunner: Optional["JobRunner"] = None, jobmanager: Optional["JobManager"] = None, **kwargs: Any) -> Results:
         """Run the job using *jobmanager* and *jobrunner* (or defaults, if ``None``). Other keyword arguments (*\\*\\*kwargs*) are stored in ``run`` branch of job's settings. Returned value is the |Results| instance associated with this job.
 
         .. warning::
@@ -314,17 +303,11 @@ class Job(ABC):
         if self.check():
             return None
 
-        return (
-            self._error_msg
-            if self._error_msg
-            else "Could not determine error message. Please check the output manually."
-        )
+        return self._error_msg if self._error_msg else "Could not determine error message. Please check the output manually."
 
     def get_path(self) -> Path:
         if self.path is None:
-            raise JobError(
-                f"'path' attribute of job '{self.name} is not yet initialized, typically because the job has not yet ran."
-            )
+            raise JobError(f"'path' attribute of job '{self.name} is not yet initialized, typically because the job has not yet ran.")
         return Path(self.path)
 
     @abstractmethod
@@ -742,9 +725,7 @@ class SingleJob(Job):
                 job.results.collect()
 
         if strict and job.__class__ != cls:
-            raise ValueError(
-                f"The loaded job is an instance of '{job.__class__.__name__}', whereas this method expects it to be a '{cls.__name__}'. Use `strict=False` to ignore this."
-            )
+            raise ValueError(f"The loaded job is an instance of '{job.__class__.__name__}', whereas this method expects it to be a '{cls.__name__}'. Use `strict=False` to ignore this.")
 
         return job
 
@@ -870,9 +851,7 @@ class MultiJob(Job, Generic[J]):
         Each attribute of this |MultiJob| that is of type |Job| and has it's parent pointing to this |MultiJob| is returned, in a random order.
         """
         for attr in self.__dict__.values():
-            if isinstance(attr, Job) and (
-                (hasattr(attr, "parent") and attr.parent == self) or not hasattr(attr, "parent")
-            ):
+            if isinstance(attr, Job) and ((hasattr(attr, "parent") and attr.parent == self) or not hasattr(attr, "parent")):
                 yield cast(J, attr)
 
     def remove_child(self, job: J) -> None:
@@ -930,9 +909,7 @@ class MultiJob(Job, Generic[J]):
                 self.children += new
                 it = new
             else:
-                raise JobError(
-                    f"ERROR in job {self.name}: 'new_children' returned a value incompatible with 'children'"
-                )
+                raise JobError(f"ERROR in job {self.name}: 'new_children' returned a value incompatible with 'children'")
 
             for child in it:
                 child.parent = self
@@ -957,7 +934,7 @@ class MultiJob(Job, Generic[J]):
         if self.status != JobStatus.CREATED:
             self.results.wait()
 
-        for child in [c for c in self.children] if isinstance(self.children, list) else self.children.values():
+        for child in [c for c in self.children] if isinstance(self.children, list) else list(self.children.values()):
             child.delete()
             self.remove_child(child)
 
