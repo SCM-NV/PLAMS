@@ -25,6 +25,13 @@ from scm.plams.mol.bond import Bond
 from scm.plams.mol.molecule import Molecule
 from scm.plams.core.errors import PlamsError
 
+try:
+    from scm.base import ChemicalSystem
+
+    _has_scm_chemsys = True
+except ImportError:
+    _has_scm_chemsys = False
+
 if TYPE_CHECKING:
     from rdkit.Chem import Mol as RDKitMol
     from rdkit.Chem import Atom as RDKitAtom
@@ -380,10 +387,16 @@ def prop_to_rdmol(rd_obj: Union["RDKitMol", "RDKitAtom", "RDKitBond"], propkey: 
 # ToDo: remove type ignore once mypy_path is enabled
 @overload
 def prop_from_rdmol(pl_obj: Bond, rd_obj: "RDKitBond") -> None: ...
+
+
 @overload
 def prop_from_rdmol(pl_obj: Atom, rd_obj: "RDKitAtom") -> None: ...
+
+
 @overload
 def prop_from_rdmol(pl_obj: Molecule, rd_obj: "RDKitMol") -> None: ...
+
+
 def prop_from_rdmol(pl_obj: Union[Molecule, Atom, Bond], rd_obj: Union["RDKitMol", "RDKitAtom", "RDKitBond"]) -> None:
     """
     Convert one or more RDKit properties into PLAMS properties.
@@ -461,10 +474,14 @@ def from_smiles(
 def from_smarts(
     smarts: str, nconfs: Literal[1] = ..., name: Optional[str] = ..., forcefield: Optional[str] = ..., rms: float = ...
 ) -> Molecule: ...
+
+
 @overload
 def from_smarts(
     smarts: str, nconfs: int = ..., name: Optional[str] = ..., forcefield: Optional[str] = ..., rms: float = ...
 ) -> Union[Molecule, List[Molecule]]: ...
+
+
 @requires_optional_package("rdkit")
 def from_smarts(
     smarts: str, nconfs: int = 1, name: Optional[str] = None, forcefield: Optional[str] = None, rms: float = 0.1
@@ -510,6 +527,8 @@ def get_conformations(
     randomSeed: int = 1,
     best_rms: float = -1,
 ) -> Molecule: ...
+
+
 @overload
 @requires_optional_package("rdkit")
 def get_conformations(
@@ -525,6 +544,8 @@ def get_conformations(
     randomSeed: int = 1,
     best_rms: float = -1,
 ) -> Union[List[Molecule], Molecule]: ...
+
+
 @requires_optional_package("rdkit")
 def get_conformations(
     mol: Union[Molecule, "RDKitMol"],
@@ -745,11 +766,15 @@ def from_sequence(
     forcefield: Optional[str] = None,
     rms: float = 0.1,
 ) -> Molecule: ...
+
+
 @overload
 @requires_optional_package("rdkit")
 def from_sequence(
     sequence: str, nconfs: int, name: Optional[str] = None, forcefield: Optional[str] = None, rms: float = 0.1
 ) -> Union[List[Molecule], Molecule]: ...
+
+
 @requires_optional_package("rdkit")
 def from_sequence(
     sequence: str, nconfs: int = 1, name: Optional[str] = None, forcefield: Optional[str] = None, rms: float = 0.1
@@ -856,6 +881,8 @@ def apply_reaction_smarts(
     forcefield: Optional[str] = None,
     return_rdmol: Literal[False] = False,
 ) -> Molecule: ...
+
+
 @overload
 @requires_optional_package("rdkit")
 def apply_reaction_smarts(
@@ -865,6 +892,8 @@ def apply_reaction_smarts(
     forcefield: Optional[str] = None,
     return_rdmol: Literal[True] = ...,
 ) -> "RDKitMol": ...
+
+
 @overload
 @requires_optional_package("rdkit")
 def apply_reaction_smarts(
@@ -874,6 +903,8 @@ def apply_reaction_smarts(
     forcefield: Optional[str] = None,
     return_rdmol: bool = ...,
 ) -> Union[Molecule, "RDKitMol"]: ...
+
+
 @requires_optional_package("rdkit")
 def apply_reaction_smarts(
     mol: Union[Molecule, "RDKitMol"],
@@ -1042,6 +1073,8 @@ def readpdb(
     proximityBonding: bool = False,
     return_rdmol: Literal[False] = False,
 ) -> Molecule: ...
+
+
 @overload
 @requires_optional_package("rdkit")
 def readpdb(
@@ -1051,6 +1084,8 @@ def readpdb(
     proximityBonding: bool = False,
     return_rdmol: Literal[True] = ...,
 ) -> "RDKitMol": ...
+
+
 @overload
 @requires_optional_package("rdkit")
 def readpdb(
@@ -1060,6 +1095,8 @@ def readpdb(
     proximityBonding: bool = False,
     return_rdmol: bool = ...,
 ) -> Union["RDKitMol", Molecule]: ...
+
+
 @requires_optional_package("rdkit")
 def readpdb(
     pdb_file: Union[str, IO],
@@ -1117,16 +1154,22 @@ def writepdb(mol: Union[Molecule, "RDKitMol"], pdb_file: Union[str, IO] = sys.st
 def add_Hs(
     mol: Union[Molecule, "RDKitMol"], forcefield: Optional[str] = None, return_rdmol: Literal[False] = False
 ) -> Molecule: ...
+
+
 @overload
 @requires_optional_package("rdkit")
 def add_Hs(
     mol: Union[Molecule, "RDKitMol"], forcefield: Optional[str] = None, return_rdmol: Literal[True] = ...
 ) -> "RDKitMol": ...
+
+
 @overload
 @requires_optional_package("rdkit")
 def add_Hs(
     mol: Union[Molecule, "RDKitMol"], forcefield: Optional[str] = None, return_rdmol: bool = ...
 ) -> Union[Molecule, "RDKitMol"]: ...
+
+
 @requires_optional_package("rdkit")
 def add_Hs(
     mol: Union[Molecule, "RDKitMol"], forcefield: Optional[str] = None, return_rdmol: bool = False
@@ -1249,6 +1292,8 @@ def partition_protein(
     split_heteroatoms: bool = True,
     return_rdmol: Literal[False] = False,
 ) -> Tuple[List[Molecule], List[Molecule]]: ...
+
+
 @overload
 @requires_optional_package("rdkit")
 def partition_protein(
@@ -1257,6 +1302,8 @@ def partition_protein(
     split_heteroatoms: bool = True,
     return_rdmol: Literal[True] = ...,
 ) -> Tuple[List["RDKitMol"], List["RDKitMol"]]: ...
+
+
 @overload
 @requires_optional_package("rdkit")
 def partition_protein(
@@ -1265,6 +1312,8 @@ def partition_protein(
     split_heteroatoms: bool = True,
     return_rdmol: bool = ...,
 ) -> Tuple[List[Union[Molecule, "RDKitMol"]], List[Union[Molecule, "RDKitMol"]]]: ...
+
+
 @requires_optional_package("rdkit")
 def partition_protein(
     mol: Union[Molecule, "RDKitMol"],
@@ -1334,12 +1383,18 @@ def partition_protein(
 @overload
 @requires_optional_package("rdkit")
 def charge_AAs(mol: Molecule, return_rdmol: Literal[False] = False) -> Molecule: ...
+
+
 @overload
 @requires_optional_package("rdkit")
 def charge_AAs(mol: Molecule, return_rdmol: Literal[True] = ...) -> Union[Molecule, "RDKitMol"]: ...
+
+
 @overload
 @requires_optional_package("rdkit")
 def charge_AAs(mol: Molecule, return_rdmol: bool = ...) -> Union[Molecule, "RDKitMol"]: ...
+
+
 @requires_optional_package("rdkit")
 def charge_AAs(mol: Molecule, return_rdmol: bool = False) -> Union[Molecule, "RDKitMol"]:
     from rdkit import Chem
@@ -1488,9 +1543,13 @@ def yield_coords(rdmol: "RDKitMol", id: int = -1) -> Generator[Tuple[float, floa
 @overload
 @requires_optional_package("rdkit")
 def canonicalize_mol(mol: Molecule, inplace: Literal[True], **kwargs: Any) -> None: ...
+
+
 @overload
 @requires_optional_package("rdkit")
 def canonicalize_mol(mol: Molecule, inplace: Literal[False] = False, **kwargs: Any) -> Molecule: ...
+
+
 @requires_optional_package("rdkit")
 def canonicalize_mol(mol: Molecule, inplace: bool = False, **kwargs: Any) -> Optional[Molecule]:
     r"""Take a PLAMS molecule and sort its atoms based on their canonical rank.
@@ -2214,14 +2273,17 @@ def _guess_atomic_charge(iat: int, ndangling: int, rdmol: "RDKitMol", mol: Molec
     return altered_charge
 
 
-def _rdmol_for_image(mol: Molecule, remove_hydrogens: bool = True) -> "RDKitMol":
+def _rdmol_for_image(mol: Union[Molecule, "ChemicalSystem"], remove_hydrogens: bool = True) -> "RDKitMol":
     """
     Convert PLAMS molecule to an RDKit molecule specifically for a 2D image
     """
     from rdkit.Chem import AllChem
     from rdkit.Chem import RemoveHs
 
-    rdmol = to_rdmol(mol, presanitize=True)
+    if _has_scm_chemsys and isinstance(mol, ChemicalSystem):
+        rdmol = mol.to_rdkit_mol()
+    else:
+        rdmol = to_rdmol(mol, presanitize=True)
 
     # Flatten the molecule
     AllChem.Compute2DCoords(rdmol)  # type: ignore[attr-defined]

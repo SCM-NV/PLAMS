@@ -1,7 +1,30 @@
 import numpy as np
-from typing import Union, Literal, Tuple, Optional
+from typing import Union, Literal, Tuple, Optional, Sequence
 
 ArrayOrFloat = Union[np.ndarray, float]
+
+
+def moving_average(x: Sequence[float], y: Sequence[float], window: int) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Calculate a moving average of x and y.
+
+    :param x: X values
+    :type x: Sequence[float]
+    :param y: Y values
+    :type y: Sequence[float]
+    :param window: Moving-average window size
+    :type window: int
+    :return: ``x_moving_averaged``, ``y_moving_averaged``
+    :rtype: Tuple[np.ndarray, np.ndarray]
+    """
+    if not window:
+        return np.array(x), np.array(y)
+    window = min(len(x) - 1, window)
+    if window <= 1:
+        return np.array(x), np.array(y)
+    ret_x = np.convolve(x, np.ones(window) / window, mode="valid")
+    ret_y = np.convolve(y, np.ones(window) / window, mode="valid")
+    return ret_x, ret_y
 
 
 def _gaussian_height(x: np.ndarray, A: ArrayOrFloat, x0: ArrayOrFloat, sigma: ArrayOrFloat) -> np.ndarray:
@@ -36,7 +59,12 @@ def broaden_results(
     areas: np.ndarray,
     broadening_width: Union[float, np.ndarray] = 40,
     broadening_type: Literal[
-        "gaussian", "lorentzian", "gaussian_height", "gaussian_area", "lorentzian_height", "lorentzian_area"
+        "gaussian",
+        "lorentzian",
+        "gaussian_height",
+        "gaussian_area",
+        "lorentzian_height",
+        "lorentzian_area",
     ] = "gaussian_height",
     x_data: Union[np.ndarray, Tuple[float, float, float]] = (0, 4000, 0.5),
     post_process: Optional[Literal["max_to_1"]] = None,

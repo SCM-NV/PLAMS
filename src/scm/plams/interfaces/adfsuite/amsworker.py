@@ -39,12 +39,24 @@ from scm.plams.interfaces.adfsuite.ams import AMSJob
 from scm.plams.interfaces.molecule.ase import toASE
 from scm.plams.tools.units import Units
 from scm.plams.core.threading_utils import ContextAwareThread
+from scm.plams.mol.molecule import Molecule
 
 if TYPE_CHECKING:
-    from scm.plams.mol.molecule import Molecule
     from ase import Atoms as ASEAtoms
     from scm.amspipe import AMSPipeError
     import psutil
+
+if TYPE_CHECKING:
+    from scm.base import ChemicalSystem
+
+    _has_scm_chemsys: bool
+else:
+    try:
+        from scm.base import ChemicalSystem
+
+        _has_scm_chemsys = True
+    except ImportError:
+        _has_scm_chemsys = False
 
 T = TypeVar("T")
 TSelf = TypeVar("TSelf", bound="AMSWorker")
@@ -141,15 +153,23 @@ class AMSWorkerResults:
     def __init__(
         self,
         name: str,
-        molecule: "Molecule",
+        molecule: Union["Molecule", "ChemicalSystem"],
         results: Dict[str, Any],
         error: Optional[Union["AMSPipeError", "AMSWorkerError"]] = None,
     ):
+        self._input_molecule: Optional["Molecule"] = None
+        self._input_system: Optional["ChemicalSystem"] = None
+        if _has_scm_chemsys and isinstance(molecule, ChemicalSystem):
+            self._input_system = molecule
+        else:
+            assert isinstance(molecule, Molecule)
+            self._input_molecule = molecule
+
         self._name = name
-        self._input_molecule = molecule
         self.error = error
         self._results = results
         self._main_molecule: Optional["Molecule"] = None
+        self._main_system: Optional["ChemicalSystem"] = None
         self._main_ase_atoms: Optional["ASEAtoms"] = None
 
     @property
@@ -172,7 +192,7 @@ class AMSWorkerResults:
         return self.error is None
 
     def get_errormsg(self) -> Optional[str]:
-        """Attempts to retreive a human readable error message from a crashed job. Returns ``None`` for jobs without errors."""
+        """Attempts to retrieve a human readable error message from a crashed job. Returns ``None`` for jobs without errors."""
         if self.ok():
             return None
         else:
@@ -261,23 +281,54 @@ class AMSWorkerResults:
 
         Note that this method may also be used if the calculation producing this |AMSWorkerResults| object has failed, i.e. :meth:`ok` is ``False``.
         """
-        return self._input_molecule
+        if self._input_molecule is None:
+            system_block = str(self._input_system)
+            ams_job = AMSJob.from_input(text_input=system_block)
+            self._input_molecule = list(ams_job.molecule.values())[0]  # type: ignore[operator,union-attr]
+        assert self._input_molecule is not None
+        return self._input_molecule.copy()
+
+    @requires_optional_package("scm.base")
+    def get_input_system(self) -> "ChemicalSystem":
+        """Return a ``ChemicalSystem`` instance with the coordinates passed into the |AMSWorker|.
+
+        Note that this method may also be used if the calculation producing this |AMSWorkerResults| object has failed, i.e. :meth:`ok` is ``False``.
+        """
+        if self._input_system is None:
+            ams_job = AMSJob(molecule=self.get_input_molecule())
+            system_block = ams_job.get_input()
+            self._input_system = ChemicalSystem(system_block)
+
+        return self._input_system.copy()
 
     @_restrict
     def get_main_molecule(self) -> "Molecule":
         """Return a |Molecule| instance with the final coordinates."""
         if self._main_molecule is None:
+            self._main_molecule = self.get_input_molecule()
             if self._results is not None and "xyzAtoms" in self._results:
-                self._main_molecule = self._input_molecule.copy()
                 self._main_molecule.from_array(self._results.get("xyzAtoms") * Units.conversion_ratio("au", "Angstrom"))  # type: ignore[operator]
                 if "latticeVectors" in self._results:
                     self._main_molecule.lattice = [
                         list(v) for v in self._results.get("latticeVectors") * Units.conversion_ratio("au", "Angstrom")  # type: ignore[operator,union-attr]
                     ]
-            else:
-                self._main_molecule = self._input_molecule
 
-        return self._main_molecule
+        return self._main_molecule.copy()
+
+    @_restrict
+    @requires_optional_package("scm.base")
+    def get_main_system(self) -> "ChemicalSystem":
+        """Return a ``ChemicalSystem`` instance with the final coordinates."""
+        if self._main_system is None:
+            self._main_system = self.get_input_system()
+            if self._results is not None and "xyzAtoms" in self._results:
+                self._main_system.coords = self._results.get("xyzAtoms") * Units.conversion_ratio("au", "Angstrom")  # type: ignore[operator]
+                if "latticeVectors" in self._results and self._results.get("latticeVectors").size > 0:  # type: ignore[union-attr]
+                    self._main_system.lattice.vectors = [
+                        list(v) for v in self._results.get("latticeVectors") * Units.conversion_ratio("au", "Angstrom")  # type: ignore[operator,union-attr]
+                    ]
+
+        return self._main_system.copy()
 
     @_restrict
     @requires_optional_package("ase")
@@ -299,7 +350,7 @@ class AMSWorkerResults:
                         cell[: lattice.shape[0], : lattice.shape[1]] = lattice * Units.conversion_ratio(
                             "au", "Angstrom"
                         )
-                atomsymbols = [at.symbol for at in self._input_molecule]
+                atomsymbols = [at.symbol for at in self.get_input_molecule()]
                 positions = np.array(self._results["xyzAtoms"]).reshape(-1, 3) * Units.conversion_ratio(
                     "au", "Angstrom"
                 )
@@ -360,6 +411,11 @@ class AMSWorkerMDState:
     def get_kineticenergy(self, unit: str = "au") -> float:
         """Return the kinetic energy, expressed in *unit*."""
         return self._state["kineticEnergy"] * Units.conversion_ratio("au", unit)
+
+    @_restrict
+    def get_temperature(self, unit: str = "K") -> float:
+        """Return the temperature, expressed in *unit*."""
+        return self._state["temperature"] * Units.conversion_ratio("K", unit)
 
     @_restrict
     def get_velocities(self, dist_unit: str = "Angstrom", time_unit: str = "fs") -> np.ndarray:
@@ -852,7 +908,9 @@ class AMSWorker:
             s.set_nested(_arg2setting[key], val)
         return s
 
-    def _solve_from_settings(self, name: str, molecule: "Molecule", settings: Settings) -> AMSWorkerResults:
+    def _solve_from_settings(
+        self, name: str, molecule: Union["Molecule", "ChemicalSystem"], settings: Settings
+    ) -> AMSWorkerResults:
         args = AMSWorker._settings_to_args(settings)
         if args["task"].lower() == "geometryoptimization":
             args["gradients"] = True  # need to explicitly set gradients to True to get them in the AMSWorkerResults
@@ -863,7 +921,7 @@ class AMSWorker:
     def _solve(
         self,
         name: str,
-        molecule: "Molecule",
+        molecule: Union["Molecule", "ChemicalSystem"],
         task: str,
         prev_results: Optional[Union[AMSWorkerResults, AMSWorkerMDState]] = None,
         quiet: bool = True,
@@ -978,34 +1036,68 @@ class AMSWorker:
             # ... and return an AMSWorkerResults object indicating our failure.
             return AMSWorkerResults(name, molecule, {}, exc)
 
-    def _prepare_system(self, molecule: "Molecule") -> None:
+    def _prepare_system(self, molecule: Union["Molecule", "ChemicalSystem"]) -> None:
+        if _has_scm_chemsys and isinstance(molecule, ChemicalSystem) and molecule.electrostatic_embedding.is_active():
+            raise JobError("AMSWorker does not support ChemicalSystems with electrostatic embedding.")
+
         # This is a good opportunity to let the worker process know about all the results we no longer need ...
         self._prune_restart_cache()
 
         chemicalSystem: Dict[str, Any] = {}
-        chemicalSystem["atomSymbols"] = np.asarray([atom.symbol for atom in molecule])
-        chemicalSystem["coords"] = molecule.as_array() * Units.conversion_ratio("Angstrom", "Bohr")
-        if "charge" in molecule.properties:
-            chemicalSystem["totalCharge"] = float(molecule.properties.charge)
+        angstrom_to_bohr = Units.conversion_ratio("Angstrom", "Bohr")
+
+        if _has_scm_chemsys and isinstance(molecule, ChemicalSystem):
+            symbols = np.asarray([atom.symbol for atom in molecule.atoms])
+            coords = np.asarray(molecule.coords)
+            charge = molecule.charge
+            atomicInfo = [molecule.atom_EOL_string(i) for i in range(molecule.num_atoms)]
+            cell = np.asarray(molecule.lattice.vectors) if molecule.has_lattice() else None
+
+            if molecule.has_bonds():
+                bonds = np.asarray([[iat + 1, jat + 1] for iat, jat, _ in molecule.bonds], dtype=int)
+                bond_orders = np.asarray([bond.order for _, _, bond in molecule.bonds])
+            else:
+                bonds = None
+                bond_orders = None
+
         else:
-            chemicalSystem["totalCharge"] = 0.0
-        atomicInfo = [AMSJob._atom_suffix(atom) for atom in molecule]
+            assert isinstance(molecule, Molecule)
+            symbols = np.asarray([atom.symbol for atom in molecule])
+            coords = molecule.as_array()
+            charge = float(molecule.properties.charge) if "charge" in molecule.properties else 0.0
+
+            atomicInfo = [AMSJob._atom_suffix(atom) for atom in molecule]
+
+            cell = np.asarray(molecule.lattice) if molecule.lattice else None
+
+            if molecule.bonds:
+                bonds = np.array([[iat for iat in molecule.index(bond)] for bond in molecule.bonds])
+                bond_orders = np.asarray([float(bond.order) for bond in molecule.bonds])
+            else:
+                bonds = None
+                bond_orders = None
+
+        chemicalSystem["atomSymbols"] = symbols
+        chemicalSystem["coords"] = coords * angstrom_to_bohr
+        chemicalSystem["totalCharge"] = charge
+
         if any(ai != "" for ai in atomicInfo):
             chemicalSystem["atomicInfo"] = np.asarray(atomicInfo)
-        if molecule.lattice:
-            cell = np.asarray(molecule.lattice) * Units.conversion_ratio("Angstrom", "Bohr")
-            chemicalSystem["latticeVectors"] = cell
-        if molecule.bonds:
-            chemicalSystem["bonds"] = np.array([[iat for iat in molecule.index(bond)] for bond in molecule.bonds])
-            if len(chemicalSystem["bonds"]) == 0:
-                chemicalSystem["bonds"] = np.zeros((0, 2))
-            chemicalSystem["bondOrders"] = np.asarray([float(bond.order) for bond in molecule.bonds])
+
+        if cell is not None:
+            chemicalSystem["latticeVectors"] = cell * angstrom_to_bohr
+
+        if bonds is not None:
+            bonds = bonds if len(bonds) > 0 else np.zeros((0, 2))
+            chemicalSystem["bonds"] = bonds
+            chemicalSystem["bondOrders"] = bond_orders
+
         self._call("SetSystem", chemicalSystem)
 
     def SinglePoint(
         self,
         name: str,
-        molecule: "Molecule",
+        molecule: Union["Molecule", "ChemicalSystem"],
         prev_results: Optional[AMSWorkerResults] = None,
         quiet: bool = True,
         gradients: bool = False,
@@ -1016,7 +1108,7 @@ class AMSWorker:
         dipolemoment: bool = False,
         dipolegradients: bool = False,
     ) -> AMSWorkerResults:
-        """Performs a single point calculation on the geometry given by the |Molecule| instance *molecule* and returns an instance of |AMSWorkerResults| containing the results.
+        """Performs a single point calculation on the geometry given by the system *molecule* (|Molecule| or ``ChemicalSystem``) and returns an instance of |AMSWorkerResults| containing the results.
 
         Every calculation should be given a *name*. Note that the name **must be unique** for this |AMSWorker| instance: One should not attempt to reuse calculation names with a given instance of |AMSWorker|.
 
@@ -1057,7 +1149,7 @@ class AMSWorker:
     def GeometryOptimization(
         self,
         name: str,
-        molecule: "Molecule",
+        molecule: Union["Molecule", "ChemicalSystem"],
         prev_results: Optional[AMSWorkerResults] = None,
         quiet: bool = True,
         gradients: bool = True,
@@ -1081,7 +1173,7 @@ class AMSWorker:
         convstressenergyperatom: Optional[float] = None,
         constraints: Optional[Settings] = None,
     ) -> AMSWorkerResults:
-        """Performs a geometry optimization on the |Molecule| instance *molecule* and returns an instance of |AMSWorkerResults| containing the results from the optimized geometry.
+        """Performs a geometry optimization on the system *molecule* (|Molecule| or ``ChemicalSystem``) and returns an instance of |AMSWorkerResults| containing the results from the optimized geometry.
 
         The geometry optimizer can be controlled using the following keyword arguments:
 
@@ -1151,7 +1243,7 @@ class AMSWorker:
             self._start_subprocess()
             raise
 
-    def CreateMDState(self, name: str, molecule: "Molecule") -> None:
+    def CreateMDState(self, name: str, molecule: Union["Molecule", "ChemicalSystem"]) -> None:
         try:
 
             self._prepare_system(molecule)
@@ -1393,7 +1485,10 @@ class AMSWorkerPool:
         return self
 
     def _solve_from_settings(
-        self, items: Sequence[Tuple[str, "Molecule", Settings]], watch: bool = False, watch_interval: int = 60
+        self,
+        items: Sequence[Tuple[str, Union["Molecule", "ChemicalSystem"], Settings]],
+        watch: bool = False,
+        watch_interval: int = 60,
     ) -> List[Optional[AMSWorkerResults]]:
         """Request to pool to execute calculations for all items in the iterable *items*. Returns a list of |AMSWorkerResults| objects.
 
@@ -1486,10 +1581,17 @@ class AMSWorkerPool:
             log(f"{str(num_done).rjust(width)} / {pd['num_jobs']} jobs finished:{percent_done:5.1f}%{trem}")
 
     def _prep_solve_from_settings(
-        self, method: str, items: Sequence[Union[Tuple[str, "Molecule"], Tuple[str, "Molecule", Dict[str, Any]]]]
-    ) -> List[Tuple[str, "Molecule", Settings]]:
+        self,
+        method: str,
+        items: Sequence[
+            Union[
+                Tuple[str, Union["Molecule", "ChemicalSystem"]],
+                Tuple[str, Union["Molecule", "ChemicalSystem"], Dict[str, Any]],
+            ]
+        ],
+    ) -> List[Tuple[str, Union["Molecule", "ChemicalSystem"], Settings]]:
 
-        solve_items: List[Tuple[str, "Molecule", Settings]] = []
+        solve_items: List[Tuple[str, Union["Molecule", "ChemicalSystem"], Settings]] = []
         for item in items:
             if len(item) == 2:
                 name, mol = item
@@ -1509,7 +1611,12 @@ class AMSWorkerPool:
 
     def SinglePoints(
         self,
-        items: Sequence[Union[Tuple[str, "Molecule"], Tuple[str, "Molecule", Dict[str, Any]]]],
+        items: Sequence[
+            Union[
+                Tuple[str, Union["Molecule", "ChemicalSystem"]],
+                Tuple[str, Union["Molecule", "ChemicalSystem"], Dict[str, Any]],
+            ]
+        ],
         watch: bool = False,
         watch_interval: int = 60,
     ) -> List[Optional[AMSWorkerResults]]:
@@ -1519,13 +1626,17 @@ class AMSWorkerPool:
 
         If *watch* is set to ``True``, the AMSWorkerPool will regularly log progress information. The interval between messages can be set with the *watch_interval* argument in seconds.
 
-        As an example, the following call would do single point calculations with gradients and (only for periodic systems) stress tensors for all |Molecule| instances in the dictionary ``molecules``.
+        As an example, the following call would do single point calculations with gradients and (only for periodic systems) stress tensors for all systems in the dictionary ``molecules``.
 
         .. code-block:: python
 
             results = pool.SinglePoint([ (name, molecules[name], {
                                              "gradients": True,
-                                             "stresstensor": len(molecules[name].lattice) != 0
+                                             "stresstensor": (
+                                                 molecules[name].has_lattice()
+                                                 if hasattr(molecules[name], "has_lattice")
+                                                 else len(molecules[name].lattice) != 0
+                                             )
                                           }) for name in sorted(molecules) ])
         """
         solve_items = self._prep_solve_from_settings("SinglePoint", items)
@@ -1533,7 +1644,12 @@ class AMSWorkerPool:
 
     def GeometryOptimizations(
         self,
-        items: List[Union[Tuple[str, "Molecule"], Tuple[str, "Molecule", Dict[str, Any]]]],
+        items: List[
+            Union[
+                Tuple[str, Union["Molecule", "ChemicalSystem"]],
+                Tuple[str, Union["Molecule", "ChemicalSystem"], Dict[str, Any]],
+            ]
+        ],
         watch: bool = False,
         watch_interval: int = 60,
     ) -> List[Optional[AMSWorkerResults]]:

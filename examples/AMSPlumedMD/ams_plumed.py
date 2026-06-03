@@ -81,6 +81,9 @@ s.input.ReaxFF.ForceField = "CHO.ff"  # If you have ReaxFF license
 # s.input.MLPotential.Model = 'M3GNet-UP-2022'   # if you have ML potential license and M3Gnet installed
 # s.input.dftb  # if you have a DFTB license
 
+# setting the random seed to ensure reproducibility. You should generally not include this
+s.input.ams.RNGSeed = 12345
+
 # MD settings
 s.input.ams.Task = "MolecularDynamics"
 s.input.ams.MolecularDynamics.NSteps = nsteps
@@ -140,6 +143,7 @@ for i, mol in enumerate(trajectory, 1):
             view(mol, ax=axes[i_ax])  # mol is a PLAMS Molecule
             axes[i_ax].set_title(f"frame {i}")
             i_ax += 1
+plt.show()
 
 
 # The above pictures show how the H(6) approaches the O(3). At the end, the carbonic acid molecule has dissociated into CO2 and H2O.

@@ -4,12 +4,14 @@ import threading
 import time
 from os.path import join as opj
 from subprocess import DEVNULL, PIPE
+import traceback
 
 from scm.plams.core.errors import PlamsError
 from scm.plams.core.functions import get_config, log
 from scm.plams.core.private import saferun
 from scm.plams.core.settings import Settings
 from scm.plams.core.threading_utils import LimitedSemaphore, ContextAwareThread
+from scm.plams.core.enums import JobStatus
 
 from typing import Callable, TypeVar, Dict, Any, Tuple, TYPE_CHECKING, Optional, List
 from typing_extensions import ParamSpec, Concatenate
@@ -64,7 +66,7 @@ def _in_limited_thread(func: Callable[Concatenate[SelfT, P], None]) -> Callable[
 
 
 def _limit(func: Callable[Concatenate[SelfT, P], None]) -> Callable[Concatenate[SelfT, P], None]:
-    """Decorator for an instance method. If ``_job_limit`` attribute of given instance is not ``None``, use this attribute to wrap decorated method via :ref:`with<with-locks>` statement."""
+    """Decorator for an instance method. If ``_job_limit`` attribute of given instance is not ``None``, use this attribute to wrap decorated method via `with <https://docs.python.org/3/library/threading.html#using-locks-conditions-and-semaphores-in-the-with-statement>`__ statement."""
 
     @functools.wraps(func)
     def wrapper(self: SelfT, /, *args: P.args, **kwargs: P.kwargs) -> None:
@@ -223,6 +225,17 @@ class JobRunner(metaclass=_MetaRunner):
             if job._prepare(jobmanager):
                 job._execute(self)
                 job._finalize()
+        except (KeyboardInterrupt, SystemExit):
+            # Ensure keyboard interrupts set the job as failed and propagate the error
+            # This ensures that we do not hang when running with a serial job runner
+            log(f"Job {job.name} was interrupted, marking job as {JobStatus.FAILED}", 5)
+            job.status = JobStatus.FAILED  # type: ignore[assignment] # Python3.8 only - can be removed when support dropped
+            job.results.finished.set()  # type: ignore[has-type]
+            job.results.done.set()  # type: ignore[has-type]
+            if job.parent and job in job.parent:  # type: ignore[has-type]
+                job.parent._notify()
+            job._error_msg = traceback.format_exc()
+            raise
         finally:
             # Log job summaries
             try:

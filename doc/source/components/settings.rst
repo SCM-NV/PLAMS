@@ -15,7 +15,7 @@ Any derived settings class is interchangeable with the base |Settings| class of 
 Tree-like structure
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The |Settings| class is based on the regular Python dictionary (built-in class :class:`dict`, tutorial can be found :ref:`here<tut-dictionaries>`) and in many aspects works just like it::
+The |Settings| class is based on the regular Python dictionary (built-in class :class:`dict`, tutorial can be found `here <https://docs.python.org/3/tutorial/datastructures.html#tut-dictionaries>`__) and in many aspects works just like it::
 
     >>> s = Settings()
     >>> s['abc'] = 283
@@ -190,7 +190,16 @@ For example:
     config.job.pickle = False
     config.default_jobrunner = JobRunner(parallel=True, maxjobs=8)
 
-The structure for the defined options on the nested settings objects is defined below.
+A context manager ``config_context`` is provided to override the global ``config`` within a specific scope:
+
+.. autofunction:: scm.plams.core.functions.config_context
+
+This can be useful for temporarily disabling or changing global settings.
+If you use this context manager, obtain ``config`` with the ``get_config`` function:
+
+.. autofunction:: scm.plams.core.functions.get_config
+
+The structure for all the defined options on the nested settings objects is defined below.
 
 .. autoclass:: ConfigSettings
 

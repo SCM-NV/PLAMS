@@ -15,6 +15,12 @@ from scm.plams.core.enums import JobStatus
 __all__ = ["AMSRDFJob", "AMSMSDJob", "AMSMSDResults", "AMSVACFJob", "AMSVACFResults"]
 
 
+class MDAnalysisSettingsError(Exception):
+    """
+    Error in supplied settings object
+    """
+
+
 class AMSConvenientAnalysisJob(AMSAnalysisJob):
     _task = "None"
 
@@ -32,6 +38,7 @@ class AMSConvenientAnalysisJob(AMSAnalysisJob):
 
         self.previous_job = previous_job
         self.atom_indices = atom_indices
+        self._settings_updated = False
 
     def _get_max_dt_frames(self, max_correlation_time_fs):
         if max_correlation_time_fs is None:
@@ -57,11 +64,17 @@ class AMSConvenientAnalysisJob(AMSAnalysisJob):
         Generate the input file
         """
         self._settings_to_list(self.settings.input, self._task)
-        if self.atom_indices and self._parent_write_atoms:
-            section = getattr(self.settings.input, self._task)
-            for entry in section:
-                if not (self._has_settings_entry(entry, "Atoms") and self._has_settings_entry(entry.Atoms, "Atom")):
-                    self._add_nonunique_settings_entries(entry.Atoms.Atom, self.atom_indices)
+
+        if not self._settings_updated:
+            if self.atom_indices and self._parent_write_atoms:
+                section = getattr(self.settings.input, self._task)
+                for entry in section:
+                    if not (self._has_settings_entry(entry, "Atoms") and self._has_settings_entry(entry.Atoms, "Atom")):
+                        self._add_nonunique_settings_entries(entry.Atoms, "Atom", self.atom_indices)
+                    else:
+                        msg = "Atom indices cannot be supplied as argument if already present in settings"
+                        raise MDAnalysisSettingsError(msg)
+            self._settings_updated = True
         return super().get_input()
 
     @staticmethod
@@ -100,7 +113,7 @@ class AMSConvenientAnalysisJob(AMSAnalysisJob):
             return getattr(settings, entry).value_changed
 
     @staticmethod
-    def _add_nonunique_settings_entries(settings, entries):
+    def _add_nonunique_settings_entries(settings, key, entries):
         """
         For non-default entries, multiple entries can be supplied
 
@@ -109,9 +122,10 @@ class AMSConvenientAnalysisJob(AMSAnalysisJob):
         """
         if not isinstance(settings, Settings):
             for i, entry in enumerate(entries):
-                settings[i] = entry
+                subsettings = getattr(settings, key)
+                subsettings[i] = entry
         else:
-            settings = entries
+            settings[key] = entries
 
     def _parent_prerun(self):
         """
@@ -459,7 +473,7 @@ class AMSVACFJob(AMSConvenientAnalysisJob):
         """
         Generate the input file
         """
-        self.settings_to_list()
+        self._settings_to_list(self.settings.input, self._task)
 
         for settings in self.settings.input.AutoCorrelation:
             settings.Property = "Velocities"
@@ -470,7 +484,7 @@ class AMSVACFJob(AMSConvenientAnalysisJob):
         Creates final settings
         """
         self._parent_prerun()  # trajectory and atom_indices handled
-        self.settings_to_list()
+        self._settings_to_list(self.settings.input, self._task)
 
         for settings in self.settings.input.AutoCorrelation:
             if not self._has_settings_entry(settings, "MaxFrame"):
@@ -655,15 +669,45 @@ class AMSRDFJob(AMSConvenientAnalysisJob):
         """
         self._settings_to_list(self.settings.input, self._task)
 
-        for settings in self.settings.input.RadialDistribution:
-            if not self._has_settings_entry(settings, "AtomsFrom"):
-                if self.atom_indices:
-                    settings.AtomsFrom.Atom = self.atom_indices
-            if not self._has_settings_entry(settings, "AtomsTo"):
-                if self.atom_indices_to:
-                    settings.Atom = self.atom_indices_to
-            if not self._has_settings_entry(settings, "Range"):
-                settings.Range = f"{self.rmin} {self.rmax} {self.rstep}"
+        if not self._settings_updated:
+            prevjobs = self.previous_job
+            if not isinstance(prevjobs, list):
+                prevjobs = [prevjobs]
+            main_mol = prevjobs[0].results.get_main_molecule()
+
+            for settings in self.settings.input.RadialDistribution:
+                # If no atom iindices were provided, and there is nothing in the settings at all, add them
+                atom_indices = self.atom_indices
+                atom_indices_to = self.atom_indices_to
+                if not atom_indices:
+                    if not self._has_settings_entry(settings, "AtomsFrom"):
+                        atom_indices = list(range(1, len(main_mol) + 1))
+                if not atom_indices_to:
+                    if not self._has_settings_entry(settings, "AtomsTo"):
+                        atom_indices_to = list(range(1, len(main_mol) + 1))
+
+                # Add the atom indices only if there were no atom indices in the settings (if elements are present, add indices)
+                if atom_indices:
+                    atoms_from_present = self._has_settings_entry(settings, "AtomsFrom")
+                    atom_present = atoms_from_present and self._has_settings_entry(settings.AtomsFrom, "Atom")
+                    if not atom_present:
+                        self._add_nonunique_settings_entries(settings.AtomsFrom, "Atom", atom_indices)
+                    else:
+                        msg = "Atom indices cannot be supplied as argument if already present in settings"
+                        raise MDAnalysisSettingsError(msg)
+                if atom_indices_to:
+                    atoms_to_present = self._has_settings_entry(settings, "AtomsTo")
+                    atom_present = atoms_to_present and self._has_settings_entry(settings.AtomsTo, "Atom")
+                    if not atom_present:
+                        self._add_nonunique_settings_entries(settings.AtomsTo, "Atom", atom_indices_to)
+                    else:
+                        msg = "Atom indices cannot be supplied as argument if already present in settings"
+                        raise MDAnalysisSettingsError(msg)
+                if not self._has_settings_entry(settings, "Range"):
+                    if isinstance(settings, Settings):
+                        settings.Range = f"{self.rmin} {self.rmax} {self.rstep}"
+                    else:
+                        settings.Range = [self.rmin, self.rmax, self.rstep]
         return super().get_input()
 
     def prerun(self):  # noqa F811
@@ -673,16 +717,7 @@ class AMSRDFJob(AMSConvenientAnalysisJob):
         self._parent_prerun()
         self._settings_to_list(self.settings.input, self._task)
 
-        prevjobs = self.previous_jobs
-        if not isinstance(prevjobs, list):
-            prevjobs = [prevjobs]
-        main_mol = prevjobs[0].results.get_main_molecule()
-
-        if not self.atom_indices:
-            self.atom_indices = list(range(1, len(main_mol) + 1))
-        if not self.atom_indices_to:
-            self.atom_indices_to = list(range(1, len(main_mol) + 1))
-        # Settings will be adjusted when get_input is called (again).
+        # Atom_indices will be adjusted when get_input is called (again).
 
     def postrun(self):
         """

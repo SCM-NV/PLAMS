@@ -1,6 +1,7 @@
 import os
 import re
 import subprocess
+import tempfile
 from typing import (
     Optional,
     Tuple,
@@ -12,7 +13,6 @@ from typing import (
     Dict,
     Generator,
     Any,
-    TypeVar,
     Type,
     ClassVar,
 )
@@ -20,7 +20,7 @@ from typing_extensions import Self
 
 import numpy as np
 from dataclasses import dataclass, replace
-from threading import Lock
+from threading import Lock, RLock
 import select
 import time
 from contextlib import contextmanager
@@ -45,8 +45,6 @@ except ImportError:
 
 if TYPE_CHECKING:
     from PIL import Image as PilImage
-
-TBackend = TypeVar("TBackend", bound="_ViewBackend")
 
 __all__ = ["ViewConfig", "view"]
 
@@ -244,9 +242,6 @@ class ViewConfig:
             raise ValueError(f"open_window must be a boolean value, but was '{self.open_window}'")
 
 
-_view_backends_cache: Optional[Dict[str, Tuple["_ViewBackend", bool, Optional[Exception]]]] = None
-
-
 @requires_optional_package("PIL")
 def view(
     system: Union[Molecule, "ChemicalSystem"],
@@ -288,7 +283,6 @@ def view(
     :param open_window: override to open AMSview in a dedicated window
     :return: image of the molecule generated using AMSView
     """
-    global _view_backends_cache
     # Set up config objects, applying any config overrides from the keyword args
     config = config or ViewConfig()
     if width is not None:
@@ -325,40 +319,25 @@ def view(
         config.open_window = open_window
         config.timeout = 10 if not config.open_window else None
 
-    # On first call check which backends are available
-    if _view_backends_cache is None:
-
-        def check_backend_available(b: TBackend) -> Tuple[TBackend, bool, Optional[Exception]]:
-            try:
-                b.check_available()
-                return b, True, None
-            except Exception as ex:
-                return b, False, ex
-
-        backends = {
-            "amsview": check_backend_available(_AmsViewBackend()),
-            "amsview_xvfb": check_backend_available(_AmsViewXvfbBackend()),
-            "ase_plot": check_backend_available(_AsePlotBackend()),
-        }
-        _view_backends_cache = backends
-    else:
-        backends = _view_backends_cache
-
-    # On subsequent calls get the available backend
-    if config.backend != "auto" and config.backend not in backends:
-        raise ValueError(f"View backend '{config.backend}' not recognised")
+    # Resolve only the requested backend, or walk the precedence order lazily for "auto".
+    if config.backend != "auto" and config.backend not in _view_backends_cache:
+        raise ValueError(f"View backend '{config.backend}' not recognized")
 
     if config.backend == "auto":
-        available_backends = [v for v in backends.values() if v[1]]
-        if not any(available_backends):
-            errors = "\n\t".join([f"{k}: {err}" for k, (_, __, err) in backends.items()])
+        selected_backend = None
+        for name, lazy_backend in _view_backends_cache.items():
+            if lazy_backend.is_available():
+                selected_backend = lazy_backend.backend
+                break
+
+        if selected_backend is None:
+            errors = "\n\t".join(f"{name}: {_view_backends_cache[name].error}" for name in _view_backends_cache)
             raise RuntimeError(f"No backends available for view.\nErrors were:\n\t{errors}")
-        else:
-            selected_backend, _, __ = available_backends[0]
     else:
-        selected_backend, available, error = backends[config.backend]
-        if not available:
-            raise RuntimeError(f"Backend '{config.backend}' not available for view.\nError was: {error}")
+        lazy_backend = _view_backends_cache[config.backend]
+        if not lazy_backend.is_available():
+            raise RuntimeError(f"Backend '{config.backend}' not available for view.\nError was: {lazy_backend.error}")
+        selected_backend = lazy_backend.backend
 
     # Validation to help prevent crashing due to bad options
     config.validate()
@@ -532,7 +511,11 @@ class _AmsViewBackend(_ViewBackend):
 
     @classmethod
     def get_command(
-        cls, system: Union[Molecule, "ChemicalSystem"], config: ViewConfig, input_path: str, img_path: str
+        cls,
+        system: Union[Molecule, "ChemicalSystem"],
+        config: ViewConfig,
+        input_path: str,
+        img_path: str,
     ) -> List[str]:
         """
         Generate command for AMSview
@@ -590,10 +573,10 @@ class _AmsViewBackend(_ViewBackend):
         run_with_timeout(command, timeout=config.timeout)
 
     @classmethod
-    def generate_image(cls, system: Union[Molecule, "ChemicalSystem"], config: ViewConfig) -> "PilImage.Image":
-        from PIL import Image as PilImage
-
-        # Write temporary input file
+    def write_system_input(cls, system: Union[Molecule, "ChemicalSystem"]) -> str:
+        """
+        Write the system to a temporary AMS input file and return the path.
+        """
         with NamedTemporaryFile(mode="w", suffix=".in", delete=False) as input_file:
             input_path = input_file.name
             if isinstance(system, Molecule):
@@ -604,41 +587,248 @@ class _AmsViewBackend(_ViewBackend):
                 raise ValueError(
                     f"System must be a PLAMS Molecule or a ChemicalSystem, but was {type(system).__name__}"
                 )
+        return input_path
 
+    @staticmethod
+    def get_image_path(config: ViewConfig) -> Tuple[str, bool]:
+        """
+        Get the path to write an image to, and whether the caller should delete it.
+        """
         if config.picture_path:
-            img_path = str(config.picture_path)
-        else:
-            with NamedTemporaryFile(mode="wb", suffix=".png", delete=False) as img_file:
-                img_path = img_file.name
+            return str(config.picture_path), False
 
-        # Build and execute command
-        command = cls.get_command(system, config, input_path, img_path)
-        try:
-            # For open-window, we run command twice, once to generate the image and the second to view
-            # as both cannot be combined without the window auto-closing
-            if config.open_window:
-                save_config = replace(config, open_window=False, timeout=10)
-                save_command = cls.get_command(system, save_config, input_path, img_path)
-                cls.run_command(save_command, save_config)
-            cls.run_command(command, config)
+        fd, img_path = tempfile.mkstemp(suffix=".png")
+        os.close(fd)
+        os.remove(img_path)
+        return img_path, True
 
-            # Open image file and resize, making sure to maintain aspect ratio as AMSView may not generate with precise dimensions
-            img = PilImage.open(img_path)
-            img_width, img_height = img.size
-            aspect_ratio = img_width / img_height
-            resized_img = img.resize(
-                (config.width, int(np.ceil(config.width / aspect_ratio))),
-                resample=PilImage.Resampling.LANCZOS,
-                reducing_gap=3.0,
-            )
-        except subprocess.CalledProcessError as ex:
-            raise AMSExecutionError(" ".join(command), ex.stderr)
-        finally:
-            os.remove(input_path)
-            if not config.picture_path:
+    @staticmethod
+    def load_and_resize_image(img_path: str, config: ViewConfig) -> "PilImage.Image":
+        """
+        Open image file and resize, making sure to maintain aspect ratio as AMSView may not generate with precise dimensions.
+        """
+        from PIL import Image as PilImage
+
+        img = PilImage.open(img_path)
+        img_width, img_height = img.size
+        aspect_ratio = img_width / img_height
+        return img.resize(
+            (config.width, int(np.ceil(config.width / aspect_ratio))),
+            resample=PilImage.Resampling.LANCZOS,
+            reducing_gap=3.0,
+        )
+
+    @classmethod
+    def generate_image(cls, system: Union[Molecule, "ChemicalSystem"], config: ViewConfig) -> "PilImage.Image":
+        if config.open_window:
+            save_config = replace(config, open_window=False, timeout=10)
+            img = _AMSViewManager()._generate_image(system, save_config)
+
+            input_path = cls.write_system_input(system)
+            command = cls.get_command(system, config, input_path, "")
+            try:
+                cls.run_command(command, config)
+            except subprocess.CalledProcessError as ex:
+                raise AMSExecutionError(" ".join(command), ex.stderr)
+            finally:
+                os.remove(input_path)
+
+            return img
+
+        return _AMSViewManager()._generate_image(system, config)
+
+
+class _AMSViewManager:
+    """
+    Manage a persistent AMSview process that accepts commands over stdin.
+
+    This manager is thread-safe: render transactions are serialized through the
+    single AMSview process, so commands and temporary output files cannot interleave.
+    """
+
+    _instance: ClassVar[Optional[Self]] = None
+    _instance_lock: ClassVar[Lock] = Lock()
+    _initialized: bool = False
+
+    def __new__(cls: Type[Self], *args: Any, **kwargs: Any) -> Self:
+        with cls._instance_lock:
+            if cls._instance is None:
+                cls._instance = super().__new__(cls)
+        return cls._instance
+
+    def __init__(self) -> None:
+        if self._initialized:
+            return
+
+        self._lock = RLock()
+        self._proc: Optional[subprocess.Popen] = None
+        self._initialized = True
+
+    def __enter__(self) -> "_AMSViewManager":
+        return self
+
+    def __exit__(self, exc_type: Any, exc_value: Any, traceback: Any) -> None:
+        self.close()
+
+    @property
+    def is_running(self) -> bool:
+        """
+        Check whether the managed AMSview process is currently running.
+        """
+        return self._proc is not None and self._proc.poll() is None
+
+    def close(self, timeout: float = 2.0) -> None:
+        """
+        Close the managed AMSview process, if it is running.
+
+        The shutdown is best effort: close stdin first to let AMSview notice EOF,
+        then terminate, and finally kill if it still does not exit.
+        """
+        with self._lock:
+            proc = self._proc
+            self._proc = None
+
+            if proc is None:
+                return
+
+            if proc.stdin is not None and not proc.stdin.closed:
+                try:
+                    proc.stdin.close()
+                except OSError:
+                    pass
+
+            if proc.poll() is not None:
+                return
+
+            try:
+                proc.terminate()
+                proc.wait(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                try:
+                    proc.kill()
+                    proc.wait(timeout=timeout)
+                except (OSError, subprocess.TimeoutExpired):
+                    pass
+            except OSError:
+                pass
+
+    @classmethod
+    def close_instance(cls) -> None:
+        """
+        Close the singleton AMSview process, if it has been created.
+        """
+        with cls._instance_lock:
+            manager = cls._instance
+
+        if manager is not None:
+            manager.close()
+
+    def _generate_image(self, system: Union[Molecule, "ChemicalSystem"], config: ViewConfig) -> "PilImage.Image":
+        with self._lock:
+            input_path = _AmsViewBackend.write_system_input(system)
+            img_path, cleanup_image = _AmsViewBackend.get_image_path(config)
+            final_img_path = img_path
+
+            if config.picture_path:
+                final_img_path = str(config.picture_path)
+                target_dir = os.path.dirname(os.path.abspath(final_img_path)) or None
+                fd, img_path = tempfile.mkstemp(suffix=".png", dir=target_dir)
+                os.close(fd)
                 os.remove(img_path)
+                cleanup_image = True
 
-        return resized_img
+            try:
+                command = _AmsViewBackend.get_command(system, config, input_path, img_path)
+                self._send_command(command)
+                self._wait_for_image(img_path, config)
+
+                img = _AmsViewBackend.load_and_resize_image(img_path, config)
+                if config.picture_path:
+                    os.replace(img_path, final_img_path)
+                    cleanup_image = False
+                return img
+            except (BrokenPipeError, OSError, TimeoutError, RuntimeError) as ex:
+                self.close()
+                raise AMSExecutionError("amsview -stdin -batch", str(ex))
+            finally:
+                os.remove(input_path)
+                if cleanup_image and os.path.exists(img_path):
+                    os.remove(img_path)
+
+    def _send_command(self, command: List[str]) -> None:
+        self._ensure_started()
+        if self._proc is None or self._proc.stdin is None:
+            raise RuntimeError("AMSview process has no stdin")
+        if self._proc.poll() is not None:
+            raise RuntimeError("AMSview process is not running")
+
+        replacements = {
+            "\\": "\\\\",
+            '"': '\\"',
+            "$": "\\$",
+            "[": "\\[",
+            "]": "\\]",
+            "\n": "\\n",
+            "\r": "\\r",
+        }
+        quoted_args = []
+        for arg in command[1:]:
+            quoted = '"' + "".join(replacements.get(char, char) for char in str(arg)) + '"'
+            quoted_args.append(quoted)
+        stdin_command = " ".join(quoted_args) + "\n"
+        self._proc.stdin.write(stdin_command)
+        self._proc.stdin.flush()
+
+    def _ensure_started(self) -> None:
+        if self.is_running:
+            return
+
+        if self._proc is not None:
+            self.close()
+
+        self._proc = subprocess.Popen(
+            [os.path.expandvars("$AMSBIN/amsview"), "-stdin", "-batch"],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            encoding="utf-8",
+            start_new_session=(os.name == "posix"),
+            creationflags=(
+                subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0  # type: ignore[attr-defined]
+            ),
+        )
+
+    def _wait_for_image(self, img_path: str, config: ViewConfig) -> None:
+        start = time.time()
+        poll_interval = 0.05
+        while True:
+            if self._proc is not None and self._proc.poll() is not None:
+                raise RuntimeError("AMSview process exited before writing image")
+
+            if os.path.exists(img_path):
+                stat = os.stat(img_path)
+                if stat.st_size > 0 and self._is_readable_image(img_path):
+                    return
+
+            if config.timeout is not None and time.time() - start >= config.timeout:
+                raise TimeoutError(f"AMSview did not write image '{img_path}' within {config.timeout} seconds")
+
+            time.sleep(poll_interval)
+
+    @staticmethod
+    def _is_readable_image(img_path: str) -> bool:
+        from PIL import Image as PilImage, UnidentifiedImageError
+
+        try:
+            with PilImage.open(img_path) as img:
+                img.verify()
+            return True
+        except (OSError, UnidentifiedImageError):
+            return False
+
+
+atexit.register(_AMSViewManager.close_instance)
 
 
 class _AmsViewXvfbBackend(_AmsViewBackend):
@@ -664,7 +854,21 @@ class _AmsViewXvfbBackend(_AmsViewBackend):
         # do not open the AMSview window with xvfb, otherwise it will hang
         if config.open_window:
             config = replace(config, open_window=False, timeout=10)
-        return super().generate_image(system, config)
+
+        input_path = cls.write_system_input(system)
+        img_path, cleanup_image = cls.get_image_path(config)
+
+        command = cls.get_command(system, config, input_path, img_path)
+        try:
+            cls.run_command(command, config)
+
+            return cls.load_and_resize_image(img_path, config)
+        except subprocess.CalledProcessError as ex:
+            raise AMSExecutionError(" ".join(command), ex.stderr)
+        finally:
+            os.remove(input_path)
+            if cleanup_image and os.path.exists(img_path):
+                os.remove(img_path)
 
 
 class _XvfbManager:
@@ -1140,3 +1344,45 @@ class _AsePlotBackend(_ViewBackend):
             angles = Rotation.from_matrix(rotation.as_matrix()).as_euler("xyz", degrees=True)
 
         return ",".join(f"{ang:.2f}{ax}" for ang, ax in zip(angles, "xyz"))
+
+
+class _LazyViewBackend:
+    """
+    Wrap a backend and cache the outcome of its first availability check.
+    """
+
+    def __init__(self, backend: "_ViewBackend"):
+        self.backend = backend
+        self._available: Optional[bool] = None
+        self._error: Optional[Exception] = None
+
+    def is_available(self) -> bool:
+        """
+        Check if backend is available and cache the result.
+        """
+        if self._available is None:
+            try:
+                self.backend.check_available()
+                self._available = True
+                self._error = None
+            except Exception as ex:
+                self._available = False
+                self._error = ex
+
+        return self._available
+
+    @property
+    def error(self) -> Optional[Exception]:
+        """
+        Get error associated with this backend, if applicable.
+        """
+        self.is_available()
+        return self._error
+
+
+# Create a cache of the view backends which are lazily instantiated on first usage
+_view_backends_cache: Dict[str, "_LazyViewBackend"] = {
+    "amsview": _LazyViewBackend(_AmsViewBackend()),
+    "amsview_xvfb": _LazyViewBackend(_AmsViewXvfbBackend()),
+    "ase_plot": _LazyViewBackend(_AsePlotBackend()),
+}

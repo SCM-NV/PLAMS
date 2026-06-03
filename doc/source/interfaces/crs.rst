@@ -116,7 +116,7 @@ Which yields the following input:
 ADF and CRSJob
 ~~~~~~~~~~~~~~
 
-A workflow is presented in the PLAMS :ref:`cookbook <ams_crs_workflow>`.
+A workflow is presented in the `ADF and COSMO-RS workflow Python example <../../PythonExamples/ams-crs-workflow/index.html>`__.
 In this workflow, we follow the usual procedure of generating the inputs required to run COSMO-RS and COSMO-SAC calculations.
 
 

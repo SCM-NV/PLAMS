@@ -291,24 +291,25 @@ class TestNiO(MoleculeTestBase):
     def test_cell_angles(self, mol):
         assert np.allclose(mol.cell_angles("radian"), [1.0471975511965976, 1.0471975511965976, 1.0471975511965976])
 
-    class TestHydroxide(MoleculeTestBase):
-        """
-        Charged ion system
-        """
 
-        @pytest.fixture
-        def mol(self, xyz_folder):
-            mol = Molecule(xyz_folder / "hydroxide.xyz")
-            mol.properties.charge = -1
-            return mol
+class TestHydroxide(MoleculeTestBase):
+    """
+    Charged ion system
+    """
 
-        @property
-        def expected_atoms(self):
-            return [("O", 1.0, 0.0, 0.0, {}), ("H", 0.0, 0.0, 0.0, {})]
+    @pytest.fixture
+    def mol(self, xyz_folder):
+        mol = Molecule(xyz_folder / "hydroxide.xyz")
+        mol.properties.charge = -1
+        return mol
 
-        @property
-        def expected_charge(self):
-            return -1.0
+    @property
+    def expected_atoms(self):
+        return [("O", 1.0, 0.0, 0.0, {}), ("H", 0.0, 0.0, 0.0, {})]
+
+    @property
+    def expected_charge(self):
+        return -1.0
 
     class TestBenzeneDimer(MoleculeTestBase):
         """
@@ -603,6 +604,8 @@ class TestBenzene(MoleculeTestBase):
                 self._compare_attrs(bond, bond_ref)
 
         assert mol.label(5) == mol2.label(5) == mol3.label(5)
+        np.testing.assert_allclose(np.array(mol), np.array(mol2))
+        np.testing.assert_allclose(np.array(mol2), np.array(mol3))
 
     def test_get_moments_of_inertia(self, mol):
         expected = np.array([86.81739308, 86.8173935, 173.63478658])

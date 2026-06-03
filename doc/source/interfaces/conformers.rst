@@ -9,7 +9,7 @@ This page documents the PLAMS interface to **Conformers**. For a description of 
 
 .. seealso::
 
-   The :ref:`conformers generation example <ConformersGenerationExample>` in the :ref:`examples` section of the PLAMS manual.
+   The `conformers generation example <../../PythonExamples/conformers-generation/index.html>`__ in the `Python Examples collection <../../PythonExamples/all-examples.html>`__.
 
 ConformersJob
 -------------
@@ -24,7 +24,7 @@ ConformersJob
 
 The ``ConformersJob`` class, which derives from |SingleJob| class, can be used to set up and run a Conformers calculation.
 
-The input options for the Conformers tool (described `here <../../AMS/Utilities/Conformers.html>`_) can be specified in the ``input.ams`` branch of a |Settings| object. See the :ref:`ConformersGenerationExample` example.
+The input options for the Conformers tool (described `here <../../AMS/Utilities/Conformers.html>`_) can be specified in the ``input.ams`` branch of a |Settings| object. See the `conformers generation example <../../PythonExamples/conformers-generation/index.html>`__.
 
 .. autoclass:: scm.conformers.ConformersJob
 

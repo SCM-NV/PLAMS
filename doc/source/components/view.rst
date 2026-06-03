@@ -12,7 +12,7 @@ View
 The |view| function aims to simplify the process of visualizing molecular and periodic systems in PLAMS.
 It can generate images for displaying systems in a Jupyter notebook as well as saving images to files.
 
-For a detailed worked example demonstrating the capabilities and uses of the |view| function, see :ref:`VisualizationExample`.
+For a detailed worked example demonstrating the capabilities and uses of the |view| function, see the `Visualization example <../../PythonExamples/visualization/index.html>`__.
 Otherwise see below for the full API specification.
 
 API

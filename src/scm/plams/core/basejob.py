@@ -21,6 +21,8 @@ from typing import (
     Any,
     Iterator,
     Set,
+    Generic,
+    cast,
 )
 from typing_extensions import ParamSpec, ParamSpecKwargs, Concatenate
 from abc import ABC, abstractmethod
@@ -32,7 +34,7 @@ import atexit
 from scm.plams.core.enums import JobStatus, JobStatusType
 from scm.plams.core.errors import FileError, JobError, PlamsError, ResultsError
 from scm.plams.core.functions import get_config, log
-from scm.plams.core.private import sha256, retry
+from scm.plams.core.private import CrossPlatformUnpickler, sha256, retry
 from scm.plams.core.results import Results
 from scm.plams.core.settings import Settings, JobSettings
 from scm.plams.mol.molecule import Molecule
@@ -728,7 +730,11 @@ class SingleJob(Job):
             job = jobmanager.load_job(path)
         else:
             with open(path, "rb") as f_dill:
-                job = pickle.load(f_dill)
+                try:
+                    job = pickle.load(f_dill)
+                except Exception:
+                    f_dill.seek(0)
+                    job = CrossPlatformUnpickler(f_dill).load()
             if job is not None:
                 # For backwards compatibility (before attributes added/converted to properties)
                 if not hasattr(job, "_status"):
@@ -810,7 +816,7 @@ class SingleJob(Job):
 # ===========================================================================
 
 
-class MultiJob(Job):
+class MultiJob(Job, Generic[J]):
     """Concrete class representing a job that is a container for other jobs.
 
     In addition to constructor arguments and attributes defined by |Job|, the constructor of this class accepts two keyword arguments:
@@ -834,14 +840,19 @@ class MultiJob(Job):
     Private attributes ``_active_children`` and ``_lock`` are essential for proper parallel execution. Please do not modify them.
     """
 
-    def __init__(self, children: Optional[List[Job]] = None, childrunner: Optional["JobRunner"] = None, **kwargs: Any):
+    def __init__(
+        self,
+        children: Optional[Union[List[J], Dict[str, J]]] = None,
+        childrunner: Optional["JobRunner"] = None,
+        **kwargs: Any,
+    ):
         Job.__init__(self, **kwargs)
-        self.children: List[Job] = [] if children is None else children
+        self.children: Union[List[J], Dict[str, J]] = [] if children is None else children
         self.childrunner = childrunner
         self._active_children = 0
         self._lock = threading.Lock()
 
-    def new_children(self) -> Optional[Union[List[Job], Dict[str, Job]]]:
+    def new_children(self) -> Optional[Union[List[J], Dict[str, J]]]:
         """Generate new children jobs.
 
         This method is useful when some of children jobs are not known beforehand and need to be generated based on other children jobs, like for example in any kind of self-consistent procedure.
@@ -860,7 +871,7 @@ class MultiJob(Job):
         """Check if the execution of this instance was successful, by calling :meth:`Job.ok` of all the children jobs."""
         return all([child.ok() for child in self])
 
-    def other_jobs(self) -> Generator[Job, None, None]:
+    def other_jobs(self) -> Generator[J, None, None]:
         """Iterate through other jobs that belong to this |MultiJob|, but are not in ``children``.
 
         Sometimes |prerun| or |postrun| methods create and run some small jobs that don't end up in ``children`` collection, but are still considered a part of a |MultiJob| instance (their ``parent`` atribute points to the |MultiJob| and their working folder is inside MultiJob's working folder). This method provides an iterator that goes through all such jobs.
@@ -871,21 +882,21 @@ class MultiJob(Job):
             if isinstance(attr, Job) and (
                 (hasattr(attr, "parent") and attr.parent == self) or not hasattr(attr, "parent")
             ):
-                yield attr
+                yield cast(J, attr)
 
-    def remove_child(self, job: Job) -> None:
+    def remove_child(self, job: J) -> None:
         """Remove *job* from children."""
 
         rm = None
         for i, j in (
-            self.children.items() if isinstance(self.children, dict) else enumerate(self.children)  # type: ignore[attr-defined]
+            self.children.items() if isinstance(self.children, dict) else enumerate(self.children)  # type: ignore[union-attr]
         ):
             if j == job:
                 rm = i
                 break
         if rm is not None:
-            self.children[rm].parent = None
-            del self.children[rm]
+            self.children[rm].parent = None  # type: ignore[index]
+            del self.children[rm]  # type: ignore[arg-type]
 
     def _get_ready(self) -> None:
         """Get ready for :meth:`~MultiJob._execute`. Count children jobs and set their ``parent`` attribute."""
@@ -893,7 +904,7 @@ class MultiJob(Job):
         for child in self:
             child.parent = self
 
-    def __iter__(self) -> Iterator[Job]:
+    def __iter__(self) -> Iterator[J]:
         """Iterate through ``children``. If it is a dictionary, iterate through its values."""
         if isinstance(self.children, dict):
             return iter(self.children.values())
@@ -923,7 +934,7 @@ class MultiJob(Job):
 
             if isinstance(new, dict) and isinstance(self.children, dict):
                 self.children.update(new)
-                it: Iterable[Job] = new.values()
+                it: Iterable[J] = new.values()
             elif isinstance(new, list) and isinstance(self.children, list):
                 self.children += new
                 it = new
@@ -955,14 +966,14 @@ class MultiJob(Job):
         if self.status != JobStatus.CREATED:
             self.results.wait()
 
-        for child in [c for c in self.children]:
+        for child in [c for c in self.children] if isinstance(self.children, list) else list(self.children.values()):
             child.delete()
             self.remove_child(child)
 
         super().delete()
 
     @classmethod
-    def apply_to_children(cls, job: Job, func: Callable[[Job], None], recursive: bool = False) -> None:
+    def apply_to_children(cls, job: J, func: Callable[[J], None], recursive: bool = False) -> None:
         """
         Apply the function ``func`` to all children of a |MultiJob| (not the job itself).
         This is a no-op if the job is a |SingleJob|.
