@@ -11,6 +11,9 @@ This changelog is effective from the 2025 releases.
 
 ## [Unreleased]
 
+### Added
+* MultiJob now supports generic Job types for the self.children attribute
+
 ### Changed
 * `view` function uses stdin mode for AMSview, reducing overhead for image creation
 
