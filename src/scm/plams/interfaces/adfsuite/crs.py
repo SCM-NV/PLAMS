@@ -483,6 +483,153 @@ class CRSResults(SCMResults):
         return pd.concat([component, mixture, lle], ignore_index=True)
 
     @staticmethod
+    def combine_result_tables(
+        tables: Sequence[Union["pd.DataFrame", CRSResultTables]],
+        *,
+        table: Optional[Literal["component", "mixture", "lle", "all"]] = None,
+        source_column: Optional[str] = "source",
+        reindex_mixture: bool = False,
+        require_same_property: bool = True,
+    ) -> Union["pd.DataFrame", CRSResultTables]:
+        """Combine result tables returned by :meth:`get_result_table`.
+
+        Plain dataframes from ``split=False`` are accepted with ``table=None``.
+        Split result containers from ``split=True`` require ``table`` to select
+        one subtable, or ``table="all"`` to combine all subtables independently.
+        Dataframe schemas must match exactly; this method does not add missing
+        quantity columns.
+        """
+        pd = CRSResults._import_pandas(CRSResults.__name__ + ".combine_result_tables")
+        if table not in {None, "component", "mixture", "lle", "all"}:
+            raise ValueError("table must be one of: None, component, mixture, lle, all")
+        if not tables:
+            raise ValueError("No result tables were provided.")
+
+        are_split_tables = [isinstance(item, CRSResultTables) for item in tables]
+        are_dataframes = [isinstance(item, pd.DataFrame) for item in tables]
+        if not all(split or dataframe for split, dataframe in zip(are_split_tables, are_dataframes)):
+            raise TypeError("tables must contain only pandas DataFrames or CRSResultTables.")
+        if any(are_split_tables) and any(are_dataframes):
+            raise TypeError("Cannot combine pandas DataFrames and CRSResultTables in one call.")
+
+        if all(are_dataframes):
+            if table is not None:
+                raise ValueError("table must be None when combining pandas DataFrames.")
+            frames = [(index, cast("pd.DataFrame", item)) for index, item in enumerate(tables)]
+            return CRSResults._combine_result_table_frames(
+                frames,
+                pd=pd,
+                source_column=source_column,
+                reindex_mixture=reindex_mixture,
+                require_same_property=require_same_property,
+                allow_empty=False,
+            )
+
+        if table is None:
+            raise ValueError("table must be specified when combining CRSResultTables.")
+
+        split_tables = [cast(CRSResultTables, item) for item in tables]
+        if table == "all":
+            component = CRSResults._combine_result_table_frames(
+                [(index, item.component) for index, item in enumerate(split_tables)],
+                pd=pd,
+                source_column=source_column,
+                reindex_mixture=reindex_mixture,
+                require_same_property=require_same_property,
+                allow_empty=True,
+            )
+            mixture = CRSResults._combine_result_table_frames(
+                [(index, item.mixture) for index, item in enumerate(split_tables)],
+                pd=pd,
+                source_column=source_column,
+                reindex_mixture=reindex_mixture,
+                require_same_property=require_same_property,
+                allow_empty=True,
+            )
+            lle = CRSResults._combine_result_table_frames(
+                [(index, item.lle) for index, item in enumerate(split_tables)],
+                pd=pd,
+                source_column=source_column,
+                reindex_mixture=reindex_mixture,
+                require_same_property=require_same_property,
+                allow_empty=True,
+            )
+            return CRSResultTables(component=component, mixture=mixture, lle=lle)  # type: ignore[arg-type]
+
+        frames = [(index, getattr(item, table)) for index, item in enumerate(split_tables)]
+        combined = CRSResults._combine_result_table_frames(
+            frames,
+            pd=pd,
+            source_column=source_column,
+            reindex_mixture=reindex_mixture,
+            require_same_property=require_same_property,
+            allow_empty=False,
+        )
+        assert combined is not None
+        return combined
+
+    @staticmethod
+    def _combine_result_table_frames(
+        frames: Sequence[Tuple[int, Optional["pd.DataFrame"]]],
+        *,
+        pd: Any,
+        source_column: Optional[str],
+        reindex_mixture: bool,
+        require_same_property: bool,
+        allow_empty: bool,
+    ) -> Optional["pd.DataFrame"]:
+        usable_frames = [(source_index, frame) for source_index, frame in frames if frame is not None]
+        if not usable_frames:
+            if allow_empty:
+                return None
+            raise ValueError("No usable result tables were provided.")
+
+        expected_columns = list(usable_frames[0][1].columns)
+        for _, frame in usable_frames[1:]:
+            columns = list(frame.columns)
+            if columns != expected_columns:
+                raise ValueError(
+                    "All result tables must have identical columns in identical order. "
+                    "Expected {}, got {}.".format(expected_columns, columns)
+                )
+
+        if source_column is not None and source_column in expected_columns:
+            raise ValueError("source_column {!r} already exists in the result table.".format(source_column))
+        if reindex_mixture and "mixture" not in expected_columns:
+            raise ValueError("reindex_mixture=True requires a 'mixture' column.")
+
+        if require_same_property:
+            if "property" not in expected_columns:
+                raise ValueError("require_same_property=True requires a 'property' column.")
+            properties = []
+            for _, frame in usable_frames:
+                if frame.empty:
+                    continue
+                unique_properties = frame["property"].dropna().unique()
+                if len(unique_properties) != 1:
+                    raise ValueError("Each result table must contain exactly one non-null property value.")
+                properties.append(unique_properties[0])
+            if properties and len(set(properties)) != 1:
+                raise ValueError("All result tables must have the same property.")
+
+        combined_frames = []
+        mixture_offset = 0
+        for source_index, frame in usable_frames:
+            combined_frame = frame.copy()
+            if reindex_mixture:
+                valid_mixture = combined_frame["mixture"].notna()
+                if valid_mixture.any():
+                    combined_frame.loc[valid_mixture, "mixture"] = (
+                        combined_frame.loc[valid_mixture, "mixture"] + mixture_offset
+                    )
+                    mixture_offset = int(combined_frame.loc[valid_mixture, "mixture"].max()) + 1
+            if source_column is not None:
+                combined_frame[source_column] = source_index
+            combined_frames.append(combined_frame)
+
+        return pd.concat(combined_frames, ignore_index=True)
+
+    @staticmethod
     def _normalize_column_label_mode(column_labels: str) -> str:
         if column_labels == "key":
             return "raw"
