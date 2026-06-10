@@ -2004,7 +2004,7 @@ class CRSJob(SCMJob):
     @staticmethod
     def property_type_metadata(
         property_type: ProblemType,
-        as_summary: bool = False,
+        as_summary: bool = True,
     ) -> Union[Dict[str, Any], Tuple[str, ...]]:
         """Return discoverability metadata for a COSMO-RS problem type."""
         normalized = CRSJob._normalize_property_type(property_type)
@@ -2263,6 +2263,169 @@ class CRSJob(SCMJob):
             return CRSJob._read_or_determine_nring(path)
         except Exception:
             return None
+
+    @staticmethod
+    def _as_coskf_database(database: Any) -> Tuple[Any, bool]:
+        """Return a ``COSKFDatabase`` instance and whether this helper opened it."""
+        from pyCRS.Database import COSKFDatabase
+
+        if isinstance(database, COSKFDatabase):
+            return database, False
+
+        if isinstance(database, (str, os.PathLike)):
+            return COSKFDatabase(os.fspath(database)), True
+
+        raise TypeError("database must be a COSKFDatabase instance or a database path")
+
+    @staticmethod
+    def _get_single_database_row(rows_by_identifier: Dict[str, List[Any]], identifier: str) -> Any:
+        rows = rows_by_identifier.get(identifier, [])
+        valid_rows = [row for row in rows if getattr(row, "compound_id", None) is not None]
+
+        if not valid_rows:
+            raise ValueError(f"No compound found in the COSKFDatabase for identifier {identifier!r}")
+        if len(valid_rows) > 1:
+            compound_ids = ", ".join(str(row.compound_id) for row in valid_rows)
+            raise ValueError(
+                f"Multiple compounds found in the COSKFDatabase for identifier {identifier!r}: {compound_ids}"
+            )
+
+        return valid_rows[0]
+
+    @staticmethod
+    def _database_compound_property_values(
+        database: Any,
+        compound_id: int,
+        property_keys: Sequence[str],
+        property_sources: Sequence[str],
+    ) -> Dict[str, Any]:
+        """Return CRS compound keyword values read from COSKFDatabase property tables."""
+        db_to_crs_keys = {
+            "dielectricconstant": "dielectric_const",
+            "mn": "averagemwpoly",
+        }
+        crs_to_db_keys = {
+            "dielectric_const": "dielectricconstant",
+            "averagemwpoly": "Mn",
+        }
+
+        values: Dict[str, Any] = {}
+        for source in property_sources:
+            rows = database.get_physical_properties(compound_id=compound_id, source=source)
+            if not rows:
+                continue
+
+            row = rows[0]
+            for crs_key in property_keys:
+                if crs_key in values:
+                    continue
+
+                db_key = crs_to_db_keys.get(crs_key, crs_key)
+                if not hasattr(row, db_key):
+                    continue
+
+                value = getattr(row, db_key)
+                if value is None:
+                    continue
+
+                normalized_key = db_to_crs_keys.get(db_key.lower(), crs_key)
+                if normalized_key == "vp_params" and isinstance(value, str):
+                    value = value.replace(",", " ")
+                values[normalized_key] = value
+
+        return values
+
+    @staticmethod
+    def compound_from_database(
+        identifier: str,
+        database: Any,
+        *,
+        conformer: bool = False,
+        property_type: Optional[ProblemType] = None,
+        property_sources: Sequence[str] = ("PhysicalProperty", "PropPred"),
+        property_keys: Optional[Sequence[str]] = None,
+        **compound_overrides: Any,
+    ) -> Settings:
+        """Create a COMPOUND block from a :class:`pyCRS.Database.COSKFDatabase` entry.
+
+        ``database`` can be either a ``COSKFDatabase`` instance or a path to one.
+        Imports from ``pyCRS`` are intentionally lazy to avoid creating an import
+        cycle between PLAMS ``CRSJob`` and ``pyCRS.CRSManager``.
+
+        Explicit keyword overrides are applied after database-derived values.
+        """
+        if not isinstance(identifier, str):
+            raise TypeError(f"identifier must be a string, got {type(identifier).__name__}")
+
+        invalid_override_keys = {"path", "forms"}
+        invalid_overrides = sorted(invalid_override_keys.intersection(compound_overrides))
+        if invalid_overrides:
+            invalid = ", ".join(invalid_overrides)
+            raise ValueError(f"compound_from_database does not accept override(s): {invalid}")
+
+        normalized_property_type = None
+        if property_type is not None:
+            normalized_property_type = CRSJob._normalize_property_type(property_type)
+
+        if property_keys is None:
+            if normalized_property_type is None:
+                requested_property_keys: Tuple[str, ...] = ()
+            else:
+                requested_property_keys = tuple(
+                    key
+                    for key in CRSJob._PROPERTY_TYPE_METADATA[normalized_property_type]["compound_keys"]
+                    if key not in {"name", "frac1", "frac2", "nring"}
+                )
+        else:
+            requested_property_keys = tuple(property_keys)
+
+        db, close_database = CRSJob._as_coskf_database(database)
+        try:
+            if conformer:
+                rows_by_identifier = db.get_conformers(identifier)
+                rows = rows_by_identifier.get(identifier, [])
+                valid_rows = [row for row in rows if getattr(row, "compound_id", None) is not None]
+                if not valid_rows:
+                    raise ValueError(f"No conformers found in the COSKFDatabase for identifier {identifier!r}")
+
+                first_row = valid_rows[0]
+                compound_values = CRSJob._database_compound_property_values(
+                    db,
+                    first_row.compound_id,
+                    requested_property_keys,
+                    property_sources,
+                )
+                compound_values.setdefault("name", first_row.name)
+                compound_values.setdefault("nring", first_row.nring)
+                compound_values.update(compound_overrides)
+
+                forms = [
+                    CRSJob.form_block(
+                        row.get_full_coskf_path(),
+                        name=row.name,
+                        nring=row.nring,
+                    )
+                    for row in valid_rows
+                ]
+                return CRSJob.compound_block(forms=forms, **compound_values)
+
+            rows_by_identifier = db.get_compounds(identifier)
+            row = CRSJob._get_single_database_row(rows_by_identifier, identifier)
+            compound_values = CRSJob._database_compound_property_values(
+                db,
+                row.compound_id,
+                requested_property_keys,
+                property_sources,
+            )
+            compound_values.setdefault("name", row.name)
+            compound_values.setdefault("nring", row.nring)
+            compound_values.update(compound_overrides)
+
+            return CRSJob.compound_block(row.get_full_coskf_path(), **compound_values)
+
+        finally:
+            if close_database:
+                db._close_connection()
 
 
     @staticmethod
