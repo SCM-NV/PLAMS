@@ -1132,6 +1132,24 @@ def test_simple_pdb_writing(xyz_folder, tmp_path):
     assert line == refline
 
 
+def test_mol2_format(xyz_folder, tmp_path):
+    """
+    Test that a Mol2 file can be written and read for a molecule with double and aromatic bonds
+    """
+    mol = Molecule(os.path.join(xyz_folder, "reactant2.xyz"))
+    mol.guess_bonds()
+
+    f = StringIO()
+    mol.writemol2(f)
+    f.seek(0)
+
+    mol2 = Molecule()
+    mol2.readmol2(f)
+
+    assert len(mol) == len(mol2)
+    assert len(mol.bonds) == len(mol2.bonds)
+
+
 def test_read_multiple_molecules_from_coskf(coskf_folder):
     """
     Test for COSKF reading
