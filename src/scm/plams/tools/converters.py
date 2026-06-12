@@ -7,7 +7,7 @@ from scm.plams.interfaces.molecule.ase import toASE
 from scm.plams.mol.molecule import Molecule
 from scm.plams.tools.kftools import KFFile
 from scm.plams.tools.units import Units
-from scm.plams.core.functions import requires_optional_package, log
+from scm.plams.core.functions import requires_optional_package
 from scm.plams.trajectories.rkffile import RKFTrajectoryFile
 from scm.plams.trajectories.rkfhistoryfile import RKFHistoryFile
 
@@ -29,7 +29,10 @@ __all__ = [
 
 @requires_optional_package("ase")
 def traj_to_rkf(
-    trajfile: str, rkftrajectoryfile: str, task: Optional[str] = None, timestep: float = 0.25
+    trajfile: str,
+    rkftrajectoryfile: str,
+    task: Optional[str] = None,
+    timestep: float = 0.25,
 ) -> Tuple[Optional["ndarray"], Optional["Cell"]]:
     """
     Convert ase .traj file to .rkf file. NOTE: The order of atoms (or the number of atoms) cannot change between frames!
@@ -131,7 +134,7 @@ def traj_to_rkf(
         else:
             task = "moleculardynamics"
     kf["General%task"] = task
-    kf["General%user input"] = "\xFF".join([f"Task {task}", "Engine External", "EndEngine"])
+    kf["General%user input"] = "\xff".join([f"Task {task}", "Engine External", "EndEngine"])
 
     return coords, cell
 
@@ -213,7 +216,7 @@ def _postprocess_vasp_amsrkf(kffile: str, outcar: str) -> None:
         userinput.append("  EndInput")  # end of the Free block
         userinput.append("EndEngine")
         userinput.append(f"Task {kf['General%task']}")
-        kf["General%user input"] = "\xFF".join(userinput)
+        kf["General%user input"] = "\xff".join(userinput)
 
     finally:
         kf.save()
@@ -300,15 +303,8 @@ def vasp_output_to_ams(
     if timestep is None or task is None:
         ibrion, potim = _read_md_params_from_outcar(outcar, max_lines=100)
         is_md = ibrion == 0
-        if timestep is None:
-            if is_md:
-                timestep = potim
-            else:
-                timestep = 0.25  # not MD: Time is still written, but the value is irrelevant
-                log(
-                    f"{outcar} is not a molecular-dynamics run (IBRION={ibrion}); " "no physical MD timestep applies.",
-                    5,
-                )
+        if timestep is None and is_md:
+            timestep = potim
         if task is None and is_md:
             task = "moleculardynamics"
 
@@ -321,8 +317,11 @@ def vasp_output_to_ams(
     _remove_or_raise(kffile, overwrite)
     _remove_or_raise(enginefile, overwrite)
 
+    # traj_to_rkf always expects a float timestep; outside MD the value is irrelevant.
+    md_timestep = 0.25 if timestep is None else timestep
+
     # convert the .traj file to ams.rkf
-    traj_to_rkf(trajfile, kffile, task=task, timestep=timestep)
+    traj_to_rkf(trajfile, kffile, task=task, timestep=md_timestep)
 
     _postprocess_vasp_amsrkf(kffile, outcar)
     if write_engine_rkf:
@@ -351,7 +350,7 @@ def _postprocess_qe_amsrkf(kffile: str, qe_outfile: str) -> None:
             "  EndInput",
             "EndEngine",
         ]
-        kf["General%user input"] = "\xFF".join(userinput)
+        kf["General%user input"] = "\xff".join(userinput)
 
     finally:
         kf.save()
@@ -366,8 +365,15 @@ def _postprocess_gaussian_amsrkf(kffile: str, gaussian_outfile: str) -> None:
         kf["EngineResults%Description(1)"] = f"Standalone Gaussian. Data from {os.path.abspath(gaussian_outfile)}"
         kf["EngineResults%Files(1)"] = "gaussian.rkf"
 
-        userinput = ["!Gaussian", "Engine External", "  Input", "    Unknown Gaussian input", "  EndInput", "EndEngine"]
-        kf["General%user input"] = "\xFF".join(userinput)
+        userinput = [
+            "!Gaussian",
+            "Engine External",
+            "  Input",
+            "    Unknown Gaussian input",
+            "  EndInput",
+            "EndEngine",
+        ]
+        kf["General%user input"] = "\xff".join(userinput)
 
     finally:
         kf.save()
@@ -444,7 +450,10 @@ def text_out_file_to_ams(
 
 
 def qe_output_to_ams(
-    qe_outfile: str, wdir: Optional[str] = None, overwrite: bool = False, write_engine_rkf: bool = True
+    qe_outfile: str,
+    wdir: Optional[str] = None,
+    overwrite: bool = False,
+    write_engine_rkf: bool = True,
 ) -> str:
     """
     Converts a qe .out file to ams.rkf and qe.rkf.
@@ -461,14 +470,21 @@ def qe_output_to_ams(
 
     """
     wdir = text_out_file_to_ams(
-        qe_outfile, wdir, overwrite=overwrite, write_engine_rkf=write_engine_rkf, enginename="qe"
+        qe_outfile,
+        wdir,
+        overwrite=overwrite,
+        write_engine_rkf=write_engine_rkf,
+        enginename="qe",
     )
     _postprocess_qe_amsrkf(os.path.join(wdir, "ams.rkf"), qe_outfile)
     return wdir
 
 
 def gaussian_output_to_ams(
-    outfile: str, wdir: Optional[str] = None, overwrite: bool = False, write_engine_rkf: bool = True
+    outfile: str,
+    wdir: Optional[str] = None,
+    overwrite: bool = False,
+    write_engine_rkf: bool = True,
 ) -> str:
     """
     Converts a Gaussian .out file to ams.rkf and gaussian.rkf.
@@ -485,7 +501,11 @@ def gaussian_output_to_ams(
 
     """
     wdir = text_out_file_to_ams(
-        outfile, wdir, overwrite=overwrite, write_engine_rkf=write_engine_rkf, enginename="gaussian"
+        outfile,
+        wdir,
+        overwrite=overwrite,
+        write_engine_rkf=write_engine_rkf,
+        enginename="gaussian",
     )
     _postprocess_gaussian_amsrkf(os.path.join(wdir, "ams.rkf"), outfile)
     return wdir
@@ -526,7 +546,12 @@ def rkf_to_ase_atoms(rkf_file: str, get_results: bool = True) -> List["Atoms"]:
             pbc = ["T"] * len(cell_arr) + ["F"] * (3 - len(cell_arr))
         else:
             cell_arr = None
-        atoms = Atoms(symbols=elements, positions=np.array(crd).reshape(-1, 3), cell=cell_arr, pbc=pbc)
+        atoms = Atoms(
+            symbols=elements,
+            positions=np.array(crd).reshape(-1, 3),
+            cell=cell_arr,
+            pbc=pbc,
+        )
         if get_results:
             calculator = SinglePointCalculator(atoms)
             atoms.set_calculator(calculator)

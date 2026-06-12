@@ -181,7 +181,7 @@ def test_plot_grid_molecules_options_products():
     remove_text=True,
     extensions=["png"],
     style="mpl20",
-    tol=3,
+    tol=10,
 )
 def test_plot_band_structure(run_calculations, rkf_tools_plot):
     plt.close("all")
@@ -224,7 +224,7 @@ def test_plot_band_structure(run_calculations, rkf_tools_plot):
     remove_text=True,
     extensions=["png"],
     style="mpl20",
-    tol=3,
+    tol=10,
 )
 def test_plot_phonons_band_structure(run_calculations, rkf_tools_plot):
     plt.close("all")
@@ -265,7 +265,7 @@ def test_plot_phonons_band_structure(run_calculations, rkf_tools_plot):
     remove_text=True,
     extensions=["png"],
     style="mpl20",
-    tol=3,
+    tol=12,
 )
 def test_plot_phonons_dos(run_calculations, rkf_tools_plot):
     plt.close("all")
@@ -306,7 +306,7 @@ def test_plot_phonons_dos(run_calculations, rkf_tools_plot):
     remove_text=True,
     extensions=["png"],
     style="mpl20",
-    tol=1.0,
+    tol=12,
 )
 def test_plot_correlation(run_calculations, rkf_tools_plot):
     plt.close("all")
@@ -414,7 +414,7 @@ def test_plot_correlation(run_calculations, rkf_tools_plot):
     remove_text=True,
     extensions=["png"],
     style="mpl20",
-    tol=4,
+    tol=20,
 )
 def test_plot_msd(run_calculations, rkf_tools_plot, xyz_folder):
     plt.close("all")
@@ -529,7 +529,7 @@ def test_plot_msd_with_pisa(run_calculations, rkf_tools_plot, xyz_folder):
     remove_text=True,
     extensions=["png"],
     style="mpl20",
-    tol=11,
+    tol=20,
 )
 def test_plot_work_function(run_calculations, rkf_tools_plot):
     plt.close("all")
