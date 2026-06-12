@@ -7,8 +7,8 @@ from scm.plams.interfaces.molecule.ase import toASE
 from scm.plams.mol.molecule import Molecule
 from scm.plams.tools.kftools import KFFile
 from scm.plams.tools.units import Units
-from scm.plams.core.functions import requires_optional_package
-from scm.plams.trajectories.rkffile import RKFTrajectoryFile
+from scm.plams.core.functions import requires_optional_package, log
+from scm.plams.trajectories.rkffile import RKFTrajectoryFile 
 from scm.plams.trajectories.rkfhistoryfile import RKFHistoryFile
 
 if TYPE_CHECKING:
@@ -219,13 +219,34 @@ def _postprocess_vasp_amsrkf(kffile: str, outcar: str) -> None:
         kf.save()
 
 
+def _read_md_params_from_outcar(outcar_path, max_lines=100):
+    """Read (IBRION, POTIM) from the INCAR reproduced at the top of a VASP OUTCAR.
+    Only the first `max_lines` lines are scanned. Either value is None if not found."""
+    ibrion, potim = None, None
+    with open(outcar_path) as f:
+        for i, line in enumerate(f):
+            if i >= max_lines:
+                break
+            if ibrion is None and "IBRION" in line:
+                m = re.search(r"IBRION\s*=\s*(-?\d+)", line)
+                if m:
+                    ibrion = int(m.group(1))
+            if potim is None and "POTIM" in line:
+                m = re.search(r"POTIM\s*=\s*([\d.]+)", line)
+                if m:
+                    potim = float(m.group(1))
+            if ibrion is not None and potim is not None:
+                break
+    return ibrion, potim
+
+
 def vasp_output_to_ams(
     vasp_folder: str,
     wdir: Optional[str] = None,
     overwrite: bool = False,
     write_engine_rkf: bool = True,
     task: Optional[str] = None,
-    timestep: float = 0.25,
+    timestep: Optional[float] = None,
 ) -> str:
     """
     Converts VASP output (OUTCAR, ...) to AMS output (ams.rkf, vasp.rkf)
@@ -247,10 +268,14 @@ def vasp_output_to_ams(
         If True, also write vasp.rkf alongside ams.rkf. The vasp.rkf file will only contain an AMSResults section (energy, gradients, stress tensor). It will not contain the DOS or the band structure.
 
     task : str
-        Which task to write to ams.rkf. If None it is auto-determined (probably set to 'geometryoptimization')
+        Which task to write to ams.rkf. If None it is auto-determined:
+        'moleculardynamics' if the OUTCAR is an MD run (IBRION = 0), otherwise
+        determined from the trajectory (singlepoint / geometryoptimization).
 
-    timestep : float
-        If task='moleculardynamics', which timestep (in fs) between frames to write
+    timestep : float or None
+        Time (in fs) between frames written to ams.rkf for an MD run.
+        If None (default), it is taken from POTIM in the OUTCAR when the run is
+        molecular dynamics (IBRION = 0); for non-MD runs no physical timestep applies.
     """
     if not os.path.isdir(vasp_folder):
         raise ValueError(f"Directory {vasp_folder} does not exist")
@@ -269,6 +294,21 @@ def vasp_output_to_ams(
     # exit early if ams.rkf already exists
     if os.path.exists(os.path.join(wdir, "ams.rkf")) and not overwrite:
         return wdir
+
+    # Read IBRION/POTIM from the top of the OUTCAR (the INCAR is reproduced there).
+    # IBRION = 0 means molecular dynamics, which determines both the timestep and the task.
+    if timestep is None or task is None:
+        ibrion, potim = _read_md_params_from_outcar(outcar, max_lines=100)
+        is_md = ibrion == 0
+        if timestep is None:
+            if is_md:
+                timestep = potim
+            else:
+                timestep = 0.25  # not MD: Time is still written, but the value is irrelevant
+                log(f"{outcar} is not a molecular-dynamics run (IBRION={ibrion}); "
+                    "no physical MD timestep applies.")
+        if task is None and is_md:
+            task = "moleculardynamics"
 
     # convert OUTCAR to a .traj file inside wdir
     trajfile = file_to_traj(outcar, os.path.join(wdir, "vasp.traj"))

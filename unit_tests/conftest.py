@@ -78,3 +78,11 @@ def dill_folder():
     p = Path(__file__).parent.absolute() / "dill"
     assert p.exists()
     return p
+
+
+@pytest.fixture
+def vasp_folder():
+    "Return the path to VASP"
+    p = Path(__file__).parent.absolute() / "VASP"
+    assert p.exists()
+    return p
