@@ -8,7 +8,7 @@ from scm.plams.mol.molecule import Molecule
 from scm.plams.tools.kftools import KFFile
 from scm.plams.tools.units import Units
 from scm.plams.core.functions import requires_optional_package, log
-from scm.plams.trajectories.rkffile import RKFTrajectoryFile 
+from scm.plams.trajectories.rkffile import RKFTrajectoryFile
 from scm.plams.trajectories.rkfhistoryfile import RKFHistoryFile
 
 if TYPE_CHECKING:
@@ -219,7 +219,7 @@ def _postprocess_vasp_amsrkf(kffile: str, outcar: str) -> None:
         kf.save()
 
 
-def _read_md_params_from_outcar(outcar_path, max_lines=100):
+def _read_md_params_from_outcar(outcar_path: str, max_lines: int = 100) -> Tuple[Optional[int], Optional[float]]:
     """Read (IBRION, POTIM) from the INCAR reproduced at the top of a VASP OUTCAR.
     Only the first `max_lines` lines are scanned. Either value is None if not found."""
     ibrion, potim = None, None
@@ -305,8 +305,10 @@ def vasp_output_to_ams(
                 timestep = potim
             else:
                 timestep = 0.25  # not MD: Time is still written, but the value is irrelevant
-                log(f"{outcar} is not a molecular-dynamics run (IBRION={ibrion}); "
-                    "no physical MD timestep applies.")
+                log(
+                    f"{outcar} is not a molecular-dynamics run (IBRION={ibrion}); " "no physical MD timestep applies.",
+                    5,
+                )
         if task is None and is_md:
             task = "moleculardynamics"
 
