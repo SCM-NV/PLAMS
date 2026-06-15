@@ -2923,7 +2923,7 @@ class Molecule:
         for at, (x, y, z) in zip(atom_subset, xyz_array):
             at.coords = (x, y, z)
 
-    def __array__(self, dtype: Optional["DTypeLike"] = None) -> np.ndarray:
+    def __array__(self, dtype: Optional["DTypeLike"] = None, copy: Optional[bool] = None) -> np.ndarray:
         """A magic method for constructing numpy arrays.
 
         This method ensures that passing a |Molecule| instance to numpy.array_ produces an array of Cartesian coordinates (see :meth:`.Molecule.as_array`).
@@ -2933,7 +2933,11 @@ class Molecule:
         .. _`data type`: https://docs.scipy.org/doc/numpy/reference/arrays.dtypes.html
         """
         ret = self.as_array()
-        return ret.astype(dtype, copy=False)
+        if dtype is not None:
+            ret = ret.astype(dtype, copy=False)
+        if copy:
+            ret = ret.copy()
+        return ret
 
     # ===========================================================================
     # ==== File/format IO =======================================================
