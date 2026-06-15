@@ -3182,10 +3182,10 @@ class Molecule:
 
             elif mode[0] == "BOND":
                 spl = line.split()
-                if "." in spl[3]:
-                    spl[3] = f"{int(float(spl[3]))}"
                 if len(spl) < 4:
                     raise FileError(f"readmol2: Error in {f.name} line {i+1}: not enough values in line")
+                if "." in spl[3]:
+                    spl[3] = f"{int(float(spl[3]))}"
                 try:
                     atom1 = self.atoms[int(spl[1]) - 1]
                     atom2 = self.atoms[int(spl[2]) - 1]
@@ -3280,6 +3280,7 @@ class Molecule:
         pdb = PDBHandler()
         for i, at in enumerate(self.atoms):
             pdbatom = PDBAtom()
+            pdbatom.name = f"{at.symbol.upper():<2}"
             pdbatom.name = "%-2s" % (at.symbol.upper())
             pdbatom.coords = at.coords
             pdbatom.element = at.symbol.upper()
@@ -3297,7 +3298,7 @@ class Molecule:
                 if "occ" in at.properties.pdb:
                     pdbatom.occ = at.properties.pdb.occ
                 if "fix" in at.properties.pdb:
-                    pdbatom.occ = at.properties.pdb.fix
+                    pdbatom.fix = at.properties.pdb.fix
             pdb.add_atom(pdbatom)
         if len(self.lattice) > 0:
             pdb.set_lattice(self.lattice)

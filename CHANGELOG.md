@@ -15,6 +15,8 @@ This changelog is effective from the 2025 releases.
 * MultiJob now supports generic Job types for the self.children attribute
 
 ### Changed
+* `Molecule.readmol2` can now read non-integer bond orders
+* `Molecule.writepdb` now writes default values for res, resnum, fix, and occ columns
 * `view` function uses stdin mode for AMSview, reducing overhead for image creation
 * `vasp_output_to_ams` now reads the MD time step from `POTIM` in the OUTCAR and labels molecular-dynamics runs (`IBRION = 0`) as such, instead of using a fixed default time step
 
