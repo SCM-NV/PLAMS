@@ -1,6 +1,12 @@
 import pytest
 from unittest.mock import patch, MagicMock
 from pathlib import Path
+import sys
+
+
+UNIT_TESTS_DIR = Path(__file__).resolve().parent
+if str(UNIT_TESTS_DIR) not in sys.path:
+    sys.path.insert(0, str(UNIT_TESTS_DIR))
 
 
 @pytest.fixture(autouse=True)
