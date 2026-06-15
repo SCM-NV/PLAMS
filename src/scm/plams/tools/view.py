@@ -827,7 +827,7 @@ class _XvfbManager:
         """
         Get current display value, if available
         """
-        return f":{self.display_number}" if self.display_number else None
+        return f":{self.display_number}" if self.display_number is not None else None
 
     @contextmanager
     def session(self, env: Optional[Dict[str, str]] = None) -> Generator[Dict[str, str], None, None]:
