@@ -29,7 +29,10 @@ __all__ = [
 
 @requires_optional_package("ase")
 def traj_to_rkf(
-    trajfile: str, rkftrajectoryfile: str, task: Optional[str] = None, timestep: float = 0.25
+    trajfile: str,
+    rkftrajectoryfile: str,
+    task: Optional[str] = None,
+    timestep: float = 0.25,
 ) -> Tuple[Optional["ndarray"], Optional["Cell"]]:
     """
     Convert ase .traj file to .rkf file. NOTE: The order of atoms (or the number of atoms) cannot change between frames!
@@ -131,7 +134,7 @@ def traj_to_rkf(
         else:
             task = "moleculardynamics"
     kf["General%task"] = task
-    kf["General%user input"] = "\xFF".join([f"Task {task}", "Engine External", "EndEngine"])
+    kf["General%user input"] = "\xff".join([f"Task {task}", "Engine External", "EndEngine"])
 
     return coords, cell
 
@@ -213,10 +216,31 @@ def _postprocess_vasp_amsrkf(kffile: str, outcar: str) -> None:
         userinput.append("  EndInput")  # end of the Free block
         userinput.append("EndEngine")
         userinput.append(f"Task {kf['General%task']}")
-        kf["General%user input"] = "\xFF".join(userinput)
+        kf["General%user input"] = "\xff".join(userinput)
 
     finally:
         kf.save()
+
+
+def _read_md_params_from_outcar(outcar_path: str, max_lines: int = 100) -> Tuple[Optional[int], Optional[float]]:
+    """Read (IBRION, POTIM) from the INCAR reproduced at the top of a VASP OUTCAR.
+    Only the first `max_lines` lines are scanned. Either value is None if not found."""
+    ibrion, potim = None, None
+    with open(outcar_path) as f:
+        for i, line in enumerate(f):
+            if i >= max_lines:
+                break
+            if ibrion is None and "IBRION" in line:
+                m = re.search(r"IBRION\s*=\s*(-?\d+)", line)
+                if m:
+                    ibrion = int(m.group(1))
+            if potim is None and "POTIM" in line:
+                m = re.search(r"POTIM\s*=\s*([\d.]+)", line)
+                if m:
+                    potim = float(m.group(1))
+            if ibrion is not None and potim is not None:
+                break
+    return ibrion, potim
 
 
 def vasp_output_to_ams(
@@ -225,7 +249,7 @@ def vasp_output_to_ams(
     overwrite: bool = False,
     write_engine_rkf: bool = True,
     task: Optional[str] = None,
-    timestep: float = 0.25,
+    timestep: Optional[float] = None,
 ) -> str:
     """
     Converts VASP output (OUTCAR, ...) to AMS output (ams.rkf, vasp.rkf)
@@ -247,10 +271,14 @@ def vasp_output_to_ams(
         If True, also write vasp.rkf alongside ams.rkf. The vasp.rkf file will only contain an AMSResults section (energy, gradients, stress tensor). It will not contain the DOS or the band structure.
 
     task : str
-        Which task to write to ams.rkf. If None it is auto-determined (probably set to 'geometryoptimization')
+        Which task to write to ams.rkf. If None it is auto-determined:
+        'moleculardynamics' if the OUTCAR is an MD run (IBRION = 0), otherwise
+        determined from the trajectory (singlepoint / geometryoptimization).
 
-    timestep : float
-        If task='moleculardynamics', which timestep (in fs) between frames to write
+    timestep : float or None
+        Time (in fs) between frames written to ams.rkf for an MD run.
+        If None (default), it is taken from POTIM in the OUTCAR when the run is
+        molecular dynamics (IBRION = 0); for non-MD runs no physical timestep applies.
     """
     if not os.path.isdir(vasp_folder):
         raise ValueError(f"Directory {vasp_folder} does not exist")
@@ -270,6 +298,16 @@ def vasp_output_to_ams(
     if os.path.exists(os.path.join(wdir, "ams.rkf")) and not overwrite:
         return wdir
 
+    # Read IBRION/POTIM from the top of the OUTCAR (the INCAR is reproduced there).
+    # IBRION = 0 means molecular dynamics, which determines both the timestep and the task.
+    if timestep is None or task is None:
+        ibrion, potim = _read_md_params_from_outcar(outcar, max_lines=100)
+        is_md = ibrion == 0
+        if timestep is None and is_md:
+            timestep = potim
+        if task is None and is_md:
+            task = "moleculardynamics"
+
     # convert OUTCAR to a .traj file inside wdir
     trajfile = file_to_traj(outcar, os.path.join(wdir, "vasp.traj"))
 
@@ -279,8 +317,11 @@ def vasp_output_to_ams(
     _remove_or_raise(kffile, overwrite)
     _remove_or_raise(enginefile, overwrite)
 
+    # traj_to_rkf always expects a float timestep; outside MD the value is irrelevant.
+    md_timestep = 0.25 if timestep is None else timestep
+
     # convert the .traj file to ams.rkf
-    traj_to_rkf(trajfile, kffile, task=task, timestep=timestep)
+    traj_to_rkf(trajfile, kffile, task=task, timestep=md_timestep)
 
     _postprocess_vasp_amsrkf(kffile, outcar)
     if write_engine_rkf:
@@ -309,7 +350,7 @@ def _postprocess_qe_amsrkf(kffile: str, qe_outfile: str) -> None:
             "  EndInput",
             "EndEngine",
         ]
-        kf["General%user input"] = "\xFF".join(userinput)
+        kf["General%user input"] = "\xff".join(userinput)
 
     finally:
         kf.save()
@@ -324,8 +365,15 @@ def _postprocess_gaussian_amsrkf(kffile: str, gaussian_outfile: str) -> None:
         kf["EngineResults%Description(1)"] = f"Standalone Gaussian. Data from {os.path.abspath(gaussian_outfile)}"
         kf["EngineResults%Files(1)"] = "gaussian.rkf"
 
-        userinput = ["!Gaussian", "Engine External", "  Input", "    Unknown Gaussian input", "  EndInput", "EndEngine"]
-        kf["General%user input"] = "\xFF".join(userinput)
+        userinput = [
+            "!Gaussian",
+            "Engine External",
+            "  Input",
+            "    Unknown Gaussian input",
+            "  EndInput",
+            "EndEngine",
+        ]
+        kf["General%user input"] = "\xff".join(userinput)
 
     finally:
         kf.save()
@@ -402,7 +450,10 @@ def text_out_file_to_ams(
 
 
 def qe_output_to_ams(
-    qe_outfile: str, wdir: Optional[str] = None, overwrite: bool = False, write_engine_rkf: bool = True
+    qe_outfile: str,
+    wdir: Optional[str] = None,
+    overwrite: bool = False,
+    write_engine_rkf: bool = True,
 ) -> str:
     """
     Converts a qe .out file to ams.rkf and qe.rkf.
@@ -419,14 +470,21 @@ def qe_output_to_ams(
 
     """
     wdir = text_out_file_to_ams(
-        qe_outfile, wdir, overwrite=overwrite, write_engine_rkf=write_engine_rkf, enginename="qe"
+        qe_outfile,
+        wdir,
+        overwrite=overwrite,
+        write_engine_rkf=write_engine_rkf,
+        enginename="qe",
     )
     _postprocess_qe_amsrkf(os.path.join(wdir, "ams.rkf"), qe_outfile)
     return wdir
 
 
 def gaussian_output_to_ams(
-    outfile: str, wdir: Optional[str] = None, overwrite: bool = False, write_engine_rkf: bool = True
+    outfile: str,
+    wdir: Optional[str] = None,
+    overwrite: bool = False,
+    write_engine_rkf: bool = True,
 ) -> str:
     """
     Converts a Gaussian .out file to ams.rkf and gaussian.rkf.
@@ -443,7 +501,11 @@ def gaussian_output_to_ams(
 
     """
     wdir = text_out_file_to_ams(
-        outfile, wdir, overwrite=overwrite, write_engine_rkf=write_engine_rkf, enginename="gaussian"
+        outfile,
+        wdir,
+        overwrite=overwrite,
+        write_engine_rkf=write_engine_rkf,
+        enginename="gaussian",
     )
     _postprocess_gaussian_amsrkf(os.path.join(wdir, "ams.rkf"), outfile)
     return wdir
@@ -484,7 +546,12 @@ def rkf_to_ase_atoms(rkf_file: str, get_results: bool = True) -> List["Atoms"]:
             pbc = ["T"] * len(cell_arr) + ["F"] * (3 - len(cell_arr))
         else:
             cell_arr = None
-        atoms = Atoms(symbols=elements, positions=np.array(crd).reshape(-1, 3), cell=cell_arr, pbc=pbc)
+        atoms = Atoms(
+            symbols=elements,
+            positions=np.array(crd).reshape(-1, 3),
+            cell=cell_arr,
+            pbc=pbc,
+        )
         if get_results:
             calculator = SinglePointCalculator(atoms)
             atoms.set_calculator(calculator)

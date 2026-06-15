@@ -16,6 +16,7 @@ This changelog is effective from the 2025 releases.
 
 ### Changed
 * `view` function uses stdin mode for AMSview, reducing overhead for image creation
+* `vasp_output_to_ams` now reads the MD time step from `POTIM` in the OUTCAR and labels molecular-dynamics runs (`IBRION = 0`) as such, instead of using a fixed default time step
 
 ### Fixed
 * Loading job `.dill` files where the molecule contains a `pathlib.Path` (e.g. `Molecule.properties.source`)
