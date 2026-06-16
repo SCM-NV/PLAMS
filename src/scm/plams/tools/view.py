@@ -1004,12 +1004,7 @@ class _AsePlotBackend(_ViewBackend):
                 elif _has_scm_chemsys and isinstance(system, ChemicalSystem):
                     regions = [system.get_regions_of_atom(at) for at in system]
 
-                try:
-                    import matplotlib.colormaps as colormaps
-                except ImportError:
-                    import matplotlib.cm as colormaps
-
-                cmap = colormaps.get_cmap("tab10")
+                cmap = plt.get_cmap("tab10")
                 color_counter = 0
                 region_cmap: Dict[str, colors.Colormap] = {}
                 for patch in ax.patches:
@@ -1026,7 +1021,7 @@ class _AsePlotBackend(_ViewBackend):
                                 if region in region_cmap:
                                     region_color = region_cmap[region]
                                 else:
-                                    region_color = cmap.colors[color_counter]
+                                    region_color = cmap.colors[color_counter]  # type: ignore[attr-defined,index]
                                     region_cmap[region] = region_color
                                     color_counter += 1
                                 region_patch = patches.Circle(
