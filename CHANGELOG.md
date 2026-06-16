@@ -12,6 +12,11 @@ This changelog is effective from the 2025 releases.
 ## [Unreleased]
 
 ### Fixed
+* Xvfb backend for `view` function with 0 display value
+
+## 2026.104
+
+### Fixed
 * Loading job `.dill` files where the molecule contains a `pathlib.Path` (e.g. `Molecule.properties.source`)
 * Possible recursion errors when pickling a molecule on Windows relating to `_as_array`
 
