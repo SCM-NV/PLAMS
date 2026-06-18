@@ -52,7 +52,7 @@ from scm.plams.interfaces.adfsuite.amsworker import (
     AMSWorkerPool,
     AMSWorkerResults,
 )
-from scm.plams.interfaces.adfsuite.crs import CRSJob, CRSResultTables, CRSResults
+from scm.plams.interfaces.adfsuite.crs import CRSJob, CRSResultTables, CRSResults, CRSInputBuilder
 from scm.plams.interfaces.adfsuite.densf import DensfJob, DensfResults
 from scm.plams.interfaces.adfsuite.fcf import FCFJob, FCFResults
 from scm.plams.interfaces.adfsuite.forcefieldparams import (
@@ -252,6 +252,7 @@ __all__ = [
     "CRSResults",
     "CRSJob",
     "CRSResultTables",
+    "CRSInputBuilder",
     "MissingOptionalPackageError",
     "ForceFieldPatch",
     "forcefield_params_from_kf",
