@@ -152,7 +152,7 @@ class ForceFieldPatch:
 
         return ret
 
-    def read_from_kf(self, kf: "KFFile") -> None:
+    def read_from_kf(self, kf: "KFFile", ipatch: int = 0) -> None:
         """
         Read patch infor from kf
         """
@@ -161,7 +161,7 @@ class ForceFieldPatch:
         npatches = kf.read_int("AMSResults", "Config.nPatches")
         patch = ForceFieldPatch()
         if npatches > 0:
-            patchtext = kf.read_string("AMSResults", "Config.FFPatch(1)")
+            patchtext = kf.read_string("AMSResults", f"Config.FFPatch({ipatch + 1})")
             patch += ForceFieldPatch(patchtext)
 
         for key in vars(patch):
@@ -298,8 +298,12 @@ def forcefield_params_from_kf(kf: "KFFile") -> Tuple[List[float], List[str], Opt
     types = [alltypes[i - 1] for i in indices]
 
     # Read the force field patch
-    patch = ForceFieldPatch()
-    patch.read_from_kf(kf)
-    if len(patch) == 0:
+    npatches = kf.read_int("AMSResults", "Config.nPatches")
+    if npatches == 0:
         return charges, types, None
+    patch = ForceFieldPatch()
+    for i in range(npatches):
+        p = ForceFieldPatch()
+        p.read_from_kf(kf, i)
+        patch += p
     return charges, types, patch
