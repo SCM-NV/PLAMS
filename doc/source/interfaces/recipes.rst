@@ -4,313 +4,179 @@ Recipes
 -------
 
 These recipe workflows are shipped with PLAMS and can be imported directly.
-Each recipe includes details, API documentation, and source code.
+Each recipe includes details and API documentation.
 
 COSMO-RS Compound
 ~~~~~~~~~~~~~~~~~
 
 Generate ``.coskf`` files equivalent to AMS GUI task "COSMO-RS Compound".
 
-Overview
-^^^^^^^^
-
 Use this recipe when you want an easy Python interface for generating COSMO-RS compound files
 (``.coskf``) from one or many input structures.
 
-API
-^^^
+.. currentmodule:: scm.plams.recipes.adfcosmorscompound
 
-.. dropdown:: API reference
+.. autoclass:: ADFCOSMORSCompoundJob
+   :noindex:
+   :no-special-members:
 
-    .. currentmodule:: scm.plams.recipes.adfcosmorscompound
-    
-    .. autoclass:: ADFCOSMORSCompoundJob
-       :noindex:
-       :no-special-members:
-    
-    .. autoclass:: ADFCOSMORSCompoundResults
-       :noindex:
-       :no-special-members:
-    
-
-Code
-^^^^
-
-.. dropdown:: Recipe module source: ``adfcosmorscompound.py``
-
-    .. literalinclude:: ../../../src/scm/plams/recipes/adfcosmorscompound.py
-       :language: python
+.. autoclass:: ADFCOSMORSCompoundResults
+   :noindex:
+   :no-special-members:
 
 COSMO-RS Conformers
 ~~~~~~~~~~~~~~~~~~~
 
 Build customizable conformer workflows that end in ADF/COSMO calculations for COSMO-RS.
 
-Overview
-^^^^^^^^
-
 This recipe builds a configurable conformer-generation pipeline and produces ``.coskf`` files for
 the selected conformers.
 
-API
-^^^
+.. currentmodule:: scm.plams.recipes.adfcosmorsconformers
 
-.. dropdown:: API reference
+.. autoclass:: ADFCOSMORSConfJob
+   :noindex:
+   :no-special-members:
 
-    .. currentmodule:: scm.plams.recipes.adfcosmorsconformers
-    
-    .. autoclass:: ADFCOSMORSConfJob
-       :noindex:
-       :no-special-members:
-    
-    .. autoclass:: ADFCOSMORSConfFilter
-       :noindex:
-       :no-special-members:
-    
-    .. autoclass:: ADFCOSMORSConfResults
-       :noindex:
-       :no-special-members:
-    
+.. autoclass:: ADFCOSMORSConfFilter
+   :noindex:
+   :no-special-members:
 
-Code
-^^^^
-
-.. dropdown:: Recipe module source: ``adfcosmorsconformers.py``
-
-    .. literalinclude:: ../../../src/scm/plams/recipes/adfcosmorsconformers.py
-       :language: python
+.. autoclass:: ADFCOSMORSConfResults
+   :noindex:
+   :no-special-members:
 
 MD Jobs
 ~~~~~~~
 
 Convenience job classes for MD simulation setup, restart/spawning, and common trajectory analyses.
 
-Overview
-^^^^^^^^
-
 These classes wrap common AMS MolecularDynamics patterns (NVE/NVT/NPT), restarts and spawned
 ensembles, plus trajectory analysis jobs.
 
-API
-^^^
+.. currentmodule:: scm.plams.recipes.md.amsmdjob
 
-.. dropdown:: API reference
+.. autoclass:: AMSMDJob
+   :noindex:
+   :no-private-members:
 
-    .. currentmodule:: scm.plams.recipes.md.amsmdjob
-    
-    .. autoclass:: AMSMDJob
-       :noindex:
-       :no-private-members:
-    
-    .. autoclass:: AMSNVEJob
-       :noindex:
-       :no-private-members:
-    
-    .. autoclass:: AMSNVTJob
-       :noindex:
-       :no-private-members:
-    
-    .. autoclass:: AMSNPTJob
-       :noindex:
-       :no-private-members:
-    
-    .. autoclass:: AMSNPTResults
-       :noindex:
-       :no-private-members:
-    
-    .. currentmodule:: scm.plams.recipes.md.nvespawner
-    
-    .. autoclass:: AMSNVESpawnerJob
-       :noindex:
-       :no-private-members:
-    
-    .. currentmodule:: scm.plams.recipes.md.scandensity
-    
-    .. autoclass:: AMSMDScanDensityJob
-       :noindex:
-       :no-private-members:
-    
-    .. currentmodule:: scm.plams.recipes.md.trajectoryanalysis
-    
-    .. autoclass:: AMSMSDJob
-       :noindex:
-       :no-private-members:
-    
-    .. autoclass:: AMSRDFJob
-       :noindex:
-       :no-private-members:
-    
-    .. autoclass:: AMSVACFJob
-       :noindex:
-       :no-private-members:
-    
-    .. autoclass:: AMSViscosityFromBinLogJob
-       :noindex:
-       :no-private-members:
-    
+.. autoclass:: AMSNVEJob
+   :noindex:
+   :no-private-members:
 
-Code
-^^^^
+.. autoclass:: AMSNVTJob
+   :noindex:
+   :no-private-members:
 
-.. dropdown:: Recipe module source: ``amsmdjob.py``
+.. autoclass:: AMSNPTJob
+   :noindex:
+   :no-private-members:
 
-    .. literalinclude:: ../../../src/scm/plams/recipes/md/amsmdjob.py
-       :language: python
+.. autoclass:: AMSNPTResults
+   :noindex:
+   :no-private-members:
 
-.. dropdown:: Recipe module source: ``nvespawner.py``
+.. currentmodule:: scm.plams.recipes.md.nvespawner
 
-    .. literalinclude:: ../../../src/scm/plams/recipes/md/nvespawner.py
-       :language: python
+.. autoclass:: AMSNVESpawnerJob
+   :noindex:
+   :no-private-members:
 
-.. dropdown:: Recipe module source: ``scandensity.py``
+.. currentmodule:: scm.plams.recipes.md.scandensity
 
-    .. literalinclude:: ../../../src/scm/plams/recipes/md/scandensity.py
-       :language: python
+.. autoclass:: AMSMDScanDensityJob
+   :noindex:
+   :no-private-members:
 
-.. dropdown:: Recipe module source: ``trajectoryanalysis.py``
+.. currentmodule:: scm.plams.recipes.md.trajectoryanalysis
 
-    .. literalinclude:: ../../../src/scm/plams/recipes/md/trajectoryanalysis.py
-       :language: python
+.. autoclass:: AMSMSDJob
+   :noindex:
+   :no-private-members:
+
+.. autoclass:: AMSRDFJob
+   :noindex:
+   :no-private-members:
+
+.. autoclass:: AMSVACFJob
+   :noindex:
+   :no-private-members:
+
+.. autoclass:: AMSViscosityFromBinLogJob
+   :noindex:
+   :no-private-members:
 
 ADF Fragment
 ~~~~~~~~~~~~
 
 Run fragment-based ADF analysis as a dedicated multi-job workflow.
 
-Overview
-^^^^^^^^
-
 This recipe orchestrates two fragment calculations and one full-system ADF calculation and exposes
 energy-decomposition and related properties through a dedicated results class.
 
-API
-^^^
+.. currentmodule:: scm.plams.recipes.adffragment
 
-.. dropdown:: API reference
+.. autoclass:: ADFFragmentJob
+   :noindex:
+   :no-special-members:
 
-    .. currentmodule:: scm.plams.recipes.adffragment
-    
-    .. autoclass:: ADFFragmentJob
-       :noindex:
-       :no-special-members:
-    
-    .. autoclass:: ADFFragmentResults
-       :noindex:
-       :no-special-members:
-    
-
-Code
-^^^^
-
-.. dropdown:: Recipe module source: ``adffragment.py``
-
-    .. literalinclude:: ../../../src/scm/plams/recipes/adffragment.py
-       :language: python
+.. autoclass:: ADFFragmentResults
+   :noindex:
+   :no-special-members:
 
 BAND Fragment
 ~~~~~~~~~~~~~
 
 Run BAND energy decomposition workflows for periodic systems with optional NOCV analysis.
 
-Overview
-^^^^^^^^
-
 This recipe extends the fragment approach to periodic BAND systems and supports NOCV workflows via
 ``NOCVBandFragmentJob``.
 
-API
-^^^
+.. currentmodule:: scm.plams.recipes.bandfragment
 
-.. dropdown:: API reference
+.. autoclass:: BANDFragmentJob
+   :noindex:
+   :no-special-members:
 
-    .. currentmodule:: scm.plams.recipes.bandfragment
-    
-    .. autoclass:: BANDFragmentJob
-       :noindex:
-       :no-special-members:
-    
-    .. autoclass:: BANDFragmentResults
-       :noindex:
-       :no-special-members:
-    
-    .. autoclass:: NOCVBandFragmentJob
-       :noindex:
-       :no-special-members:
-    
+.. autoclass:: BANDFragmentResults
+   :noindex:
+   :no-special-members:
 
-Code
-^^^^
-
-.. dropdown:: Recipe module source: ``bandfragment.py``
-
-    .. literalinclude:: ../../../src/scm/plams/recipes/bandfragment.py
-       :language: python
+.. autoclass:: NOCVBandFragmentJob
+   :noindex:
+   :no-special-members:
 
 Reorganization Energy
 ~~~~~~~~~~~~~~~~~~~~~
 
 Compute Marcus reorganization energies using four coordinated AMS calculations.
 
-Overview
-^^^^^^^^
-
 The workflow evaluates energies at optimized geometries of two electronic states and combines them
 into the reorganization energy used in Marcus theory.
 
-API
-^^^
+.. currentmodule:: scm.plams.recipes.reorganization_energy
 
-.. dropdown:: API reference
+.. autoclass:: ReorganizationEnergyJob
+   :noindex:
+   :no-special-members:
 
-    .. currentmodule:: scm.plams.recipes.reorganization_energy
-    
-    .. autoclass:: ReorganizationEnergyJob
-       :noindex:
-       :no-special-members:
-    
-    .. autoclass:: ReorganizationEnergyResults
-       :noindex:
-       :no-special-members:
-    
-
-Code
-^^^^
-
-.. dropdown:: Recipe module source: ``reorganization_energy.py``
-
-    .. literalinclude:: ../../../src/scm/plams/recipes/reorganization_energy.py
-       :language: python
+.. autoclass:: ReorganizationEnergyResults
+   :noindex:
+   :no-special-members:
 
 ADFNBO
 ~~~~~~
 
 Extend ADF runs with NBO6/gennbo execution through an AMS job wrapper.
 
-Overview
-^^^^^^^^
-
 ``ADFNBOJob`` extends the regular AMS/ADF runscript to execute ``adfnbo`` and ``gennbo6`` while
 ensuring required ADF input is present.
 
-API
-^^^
+.. currentmodule:: scm.plams.recipes.adfnbo
 
-.. dropdown:: API reference
-
-    .. currentmodule:: scm.plams.recipes.adfnbo
-    
-    .. autoclass:: ADFNBOJob
-       :noindex:
-       :no-special-members:
-    
-
-Code
-^^^^
-
-.. dropdown:: Recipe module source: ``adfnbo.py``
-
-    .. literalinclude:: ../../../src/scm/plams/recipes/adfnbo.py
-       :language: python
+.. autoclass:: ADFNBOJob
+   :noindex:
+   :no-special-members:
 
 
 pyAHFCDOS
@@ -318,60 +184,25 @@ pyAHFCDOS
 
 Compute vibronic density of states from two vibronic spectra at AH-FC level.
 
-Overview
-^^^^^^^^
-
 The ``FCFDOS`` class combines absorption and emission vibronic data to build a DOS profile with
 configurable broadening.
 
-API
-^^^
+.. currentmodule:: scm.plams.recipes.fcf_dos
 
-.. dropdown:: API reference
-
-    .. currentmodule:: scm.plams.recipes.fcf_dos
-    
-    .. autoclass:: FCFDOS
-       :noindex:
-       :no-special-members:
-    
-
-Code
-^^^^
-
-.. dropdown:: Recipe module source: ``fcf_dos.py``
-
-    .. literalinclude:: ../../../src/scm/plams/recipes/fcf_dos.py
-       :language: python
+.. autoclass:: FCFDOS
+   :noindex:
+   :no-special-members:
 
 ADFVibronicDOS
 ~~~~~~~~~~~~~~
 
 Practical ADF workflow that uses AH-FC vibronic spectra to build a DOS profile.
 
-Overview
-^^^^^^^^
-
 This workflow runs the vibronic calculations and then applies ``FCFDOS`` to produce and analyze the
 vibronic density of states.
 
-API
-^^^
+.. currentmodule:: scm.plams.recipes.fcf_dos
 
-.. dropdown:: API reference
-
-    .. currentmodule:: scm.plams.recipes.fcf_dos
-    
-    .. autoclass:: FCFDOS
-       :noindex:
-       :no-special-members:
-    
-
-Code
-^^^^
-
-.. dropdown:: Recipe module source: ``fcf_dos.py``
-
-    .. literalinclude:: ../../../src/scm/plams/recipes/fcf_dos.py
-       :language: python
-
+.. autoclass:: FCFDOS
+   :noindex:
+   :no-special-members:

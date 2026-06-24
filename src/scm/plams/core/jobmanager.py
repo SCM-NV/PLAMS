@@ -10,6 +10,7 @@ from scm.plams.core.errors import FileError, PlamsError
 from scm.plams.core.functions import get_logger, log, config, _get_dir_for_jobs
 from scm.plams.core.logging import Logger
 from scm.plams.core.formatters import JobCSVFormatter
+from scm.plams.core.private import CrossPlatformUnpickler
 
 if TYPE_CHECKING:
     from scm.plams.core.basejob import Job
@@ -186,6 +187,15 @@ class JobManager:
 
             try:
                 job = pickle.load(f)
+            except Exception:
+                try:
+                    f.seek(0)
+                    job = CrossPlatformUnpickler(f).load()
+                except Exception as fallback_error:
+                    log(f"Unpickling of {filename} failed. Caught the following Exception:\n{fallback_error}", 1)
+                    return None
+
+            try:
                 resolve_missing_attributes(job)
             except Exception as e:
                 log(f"Unpickling of {filename} failed. Caught the following Exception:\n{e}", 1)

@@ -1,4 +1,5 @@
 import os
+from io import StringIO
 import pytest
 from abc import ABC, abstractmethod
 
@@ -604,6 +605,8 @@ class TestBenzene(MoleculeTestBase):
                 self._compare_attrs(bond, bond_ref)
 
         assert mol.label(5) == mol2.label(5) == mol3.label(5)
+        np.testing.assert_allclose(np.array(mol), np.array(mol2))
+        np.testing.assert_allclose(np.array(mol2), np.array(mol3))
 
     def test_get_moments_of_inertia(self, mol):
         expected = np.array([86.81739308, 86.8173935, 173.63478658])
@@ -1109,6 +1112,42 @@ def test_write_multiple_molecules_to_pdb(pdb_folder, tmp_path):
         for at, at_ref in zip(mol.atoms, mol_ref.atoms):
             assert at.symbol == at_ref.symbol
             np.testing.assert_allclose(at.coords, at_ref.coords, atol=1e-08)
+
+
+def test_simple_pdb_writing(xyz_folder, tmp_path):
+    """
+    Test that a reasonable PDB format is written for a simple benzene molecule
+
+    The file should contain for each atom a default resname and resnum,
+    as well as default fix and occ columns.
+    """
+    benzene = Molecule(os.path.join(xyz_folder, "benzene.xyz"))
+    f = StringIO()
+    benzene.writepdb(f)
+    f.seek(0)
+    for i in range(2):
+        line = f.readline()
+
+    refline = "ATOM      1   C  LIG     0       1.194  -0.689   0.000  1.00  0.00           C  \n"
+    assert line == refline
+
+
+def test_mol2_format(xyz_folder, tmp_path):
+    """
+    Test that a Mol2 file can be written and read for a molecule with double and aromatic bonds
+    """
+    mol = Molecule(os.path.join(xyz_folder, "reactant2.xyz"))
+    mol.guess_bonds()
+
+    f = StringIO()
+    mol.writemol2(f)
+    f.seek(0)
+
+    mol2 = Molecule()
+    mol2.readmol2(f)
+
+    assert len(mol) == len(mol2)
+    assert len(mol.bonds) == len(mol2.bonds)
 
 
 def test_read_multiple_molecules_from_coskf(coskf_folder):

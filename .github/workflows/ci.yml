@@ -84,6 +84,9 @@ jobs:
           if [ "${{ matrix.python-version }}" = "3.8" ]; then
             python -m pip install rdkit==2023.9.5 --force-reinstall
           fi
+          if [ "${{ matrix.python-version }}" = "3.13" ]; then
+            python -m pip install rdkit==2026.3.2 --force-reinstall
+          fi
 
       - name: Run Black
         run: |

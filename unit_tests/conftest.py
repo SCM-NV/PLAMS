@@ -1,6 +1,12 @@
 import pytest
 from unittest.mock import patch, MagicMock
 from pathlib import Path
+import sys
+
+
+UNIT_TESTS_DIR = Path(__file__).resolve().parent
+if str(UNIT_TESTS_DIR) not in sys.path:
+    sys.path.insert(0, str(UNIT_TESTS_DIR))
 
 
 @pytest.fixture(autouse=True)
@@ -66,5 +72,23 @@ def coskf_folder():
     Returns the path to the COSKF folder
     """
     p = Path(__file__).parent.absolute() / "coskf"
+    assert p.exists()
+    return p
+
+
+@pytest.fixture(scope="session")
+def dill_folder():
+    """
+    Returns the path to the dill fixture folder.
+    """
+    p = Path(__file__).parent.absolute() / "dill"
+    assert p.exists()
+    return p
+
+
+@pytest.fixture
+def vasp_folder():
+    "Return the path to VASP"
+    p = Path(__file__).parent.absolute() / "VASP"
     assert p.exists()
     return p

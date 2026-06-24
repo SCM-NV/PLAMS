@@ -2825,6 +2825,9 @@ class Molecule:
         This method is a counterpart of :meth:`from_dict`.
         """
         mol_dict = copy.copy(self.__dict__)
+        # _as_array stores references derived from this molecule and can recurse back into the parent object during serialization,
+        # it will be recreated on from_dict
+        mol_dict.pop("_as_array", None)
         atom_indices = {id(a): i for i, a in enumerate(mol_dict["atoms"])}
         bond_indices = {id(b): i for i, b in enumerate(mol_dict["bonds"])}
         atom_dicts = [copy.copy(a.__dict__) for a in mol_dict["atoms"]]
@@ -2865,6 +2868,7 @@ class Molecule:
             b.__dict__ = b_dict  # type: ignore[assignment]
             b.mol = None
             mol.add_bond(b)
+        mol._as_array = AsArrayContext(mol)
         return mol
 
     @classmethod
@@ -2919,7 +2923,7 @@ class Molecule:
         for at, (x, y, z) in zip(atom_subset, xyz_array):
             at.coords = (x, y, z)
 
-    def __array__(self, dtype: Optional["DTypeLike"] = None) -> np.ndarray:
+    def __array__(self, dtype: Optional["DTypeLike"] = None, copy: Optional[bool] = None) -> np.ndarray:
         """A magic method for constructing numpy arrays.
 
         This method ensures that passing a |Molecule| instance to numpy.array_ produces an array of Cartesian coordinates (see :meth:`.Molecule.as_array`).
@@ -2929,7 +2933,11 @@ class Molecule:
         .. _`data type`: https://docs.scipy.org/doc/numpy/reference/arrays.dtypes.html
         """
         ret = self.as_array()
-        return ret.astype(dtype, copy=False)
+        if dtype is not None:
+            ret = ret.astype(dtype, copy=False)
+        if copy:
+            ret = ret.copy()
+        return ret
 
     # ===========================================================================
     # ==== File/format IO =======================================================
@@ -3176,6 +3184,8 @@ class Molecule:
                 spl = line.split()
                 if len(spl) < 4:
                     raise FileError(f"readmol2: Error in {f.name} line {i+1}: not enough values in line")
+                if "." in spl[3]:
+                    spl[3] = f"{int(float(spl[3]))}"
                 try:
                     atom1 = self.atoms[int(spl[1]) - 1]
                     atom2 = self.atoms[int(spl[2]) - 1]
@@ -3270,8 +3280,14 @@ class Molecule:
         pdb = PDBHandler()
         for i, at in enumerate(self.atoms):
             pdbatom = PDBAtom()
+            pdbatom.name = f"{at.symbol.upper():<2}"
+            pdbatom.name = "%-2s" % (at.symbol.upper())
             pdbatom.coords = at.coords
             pdbatom.element = at.symbol.upper()
+            pdbatom.res = "LIG"
+            pdbatom.resnum = "0"
+            pdbatom.occ = "1.00"
+            pdbatom.fix = "0.00"
             if "pdb" in at.properties:
                 if "res" in at.properties.pdb:
                     pdbatom.res = at.properties.pdb.res
@@ -3279,6 +3295,10 @@ class Molecule:
                     pdbatom.resnum = at.properties.pdb.resnum
                 if "name" in at.properties.pdb:
                     pdbatom.name = at.properties.pdb.name
+                if "occ" in at.properties.pdb:
+                    pdbatom.occ = at.properties.pdb.occ
+                if "fix" in at.properties.pdb:
+                    pdbatom.fix = at.properties.pdb.fix
             pdb.add_atom(pdbatom)
         if len(self.lattice) > 0:
             pdb.set_lattice(self.lattice)
