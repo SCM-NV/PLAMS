@@ -297,7 +297,7 @@ def forcefield_params_from_kf(kf: "KFFile") -> Tuple[List[float], List[str], Opt
     indices = kf.read_ints("AMSResults", "AtomTyping.atomIndexToType")
     types = [alltypes[i - 1] for i in indices]
 
-    # Read the force field patch
+    # Read the force field patches
     npatches = kf.read_int("AMSResults", "Config.nPatches")
     if npatches == 0:
         return charges, types, None
