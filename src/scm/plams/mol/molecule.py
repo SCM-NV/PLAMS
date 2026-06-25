@@ -3281,9 +3281,8 @@ class Molecule:
         for i, at in enumerate(self.atoms):
             pdbatom = PDBAtom()
             pdbatom.name = f"{at.symbol.upper():<2}"
-            pdbatom.name = "%-2s" % (at.symbol.upper())
             pdbatom.coords = at.coords
-            pdbatom.element = at.symbol.upper()
+            pdbatom.element = at.symbol
             pdbatom.res = "LIG"
             pdbatom.resnum = "0"
             pdbatom.occ = "1.00"
