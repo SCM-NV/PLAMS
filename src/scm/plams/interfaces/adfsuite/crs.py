@@ -39,6 +39,7 @@ __all__ = ["CRSResults", "CRSJob", "CRSResultTables", "CRSInputBuilder"]
 
 PathLike = Union[str, os.PathLike]
 
+
 class CRSResultTables(NamedTuple):
     """Container returned by :meth:`CRSResults.get_result_table` with ``split=True``."""
 
@@ -1454,7 +1455,6 @@ def _block_metadata(name: str, block_def: Dict[str, Any]) -> Dict[str, Any]:
         "description": block_def.get("_comment", ""),
         "type": block_def.get("_type"),
         "header": bool(block_def.get("_header", False)),
-        "header_choices": tuple(block_def.get("_header_choices", ())),
         "keys": keys,
         "blocks": blocks,
     }
@@ -1477,6 +1477,7 @@ _crsjon_path = Path(os.environ["AMSBIN"]) / "../data/input_def/crs.json"
 
 _CRS_DATA = _load_crs_input_block_metadata(_crsjon_path.resolve())
 
+
 def _property_metadata(
     *,
     description: str,
@@ -1484,7 +1485,7 @@ def _property_metadata(
     input_keys: Dict[str, Sequence[str]],
     required_keys: Sequence[str] = (),
     notes: Sequence[str] = (),
-    value_hints: Optional[Dict[str, Any]] = None,
+    input_hints: Optional[Dict[str, Sequence[str]]] = None,
     builder: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Return a complete, immutable CRS property metadata dictionary."""
@@ -1493,20 +1494,50 @@ def _property_metadata(
         "property": tuple(input_keys.get("property", ())),
         "compound": tuple(input_keys.get("compound", ())),
     }
+    normalized_input_hints = {
+        key: tuple(values)
+        for key, values in (input_hints or {}).items()
+    }
     return {
         "description": description,
         "system_scope": system_scope,
         "input_keys": normalized_input_keys,
         "required_keys": tuple(required_keys),
         "notes": tuple(notes),
-        "value_hints": {} if value_hints is None else value_hints,
+        "input_hints": normalized_input_hints,
         "builder": {} if builder is None else builder,
     }
 
 
 _VAPOR_PRESSURE_KEYS = ("pvap", "tvap", "vp_equation", "vp_params")
 _FUSION_KEYS = ("meltingpoint", "hfusion", "cpfusion")
-_VLE_SWEEP_PROPERTY_KEYS = ("nfrac",)
+_VLE_SWEEP_PROPERTY_KEYS = ("nfrac", "isotherm", "isobar", "flashpoint")
+
+_TEMPERATURE_RANGE_HINT = "Accepts a single value or range, e.g. '273.15 373.15 10'."
+_PRESSURE_RANGE_HINT = "Accepts a single value or range, e.g. '0.1 1.0 10'."
+_VAPOR_PRESSURE_HINT = "Used for gas-phase pseudochemical potential corrections in VLE, flash, and Henry's-law calculations."
+_DENSITY_HINT = (
+    "Used for molar-volume estimates, volume-based solubility, and Henry's-law results; "
+    "falls back to COSMO volume estimates."
+)
+_DENSITYSOLVENT_HINT = (
+    "Used first for solvent molar-volume estimates, volume-based results; "
+    "falls back to compound density or COSMO volume estimates."
+)
+_FUSION_HINT = "Used for solid-solute fusion corrections; cpfusion is optional."
+_FLASHPOINT_HINT = "Provide compound flashpoint values for flammable compounds."
+_VOLUMEQUOTIENT_HINT = (
+    "Sets the solvent-1/solvent-2 molar-volume ratio; "
+    "otherwise estimated from density or COSMO volume."
+)
+
+_CRS_INPUT_HINTS: Dict[str, Tuple[str, ...]] = {
+    "density": (_DENSITY_HINT,),
+    "densitysolvent": (_DENSITYSOLVENT_HINT,),
+    "flashpoint": (_FLASHPOINT_HINT,),
+    **{key: (_VAPOR_PRESSURE_HINT,) for key in _VAPOR_PRESSURE_KEYS},
+    **{key: (_FUSION_HINT,) for key in _FUSION_KEYS},
+}
 
 _VLE_SWEEP_MODE = {
     "keys": ("isotherm", "isobar", "flashpoint"),
@@ -1516,14 +1547,17 @@ _VLE_SWEEP_MODE = {
         "isobar": {"property": {"isobar": True}},
         "flashpoint": {"property": {"flashpoint": True}},
     },
-    "compound_hints": {
-        "flashpoint": ("flashpoint",),
+    "mode_hints": {
+        "isotherm": (
+            "LLE boundaries are interpolated from the composition sweep; use LLE for robust phase-boundary calculations.",
+        ),
+        "flashpoint": ("Uses pure-compound flashpoints; vapor-pressure inputs may improve results.",),
     },
 }
 
 _VLE_SWEEP_BUILDER = {
     "roles": ("compound",),
-    "mode": _VLE_SWEEP_MODE
+    "mode": _VLE_SWEEP_MODE,
 }
 
 _SOLUBILITY_MODE = {
@@ -1534,14 +1568,32 @@ _SOLUBILITY_MODE = {
         "liquid": {},
         "solid": {},
     },
-    "compound_hints": {
-        "solid": ("meltingpoint", "hfusion",),
+    "descriptions": {
+        "gas": "gas (sets isobar)",
+    },
+    "compound_required_keys": {
+        "solid": {
+            "solute": {
+                "any_of": (("meltingpoint", "hfusion"),),
+            },
+        },
+    },
+    "mode_hints": {
+        "gas": (
+            "Top-level pressure is the solute partial pressure.",
+        ),
+        "liquid": (
+            "Assumes the pure liquid solute as the coexisting phase; use LLE for miscible systems.",
+        ),
+        "solid": (
+            "Requires solid-solute fusion-correction inputs.",
+        ),
     },
 }
+
 _SOLUBILITY_BUILDER = {
     "roles": ("solvent", "solute"),
-    "compound_count": {"min": 2},
-    "mode": _SOLUBILITY_MODE
+    "mode": _SOLUBILITY_MODE,
 }
 
 _CRS_PROPERTY_TYPE_METADATA: Dict[str, Dict[str, Any]] = {
@@ -1556,13 +1608,7 @@ _CRS_PROPERTY_TYPE_METADATA: Dict[str, Dict[str, Any]] = {
         required_keys=("temperature", "frac1"),
         builder={
             "roles": ("solvent", "solute"),
-            "compound_count": {"min": 1},
         },
-        notes=(
-            "Henry's-law constants depend on solvent molar volume and gas-phase pseudochemical potential.",
-            "Solvent molar volume uses densitysolvent first, then pure-compound density/molar-mass data, then COSMO volume estimates.",
-            "Vapor-pressure inputs affect Henry's-law constants through gas-phase pseudochemical potential corrections.",
-        ),
     ),
     "LOGP": _property_metadata(
         description="Partition coefficients between two immiscible solvent phases.",
@@ -1575,12 +1621,10 @@ _CRS_PROPERTY_TYPE_METADATA: Dict[str, Dict[str, Any]] = {
         required_keys=("temperature", "frac1", "frac2"),
         builder={
             "roles": ("solvent", "solute"),
-            "compound_count": {"min": 1},
-            "compound_validators": ("logp_solvent_fractions",),
         },
-        notes=(
-            "volumequotient sets the solvent-1/solvent-2 molar-volume ratio; otherwise it is estimated from density/molar-mass data or COSMO volumes.",
-        ),
+        input_hints={
+            "volumequotient": (_VOLUMEQUOTIENT_HINT,),
+        }
     ),
     "SOLUBILITY": _property_metadata(
         description="Solubility of solutes in a solvent mixture or under gas-pressure conditions.",
@@ -1592,14 +1636,6 @@ _CRS_PROPERTY_TYPE_METADATA: Dict[str, Dict[str, Any]] = {
         },
         required_keys=("temperature", "frac1", "meltingpoint", "hfusion"),
         builder={**_SOLUBILITY_BUILDER},
-        notes=(
-            "temperature may be a single value or a range specified as '273.15 373.15 10'.",
-            "densitysolvent or compound density affects solubility reported in volume-based units.",
-            "For solid solutes, provide meltingpoint, hfusion, and optionally cpfusion.",
-            "For liquid solutes, LLE is usually more appropriate.",
-            "For gas solutes, use isobar with pressure set to the solute partial vapor pressure.",
-            "Vapor-pressure inputs affect gas-solubility results through gas-phase pseudochemical potential corrections.",
-        ),
     ),
     "PURESOLUBILITY": _property_metadata(
         description="Solubility of a solute in pure solvents over a temperature range.",
@@ -1611,14 +1647,6 @@ _CRS_PROPERTY_TYPE_METADATA: Dict[str, Dict[str, Any]] = {
         },
         required_keys=("temperature", "frac1", "meltingpoint", "hfusion"),
         builder={**_SOLUBILITY_BUILDER},
-        notes=(
-            "temperature may be a single value or a range specified as '273.15 373.15 10'.",
-            "Compound density affects solubility reported in volume-based units.",
-            "For solid solutes, provide meltingpoint, hfusion, and optionally cpfusion.",
-            "For liquid solutes, LLE is usually more appropriate.",
-            "For gas solutes, use isobar with pressure set to the solute partial vapor pressure.",
-            "Vapor-pressure inputs affect gas-solubility results through gas-phase pseudochemical potential corrections.",
-        ),
     ),
     "VAPORPRESSURE": _property_metadata(
         description="Vapor pressure of a mixture at fixed temperature.",
@@ -1630,15 +1658,10 @@ _CRS_PROPERTY_TYPE_METADATA: Dict[str, Dict[str, Any]] = {
         required_keys=("temperature", "frac1"),
         builder={
             "roles": ("compound",),
-            "compound_count": {"min": 1},
         },
-        value_hints={
-            "temperature": "single value or range specification, e.g. '273.15 373.15 10'",
+        input_hints={
+            "temperature": (_TEMPERATURE_RANGE_HINT,),
         },
-        notes=(
-            "temperature may be a single value or a range specified as '273.15 373.15 10'.",
-            "Vapor-pressure inputs affect mixture vapor-pressure results through gas-phase pseudochemical potential corrections.",
-        ),
     ),
     "PUREVAPORPRESSURE": _property_metadata(
         description="Pure-compound vapor pressure over a temperature range.",
@@ -1650,13 +1673,13 @@ _CRS_PROPERTY_TYPE_METADATA: Dict[str, Dict[str, Any]] = {
         required_keys=("temperature",),
         builder={
             "roles": ("compound",),
-            "compound_count": {"min": 1},
         },
         notes=(
-            "Multiple COMPOUND blocks may be supplied; each compound is treated independently as a pure compound.",
-            "temperature may be a single value or a range specified as '273.15 373.15 10'.",
-            "Vapor-pressure inputs affect vapor-pressure results through gas-phase pseudochemical potential corrections.",
+            "Multiple COMPOUND blocks are treated as independent pure compounds.",
         ),
+        input_hints={
+            "temperature": (_TEMPERATURE_RANGE_HINT,),
+        },
     ),
     "BOILINGPOINT": _property_metadata(
         description="Boiling temperature of a mixture for a pressure range.",
@@ -1668,12 +1691,10 @@ _CRS_PROPERTY_TYPE_METADATA: Dict[str, Dict[str, Any]] = {
         required_keys=("pressure",),
         builder={
             "roles": ("compound",),
-            "compound_count": {"min": 1},
         },
-        notes=(
-            "pressure may be a single value or a range specified as '0.1 1.0 10'.",
-            "Vapor-pressure inputs affect boiling-point results through gas-phase pseudochemical potential corrections.",
-        ),
+        input_hints={
+            "pressure": (_PRESSURE_RANGE_HINT,),
+        },
     ),
     "PUREBOILINGPOINT": _property_metadata(
         description="Pure-compound boiling point over a pressure range.",
@@ -1685,13 +1706,13 @@ _CRS_PROPERTY_TYPE_METADATA: Dict[str, Dict[str, Any]] = {
         required_keys=("pressure",),
         builder={
             "roles": ("compound",),
-            "compound_count": {"min": 1},
         },
         notes=(
-            "Multiple COMPOUND blocks may be supplied; each compound is treated independently as a pure compound.",
-            "pressure may be a single value or a range specified as '0.1 1.0 10'.",
-            "Vapor-pressure inputs affect boiling-point results through gas-phase pseudochemical potential corrections.",
+            "Multiple COMPOUND blocks are treated as independent pure compounds.",
         ),
+        input_hints={
+            "pressure": (_PRESSURE_RANGE_HINT,),
+        },
     ),
     "FLASHPOINT": _property_metadata(
         description="Flash point of a mixture using user-supplied pure-compound flash points.",
@@ -1703,12 +1724,7 @@ _CRS_PROPERTY_TYPE_METADATA: Dict[str, Dict[str, Any]] = {
         required_keys=("frac1",),
         builder={
             "roles": ("compound",),
-            "compound_count": {"min": 1},
         },
-        notes=(
-            "Use pure-compound flashpoint inputs for flammable components.",
-            "Vapor-pressure inputs affect flash results through gas-phase pseudochemical potential corrections.",
-        ),
     ),
     "BINMIXCOEF": _property_metadata(
         description="Binary-mixture coefficients over a composition range.",
@@ -1719,13 +1735,7 @@ _CRS_PROPERTY_TYPE_METADATA: Dict[str, Dict[str, Any]] = {
             "compound": ("frac1",) + _VAPOR_PRESSURE_KEYS + ("flashpoint",),
         },
         required_keys=("temperature",),
-        builder={**_VLE_SWEEP_BUILDER, "compound_count": {"exact": 2}},
-        notes=(
-            "Use only one of isotherm, isobar, or flashpoint at a time.",
-            "isotherm uses temperature; isobar uses pressure; flashpoint uses pure-compound flashpoint inputs.",
-            "The binary mixture is evaluated at  (nfrac+5) compositions.",
-            "Vapor-pressure inputs affect VLE/flash results through gas-phase pseudochemical potential corrections.",
-        ),
+        builder={**_VLE_SWEEP_BUILDER,},
     ),
     "TERNARYMIX": _property_metadata(
         description="Ternary mixture property sweep over composition space.",
@@ -1736,13 +1746,7 @@ _CRS_PROPERTY_TYPE_METADATA: Dict[str, Dict[str, Any]] = {
             "compound": ("frac1",) + _VAPOR_PRESSURE_KEYS + ("flashpoint",),
         },
         required_keys=("temperature",),
-        builder={**_VLE_SWEEP_BUILDER, "compound_count": {"exact": 3}},
-        notes=(
-            "Use only one of isotherm, isobar, or flashpoint at a time.",
-            "isotherm uses temperature; isobar uses pressure; flashpoint uses pure-compound flashpoint inputs.",
-            "The ternary mixture is evaluated at (nfrac+1)*(nfrac+2)/2 compositions.",
-            "Vapor-pressure inputs affect VLE/flash results through gas-phase pseudochemical potential corrections.",
-        ),
+        builder={**_VLE_SWEEP_BUILDER,},
     ),
     "COMPOSITIONLINE": _property_metadata(
         description="Composition-line calculation between two endpoint phase compositions.",
@@ -1753,12 +1757,9 @@ _CRS_PROPERTY_TYPE_METADATA: Dict[str, Dict[str, Any]] = {
             "compound": ("frac1", "frac2") + _VAPOR_PRESSURE_KEYS + ("flashpoint",),
         },
         required_keys=("temperature",),
-        builder={**_VLE_SWEEP_BUILDER, "compound_count": {"min": 2}},
+        builder={**_VLE_SWEEP_BUILDER, "roles": ("solvent",)},
         notes=(
-            "frac1 and frac2 define the endpoint phase compositions.",
-            "Use only one of isotherm, isobar, or flashpoint at a time.",
-            "The mixture is evaluated at (nfrac+1) compositions.",
-            "Vapor-pressure inputs affect VLE/flash results through gas-phase pseudochemical potential corrections.",
+            "frac1 and frac2 define two endpoint solutions mixed along the composition line.",
         ),
     ),
     "LLE": _property_metadata(
@@ -1771,7 +1772,6 @@ _CRS_PROPERTY_TYPE_METADATA: Dict[str, Dict[str, Any]] = {
         required_keys=("temperature", "frac1"),
         builder={
             "roles": ("compound",),
-            "compound_count": {"min": 2},
         },
     ),
     "STABILITY": _property_metadata(
@@ -1784,7 +1784,6 @@ _CRS_PROPERTY_TYPE_METADATA: Dict[str, Dict[str, Any]] = {
         required_keys=("temperature", "frac1"),
         builder={
             "roles": ("compound",),
-            "compound_count": {"min": 2},
         },
     ),
     "SIGMAPROFILE": _property_metadata(
@@ -1798,7 +1797,6 @@ _CRS_PROPERTY_TYPE_METADATA: Dict[str, Dict[str, Any]] = {
         required_keys=("temperature", "frac1"),
         builder={
             "roles": ("compound",),
-            "compound_count": {"min": 1},
         },
     ),
     "PURESIGMAPROFILE": _property_metadata(
@@ -1809,10 +1807,9 @@ _CRS_PROPERTY_TYPE_METADATA: Dict[str, Dict[str, Any]] = {
         },
         builder={
             "roles": ("compound",),
-            "compound_count": {"min": 1},
         },
         notes=(
-            "Multiple COMPOUND blocks may be supplied; each compound is treated independently as a pure compound.",
+            "Multiple COMPOUND blocks are treated as independent pure compounds.",
         ),
     ),
     "SIGMAPOTENTIAL": _property_metadata(
@@ -1826,7 +1823,6 @@ _CRS_PROPERTY_TYPE_METADATA: Dict[str, Dict[str, Any]] = {
         required_keys=("temperature", "frac1"),
         builder={
             "roles": ("compound",),
-            "compound_count": {"min": 1},
         },
     ),
     "PURESIGMAPOTENTIAL": _property_metadata(
@@ -1837,10 +1833,9 @@ _CRS_PROPERTY_TYPE_METADATA: Dict[str, Dict[str, Any]] = {
         },
         builder={
             "roles": ("compound",),
-            "compound_count": {"min": 1},
         },
         notes=(
-            "Multiple COMPOUND blocks may be supplied; each compound is treated independently as a pure compound.",
+            "Multiple COMPOUND blocks are treated as independent pure compounds.",
         ),
     ),
 }
@@ -2004,7 +1999,6 @@ class CRSJob(SCMJob):
     _REQUIRED_KEY_METADATA = _get_block_keys(_CRS_DATA, "compound", "required")
     _REQUIRED_KEY_SET = _get_block_child_names(_CRS_DATA, "compound", "required")
 
-
     def __init__(self, **kwargs: Any) -> None:
         """Initialize a :class:`CRSJob` instance."""
         super().__init__(**kwargs)
@@ -2012,26 +2006,23 @@ class CRSJob(SCMJob):
 
     @staticmethod
     def database() -> str:
-        database_path = os.path.join(os.environ["SCM_PKG_ADFCRSDIR"], "ADFCRS-2018")
-        if not os.path.isdir(database_path):
+        """Return the installed ADFCRS-2018 database directory."""
+        database_path = Path(os.environ["SCM_PKG_ADFCRSDIR"]) / "ADFCRS-2018"
+        if not database_path.is_dir():
             raise FileNotFoundError("The ADFCRS-2018 database does not seem to be installed")
-        return database_path
+        return os.fspath(database_path)
 
     @staticmethod
     def coskf_from_database(name: str) -> str:
+        """Return an existing COSKF file path from the installed ADFCRS-2018 database."""
         if not name.endswith(".coskf"):
             name += ".coskf"
-        return os.path.join(CRSJob.database(), name)
 
-    @staticmethod
-    def _default_database_coskf(name: str) -> str:
-        """Return the intended ADFCRS-2018 path for *name* without requiring a configured AMS installation."""
-        if not name.endswith(".coskf"):
-            name += ".coskf"
-        try:
-            return CRSJob.coskf_from_database(name)
-        except (FileNotFoundError, KeyError):
-            return os.path.join("$SCM_PKG_ADFCRSDIR", "ADFCRS-2018", name)
+        path = Path(CRSJob.database()) / name
+        if not path.is_file():
+            raise FileNotFoundError(f"COSKF file not found in ADFCRS-2018 database: {name}")
+
+        return os.fspath(path)
 
     @staticmethod
     def property_types() -> Tuple[str, ...]:
@@ -2060,7 +2051,81 @@ class CRSJob(SCMJob):
         ]
         for note in metadata.get("notes", []):
             summary.append(f"note: {note}")
+
+        input_hints = CRSJob._property_type_input_hints(metadata)
+        key_metadata = CRSJob._property_type_input_key_metadata(metadata)
+
+        for line in CRSJob._format_input_hints(input_hints, key_metadata):
+            summary.append(line)
         return tuple(summary)
+
+    @staticmethod
+    def _property_type_input_keys(metadata: Dict[str, Any]) -> Tuple[str, ...]:
+        keys: List[str] = []
+        for scope in ("top_level", "property", "compound"):
+            keys.extend(metadata["input_keys"].get(scope, ()))
+        return tuple(dict.fromkeys(keys))
+
+    @staticmethod
+    def _property_type_input_hints(metadata: Dict[str, Any]) -> Dict[str, Tuple[str, ...]]:
+        """Return input hints applicable to the property type's declared input keys."""
+        hints: Dict[str, Tuple[str, ...]] = {}
+
+        for key in CRSJob._property_type_input_keys(metadata):
+            values = list(_CRS_INPUT_HINTS.get(key, ()))
+            values.extend(metadata.get("input_hints", {}).get(key, ()))
+            if values:
+                hints[key] = tuple(values)
+
+        return hints
+
+    @staticmethod
+    def _property_type_input_key_metadata(metadata: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+        """Return input-definition metadata for all keys declared by a property type."""
+        key_metadata: Dict[str, Dict[str, Any]] = {}
+
+        for key in metadata["input_keys"].get("top_level", ()):
+            key_metadata[key] = _CRS_DATA[key]
+
+        property_key_metadata = _get_block_keys(_CRS_DATA, "property")
+        for key in metadata["input_keys"].get("property", ()):
+            key_metadata[key] = property_key_metadata[key]
+
+        compound_key_metadata = _get_block_keys(_CRS_DATA, "compound")
+        for key in metadata["input_keys"].get("compound", ()):
+            key_metadata[key] = compound_key_metadata[key]
+
+        return key_metadata
+
+    @staticmethod
+    def _format_hint_key(key: str, key_metadata: Dict[str, Dict[str, Any]]) -> str:
+        metadata = key_metadata.get(key, {})
+        unit = metadata.get("unit")
+        if unit:
+            return f"{key} ({unit})"
+        return key
+
+    @staticmethod
+    def _format_input_hints(
+        input_hints: Dict[str, Tuple[str, ...]],
+        key_metadata: Dict[str, Dict[str, Any]],
+    ) -> Tuple[str, ...]:
+        """Format grouped input hints with input-key units where available."""
+        grouped: Dict[Tuple[str, ...], List[str]] = {}
+
+        for key, hints in input_hints.items():
+            grouped.setdefault(hints, []).append(key)
+
+        lines: List[str] = []
+        for hints, keys in grouped.items():
+            key_list = ", ".join(
+                CRSJob._format_hint_key(key, key_metadata)
+                for key in keys
+            )
+            for hint in hints:
+                lines.append(f"hint [{key_list}]: {hint}")
+
+        return tuple(lines)
 
     @staticmethod
     def _format_key_metadata(key: str, metadata: Dict[str, str]) -> str:
@@ -2071,32 +2136,47 @@ class CRSJob(SCMJob):
         return f"{key}: {type_unit} - {metadata['description']}"
 
     @staticmethod
-    def compound_keys(as_summary: bool = False) -> Union[Dict[str, Dict[str, str]], Tuple[str, ...]]:
-        """Return supported COMPOUND subkey metadata, or compact display strings."""
-        metadata = {key: value.copy() for key, value in CRSJob._COMPOUND_KEY_METADATA.items()}
+    def compound_keys(
+        key: Optional[str] = None,
+        *,
+        as_summary: bool = True,
+    ) -> Union[Dict[str, Any], Tuple[str, ...], str]:
+        """Return COMPOUND key descriptions, or raw metadata with ``as_summary=False``."""
+        if key is None:
+            metadata = {key: value.copy() for key, value in CRSJob._COMPOUND_KEY_METADATA.items()}
+            if as_summary:
+                return tuple(CRSJob._format_key_metadata(key, value) for key, value in metadata.items())
+            return metadata
+
+        normalized = key.lower()
+        if normalized not in CRSJob._COMPOUND_KEY_METADATA:
+            allowed = ", ".join(sorted(CRSJob._COMPOUND_KEY_METADATA))
+            raise KeyError(f"Unknown COMPOUND key {key!r}. Supported keys: {allowed}")
+
+        metadata = CRSJob._COMPOUND_KEY_METADATA[normalized].copy()
         if as_summary:
-            return tuple(CRSJob._format_key_metadata(key, value) for key, value in metadata.items())
+            return CRSJob._format_key_metadata(normalized, metadata)
         return metadata
 
     @staticmethod
-    def form_keys(as_summary: bool = False) -> Union[Dict[str, Dict[str, str]], Tuple[str, ...]]:
-        """Return metadata for FORM subkeys used for multiple forms such as conformers of a compound."""
+    def form_keys(as_summary: bool = True) -> Union[Dict[str, Dict[str, str]], Tuple[str, ...]]:
+        """Return FORM key descriptions, or raw metadata with ``as_summary=False``."""
         metadata = {key: value.copy() for key, value in CRSJob._FORM_KEY_METADATA.items()}
         if as_summary:
             return tuple(CRSJob._format_key_metadata(key, value) for key, value in metadata.items())
         return metadata
 
     @staticmethod
-    def species_keys(as_summary: bool = False) -> Union[Dict[str, Dict[str, str]], Tuple[str, ...]]:
-        """Return metadata for SPECIES subkeys nested under FORM."""
+    def species_keys(as_summary: bool = True) -> Union[Dict[str, Dict[str, str]], Tuple[str, ...]]:
+        """Return SPECIES key descriptions, or raw metadata with ``as_summary=False``."""
         metadata = {key: value.copy() for key, value in CRSJob._SPECIES_KEY_METADATA.items()}
         if as_summary:
             return tuple(CRSJob._format_key_metadata(key, value) for key, value in metadata.items())
         return metadata
 
     @staticmethod
-    def structure_keys(as_summary: bool = False) -> Union[Dict[str, Dict[str, str]], Tuple[str, ...]]:
-        """Return metadata for STRUCTURE subkeys nested under SPECIES."""
+    def structure_keys(as_summary: bool = True) -> Union[Dict[str, Dict[str, str]], Tuple[str, ...]]:
+        """Return STRUCTURE key descriptions, or raw metadata with ``as_summary=False``."""
         metadata = {key: value.copy() for key, value in CRSJob._STRUCTURE_KEY_METADATA.items()}
         if as_summary:
             return tuple(CRSJob._format_key_metadata(key, value) for key, value in metadata.items())
@@ -2137,23 +2217,6 @@ class CRSJob(SCMJob):
             allowed=CRSJob._PROPERTY_TYPE_METADATA,
             supported_values=CRSJob.property_types(),
         )
-
-    @staticmethod
-    def _property_type_keys(property_type: str) -> Set[str]:
-        """Return PROPERTY-block keys supported by a normalized property type."""
-        return set(CRSJob._PROPERTY_TYPE_METADATA[property_type]["property_keys"])
-
-    @staticmethod
-    def _log_unsupported_property_options(property_type: str, options: Dict[str, Any]) -> None:
-        """Log provided property-block options that are not supported for *property_type*."""
-        supported_keys = CRSJob._property_type_keys(property_type)
-        unsupported = [
-            option_name
-            for option_name, value in options.items()
-            if value is not None and option_name not in supported_keys
-        ]
-        if unsupported:
-            log(f"problem type '{property_type}' ignores {', '.join(unsupported)}", level=3)
 
     @staticmethod
     def _set_non_none(block: Settings, values: Dict[str, Any]) -> Settings:
@@ -2491,6 +2554,7 @@ class CRSJob(SCMJob):
         path: Optional[PathLike],
         nested_entries: Any,
     ) -> Optional[str]:
+        """Validate that exactly one of a path or nested entries was provided."""
         if path is not None and nested_entries is not None:
             raise ValueError(f"{method_name} accepts either path or nested entries, not both")
         if path is None and nested_entries is None:
@@ -2542,6 +2606,7 @@ class CRSJob(SCMJob):
         nested_input_name: Optional[str] = None,
         nested_normalizer: Optional[Callable[[Settings], Settings]] = None,
     ) -> Settings:
+        """Validate a CRS nested block and recursively normalize child blocks."""
         if not isinstance(block, Settings):
             raise TypeError(f"{block_name} entries must be Settings instances, got {type(block).__name__}")
 
@@ -2751,258 +2816,97 @@ class CRSJob(SCMJob):
         subprocess.run(args)
         return filename_out
 
-        # @staticmethod
-        # def compound_from_database(
-        #     identifier: str,
-        #     database: Any,
-        #     *,
-        #     conformer: bool = False,
-        #     property_type: Optional[str] = None,
-        #     property_sources: Sequence[str] = ("PhysicalProperty", "PropPred"),
-        #     property_keys: Optional[Sequence[str]] = None,
-        #     **compound_overrides: Any,
-        # ) -> Settings:
-        #     """Create a COMPOUND block from a :class:`pyCRS.Database.COSKFDatabase` entry.
+    @staticmethod
+    def compound_from_database(
+        identifier: str,
+        database: Any,
+        *,
+        conformer: bool = False,
+        property_type: Optional[str] = None,
+        property_sources: Sequence[str] = ("PhysicalProperty", "PropPred"),
+        property_keys: Optional[Sequence[str]] = None,
+        **compound_overrides: Any,
+    ) -> Settings:
+        """Create a COMPOUND block from a :class:`pyCRS.Database.COSKFDatabase` entry.
 
-        #     ``database`` can be either a ``COSKFDatabase`` instance or a path to one.
-        #     Imports from ``pyCRS`` are intentionally lazy to avoid creating an import
-        #     cycle between PLAMS ``CRSJob`` and ``pyCRS.CRSManager``.
+        ``database`` can be either a ``COSKFDatabase`` instance or a path to one.
+        Imports from ``pyCRS`` are intentionally lazy to avoid creating an import
+        cycle between PLAMS ``CRSJob`` and ``pyCRS.CRSManager``.
 
-        #     Explicit keyword overrides are applied after database-derived values.
-        #     """
-        #     if not isinstance(identifier, str):
-        #         raise TypeError(f"identifier must be a string, got {type(identifier).__name__}")
+        Explicit keyword overrides are applied after database-derived values.
+        """
+        if not isinstance(identifier, str):
+            raise TypeError(f"identifier must be a string, got {type(identifier).__name__}")
 
-        #     invalid_override_keys = {"path", "forms"}
-        #     invalid_overrides = sorted(invalid_override_keys.intersection(compound_overrides))
-        #     if invalid_overrides:
-        #         invalid = ", ".join(invalid_overrides)
-        #         raise ValueError(f"compound_from_database does not accept override(s): {invalid}")
+        invalid_override_keys = {"path", "forms"}
+        invalid_overrides = sorted(invalid_override_keys.intersection(compound_overrides))
+        if invalid_overrides:
+            invalid = ", ".join(invalid_overrides)
+            raise ValueError(f"compound_from_database does not accept override(s): {invalid}")
 
-        #     normalized_property_type = None
-        #     if property_type is not None:
-        #         normalized_property_type = CRSJob._normalize_property_type(property_type)
+        normalized_property_type = None
+        if property_type is not None:
+            normalized_property_type = CRSJob._normalize_property_type(property_type)
 
-        #     if property_keys is None:
-        #         if normalized_property_type is None:
-        #             requested_property_keys: Tuple[str, ...] = ()
-        #         else:
-        #             requested_property_keys = tuple(
-        #                 key
-        #                 for key in CRSJob._PROPERTY_TYPE_METADATA[normalized_property_type]["compound_keys"]
-        #                 if key not in {"name", "frac1", "frac2", "nring"}
-        #             )
-        #     else:
-        #         requested_property_keys = tuple(property_keys)
+        if property_keys is None:
+            if normalized_property_type is None:
+                requested_property_keys: Tuple[str, ...] = ()
+            else:
+                requested_property_keys = tuple(
+                    key
+                    for key in CRSJob._PROPERTY_TYPE_METADATA[normalized_property_type]["compound_keys"]
+                    if key not in {"name", "frac1", "frac2", "nring"}
+                )
+        else:
+            requested_property_keys = tuple(property_keys)
 
-        #     db, close_database = CRSJob._as_coskf_database(database)
-        #     try:
-        #         if conformer:
-        #             rows_by_identifier = db.get_conformers(identifier)
-        #             rows = rows_by_identifier.get(identifier, [])
-        #             valid_rows = [row for row in rows if getattr(row, "compound_id", None) is not None]
-        #             if not valid_rows:
-        #                 raise ValueError(f"No conformers found in the COSKFDatabase for identifier {identifier!r}")
+        db, close_database = CRSJob._as_coskf_database(database)
+        try:
+            if conformer:
+                rows_by_identifier = db.get_conformers(identifier)
+                rows = rows_by_identifier.get(identifier, [])
+                valid_rows = [row for row in rows if getattr(row, "compound_id", None) is not None]
+                if not valid_rows:
+                    raise ValueError(f"No conformers found in the COSKFDatabase for identifier {identifier!r}")
 
-        #             first_row = valid_rows[0]
-        #             compound_values = CRSJob._database_compound_property_values(
-        #                 db,
-        #                 first_row.compound_id,
-        #                 requested_property_keys,
-        #                 property_sources,
-        #             )
-        #             compound_values.setdefault("name", first_row.name)
-        #             compound_values.setdefault("nring", first_row.nring)
-        #             compound_values.update(compound_overrides)
+                first_row = valid_rows[0]
+                compound_values = CRSJob._database_compound_property_values(
+                    db,
+                    first_row.compound_id,
+                    requested_property_keys,
+                    property_sources,
+                )
+                compound_values.setdefault("name", first_row.name)
+                compound_values.setdefault("nring", first_row.nring)
+                compound_values.update(compound_overrides)
 
-        #             forms = [
-        #                 CRSJob.form_block(
-        #                     row.get_full_coskf_path(),
-        #                     name=row.name,
-        #                     nring=row.nring,
-        #                 )
-        #                 for row in valid_rows
-        #             ]
-        #             return CRSJob.compound_block(forms=forms, **compound_values)
+                forms = [
+                    CRSJob.form_block(
+                        row.get_full_coskf_path(),
+                        name=row.name,
+                        nring=row.nring,
+                    )
+                    for row in valid_rows
+                ]
+                return CRSJob.compound_block(forms=forms, **compound_values)
 
-        #         rows_by_identifier = db.get_compounds(identifier)
-        #         row = CRSJob._get_single_database_row(rows_by_identifier, identifier)
-        #         compound_values = CRSJob._database_compound_property_values(
-        #             db,
-        #             row.compound_id,
-        #             requested_property_keys,
-        #             property_sources,
-        #         )
-        #         compound_values.setdefault("name", row.name)
-        #         compound_values.setdefault("nring", row.nring)
-        #         compound_values.update(compound_overrides)
+            rows_by_identifier = db.get_compounds(identifier)
+            row = CRSJob._get_single_database_row(rows_by_identifier, identifier)
+            compound_values = CRSJob._database_compound_property_values(
+                db,
+                row.compound_id,
+                requested_property_keys,
+                property_sources,
+            )
+            compound_values.setdefault("name", row.name)
+            compound_values.setdefault("nring", row.nring)
+            compound_values.update(compound_overrides)
 
-        #         return CRSJob.compound_block(row.get_full_coskf_path(), **compound_values)
+            return CRSJob.compound_block(row.get_full_coskf_path(), **compound_values)
 
-        #     finally:
-        #         if close_database:
-        #             db._close_connection()
-
-
-        # @staticmethod
-        # def job_settings_template(property_type: str) -> Settings:
-        #     """Return a full default :class:`~scm.plams.core.settings.Settings` object for a COSMO-RS problem type."""
-        #     water = CRSJob._default_database_coskf("Water")
-        #     octanol = CRSJob._default_database_coskf("1-Octanol")
-        #     hexanone = CRSJob._default_database_coskf("2-Hexanone")
-        #     methanol = CRSJob._default_database_coskf("Methanol")
-        #     ethanol = CRSJob._default_database_coskf("Ethanol")
-        #     benzene = CRSJob._default_database_coskf("Benzene")
-
-        #     normalized = CRSJob._normalize_property_type(property_type)
-
-        #     if normalized == "ACTIVITYCOEF":
-        #         s = CRSJob.property_block(normalized)
-        #         s.input.temperature = 298.15
-        #         s.input.compound = [
-        #             CRSJob.compound_block(water, frac1=1.0),
-        #             CRSJob.compound_block(benzene),
-        #             CRSJob.compound_block(ethanol),
-        #             CRSJob.compound_block(methanol),
-        #         ]
-        #         return s
-
-        #     if normalized == "LOGP":
-        #         s = CRSJob.property_block(normalized, volumequotient=6.766)
-        #         s.input.temperature = 298.15
-        #         s.input.compound = [
-        #             CRSJob.compound_block(octanol, frac1=0.725, frac2=0.0),
-        #             CRSJob.compound_block(water, frac1=0.275, frac2=1.0),
-        #             CRSJob.compound_block(benzene),
-        #             CRSJob.compound_block(ethanol),
-        #             CRSJob.compound_block(methanol),
-        #         ]
-        #         return s
-
-        #     if normalized == "SOLUBILITY":
-        #         s = CRSJob.property_block(normalized)
-        #         s.input.temperature = "273.15 283.15 10"
-        #         s.input.property.DensitySolvent = 1.0
-        #         s.input.compound = [
-        #             CRSJob.compound_block(water, frac1=1.0),
-        #             CRSJob.compound_block(benzene, frac1=0.0, meltingpoint=278.7, hfusion=2.37),
-        #         ]
-        #         return s
-
-        #     if normalized in {"VAPORPRESSURE", "BOILINGPOINT"}:
-        #         s = CRSJob.property_block(normalized)
-        #         if normalized == "VAPORPRESSURE":
-        #             s.input.temperature = 298.15
-        #         else:
-        #             s.input.pressure = "0.101325 1.01325 10"
-        #         s.input.compound = [
-        #             CRSJob.compound_block(water, frac1=0.25, pvap=1.0, tvap=373.15),
-        #             CRSJob.compound_block(methanol, frac1=0.25),
-        #             CRSJob.compound_block(
-        #                 ethanol,
-        #                 frac1=0.25,
-        #                 vp_equation="Antoine",
-        #                 vp_params="5.37229 1670.409 -40.191 0.0 0.0",
-        #             ),
-        #             CRSJob.compound_block(
-        #                 hexanone,
-        #                 frac1=0.25,
-        #                 vp_equation="VPM1",
-        #                 vp_params="-6474.348470271438 -6.057589837807771 0.003390587477679571 51.07134238467479 0.0",
-        #             ),
-        #         ]
-        #         return s
-
-        #     if normalized == "FLASHPOINT":
-        #         s = CRSJob.property_block(normalized)
-        #         s.input.massfraction = ""
-        #         s.input.compound = [
-        #             CRSJob.compound_block(ethanol, frac1=0.442, flashpoint=286.0),
-        #             CRSJob.compound_block(water, frac1=0.558),
-        #         ]
-        #         return s
-
-        #     if normalized in {"STABILITY", "LLE"}:
-        #         s = CRSJob.property_block(normalized)
-        #         s.input.temperature = 298.15
-        #         s.input.compound = [
-        #             CRSJob.compound_block(water, frac1=0.4),
-        #             CRSJob.compound_block(ethanol, frac1=0.4),
-        #             CRSJob.compound_block(benzene, frac1=0.2),
-        #         ]
-        #         return s
-
-        #     if normalized == "BINMIXCOEF":
-        #         s = CRSJob.property_block(normalized, nfrac=50, isotherm=True)
-        #         s.input.temperature = 298.14
-        #         s.input.compound = [
-        #             CRSJob.compound_block(water, frac1=0.5),
-        #             CRSJob.compound_block(methanol, frac1=0.5),
-        #         ]
-        #         return s
-
-        #     if normalized == "TERNARYMIX":
-        #         s = CRSJob.property_block(normalized, nfrac=20)
-        #         s.input.temperature = 298.15
-        #         s.input.compound = [
-        #             CRSJob.compound_block(water, frac1=0.4),
-        #             CRSJob.compound_block(ethanol, frac1=0.4),
-        #             CRSJob.compound_block(benzene, frac1=0.2),
-        #         ]
-        #         return s
-
-        #     if normalized == "COMPOSITIONLINE":
-        #         s = CRSJob.property_block(normalized, nfrac=10, isobar=True)
-        #         s.input.pressure = 1.01325
-        #         s.input.compound = [
-        #             CRSJob.compound_block(water, frac1=0.0, frac2=0.9),
-        #             CRSJob.compound_block(ethanol, frac1=0.3, frac2=0.1),
-        #             CRSJob.compound_block(benzene, frac1=0.7, frac2=0.0),
-        #         ]
-        #         return s
-
-        #     if normalized == "PURESOLUBILITY":
-        #         s = CRSJob.property_block(normalized)
-        #         s.input.temperature = "273.15 373.15 10"
-        #         s.input.compound = [
-        #             CRSJob.compound_block(water, frac1=1.0),
-        #             CRSJob.compound_block(benzene, frac1=0.0),
-        #         ]
-        #         return s
-
-        #     if normalized == "PUREVAPORPRESSURE":
-        #         s = CRSJob.property_block(normalized)
-        #         s.input.temperature = "273.15 373.15 10"
-        #         s.input.compound = [CRSJob.compound_block(methanol, frac1=1.0)]
-        #         return s
-
-        #     if normalized == "PUREBOILINGPOINT":
-        #         s = CRSJob.property_block(normalized)
-        #         s.input.pressure = "0.101325 1.01325 10"
-        #         s.input.compound = [CRSJob.compound_block(methanol, frac1=1.0)]
-        #         return s
-
-        #     if normalized in {"PURESIGMAPROFILE", "PURESIGMAPOTENTIAL"}:
-        #         s = CRSJob.property_block(normalized)
-        #         s.input.compound = [CRSJob.def compound_block(methanol, frac1=1.0)]
-        #         return s
-
-        #     if normalized in {"SIGMAPROFILE", "SIGMAPOTENTIAL"}:
-        #         s = CRSJob.property_block(normalized)
-        #         s.input.temperature = 298.15
-        #         s.input.compound = [
-        #             CRSJob.compound_block(water, frac1=0.5),
-        #             CRSJob.compound_block(ethanol, frac1=0.5),
-        #         ]
-        #         return s
-
-        #     s = CRSJob.property_block(normalized)
-        #     s.input.temperature = "273.15 373.15 10"
-        #     s.input.compound = [
-        #         CRSJob.compound_block(water, frac1=1.0),
-        #         CRSJob.compound_block(benzene, frac1=0.0),
-        #     ]
-        #     return s
+        finally:
+            if close_database:
+                db._close_connection()
 
     @staticmethod
     def input_builder(
@@ -3010,17 +2914,36 @@ class CRSJob(SCMJob):
         *,
         mode: Optional[str] = None,
         use_defaults: bool = False,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> "CRSInputBuilder":
         """Return a property-type-aware builder for CRS input settings.
-
         ``mode`` is supported only for selected property types.
+
+        Example::
+
+            crs_input = CRSJob.input_builder("SOLUBILITY", temperature="353.15 373.15 10", mode="gas")
+
+            benzene = CRSJob.compound_block(CRSJob.coskf_from_database("Benzene.coskf"))
+            benzene.pvap = 353.3
+            benzene.tvap = 1.01325
+
+            water = CRSJob.compound_block(CRSJob.coskf_from_database("Water.coskf"), frac1=1.0)
+            water.vp_equation = "Antoine"
+            water.vp_params = "5.40221 1838.675 -31.737 0.0 0.0"
+
+            crs_input.add_solvent(water)
+            crs_input.add_solute(benzene)
+
+            settings = crs_input.to_settings()
+
+        Use ``builder.describe()`` and ``CRSJob.property_type_metadata(...)`` for available keys.
         """
         return CRSInputBuilder(property_type)._configure(
             mode=mode,
             use_defaults=use_defaults,
             values=kwargs
         )
+
 
 class CRSInputBuilder:
     """Property-type builder for CRSJob input settings."""
@@ -3032,6 +2955,7 @@ class CRSInputBuilder:
 
     _COMMON_DIR_ENTRIES: ClassVar[Tuple[str, ...]] = (
         "property_type",
+        "get",
         "describe",
         "apply_defaults",
         "to_settings",
@@ -3048,13 +2972,17 @@ class CRSInputBuilder:
         "_mode_options",
         "_mode_default",
         "_mode_input_mapping",
+        "_mode_descriptions",
         "_active_mode_input_keys",
+        "_compound_roles",
+        "_compounds_by_role",
     }
 
     def __init__(self, property_type: str) -> None:
         normalized = CRSJob._normalize_property_type(property_type)
         metadata = CRSJob._PROPERTY_TYPE_METADATA[normalized]
         mode_metadata = metadata["builder"].get("mode")
+        builder_metadata = metadata["builder"]
 
         top_level_keys = set(metadata["input_keys"]["top_level"])
         property_keys = set(metadata["input_keys"]["property"])
@@ -3062,6 +2990,10 @@ class CRSInputBuilder:
         mode_options = tuple(mode_metadata.get("keys", ())) if mode_metadata else ()
         mode_default = mode_metadata.get("default") if mode_metadata else None
         mode_input_mapping = mode_metadata.get("set", {}) if mode_metadata else {}
+        mode_descriptions = mode_metadata.get("descriptions", {}) if mode_metadata else {}
+
+        compound_roles = tuple(builder_metadata.get("roles", ()))
+        compounds_by_role = {role: [] for role in compound_roles}
 
         object.__setattr__(self, "property_type", normalized)
         object.__setattr__(self, "metadata", metadata)
@@ -3076,17 +3008,28 @@ class CRSInputBuilder:
         object.__setattr__(self, "_mode_options", mode_options)
         object.__setattr__(self, "_mode_default", mode_default)
         object.__setattr__(self, "_mode_input_mapping", mode_input_mapping)
+        object.__setattr__(self, "_mode_descriptions", mode_descriptions)
+
+        object.__setattr__(self, "_compound_roles", compound_roles)
+        object.__setattr__(self, "_compounds_by_role", compounds_by_role)
 
     def __dir__(self) -> List[str]:
         """Return property-type-specific completions for interactive use."""
-        entries = set(super().__dir__())
+        entries = set()
         entries.update(self._flat_keys)
-        entries.update(entry for entry in self._COMMON_DIR_ENTRIES if hasattr(self, entry))
+        entries.update(self._COMMON_DIR_ENTRIES)
 
         if self._has_mode:
             entries.difference_update(self._mode_options)
             entries.difference_update(self._active_mode_input_keys)
             entries.update({"mode", "mode_options"})
+
+        if "compound" in self._compound_roles:
+            entries.add("add_compound")
+        if "solvent" in self._compound_roles:
+            entries.add("add_solvent")
+        if "solute" in self._compound_roles:
+            entries.add("add_solute")
 
         return sorted(entries)
 
@@ -3112,6 +3055,254 @@ class CRSInputBuilder:
     def mode_options(self) -> Tuple[str, ...]:
         return self._mode_options
 
+    def get(self, key: str, default: Any = None) -> Any:
+        """Return an input value if set, otherwise return default."""
+        if key == "mode":
+            return self._mode
+        if key == "mode_options":
+            return self._mode_options
+        if key not in self._flat_keys:
+            raise AttributeError(self._invalid_key_message(key))
+        return getattr(self, key, default)
+
+    def add_compound(self, compound: Settings, *, frac1: Optional[float] = None) -> "CRSInputBuilder":
+        """Add a COMPOUND block for property types using generic compounds."""
+        return self._add_compound_role("compound", compound, overrides={"frac1": frac1})
+
+    def add_solvent(
+        self,
+        compound: Settings,
+        *,
+        frac1: Optional[float] = None,
+        frac2: Optional[float] = None,
+    ) -> "CRSInputBuilder":
+        """Add a COMPOUND block as a solvent."""
+        return self._add_compound_role("solvent", compound, overrides={"frac1": frac1, "frac2": frac2})
+
+    def add_solute(self, compound: Settings) -> "CRSInputBuilder":
+        """Add a COMPOUND block as a solute."""
+        return self._add_compound_role("solute", compound)
+
+    def apply_defaults(self) -> "CRSInputBuilder":
+        """Set default input values for unset supported keys."""
+        for key in self._DEFAULT_INPUT_KEYS["top_level"]:
+            if key not in self._top_level_keys or hasattr(self, key):
+                continue
+            if key == "pressure" and not getattr(self, "isobar", False):
+                continue
+            object.__setattr__(self, key, self._get_default_value(_CRS_DATA[key]))
+
+        property_key_metadata = _get_block_keys(_CRS_DATA, "property")
+        for key in self._DEFAULT_INPUT_KEYS["property"]:
+            if key not in self._property_keys or hasattr(self, key):
+                continue
+            object.__setattr__(self, key, self._get_default_value(property_key_metadata[key]))
+
+        return self
+
+    def describe(self, include_hints: bool = False) -> Tuple[str, ...]:
+        """Return property-type-specific input keys and mode descriptions."""
+        descriptions: List[str] = []
+
+        for key in sorted(self._top_level_keys):
+            descriptions.append(self._format_input_description(key, "top_level", _CRS_DATA[key]))
+
+        property_key_metadata = _get_block_keys(_CRS_DATA, "property")
+
+        mode_controlled_keys = set()
+        for mode in self._mode_options:
+            for scoped_values in self._mode_input_mapping.get(mode, {}).values():
+                mode_controlled_keys.update(scoped_values)
+
+        visible_property_keys = self._property_keys.difference(
+            self._mode_options,
+            mode_controlled_keys,
+        )
+
+        for key in sorted(visible_property_keys):
+            descriptions.append(self._format_input_description(key, "property", property_key_metadata[key]))
+
+        compound_keys = self._compound_keys_description()
+        if compound_keys is not None:
+            descriptions.append(compound_keys)
+
+        mode_description = self._mode_description()
+        if mode_description is not None:
+            descriptions.append(mode_description)
+            descriptions.extend(self._mode_hint_descriptions())
+
+        if include_hints:
+            descriptions.extend(self._note_descriptions())
+            descriptions.extend(self._input_hint_descriptions())
+
+        return tuple(descriptions)
+
+    def to_settings(self, *, include_compounds: bool = True) -> Settings:
+        """Build PLAMS Settings, optionally omitting COMPOUND blocks."""
+        self._validate_required_inputs()
+        if include_compounds:
+            self._validate_compound_required_keys_by_mode()
+
+        settings = Settings()
+        settings.input.property._h = self.property_type
+
+        for key in self._top_level_keys:
+            if hasattr(self, key):
+                settings.input[key] = getattr(self, key)
+
+        for key in self._property_keys | self._active_mode_input_keys:
+            if hasattr(self, key):
+                settings.input.property[key] = getattr(self, key)
+
+        if not include_compounds:
+            return settings
+
+        compounds = self._compound_blocks()
+        if compounds:
+            settings.input.compound = compounds
+
+        return settings
+
+    # compound helpers
+    def _add_compound_role(
+        self, role: str,
+        compound: Settings,
+        *,
+        overrides: Optional[Dict[str, Any]] = None,
+    ) -> "CRSInputBuilder":
+        """Normalize and store a COMPOUND block under a builder compound role."""
+        if role not in self._compound_roles:
+            allowed = ", ".join(self._compound_roles) or "none"
+            raise ValueError(f"{self.property_type} does not support {role} compounds. Supported roles: {allowed}")
+
+        normalized = CRSJob._normalize_compound(compound.copy())
+        self._set_compound_overrides(normalized, overrides or {})
+
+        if role == "solute":
+            self._drop_solute_composition(normalized)
+
+        self._compounds_by_role[role].append(normalized)
+        return self
+
+    def _drop_solute_composition(self, compound: Settings) -> None:
+        """Remove composition keys from solute blocks; only solvent/generic compounds carry composition."""
+        dropped = []
+
+        for key in ("frac1", "frac2"):
+            if key in compound and compound[key] is not None:
+                dropped.append(key)
+                del compound[key]
+
+        if dropped:
+            log(
+                f"Ignoring solute composition key(s) for {self.property_type}: "
+                f"{', '.join(dropped)}. Set composition only on solvent or generic compound roles.",
+                level=3,
+            )
+
+    def _compound_input_keys(self) -> Set[str]:
+        return set(self.metadata["input_keys"].get("compound", ()))
+
+    def _set_compound_overrides(
+        self,
+        compound: Settings,
+        overrides: Dict[str, Any],
+    ) -> None:
+        """Apply validated compound-key overrides such as frac1 and frac2."""
+        allowed = self._compound_input_keys()
+
+        for key, value in overrides.items():
+            if value is None:
+                continue
+
+            if key not in allowed:
+                allowed_keys = ", ".join(sorted(allowed)) or "none"
+                raise ValueError(
+                    f"{key} is not valid for {self.property_type} compounds. "
+                    f"Supported compound keys: {allowed_keys}"
+                )
+
+            compound[key] = value
+
+    def _compound_blocks(self) -> List[Settings]:
+        compounds: List[Settings] = []
+        for role in self._compound_roles:
+            compounds.extend(self._compounds_by_role[role])
+        return compounds
+
+    def _has_compound_key(self, compound: Settings, key: str) -> bool:
+        return key in compound and compound[key] is not None
+
+    def _active_compound_required_keys(self) -> Dict[str, Dict[str, Any]]:
+        if self._mode is None:
+            return {}
+
+        mode_metadata = self.metadata["builder"].get("mode", {})
+        requirements = mode_metadata.get("compound_required_keys", {})
+        return requirements.get(self._mode, {})
+
+    def _validate_compound_required_keys(
+        self,
+        *,
+        role: str,
+        compound: Settings,
+        requirements: Dict[str, Any],
+        index: int,
+    ) -> None:
+        missing = [
+            key for key in requirements.get("all_of", ())
+            if not self._has_compound_key(compound, key)
+        ]
+        if missing:
+            raise ValueError(
+                f"{self.property_type} {role} #{index} missing required key(s) "
+                f"for mode={self._mode!r}: {', '.join(missing)}"
+            )
+
+        any_of = requirements.get("any_of", ())
+        if any_of and not any(
+            all(self._has_compound_key(compound, key) for key in required_group)
+            for required_group in any_of
+        ):
+            alternatives = " or ".join(
+                " + ".join(required_group)
+                for required_group in any_of
+            )
+            raise ValueError(
+                f"{self.property_type} {role} #{index} requires {alternatives} "
+                f"for mode={self._mode!r}"
+            )
+
+    def _validate_compound_required_keys_by_mode(self) -> None:
+        """Validate mode-specific compound requirements such as solid-solute fusion data."""
+        requirements_by_role = self._active_compound_required_keys()
+
+        for role, requirements in requirements_by_role.items():
+            for index, compound in enumerate(self._compounds_by_role.get(role, ()), start=1):
+                self._validate_compound_required_keys(
+                    role=role,
+                    compound=compound,
+                    requirements=requirements,
+                    index=index,
+                )
+
+    # validation helpers
+    def _validate_required_inputs(self) -> None:
+        """Validate required top-level and PROPERTY input keys."""
+        required_keys = set(self.metadata["required_keys"])
+
+        missing = sorted(
+            key for key in required_keys
+            if (
+                (key in self._top_level_keys or key in self._property_keys)
+                and not hasattr(self, key)
+            )
+        )
+
+        if missing:
+            raise ValueError(f"{self.property_type} missing required input key(s): {', '.join(missing)}")
+
+    # mode/config helpers
     def _mode_values(self, mode: str) -> Dict[str, Any]:
         if not self._has_mode:
             raise ValueError(f"{self.property_type} does not support mode")
@@ -3160,7 +3351,7 @@ class CRSInputBuilder:
         *,
         mode: Optional[str] = None,
         use_defaults: bool = False,
-        values: Dict[str, Any]
+        values: Dict[str, Any],
     ) -> "CRSInputBuilder":
         self._reject_mode_keys(values)
 
@@ -3178,28 +3369,13 @@ class CRSInputBuilder:
 
         return self
 
+    # formatting/default helpers
     @staticmethod
     def _get_default_value(metadata: Dict[str, Any]) -> Any:
         value = metadata.get("default")
         if isinstance(value, list) and len(value) == 1:
             return value[0]
         return value
-
-    def apply_defaults(self) -> "CRSInputBuilder":
-        for key in self._DEFAULT_INPUT_KEYS["top_level"]:
-            if key not in self._top_level_keys or hasattr(self, key):
-                continue
-            if key == "pressure" and not getattr(self, "isobar", False):
-                continue
-            object.__setattr__(self, key, self._get_default_value(_CRS_DATA[key]))
-
-        property_key_metadata = _get_block_keys(_CRS_DATA, "property")
-        for key in self._DEFAULT_INPUT_KEYS["property"]:
-            if key not in self._property_keys or hasattr(self, key):
-                continue
-            object.__setattr__(self, key, self._get_default_value(property_key_metadata[key]))
-
-        return self
 
     def _invalid_key_message(self, key: str) -> str:
         allowed = ", ".join(sorted(self._flat_keys))
@@ -3217,37 +3393,47 @@ class CRSInputBuilder:
         if not self._has_mode:
             return None
 
-        options = ", ".join(self._mode_options)
+        options = []
+        for mode in self._mode_options:
+            label = self._mode_descriptions.get(mode, mode)
+            if mode == self._mode:
+                label = f"{label} (*)"
+            options.append(label)
+
+        option_text = ", ".join(options)
+
         if self._mode_default is not None:
-            return f"mode [mode]: {options} (default: {self._mode_default})"
-        return f"mode [mode]: {options}"
+            return f"mode [mode]: {option_text} (default: {self._mode_default})"
+        return f"mode [mode]: {option_text}"
 
-    def describe(self) -> Tuple[str, ...]:
-        descriptions: List[str] = []
+    def _mode_hint_descriptions(self) -> Tuple[str, ...]:
+        if not self._has_mode:
+            return ()
 
-        for key in sorted(self._top_level_keys):
-            descriptions.append(self._format_input_description(key, "top_level", _CRS_DATA[key]))
+        mode_hints = self.metadata["builder"].get("mode", {}).get("mode_hints", {})
+        lines = []
 
-        property_key_metadata = _get_block_keys(_CRS_DATA, "property")
-        for key in sorted(self._property_keys):
-            descriptions.append(self._format_input_description(key, "property", property_key_metadata[key]))
+        for mode in self._mode_options:
+            hints = mode_hints.get(mode, ())
+            if isinstance(hints, str):
+                hints = (hints,)
 
-        mode_description = self._mode_description()
-        if mode_description is not None:
-            descriptions.append(mode_description)
+            mode_label = f"{mode} (*)" if mode == self._mode else mode
+            for hint in hints:
+                lines.append(f"mode_hint [{mode_label}]: {hint}")
 
-        return tuple(descriptions)
+        return tuple(lines)
 
-    def to_settings(self) -> Settings:
-        settings = Settings()
-        settings.input.property._h = self.property_type
+    def _compound_keys_description(self) -> Optional[str]:
+        compound_keys = self.metadata["input_keys"].get("compound", ())
+        if not compound_keys:
+            return None
+        return f"compound_keys [compound]: {', '.join(compound_keys)}"
 
-        for key in self._top_level_keys:
-            if hasattr(self, key):
-                settings.input[key] = getattr(self, key)
+    def _input_hint_descriptions(self) -> Tuple[str, ...]:
+        input_hints = CRSJob._property_type_input_hints(self.metadata)
+        key_metadata = CRSJob._property_type_input_key_metadata(self.metadata)
+        return CRSJob._format_input_hints(input_hints, key_metadata)
 
-        for key in self._property_keys | self._active_mode_input_keys:
-            if hasattr(self, key):
-                settings.input.property[key] = getattr(self, key)
-
-        return settings
+    def _note_descriptions(self) -> Tuple[str, ...]:
+        return tuple(f"note: {note}" for note in self.metadata.get("notes", ()))
