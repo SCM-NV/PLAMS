@@ -26,14 +26,38 @@ from scm.plams.interfaces.adfsuite.scmjob import SCMJob, SCMResults
 from scm.plams.tools.units import Units
 from scm.plams.core.functions import log
 from scm.plams.tools.kftools import KFFile
+from scm.plams.interfaces.adfsuite.crs_definitions import (
+    CRS_DATA,
+    CRS_METHODS,
+    CRS_METHOD_PARAMETERS_METADATA,
+    CRS_PROPERTY_TYPE_METADATA,
+    RESULT_TABLE_COMPONENT_BASE_COLUMNS,
+    RESULT_TABLE_COMPONENT_DEFAULT_QUANTITIES,
+    RESULT_TABLE_COMPONENT_EXCLUDED_BY_PROPERTY,
+    RESULT_TABLE_COMPONENT_EXTRA_QUANTITIES,
+    RESULT_TABLE_COMPONENT_KNOWN_QUANTITIES,
+    RESULT_TABLE_LLE_BASE_COLUMNS,
+    RESULT_TABLE_LLE_COLUMN_SPECS,
+    RESULT_TABLE_LLE_DEFAULT_QUANTITIES,
+    RESULT_TABLE_LLE_EXTRA_QUANTITIES,
+    RESULT_TABLE_LLE_KNOWN_QUANTITIES,
+    RESULT_TABLE_LLE_PROPERTIES,
+    RESULT_TABLE_MIXTURE_DEFAULT_QUANTITIES,
+    RESULT_TABLE_MIXTURE_EXTRA_QUANTITIES,
+    RESULT_TABLE_MIXTURE_KNOWN_QUANTITIES,
+    RESULT_TABLE_QUANTITY_METADATA,
+    RESULT_TABLE_UNSUPPORTED_PROPERTIES,
+    get_block_child_names,
+    get_block_keys,
+)
 
 from pathlib import Path
+from copy import deepcopy
 
 if TYPE_CHECKING:
     import pandas as pd
     from matplotlib.figure import Figure
 
-import json
 
 __all__ = ["CRSResults", "CRSJob", "CRSResultTables", "CRSInputBuilder"]
 
@@ -53,266 +77,22 @@ class CRSResults(SCMResults):
 
     _kfext = ".crskf"
     _rename_map = {"CRSKF": "$JN.crskf"}
-    _RESULT_TABLE_UNSUPPORTED_PROPERTIES = {
-        "SIGMAPROFILE",
-        "PURESIGMAPROFILE",
-        "SIGMAPOTENTIAL",
-        "PURESIGMAPOTENTIAL",
-    }
-    _RESULT_TABLE_LLE_PROPERTIES = {"LLE", "STABILITY", "BINMIXCOEF", "TERNARYMIX"}
-    _RESULT_TABLE_COMPONENT_BASE_COLUMNS = (
-        "property",
-        "mixture",
-        "cid",
-        "name",
-    )
-    _RESULT_TABLE_LLE_BASE_COLUMNS = (
-        "property",
-        "mixture",
-        "tie_line",
-        "cid",
-        "name",
-    )
-
-    _RESULT_TABLE_COMPONENT_DEFAULT_QUANTITIES = (
-        "frac1",
-        "frac2",
-        "solvent fraction",
-        "composition molar fraction",
-        "gamma",
-        "logp",
-        "vapor pressure",
-        "henryc",
-        "henrycnodim",
-        "deltag",
-        "solubility molar fraction",
-        "solubility massfrac",
-        "solubility mol_per_L_solvent",
-        "solubility g_per_L_solvent",
-        "solubility mol_per_L_solution",
-        "solubility g_per_L_solution",
-    )
-    _RESULT_TABLE_COMPONENT_EXTRA_QUANTITIES = (
-        "mu",
-        "mu pure",
-        "mu gas",
-        "mu in solvent 1",
-        "mu in solvent 2",
-        "xI0",
-        "xII0",
-        "E gas",
-        "G solute",
-        "gamma_wf",
-        "gamma_vf",
-        "fh_chi",
-        "poly fraction",
-        "polyrepeats",
-    )
-    _RESULT_TABLE_COMPONENT_KNOWN_QUANTITIES = tuple(
-        dict.fromkeys(_RESULT_TABLE_COMPONENT_DEFAULT_QUANTITIES + _RESULT_TABLE_COMPONENT_EXTRA_QUANTITIES)
-    )
-    _RESULT_TABLE_COMPONENT_EXCLUDED_BY_PROPERTY = {
-        "LLE": ("gamma",),
-        "STABILITY": ("gamma",),
-    }
-    _RESULT_TABLE_MIXTURE_DEFAULT_QUANTITIES = (
-        "temperature",
-        "pressure",
-        "excess G",
-        "excess H",
-        "Gibbs energy of mixing",
-        "Enthalpy of vaporization",
-        "showmiscgap",
-        "unstable",
-        "converged",
-        "phiI",
-        "phiII",
-        "tpd_w",
-        "isobar",
-        "flashpoint",
-    )
-    _RESULT_TABLE_MIXTURE_EXTRA_QUANTITIES = (
-        "Gibbs energy",
-        "status_msg",
-        "llle_detected",
-        "xI_unstable",
-        "xII_unstable",
-        "tpd_w_I",
-        "tpd_w_II",
-        "llle_source_phase",
-        "llle_status_msg",
-        "conv_code",
-        "L_conv_code",
-        "L_status_msg",
-    )
-    _RESULT_TABLE_MIXTURE_KNOWN_QUANTITIES = tuple(
-        dict.fromkeys(_RESULT_TABLE_MIXTURE_DEFAULT_QUANTITIES + _RESULT_TABLE_MIXTURE_EXTRA_QUANTITIES)
-    )
-
-    _RESULT_TABLE_LLE_COLUMN_SPECS = {
-        "x": {"quantities": ("x",), "kind": "component"},
-        "temperature": {"quantities": ("temperature", "xlle"), "kind": "mixture"},
-        "xI": {"quantities": ("xI", "xlle", "xll"), "kind": "component"},
-        "xII": {"quantities": ("xII", "xlle", "xll"), "kind": "component"},
-        "gammaI": {"quantities": ("gammaI",), "kind": "component"},
-        "gammaII": {"quantities": ("gammaII",), "kind": "component"},
-        "actI": {"quantities": ("actI",), "kind": "component"},
-        "actII": {"quantities": ("actII",), "kind": "component"},
-        "phiI": {"quantities": ("phiI",), "kind": "mixture"},
-        "phiII": {"quantities": ("phiII",), "kind": "mixture"},
-        "converged": {"quantities": ("converged",), "kind": "mixture"},
-        "act_interp": {"quantities": ("xlle", "actxll"), "kind": "derived"},
-        "pressure": {"quantities": ("xlle", "pressure"), "kind": "derived"},
-        "w_min": {"quantities": ("w_min",), "kind": "component", "extra": True},
-        "status_msg": {"quantities": ("status_msg",), "kind": "mixture", "extra": True},
-    }
-    _RESULT_TABLE_LLE_DEFAULT_QUANTITIES = tuple(
-        dict.fromkeys(
-            quantity
-            for spec in _RESULT_TABLE_LLE_COLUMN_SPECS.values()
-            if not spec.get("extra")
-            for quantity in spec["quantities"]
-        )
-    )
-    _RESULT_TABLE_LLE_EXTRA_QUANTITIES = tuple(
-        dict.fromkeys(
-            quantity
-            for spec in _RESULT_TABLE_LLE_COLUMN_SPECS.values()
-            if spec.get("extra")
-            for quantity in spec["quantities"]
-        )
-    )
-    _RESULT_TABLE_LLE_KNOWN_QUANTITIES = tuple(
-        dict.fromkeys(_RESULT_TABLE_LLE_DEFAULT_QUANTITIES + _RESULT_TABLE_LLE_EXTRA_QUANTITIES)
-    )
-    _RESULT_TABLE_QUANTITY_METADATA = {
-        "frac1": {"symbol": "x", "name": "Feed molar composition", "unit": "fraction"},
-        "x": {"symbol": "x", "name": "Feed molar composition", "unit": "fraction"},
-        "frac2": {"symbol": "x_2", "name": "Second feed molar composition", "unit": "fraction"},
-        "composition molar fraction": {"symbol": "x_calc", "name": "Calculated molar composition", "unit": "fraction"},
-        "solvent fraction": {"symbol": "x_solvent", "name": "Solvent fraction", "unit": "fraction"},
-        "poly fraction": {"symbol": "x_poly", "name": "Polymer fraction", "unit": "fraction"},
-        "gamma": {"symbol": "gamma", "name": "Activity coefficient", "unit": "dimensionless"},
-        "gammaI": {"symbol": "gamma_I", "name": "Activity coefficient in phase I", "unit": "dimensionless"},
-        "gammaII": {"symbol": "gamma_II", "name": "Activity coefficient in phase II", "unit": "dimensionless"},
-        "gamma_wf": {"symbol": "gamma_wf", "name": "Weight-fraction activity coefficient", "unit": "dimensionless"},
-        "gamma_vf": {"symbol": "gamma_vf", "name": "Volume-fraction activity coefficient", "unit": "dimensionless"},
-        "logp": {"symbol": "logP", "name": "Log10 partition coefficient", "unit": "dimensionless"},
-        "fh_chi": {"symbol": "chi_FH", "name": "Flory-Huggins chi", "unit": "dimensionless"},
-        "mu": {
-            "symbol": "mu",
-            "name": "Pseudo-chemical potential",
-            "unit": "kcal/mol",
-            "note": "Not a true chemical potential and does not include the ideal mixing term.",
-        },
-        "mu pure": {"symbol": "mu_pure", "name": "Pure liquid-phase pseudo-chemical potential", "unit": "kcal/mol"},
-        "mu gas": {
-            "symbol": "mu_gas",
-            "name": "Gas-phase pseudo-chemical potential",
-            "unit": "kcal/mol",
-            "note": "Gas-phase reference pseudo-chemical potential, optionally refined using input vapor pressure data.",
-        },
-        "mu in solvent 1": {
-            "symbol": "mu_solv_1",
-            "name": "Pseudo-chemical potential in solvent 1",
-            "unit": "kcal/mol",
-        },
-        "mu in solvent 2": {
-            "symbol": "mu_solv_2",
-            "name": "Pseudo-chemical potential in solvent 2",
-            "unit": "kcal/mol",
-        },
-        "E gas": {"symbol": "E_gas", "name": "Gas-phase energy", "unit": "kcal/mol"},
-        "G solute": {
-            "symbol": "G_solute",
-            "name": "Solute pseudo-energy",
-            "unit": "kcal/mol",
-            "note": "Computed as gas-phase energy plus solvation free energy.",
-        },
-        "excess G": {"symbol": "G_excess", "name": "Excess Gibbs energy", "unit": "kcal/mol"},
-        "excess H": {"symbol": "H_excess", "name": "Excess enthalpy", "unit": "kcal/mol"},
-        "Gibbs energy": {
-            "symbol": "G_CRS",
-            "name": "Pseudo-Gibbs energy",
-            "unit": "kcal/mol",
-            "note": "Computed as a composition-weighted sum of pseudo-chemical potentials plus the ideal mixing term; not a true thermodynamic Gibbs energy.",
-        },
-        "Gibbs energy of mixing": {"symbol": "DeltaG_mix", "name": "Gibbs energy of mixing", "unit": "kcal/mol"},
-        "Enthalpy of vaporization": {"symbol": "DeltaH_vap", "name": "Enthalpy of vaporization", "unit": "kcal/mol"},
-        "deltag": {
-            "symbol": "DeltaG_solv",
-            "name": "Solvation free energy",
-            "unit": "kcal/mol",
-            "note": "Computed as mu - mu_gas plus a gas-to-solution standard-state Gibbs energy correction; affected by input density or solvent density.",
-        },
-        "vapor pressure": {"symbol": "p_vap", "name": "Vapor pressure", "unit": "bar"},
-        "henryc": {
-            "symbol": "H",
-            "name": "Henry's law constant",
-            "unit": "mol/(L atm)",
-            "note": "Henry's law constant computed as exp((mu_gas - mu)/RT) divided by the solvent molar volume.",
-        },
-        "henrycnodim": {"symbol": "H_cc", "name": "Dimensionless Henry's law constant", "unit": "dimensionless"},
-        "temperature": {"symbol": "T", "name": "Temperature", "unit": "K"},
-        "pressure": {"symbol": "P", "name": "Pressure", "unit": "bar"},
-        "isobar": {"symbol": "isobar", "name": "Isobaric", "unit": ""},
-        "flashpoint": {"symbol": "flashpoint", "name": "Flash-point calculation", "unit": ""},
-        "showmiscgap": {
-            "symbol": "misc_gap",
-            "name": "Miscibility gap detected",
-            "unit": "",
-            "note": "Estimated by interpolation.",
-        },
-        "unstable": {
-            "symbol": "unstable",
-            "name": "TPD unstable",
-            "unit": "",
-            "note": "Indicates instability from the tangent-plane distance test.",
-        },
-        "converged": {"symbol": "converged", "name": "LLE converged", "unit": ""},
-        "status_msg": {"symbol": "status", "name": "Status message", "unit": ""},
-        "w_min": {"symbol": "w_min", "name": "Trial-phase composition minimizing TPD(w)", "unit": "fraction"},
-        "tpd_w": {"symbol": "TPD_min", "name": "Minimum tangent-plane distance", "unit": ""},
-        "phiI": {"symbol": "phi_I", "name": "Phase I fraction", "unit": "fraction"},
-        "phiII": {"symbol": "phi_II", "name": "Phase II fraction", "unit": "fraction"},
-        "actI": {"symbol": "a_I", "name": "Activity in phase I", "unit": "dimensionless"},
-        "actII": {"symbol": "a_II", "name": "Activity in phase II", "unit": "dimensionless"},
-        "act_interp": {
-            "symbol": "a*",
-            "name": "Interpolated activity",
-            "unit": "dimensionless",
-            "note": "Estimated from interpolated miscibility-gap data; not from a full LLE calculation.",
-        },
-        "xI": {"symbol": "x_I", "name": "Molar composition in phase I", "unit": "fraction"},
-        "xII": {"symbol": "x_II", "name": "Molar composition in phase II", "unit": "fraction"},
-        "solution molar fraction": {
-            "symbol": "x_sol",
-            "name": "Solubility molar fraction",
-            "unit": "fraction",
-            "note": "Equilibrium molar-fraction solubility; density is only used for volume-based solubilities.",
-        },
-        "solubility mol_per_L_solvent": {
-            "symbol": "S_mol_L_solvent",
-            "name": "Solubility in moles per L solvent",
-            "unit": "mol/L solvent",
-        },
-        "solubility g_per_L_solvent": {
-            "symbol": "S_g_L_solvent",
-            "name": "Solubility in grams per L solvent",
-            "unit": "g/L solvent",
-        },
-        "solubility mol_per_L_solution": {
-            "symbol": "S_mol_L_solution",
-            "name": "Solubility in moles per L solution",
-            "unit": "mol/L solution",
-        },
-        "solubility g_per_L_solution": {
-            "symbol": "S_g_L_solution",
-            "name": "Solubility in grams per L solution",
-            "unit": "g/L solution",
-        },
-        "solubility massfrac": {"symbol": "w_solubility", "name": "Solubility mass fraction", "unit": "fraction"},
-    }
+    _RESULT_TABLE_UNSUPPORTED_PROPERTIES = RESULT_TABLE_UNSUPPORTED_PROPERTIES
+    _RESULT_TABLE_LLE_PROPERTIES = RESULT_TABLE_LLE_PROPERTIES
+    _RESULT_TABLE_COMPONENT_BASE_COLUMNS = RESULT_TABLE_COMPONENT_BASE_COLUMNS
+    _RESULT_TABLE_LLE_BASE_COLUMNS = RESULT_TABLE_LLE_BASE_COLUMNS
+    _RESULT_TABLE_COMPONENT_DEFAULT_QUANTITIES = RESULT_TABLE_COMPONENT_DEFAULT_QUANTITIES
+    _RESULT_TABLE_COMPONENT_EXTRA_QUANTITIES = RESULT_TABLE_COMPONENT_EXTRA_QUANTITIES
+    _RESULT_TABLE_COMPONENT_KNOWN_QUANTITIES = RESULT_TABLE_COMPONENT_KNOWN_QUANTITIES
+    _RESULT_TABLE_COMPONENT_EXCLUDED_BY_PROPERTY = RESULT_TABLE_COMPONENT_EXCLUDED_BY_PROPERTY
+    _RESULT_TABLE_MIXTURE_DEFAULT_QUANTITIES = RESULT_TABLE_MIXTURE_DEFAULT_QUANTITIES
+    _RESULT_TABLE_MIXTURE_EXTRA_QUANTITIES = RESULT_TABLE_MIXTURE_EXTRA_QUANTITIES
+    _RESULT_TABLE_MIXTURE_KNOWN_QUANTITIES = RESULT_TABLE_MIXTURE_KNOWN_QUANTITIES
+    _RESULT_TABLE_LLE_COLUMN_SPECS = RESULT_TABLE_LLE_COLUMN_SPECS
+    _RESULT_TABLE_LLE_DEFAULT_QUANTITIES = RESULT_TABLE_LLE_DEFAULT_QUANTITIES
+    _RESULT_TABLE_LLE_EXTRA_QUANTITIES = RESULT_TABLE_LLE_EXTRA_QUANTITIES
+    _RESULT_TABLE_LLE_KNOWN_QUANTITIES = RESULT_TABLE_LLE_KNOWN_QUANTITIES
+    _RESULT_TABLE_QUANTITY_METADATA = RESULT_TABLE_QUANTITY_METADATA
 
     @property
     def section(self) -> str:
@@ -1391,613 +1171,32 @@ class CRSResults(SCMResults):
         return df
 
 
-# module-level private metadata loading helpers
-def _load_crs_input_block_metadata(json_path: Path) -> Dict[str, Dict[str, Any]]:
-    with json_path.open(encoding="utf-8") as handle:
-        return _extract_crs_input_block_metadata(json.load(handle))
-
-def _extract_crs_input_block_metadata(data: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
-    result: Dict[str, Dict[str, Any]] = {}
-
-    for entry_name, entry_def in data.items():
-        if not isinstance(entry_def, dict):
-            continue
-        if entry_name.lower() in [
-            "dispersion",
-            "coef_cations",
-            "coef_anions",
-            "epsilon",
-            "crsparameters",
-            "sacparameters",
-        ]:
-            continue
-
-        category = entry_def.get("_category")
-        if category == "key":
-            result[entry_name.lower()] = _key_metadata(entry_name, entry_def)
-        elif category == "block":
-            result[entry_name.lower()] = _block_metadata(entry_name, entry_def)
-
-    return result
-
-def _key_metadata(name: str, key_def: Dict[str, Any]) -> Dict[str, Any]:
-    metadata = {
-        "kind": "key",
-        "input_name": name,
-        "type": key_def.get("_type"),
-        "description": key_def.get("_comment", ""),
-        "unit": key_def.get("_unit"),
-        "choices": tuple(key_def.get("_choices", ())),
-    }
-
-    if "_default" in key_def:
-        metadata["default"] = key_def["_default"]
-
-    return metadata
-
-def _block_metadata(name: str, block_def: Dict[str, Any]) -> Dict[str, Any]:
-    keys: Dict[str, Any] = {}
-    blocks: Dict[str, Any] = {}
-
-    for child_name, child_def in block_def.items():
-        if not isinstance(child_def, dict):
-            continue
-
-        child_category = child_def.get("_category")
-        if child_category == "key":
-            keys[child_name.lower()] = _key_metadata(child_name, child_def)
-        elif child_category == "block":
-            blocks[child_name.lower()] = _block_metadata(child_name, child_def)
-
-    return {
-        "kind": "block",
-        "input_name": name,
-        "description": block_def.get("_comment", ""),
-        "type": block_def.get("_type"),
-        "header": bool(block_def.get("_header", False)),
-        "keys": keys,
-        "blocks": blocks,
-    }
-
-def _get_block(data: Dict[str, Any], *path: str) -> Dict[str, Any]:
-    block = data[path[0].lower()]
-    for name in path[1:]:
-        block = block["blocks"][name.lower()]
-    return block
-
-def _get_block_keys(data: Dict[str, Any], *path: str) -> Dict[str, Any]:
-    return _get_block(data, *path)["keys"]
-
-def _get_block_child_names(data: Dict[str, Any], *path: str) -> frozenset[str]:
-    block = _get_block(data, *path)
-    return frozenset(block["keys"]) | frozenset(block["blocks"])
-
-# module-level private metadata/constants used to build CRSJob
-_crsjon_path = Path(os.environ["AMSBIN"]) / "../data/input_def/crs.json"
-
-_CRS_DATA = _load_crs_input_block_metadata(_crsjon_path.resolve())
-
-
-def _property_metadata(
-    *,
-    description: str,
-    system_scope: str,
-    input_keys: Dict[str, Sequence[str]],
-    required_keys: Sequence[str] = (),
-    notes: Sequence[str] = (),
-    input_hints: Optional[Dict[str, Sequence[str]]] = None,
-    builder: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
-    """Return a complete, immutable CRS property metadata dictionary."""
-    normalized_input_keys = {
-        "top_level": tuple(input_keys.get("top_level", ())),
-        "property": tuple(input_keys.get("property", ())),
-        "compound": tuple(input_keys.get("compound", ())),
-    }
-    normalized_input_hints = {
-        key: tuple(values)
-        for key, values in (input_hints or {}).items()
-    }
-    return {
-        "description": description,
-        "system_scope": system_scope,
-        "input_keys": normalized_input_keys,
-        "required_keys": tuple(required_keys),
-        "notes": tuple(notes),
-        "input_hints": normalized_input_hints,
-        "builder": {} if builder is None else builder,
-    }
-
-
-_VAPOR_PRESSURE_KEYS = ("pvap", "tvap", "vp_equation", "vp_params")
-_FUSION_KEYS = ("meltingpoint", "hfusion", "cpfusion")
-_VLE_SWEEP_PROPERTY_KEYS = ("nfrac", "isotherm", "isobar", "flashpoint")
-
-_TEMPERATURE_RANGE_HINT = "Accepts a single value or range, e.g. '273.15 373.15 10'."
-_PRESSURE_RANGE_HINT = "Accepts a single value or range, e.g. '0.1 1.0 10'."
-_VAPOR_PRESSURE_HINT = "Used for gas-phase pseudochemical potential corrections in VLE, flash, and Henry's-law calculations."
-_DENSITY_HINT = (
-    "Used for molar-volume estimates, volume-based solubility, and Henry's-law results; "
-    "falls back to COSMO volume estimates."
-)
-_DENSITYSOLVENT_HINT = (
-    "Used first for solvent molar-volume estimates, volume-based results; "
-    "falls back to compound density or COSMO volume estimates."
-)
-_FUSION_HINT = "Used for solid-solute fusion corrections; cpfusion is optional."
-_FLASHPOINT_HINT = "Provide compound flashpoint values for flammable compounds."
-_VOLUMEQUOTIENT_HINT = (
-    "Sets the solvent-1/solvent-2 molar-volume ratio; "
-    "otherwise estimated from density or COSMO volume."
-)
-
-_CRS_INPUT_HINTS: Dict[str, Tuple[str, ...]] = {
-    "density": (_DENSITY_HINT,),
-    "densitysolvent": (_DENSITYSOLVENT_HINT,),
-    "flashpoint": (_FLASHPOINT_HINT,),
-    **{key: (_VAPOR_PRESSURE_HINT,) for key in _VAPOR_PRESSURE_KEYS},
-    **{key: (_FUSION_HINT,) for key in _FUSION_KEYS},
-}
-
-_VLE_SWEEP_MODE = {
-    "keys": ("isotherm", "isobar", "flashpoint"),
-    "default": "isotherm",
-    "set": {
-        "isotherm": {"property": {"isotherm": True}},
-        "isobar": {"property": {"isobar": True}},
-        "flashpoint": {"property": {"flashpoint": True}},
-    },
-    "mode_hints": {
-        "isotherm": (
-            "LLE boundaries are interpolated from the composition sweep; use LLE for robust phase-boundary calculations.",
-        ),
-        "flashpoint": ("Uses pure-compound flashpoints; vapor-pressure inputs may improve results.",),
-    },
-}
-
-_VLE_SWEEP_BUILDER = {
-    "roles": ("compound",),
-    "mode": _VLE_SWEEP_MODE,
-}
-
-_SOLUBILITY_MODE = {
-    "keys": ("gas", "liquid", "solid"),
-    "default": "solid",
-    "set": {
-        "gas": {"property": {"isobar": True}},
-        "liquid": {},
-        "solid": {},
-    },
-    "descriptions": {
-        "gas": "gas (sets isobar)",
-    },
-    "compound_required_keys": {
-        "solid": {
-            "solute": {
-                "any_of": (("meltingpoint", "hfusion"),),
-            },
-        },
-    },
-    "mode_hints": {
-        "gas": (
-            "Top-level pressure is the solute partial pressure.",
-        ),
-        "liquid": (
-            "Assumes the pure liquid solute as the coexisting phase; use LLE for miscible systems.",
-        ),
-        "solid": (
-            "Requires solid-solute fusion-correction inputs.",
-        ),
-    },
-}
-
-_SOLUBILITY_BUILDER = {
-    "roles": ("solvent", "solute"),
-    "mode": _SOLUBILITY_MODE,
-}
-
-_CRS_PROPERTY_TYPE_METADATA: Dict[str, Dict[str, Any]] = {
-    "ACTIVITYCOEF": _property_metadata(
-        description="Activity coefficients in a solvent mixture.",
-        system_scope="solvent_mixture_with_solutes",
-        input_keys={
-            "top_level": ("temperature", "massfraction"),
-            "property": ("densitysolvent",),
-            "compound": ("frac1", "density") + _VAPOR_PRESSURE_KEYS,
-        },
-        required_keys=("temperature", "frac1"),
-        builder={
-            "roles": ("solvent", "solute"),
-        },
-    ),
-    "LOGP": _property_metadata(
-        description="Partition coefficients between two immiscible solvent phases.",
-        system_scope="mixture",
-        input_keys={
-            "top_level": ("temperature", "massfraction"),
-            "property": ("volumequotient",),
-            "compound": ("frac1", "frac2", "density"),
-        },
-        required_keys=("temperature", "frac1", "frac2"),
-        builder={
-            "roles": ("solvent", "solute"),
-        },
-        input_hints={
-            "volumequotient": (_VOLUMEQUOTIENT_HINT,),
-        }
-    ),
-    "SOLUBILITY": _property_metadata(
-        description="Solubility of solutes in a solvent mixture or under gas-pressure conditions.",
-        system_scope="solvent_with_solutes",
-        input_keys={
-            "top_level": ("temperature", "pressure", "massfraction"),
-            "property": ("densitysolvent", "isobar"),
-            "compound": ("frac1", "density") + _FUSION_KEYS + _VAPOR_PRESSURE_KEYS,
-        },
-        required_keys=("temperature", "frac1", "meltingpoint", "hfusion"),
-        builder={**_SOLUBILITY_BUILDER},
-    ),
-    "PURESOLUBILITY": _property_metadata(
-        description="Solubility of a solute in pure solvents over a temperature range.",
-        system_scope="pure_solvent_with_solute",
-        input_keys={
-            "top_level": ("temperature", "pressure"),
-            "property": ("isobar",),
-            "compound": ("frac1", "density") + _FUSION_KEYS + _VAPOR_PRESSURE_KEYS,
-        },
-        required_keys=("temperature", "frac1", "meltingpoint", "hfusion"),
-        builder={**_SOLUBILITY_BUILDER},
-    ),
-    "VAPORPRESSURE": _property_metadata(
-        description="Vapor pressure of a mixture at fixed temperature.",
-        system_scope="mixture",
-        input_keys={
-            "top_level": ("temperature", "massfraction"),
-            "compound": ("frac1",) + _VAPOR_PRESSURE_KEYS,
-        },
-        required_keys=("temperature", "frac1"),
-        builder={
-            "roles": ("compound",),
-        },
-        input_hints={
-            "temperature": (_TEMPERATURE_RANGE_HINT,),
-        },
-    ),
-    "PUREVAPORPRESSURE": _property_metadata(
-        description="Pure-compound vapor pressure over a temperature range.",
-        system_scope="pure_compounds",
-        input_keys={
-            "top_level": ("temperature",),
-            "compound": _VAPOR_PRESSURE_KEYS,
-        },
-        required_keys=("temperature",),
-        builder={
-            "roles": ("compound",),
-        },
-        notes=(
-            "Multiple COMPOUND blocks are treated as independent pure compounds.",
-        ),
-        input_hints={
-            "temperature": (_TEMPERATURE_RANGE_HINT,),
-        },
-    ),
-    "BOILINGPOINT": _property_metadata(
-        description="Boiling temperature of a mixture for a pressure range.",
-        system_scope="mixture",
-        input_keys={
-            "top_level": ("pressure", "massfraction"),
-            "compound": ("frac1",) + _VAPOR_PRESSURE_KEYS,
-        },
-        required_keys=("pressure",),
-        builder={
-            "roles": ("compound",),
-        },
-        input_hints={
-            "pressure": (_PRESSURE_RANGE_HINT,),
-        },
-    ),
-    "PUREBOILINGPOINT": _property_metadata(
-        description="Pure-compound boiling point over a pressure range.",
-        system_scope="pure_compounds",
-        input_keys={
-            "top_level": ("pressure",),
-            "compound": _VAPOR_PRESSURE_KEYS,
-        },
-        required_keys=("pressure",),
-        builder={
-            "roles": ("compound",),
-        },
-        notes=(
-            "Multiple COMPOUND blocks are treated as independent pure compounds.",
-        ),
-        input_hints={
-            "pressure": (_PRESSURE_RANGE_HINT,),
-        },
-    ),
-    "FLASHPOINT": _property_metadata(
-        description="Flash point of a mixture using user-supplied pure-compound flash points.",
-        system_scope="mixture",
-        input_keys={
-            "top_level": ("massfraction",),
-            "compound": ("frac1", "flashpoint") + _VAPOR_PRESSURE_KEYS,
-        },
-        required_keys=("frac1",),
-        builder={
-            "roles": ("compound",),
-        },
-    ),
-    "BINMIXCOEF": _property_metadata(
-        description="Binary-mixture coefficients over a composition range.",
-        system_scope="binary_mixture",
-        input_keys={
-            "top_level": ("temperature", "pressure", "massfraction"),
-            "property": _VLE_SWEEP_PROPERTY_KEYS,
-            "compound": ("frac1",) + _VAPOR_PRESSURE_KEYS + ("flashpoint",),
-        },
-        required_keys=("temperature",),
-        builder={**_VLE_SWEEP_BUILDER,},
-    ),
-    "TERNARYMIX": _property_metadata(
-        description="Ternary mixture property sweep over composition space.",
-        system_scope="ternary_mixture",
-        input_keys={
-            "top_level": ("temperature", "pressure", "massfraction"),
-            "property": _VLE_SWEEP_PROPERTY_KEYS,
-            "compound": ("frac1",) + _VAPOR_PRESSURE_KEYS + ("flashpoint",),
-        },
-        required_keys=("temperature",),
-        builder={**_VLE_SWEEP_BUILDER,},
-    ),
-    "COMPOSITIONLINE": _property_metadata(
-        description="Composition-line calculation between two endpoint phase compositions.",
-        system_scope="binary_mixture",
-        input_keys={
-            "top_level": ("temperature", "pressure", "massfraction"),
-            "property": _VLE_SWEEP_PROPERTY_KEYS,
-            "compound": ("frac1", "frac2") + _VAPOR_PRESSURE_KEYS + ("flashpoint",),
-        },
-        required_keys=("temperature",),
-        builder={**_VLE_SWEEP_BUILDER, "roles": ("solvent",)},
-        notes=(
-            "frac1 and frac2 define two endpoint solutions mixed along the composition line.",
-        ),
-    ),
-    "LLE": _property_metadata(
-        description="Liquid-liquid equilibrium for a ternary mixture.",
-        system_scope="mixture",
-        input_keys={
-            "top_level": ("temperature", "massfraction"),
-            "compound": ("frac1",),
-        },
-        required_keys=("temperature", "frac1"),
-        builder={
-            "roles": ("compound",),
-        },
-    ),
-    "STABILITY": _property_metadata(
-        description="Michelsen tangent-plane-distance stability test for a feed composition.",
-        system_scope="mixture",
-        input_keys={
-            "top_level": ("temperature", "massfraction"),
-            "compound": ("frac1",),
-        },
-        required_keys=("temperature", "frac1"),
-        builder={
-            "roles": ("compound",),
-        },
-    ),
-    "SIGMAPROFILE": _property_metadata(
-        description="Sigma profile for a solvent mixture.",
-        system_scope="mixture",
-        input_keys={
-            "top_level": ("temperature", "massfraction"),
-            "property": ("nprofile", "sigmamax"),
-            "compound": ("frac1",),
-        },
-        required_keys=("temperature", "frac1"),
-        builder={
-            "roles": ("compound",),
-        },
-    ),
-    "PURESIGMAPROFILE": _property_metadata(
-        description="Sigma profile for pure compounds.",
-        system_scope="pure_compounds",
-        input_keys={
-            "property": ("nprofile", "sigmamax"),
-        },
-        builder={
-            "roles": ("compound",),
-        },
-        notes=(
-            "Multiple COMPOUND blocks are treated as independent pure compounds.",
-        ),
-    ),
-    "SIGMAPOTENTIAL": _property_metadata(
-        description="Sigma potential for a solvent mixture.",
-        system_scope="mixture",
-        input_keys={
-            "top_level": ("temperature", "massfraction"),
-            "property": ("nprofile", "sigmamax"),
-            "compound": ("frac1",),
-        },
-        required_keys=("temperature", "frac1"),
-        builder={
-            "roles": ("compound",),
-        },
-    ),
-    "PURESIGMAPOTENTIAL": _property_metadata(
-        description="Sigma potential for pure compounds.",
-        system_scope="pure_compounds",
-        input_keys={
-            "property": ("nprofile", "sigmamax"),
-        },
-        builder={
-            "roles": ("compound",),
-        },
-        notes=(
-            "Multiple COMPOUND blocks are treated as independent pure compounds.",
-        ),
-    ),
-}
-
 class CRSJob(SCMJob):
     """A |SCMJob| subclass intended for running COSMO-RS jobs."""
 
     _command = "crs"
     _result_type = CRSResults
     _subblock_end = "end"
-    _PROPERTY_TYPE_METADATA = _CRS_PROPERTY_TYPE_METADATA
-    _METHODS = (
-        "COSMORS",
-        "COSMO-RS",
-        "COSMOSAC",
-        "COSMOSAC2013",
-        "COSMOSAC2016",
-        "COSMOSACDHB",
-        "COSMOSACDHB-MESP",
-    )
+    _PROPERTY_TYPE_METADATA = CRS_PROPERTY_TYPE_METADATA
+
+    _METHODS = CRS_METHODS
     _METHOD_ALIASES = {"COSMORS": "COSMO-RS", "COSMOSAC": "COSMOSAC2013"}
-    _DEFAULT_DISPERSION_PARAMETERS = {
-        "H": -0.0340,
-        "C": -0.0356,
-        "N": -0.0224,
-        "O": -0.0333,
-        "F": -0.026,
-        "Si": -0.04,
-        "P": -0.045,
-        "S": -0.052,
-        "Cl": -0.0485,
-        "Br": -0.055,
-        "I": -0.062,
-    }
-    _METHOD_PARAMETERS_METADATA: Dict[str, Dict[str, Dict[str, Any]]] = {
-        "COSMO-RS": {
-            "CRSParameters": {
-                "rav": 0.400,
-                "aprime": 1510.0,
-                "fcorr": 2.802,
-                "chb": 8850.0,
-                "sigmahbond": 0.00854,
-                "aeff": 6.94,
-                "lambda": 0.130,
-                "omega": -0.212,
-                "eta": -9.65,
-                "chortf": 0.816,
-                "hb_hnof": True,
-                "hb_temp": True,
-                "combi2005": True,
-            },
-            "Dispersion": _DEFAULT_DISPERSION_PARAMETERS,
-        },
-        "COSMOSAC2013": {
-            "SACParameters": {
-                "aeff": 6.4813,
-                "sigma0": 0.01233,
-                "qn": 79.532,
-                "aes": 7877.13,
-                "cohoh": 5786.72,
-                "cotot": 2739.58,
-                "cohot": 4707.75,
-                "rav": 0.51,
-                "qs": 0.57,
-                "hb_hnof": True,
-                "hb_notemp": True,
-            },
-            "Epsilon": {
-                "H": 338.13,
-                "C.sp3": 29160.92,
-                "C.sp2": 30951.83,
-                "C.sp": 20685.98,
-                "N.sp3": 23488.54,
-                "N.sp2": 22663.38,
-                "N.sp": 6390.40,
-                "O.sp3-H": 8527.06,
-                "O.sp3": 8484.38,
-                "O.sp2": 6736.85,
-                "O.sp2-N": 12145.28,
-                "F": 8435.13,
-                "P": 82512.21,
-                "S": 56067.81,
-                "Cl": 45065.19,
-                "Br": 62947.83,
-                "I": 105910.88,
-            },
-        },
-        "COSMOSAC2016": {
-            "SACParameters": {
-                "aeff": 5.8447,
-                "fdecay": 3.57,
-                "sigma0": 0.007,
-                "rn": 66.69,
-                "qn": 79.53,
-                "aes": 5920.84,
-                "bes": 1.3950e8,
-                "cohoh": 3551.1,
-                "cotot": 1077.26,
-                "cohot": 3099.31,
-                "omega": -0.212,
-                "eta": -9.00,
-                "hb_hnof": True,
-                "hb_notemp": True,
-            },
-            "Dispersion": _DEFAULT_DISPERSION_PARAMETERS,
-        },
-        "COSMOSACDHB": {
-            "SACParameters": {
-                "aeff": 5.8447,
-                "fdecay": 3.57,
-                "sigma0": 0.0063,
-                "rn": 66.69,
-                "qn": 79.53,
-                "aes": 5920.84,
-                "bes": 1.3950e8,
-                "cohoh": 33306.83,
-                "cotot": 33306.83,
-                "cohot": 33306.83,
-                "rhbcut": 1.4432,
-                "omega": -0.212,
-                "eta": -9.00,
-                "hb_hnof": True,
-                "hb_notemp": True,
-            },
-            "Dispersion": _DEFAULT_DISPERSION_PARAMETERS,
-        },
-        "COSMOSACDHB-MESP": {
-            "SACParameters": {
-                "aeff": 5.8447,
-                "fdecay": 3.57,
-                "sigma0": 0.0063,
-                "rn": 66.69,
-                "qn": 79.53,
-                "aes": 5920.84,
-                "bes": 1.3950e8,
-                "cohoh": 34234.17,
-                "cotot": 34234.17,
-                "cohot": 34234.17,
-                "rhbcut": 1.3871,
-                "omega": -0.212,
-                "eta": -9.00,
-                "hb_hnof": True,
-                "hb_notemp": True,
-            },
-            "Dispersion": _DEFAULT_DISPERSION_PARAMETERS,
-        },
-    }
+    _METHOD_PARAMETERS_METADATA = CRS_METHOD_PARAMETERS_METADATA
 
-    _COMPOUND_KEY_METADATA = _get_block_keys(_CRS_DATA, "compound")
-    _COMPOUND_KEY_SET = _get_block_child_names(_CRS_DATA, "compound")
+    _COMPOUND_KEY_METADATA = get_block_keys(CRS_DATA, "compound")
+    _COMPOUND_KEY_SET = get_block_child_names(CRS_DATA, "compound")
 
-    _FORM_KEY_METADATA = _get_block_keys(_CRS_DATA, "compound", "form")
-    _FORM_KEY_SET = _get_block_child_names(_CRS_DATA, "compound", "form")
+    _FORM_KEY_METADATA = get_block_keys(CRS_DATA, "compound", "form")
+    _FORM_KEY_SET = get_block_child_names(CRS_DATA, "compound", "form")
 
-    _SPECIES_KEY_METADATA = _get_block_keys(_CRS_DATA, "compound", "form", "species")
-    _SPECIES_KEY_SET = _get_block_child_names(_CRS_DATA, "compound", "form", "species")
+    _SPECIES_KEY_METADATA = get_block_keys(CRS_DATA, "compound", "form", "species")
+    _SPECIES_KEY_SET = get_block_child_names(CRS_DATA, "compound", "form", "species")
 
-    _STRUCTURE_KEY_METADATA = _get_block_keys(_CRS_DATA, "compound", "form", "species", "structure")
-    _STRUCTURE_KEY_SET = _get_block_child_names(_CRS_DATA, "compound", "form", "species", "structure")
+    _STRUCTURE_KEY_METADATA = get_block_keys(CRS_DATA, "compound", "form", "species", "structure")
+    _STRUCTURE_KEY_SET = get_block_child_names(CRS_DATA, "compound", "form", "species", "structure")
 
-    _REQUIRED_KEY_METADATA = _get_block_keys(_CRS_DATA, "compound", "required")
-    _REQUIRED_KEY_SET = _get_block_child_names(_CRS_DATA, "compound", "required")
+    _REQUIRED_KEY_METADATA = get_block_keys(CRS_DATA, "compound", "required")
+    _REQUIRED_KEY_SET = get_block_child_names(CRS_DATA, "compound", "required")
 
     def __init__(self, **kwargs: Any) -> None:
         """Initialize a :class:`CRSJob` instance."""
@@ -2039,7 +1238,7 @@ class CRSJob(SCMJob):
         data = CRSJob._PROPERTY_TYPE_METADATA[normalized]
         metadata = {key: value.copy() if isinstance(value, list) else value for key, value in data.items()}
         if not as_summary:
-            return metadata
+            return deepcopy(metadata)
 
         summary = [
             f"{normalized}: {metadata['description']}",
@@ -2052,32 +1251,24 @@ class CRSJob(SCMJob):
         for note in metadata.get("notes", []):
             summary.append(f"note: {note}")
 
-        input_hints = CRSJob._property_type_input_hints(metadata)
-        key_metadata = CRSJob._property_type_input_key_metadata(metadata)
-
-        for line in CRSJob._format_input_hints(input_hints, key_metadata):
-            summary.append(line)
+        summary.extend(CRSJob._property_type_input_hint_descriptions(metadata))
         return tuple(summary)
 
     @staticmethod
-    def _property_type_input_keys(metadata: Dict[str, Any]) -> Tuple[str, ...]:
-        keys: List[str] = []
-        for scope in ("top_level", "property", "compound"):
-            keys.extend(metadata["input_keys"].get(scope, ()))
-        return tuple(dict.fromkeys(keys))
+    def _property_type_input_hint_descriptions(metadata: Dict[str, Any]) -> Tuple[str, ...]:
+        """Return formatted input hints selected by the property-type metadata."""
+        key_metadata = CRSJob._property_type_input_key_metadata(metadata)
+        grouped: Dict[str, List[str]] = {}
 
-    @staticmethod
-    def _property_type_input_hints(metadata: Dict[str, Any]) -> Dict[str, Tuple[str, ...]]:
-        """Return input hints applicable to the property type's declared input keys."""
-        hints: Dict[str, Tuple[str, ...]] = {}
+        for key in metadata.get("hint_keys", ()):
+            hint = key_metadata.get(key, {}).get("hint", "")
+            if hint:
+                grouped.setdefault(hint, []).append(key)
 
-        for key in CRSJob._property_type_input_keys(metadata):
-            values = list(_CRS_INPUT_HINTS.get(key, ()))
-            values.extend(metadata.get("input_hints", {}).get(key, ()))
-            if values:
-                hints[key] = tuple(values)
-
-        return hints
+        return tuple(
+            f"hint [{', '.join(keys)}]: {hint}"
+            for hint, keys in grouped.items()
+        )
 
     @staticmethod
     def _property_type_input_key_metadata(metadata: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
@@ -2085,47 +1276,17 @@ class CRSJob(SCMJob):
         key_metadata: Dict[str, Dict[str, Any]] = {}
 
         for key in metadata["input_keys"].get("top_level", ()):
-            key_metadata[key] = _CRS_DATA[key]
+            key_metadata[key] = CRS_DATA[key]
 
-        property_key_metadata = _get_block_keys(_CRS_DATA, "property")
+        property_key_metadata = get_block_keys(CRS_DATA, "property")
         for key in metadata["input_keys"].get("property", ()):
             key_metadata[key] = property_key_metadata[key]
 
-        compound_key_metadata = _get_block_keys(_CRS_DATA, "compound")
+        compound_key_metadata = get_block_keys(CRS_DATA, "compound")
         for key in metadata["input_keys"].get("compound", ()):
             key_metadata[key] = compound_key_metadata[key]
 
         return key_metadata
-
-    @staticmethod
-    def _format_hint_key(key: str, key_metadata: Dict[str, Dict[str, Any]]) -> str:
-        metadata = key_metadata.get(key, {})
-        unit = metadata.get("unit")
-        if unit:
-            return f"{key} ({unit})"
-        return key
-
-    @staticmethod
-    def _format_input_hints(
-        input_hints: Dict[str, Tuple[str, ...]],
-        key_metadata: Dict[str, Dict[str, Any]],
-    ) -> Tuple[str, ...]:
-        """Format grouped input hints with input-key units where available."""
-        grouped: Dict[Tuple[str, ...], List[str]] = {}
-
-        for key, hints in input_hints.items():
-            grouped.setdefault(hints, []).append(key)
-
-        lines: List[str] = []
-        for hints, keys in grouped.items():
-            key_list = ", ".join(
-                CRSJob._format_hint_key(key, key_metadata)
-                for key in keys
-            )
-            for hint in hints:
-                lines.append(f"hint [{key_list}]: {hint}")
-
-        return tuple(lines)
 
     @staticmethod
     def _format_key_metadata(key: str, metadata: Dict[str, str]) -> str:
@@ -2912,11 +2073,13 @@ class CRSJob(SCMJob):
     def input_builder(
         property_type: str,
         *,
+        method: str = "COSMO-RS",
         mode: Optional[str] = None,
         use_defaults: bool = False,
         **kwargs: Any,
     ) -> "CRSInputBuilder":
         """Return a property-type-aware builder for CRS input settings.
+        ``method`` selects the COSMO-RS/SAC method.
         ``mode`` is supported only for selected property types.
 
         Example::
@@ -2939,6 +2102,7 @@ class CRSJob(SCMJob):
         Use ``builder.describe()`` and ``CRSJob.property_type_metadata(...)`` for available keys.
         """
         return CRSInputBuilder(property_type)._configure(
+            method=method,
             mode=mode,
             use_defaults=use_defaults,
             values=kwargs
@@ -2953,8 +2117,15 @@ class CRSInputBuilder:
         "property": ("nfrac", "nprofile", "sigmamax"),
     }
 
+    _GLOBAL_TOP_LEVEL_KEYS: ClassVar[Tuple[str, ...]] = (
+        "pdh_correction",
+        "usepolycombiforpolymer",
+    )
+
     _COMMON_DIR_ENTRIES: ClassVar[Tuple[str, ...]] = (
         "property_type",
+        "method",
+        "method_options",
         "get",
         "describe",
         "apply_defaults",
@@ -2964,6 +2135,7 @@ class CRSInputBuilder:
     _INTERNAL_ATTRIBUTES: ClassVar[Set[str]] = {
         "property_type",
         "metadata",
+        "_method",
         "_top_level_keys",
         "_property_keys",
         "_flat_keys",
@@ -2972,7 +2144,6 @@ class CRSInputBuilder:
         "_mode_options",
         "_mode_default",
         "_mode_input_mapping",
-        "_mode_descriptions",
         "_active_mode_input_keys",
         "_compound_roles",
         "_compounds_by_role",
@@ -2990,7 +2161,6 @@ class CRSInputBuilder:
         mode_options = tuple(mode_metadata.get("keys", ())) if mode_metadata else ()
         mode_default = mode_metadata.get("default") if mode_metadata else None
         mode_input_mapping = mode_metadata.get("set", {}) if mode_metadata else {}
-        mode_descriptions = mode_metadata.get("descriptions", {}) if mode_metadata else {}
 
         compound_roles = tuple(builder_metadata.get("roles", ()))
         compounds_by_role = {role: [] for role in compound_roles}
@@ -3000,6 +2170,7 @@ class CRSInputBuilder:
         object.__setattr__(self, "_top_level_keys", top_level_keys)
         object.__setattr__(self, "_property_keys", property_keys)
         object.__setattr__(self, "_flat_keys", top_level_keys | property_keys)
+        object.__setattr__(self, "_method", CRSJob._normalize_method("COSMO-RS"))
 
         # User modes can set CRS input keys; for example, mode="gas" sets isobar=True.
         object.__setattr__(self, "_has_mode", mode_metadata is not None)
@@ -3008,7 +2179,6 @@ class CRSInputBuilder:
         object.__setattr__(self, "_mode_options", mode_options)
         object.__setattr__(self, "_mode_default", mode_default)
         object.__setattr__(self, "_mode_input_mapping", mode_input_mapping)
-        object.__setattr__(self, "_mode_descriptions", mode_descriptions)
 
         object.__setattr__(self, "_compound_roles", compound_roles)
         object.__setattr__(self, "_compounds_by_role", compounds_by_role)
@@ -3017,6 +2187,7 @@ class CRSInputBuilder:
         """Return property-type-specific completions for interactive use."""
         entries = set()
         entries.update(self._flat_keys)
+        entries.update(self._GLOBAL_TOP_LEVEL_KEYS)
         entries.update(self._COMMON_DIR_ENTRIES)
 
         if self._has_mode:
@@ -3037,12 +2208,21 @@ class CRSInputBuilder:
         if key in self._INTERNAL_ATTRIBUTES:
             object.__setattr__(self, key, value)
             return
+
+        if key in self._GLOBAL_TOP_LEVEL_KEYS:
+            object.__setattr__(self, key, value)
+            return
+
         if key in self._flat_keys:
             object.__setattr__(self, key, value)
             return
 
         if key == "mode":
             self._set_mode(value)
+            return
+
+        if key == "method":
+            self._set_method(value)
             return
 
         raise AttributeError(self._invalid_key_message(key))
@@ -3057,10 +2237,16 @@ class CRSInputBuilder:
 
     def get(self, key: str, default: Any = None) -> Any:
         """Return an input value if set, otherwise return default."""
+        if key == "method":
+            return self._method
+        if key == "method_options":
+            return CRSJob.methods()
         if key == "mode":
             return self._mode
         if key == "mode_options":
             return self._mode_options
+        if key in self._GLOBAL_TOP_LEVEL_KEYS:
+            return getattr(self, key, default)
         if key not in self._flat_keys:
             raise AttributeError(self._invalid_key_message(key))
         return getattr(self, key, default)
@@ -3090,9 +2276,9 @@ class CRSInputBuilder:
                 continue
             if key == "pressure" and not getattr(self, "isobar", False):
                 continue
-            object.__setattr__(self, key, self._get_default_value(_CRS_DATA[key]))
+            object.__setattr__(self, key, self._get_default_value(CRS_DATA[key]))
 
-        property_key_metadata = _get_block_keys(_CRS_DATA, "property")
+        property_key_metadata = get_block_keys(CRS_DATA, "property")
         for key in self._DEFAULT_INPUT_KEYS["property"]:
             if key not in self._property_keys or hasattr(self, key):
                 continue
@@ -3100,31 +2286,57 @@ class CRSInputBuilder:
 
         return self
 
-    def describe(self, include_hints: bool = False) -> Tuple[str, ...]:
+    def describe(
+        self,
+        include_hints: bool = False,
+        include_values: bool = False,
+        include_compound_details: bool = False,
+    ) -> Tuple[str, ...]:
         """Return property-type-specific input keys and mode descriptions."""
-        descriptions: List[str] = []
+        descriptions: List[str] = [
+            self._format_input_description(
+                "method",
+                "top_level",
+                {"type": "multiple_choice", "description": "COSMO-RS/SAC method."},
+                value=self._method,
+                value_label="set" if include_values else None,
+            )
+        ]
 
         for key in sorted(self._top_level_keys):
-            descriptions.append(self._format_input_description(key, "top_level", _CRS_DATA[key]))
+            metadata = CRS_DATA[key]
+            value_label, value = self._input_value_state(key, "top_level", metadata, include_values)
+            descriptions.append(
+                self._format_input_description(
+                    key,
+                    "top_level",
+                    metadata,
+                    value=value,
+                    value_label=value_label,
+                )
+            )
 
-        property_key_metadata = _get_block_keys(_CRS_DATA, "property")
+        property_key_metadata = get_block_keys(CRS_DATA, "property")
+        for key in sorted(self._visible_property_keys()):
+            metadata = property_key_metadata[key]
+            value_label, value = self._input_value_state(key, "property", metadata, include_values)
 
-        mode_controlled_keys = set()
-        for mode in self._mode_options:
-            for scoped_values in self._mode_input_mapping.get(mode, {}).values():
-                mode_controlled_keys.update(scoped_values)
+            descriptions.append(
+                self._format_input_description(
+                    key,
+                    "property",
+                    metadata,
+                    value=value,
+                    value_label=value_label,
+                )
+            )
 
-        visible_property_keys = self._property_keys.difference(
-            self._mode_options,
-            mode_controlled_keys,
-        )
-
-        for key in sorted(visible_property_keys):
-            descriptions.append(self._format_input_description(key, "property", property_key_metadata[key]))
-
-        compound_keys = self._compound_keys_description()
-        if compound_keys is not None:
-            descriptions.append(compound_keys)
+        if include_compound_details:
+            descriptions.extend(self._compound_key_detail_descriptions())
+        else:
+            compound_keys = self._compound_keys_description()
+            if compound_keys is not None:
+                descriptions.append(compound_keys)
 
         mode_description = self._mode_description()
         if mode_description is not None:
@@ -3144,11 +2356,31 @@ class CRSInputBuilder:
             self._validate_compound_required_keys_by_mode()
 
         settings = Settings()
+        settings.input.method = self._method
         settings.input.property._h = self.property_type
 
         for key in self._top_level_keys:
-            if hasattr(self, key):
-                settings.input[key] = getattr(self, key)
+            if not hasattr(self, key):
+                continue
+
+            value = getattr(self, key)
+            metadata = CRS_DATA[key]
+            if metadata.get("type") == "bool" and value == metadata.get("default"):
+                continue
+
+            settings.input[key] = value
+
+
+        for key in self._GLOBAL_TOP_LEVEL_KEYS:
+            if not hasattr(self, key):
+                continue
+
+            value = getattr(self, key)
+            metadata = CRS_DATA[key]
+            if value == metadata.get("default"):
+                continue
+
+            settings.input[key] = value
 
         for key in self._property_keys | self._active_mode_input_keys:
             if hasattr(self, key):
@@ -3318,6 +2550,18 @@ class CRSInputBuilder:
             values.update(scoped_values)
         return values
 
+    def _mode_controlled_property_keys(self) -> Set[str]:
+        keys = set(self._mode_options)
+
+        for mode in self._mode_options:
+            property_values = self._mode_input_mapping.get(mode, {}).get("property", {})
+            keys.update(property_values)
+
+        return keys
+
+    def _visible_property_keys(self) -> Set[str]:
+        return self._property_keys.difference(self._mode_controlled_property_keys())
+
     def _set_mode(self, mode: str) -> None:
         normalized_mode = mode.lower()
         values = self._mode_values(normalized_mode)
@@ -3346,14 +2590,27 @@ class CRSInputBuilder:
             f"{provided_keys}. Supported modes: {allowed}"
         )
 
+    @property
+    def method(self) -> str:
+        return self._method
+
+    @property
+    def method_options(self) -> Tuple[str, ...]:
+        return CRSJob.methods()
+
+    def _set_method(self, method: str) -> None:
+        object.__setattr__(self, "_method", CRSJob._normalize_method(method))
+
     def _configure(
         self,
         *,
+        method: str = "COSMO-RS",
         mode: Optional[str] = None,
         use_defaults: bool = False,
         values: Dict[str, Any],
     ) -> "CRSInputBuilder":
         self._reject_mode_keys(values)
+        self._set_method(method)
 
         if mode is None:
             mode = self._mode_default
@@ -3377,17 +2634,65 @@ class CRSInputBuilder:
             return value[0]
         return value
 
+    def _auto_default_value(self, key: str, scope: str, metadata: Dict[str, Any]) -> Tuple[bool, Any]:
+        if key not in self._DEFAULT_INPUT_KEYS.get(scope, ()):
+            return False, None
+        if key == "pressure" and not getattr(self, "isobar", False):
+            return False, None
+        if "default" not in metadata:
+            return False, None
+        return True, self._get_default_value(metadata)
+
+    def _input_value_state(
+        self,
+        key: str,
+        scope: str,
+        metadata: Dict[str, Any],
+        include_values: bool,
+    ) -> Tuple[Optional[str], Any]:
+        if not include_values:
+            return None, None
+
+        if hasattr(self, key):
+            return "set", getattr(self, key)
+
+        has_auto_default, auto_default = self._auto_default_value(key, scope, metadata)
+        if has_auto_default:
+            return "auto-default", auto_default
+
+        return "unset", None
+
     def _invalid_key_message(self, key: str) -> str:
-        allowed = ", ".join(sorted(self._flat_keys))
+        allowed_keys = set(self._flat_keys)
+        allowed_keys.update(self._GLOBAL_TOP_LEVEL_KEYS)
+        allowed_keys.add("method")
+
+        if self._has_mode:
+            allowed_keys.add("mode")
+
+        allowed = ", ".join(sorted(allowed_keys))
         return f"{key!r} is not valid for {self.property_type}. Allowed input keys: {allowed}"
 
     @staticmethod
-    def _format_input_description(key: str, scope: str, metadata: Dict[str, Any]) -> str:
+    def _format_input_description(
+        key: str,
+        scope: str,
+        metadata: Dict[str, Any],
+        *,
+        value: Any = None,
+        value_label: Optional[str] = None,
+    ) -> str:
         type_unit = metadata.get("type", "")
         if metadata.get("unit"):
             type_unit = f"{type_unit} [{metadata['unit']}]"
-        description = metadata.get("description", "")
-        return f"{key} [{scope}] {type_unit}: {description}"
+
+        line = f"{key} [{scope}] {type_unit}: {metadata['description']}"
+
+        if value_label is not None:
+            line = f"{line} {value_label}: {value!r}"
+
+        return line
+
 
     def _mode_description(self) -> Optional[str]:
         if not self._has_mode:
@@ -3395,9 +2700,7 @@ class CRSInputBuilder:
 
         options = []
         for mode in self._mode_options:
-            label = self._mode_descriptions.get(mode, mode)
-            if mode == self._mode:
-                label = f"{label} (*)"
+            label = f"{mode} (*)" if mode == self._mode else mode
             options.append(label)
 
         option_text = ", ".join(options)
@@ -3424,6 +2727,17 @@ class CRSInputBuilder:
 
         return tuple(lines)
 
+    def _compound_key_detail_descriptions(self) -> Tuple[str, ...]:
+        compound_keys = self.metadata["input_keys"].get("compound", ())
+        if not compound_keys:
+            return ()
+
+        compound_key_metadata = get_block_keys(CRS_DATA, "compound")
+        return tuple(
+            self._format_input_description(key, "compound", compound_key_metadata[key])
+            for key in compound_keys
+        )
+
     def _compound_keys_description(self) -> Optional[str]:
         compound_keys = self.metadata["input_keys"].get("compound", ())
         if not compound_keys:
@@ -3431,9 +2745,7 @@ class CRSInputBuilder:
         return f"compound_keys [compound]: {', '.join(compound_keys)}"
 
     def _input_hint_descriptions(self) -> Tuple[str, ...]:
-        input_hints = CRSJob._property_type_input_hints(self.metadata)
-        key_metadata = CRSJob._property_type_input_key_metadata(self.metadata)
-        return CRSJob._format_input_hints(input_hints, key_metadata)
+        return CRSJob._property_type_input_hint_descriptions(self.metadata)
 
     def _note_descriptions(self) -> Tuple[str, ...]:
         return tuple(f"note: {note}" for note in self.metadata.get("notes", ()))
