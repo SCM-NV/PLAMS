@@ -6,27 +6,10 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Sequence, Tuple
 
 
-RESULT_TABLE_UNSUPPORTED_PROPERTIES = {
-    "SIGMAPROFILE",
-    "PURESIGMAPROFILE",
-    "SIGMAPOTENTIAL",
-    "PURESIGMAPOTENTIAL",
-}
-RESULT_TABLE_LLE_PROPERTIES = {"LLE", "STABILITY", "BINMIXCOEF", "TERNARYMIX"}
-RESULT_TABLE_COMPONENT_BASE_COLUMNS = (
-    "property",
-    "mixture",
-    "cid",
-    "name",
-)
-RESULT_TABLE_LLE_BASE_COLUMNS = (
-    "property",
-    "mixture",
-    "tie_line",
-    "cid",
-    "name",
-)
+RESULT_TABLE_UNSUPPORTED_PROPERTIES = ("SIGMAPROFILE", "PURESIGMAPROFILE", "SIGMAPOTENTIAL", "PURESIGMAPOTENTIAL")
+RESULT_TABLE_LLE_PROPERTIES = ("LLE", "STABILITY", "BINMIXCOEF", "TERNARYMIX")
 
+RESULT_TABLE_COMPONENT_BASE_COLUMNS = ("property", "mixture", "cid", "name",)
 RESULT_TABLE_COMPONENT_DEFAULT_QUANTITIES = (
     "frac1",
     "frac2",
@@ -102,6 +85,7 @@ RESULT_TABLE_MIXTURE_KNOWN_QUANTITIES = tuple(
     dict.fromkeys(RESULT_TABLE_MIXTURE_DEFAULT_QUANTITIES + RESULT_TABLE_MIXTURE_EXTRA_QUANTITIES)
 )
 
+RESULT_TABLE_LLE_BASE_COLUMNS = ("property", "mixture", "tie_line", "cid", "name",)
 RESULT_TABLE_LLE_COLUMN_SPECS = {
     "x": {"quantities": ("x",), "kind": "component"},
     "temperature": {"quantities": ("temperature", "xlle"), "kind": "mixture"},
@@ -138,135 +122,60 @@ RESULT_TABLE_LLE_EXTRA_QUANTITIES = tuple(
 RESULT_TABLE_LLE_KNOWN_QUANTITIES = tuple(
     dict.fromkeys(RESULT_TABLE_LLE_DEFAULT_QUANTITIES + RESULT_TABLE_LLE_EXTRA_QUANTITIES)
 )
-RESULT_TABLE_QUANTITY_METADATA = {
-    "frac1": {"symbol": "x", "name": "Feed molar composition", "unit": "fraction"},
+
+
+def _strip_comment_period(comment: str) -> str:
+    stripped = comment.strip()
+    return stripped[:-1] if stripped.endswith(".") else stripped
+
+
+def _extract_result_quantity_metadata_from_kf_def(data: Dict[str, Any]) -> Dict[str, Dict[str, str]]:
+    result: Dict[str, Dict[str, str]] = {}
+
+    for section in data.values():
+        if not isinstance(section, dict):
+            continue
+        for key, value in section.items():
+            if not isinstance(value, dict):
+                continue
+
+            value_type = value.get("_type")
+            if value_type not in {"section", "free_section", "subsection"} and "_comment" in value:
+                result[key] = {
+                    "symbol": str(value.get("_symbol") or key),
+                    "name": _strip_comment_period(str(value.get("_comment", ""))) or key,
+                    "note": str(value.get("_note") or ""),
+                    "unit": str(value.get("_unit") or ""),
+                }
+
+    return result
+
+
+def _load_crs_kf_def_metadata(json_path: Path) -> Dict[str, Dict[str, str]]:
+    with json_path.open(encoding="utf-8") as handle:
+        data = json.load(handle)
+    if not isinstance(data, dict):
+        raise ValueError(f"CRS kf definition file {json_path} must contain a JSON object")
+    return _extract_result_quantity_metadata_from_kf_def(data)
+
+
+def _build_result_quantity_metadata(
+    kf_def_metadata: Dict[str, Dict[str, str]],
+    overrides: Dict[str, Dict[str, str]],
+) -> Dict[str, Dict[str, str]]:
+    result = {key: value.copy() for key, value in kf_def_metadata.items()}
+    for key, override in overrides.items():
+        result[key] = {**result.get(key, {}), **override}
+    return result
+
+RESULT_TABLE_QUANTITY_METADATA_OVERRIDES = {
     "x": {"symbol": "x", "name": "Feed molar composition", "unit": "fraction"},
-    "frac2": {"symbol": "x_2", "name": "Second feed molar composition", "unit": "fraction"},
-    "composition molar fraction": {"symbol": "x_calc", "name": "Calculated molar composition", "unit": "fraction"},
-    "solvent fraction": {"symbol": "x_solvent", "name": "Solvent fraction", "unit": "fraction"},
-    "poly fraction": {"symbol": "x_poly", "name": "Polymer fraction", "unit": "fraction"},
-    "gamma": {"symbol": "gamma", "name": "Activity coefficient", "unit": "dimensionless"},
-    "gammaI": {"symbol": "gamma_I", "name": "Activity coefficient in phase I", "unit": "dimensionless"},
-    "gammaII": {"symbol": "gamma_II", "name": "Activity coefficient in phase II", "unit": "dimensionless"},
-    "gamma_wf": {"symbol": "gamma_wf", "name": "Weight-fraction activity coefficient", "unit": "dimensionless"},
-    "gamma_vf": {"symbol": "gamma_vf", "name": "Volume-fraction activity coefficient", "unit": "dimensionless"},
-    "logp": {"symbol": "logP", "name": "Log10 partition coefficient", "unit": "dimensionless"},
-    "fh_chi": {"symbol": "chi_FH", "name": "Flory-Huggins chi", "unit": "dimensionless"},
-    "mu": {
-        "symbol": "mu",
-        "name": "Pseudo-chemical potential",
-        "unit": "kcal/mol",
-        "note": "Not a true chemical potential and does not include the ideal mixing term.",
-    },
-    "mu pure": {"symbol": "mu_pure", "name": "Pure liquid-phase pseudo-chemical potential", "unit": "kcal/mol"},
-    "mu gas": {
-        "symbol": "mu_gas",
-        "name": "Gas-phase pseudo-chemical potential",
-        "unit": "kcal/mol",
-        "note": "Gas-phase reference pseudo-chemical potential, optionally refined using input vapor pressure data.",
-    },
-    "mu in solvent 1": {
-        "symbol": "mu_solv_1",
-        "name": "Pseudo-chemical potential in solvent 1",
-        "unit": "kcal/mol",
-    },
-    "mu in solvent 2": {
-        "symbol": "mu_solv_2",
-        "name": "Pseudo-chemical potential in solvent 2",
-        "unit": "kcal/mol",
-    },
-    "E gas": {"symbol": "E_gas", "name": "Gas-phase energy", "unit": "kcal/mol"},
-    "G solute": {
-        "symbol": "G_solute",
-        "name": "Solute pseudo-energy",
-        "unit": "kcal/mol",
-        "note": "Computed as gas-phase energy plus solvation free energy.",
-    },
-    "excess G": {"symbol": "G_excess", "name": "Excess Gibbs energy", "unit": "kcal/mol"},
-    "excess H": {"symbol": "H_excess", "name": "Excess enthalpy", "unit": "kcal/mol"},
-    "Gibbs energy": {
-        "symbol": "G_CRS",
-        "name": "Pseudo-Gibbs energy",
-        "unit": "kcal/mol",
-        "note": "Computed as a composition-weighted sum of pseudo-chemical potentials plus the ideal mixing term; not a true thermodynamic Gibbs energy.",
-    },
-    "Gibbs energy of mixing": {"symbol": "DeltaG_mix", "name": "Gibbs energy of mixing", "unit": "kcal/mol"},
-    "Enthalpy of vaporization": {"symbol": "DeltaH_vap", "name": "Enthalpy of vaporization", "unit": "kcal/mol"},
-    "deltag": {
-        "symbol": "DeltaG_solv",
-        "name": "Solvation free energy",
-        "unit": "kcal/mol",
-        "note": "Computed as mu - mu_gas plus a gas-to-solution standard-state Gibbs energy correction; affected by input density or solvent density.",
-    },
-    "vapor pressure": {"symbol": "p_vap", "name": "Vapor pressure", "unit": "bar"},
-    "henryc": {
-        "symbol": "H",
-        "name": "Henry's law constant",
-        "unit": "mol/(L atm)",
-        "note": "Henry's law constant computed as exp((mu_gas - mu)/RT) divided by the solvent molar volume.",
-    },
-    "henrycnodim": {"symbol": "H_cc", "name": "Dimensionless Henry's law constant", "unit": "dimensionless"},
-    "temperature": {"symbol": "T", "name": "Temperature", "unit": "K"},
-    "pressure": {"symbol": "P", "name": "Pressure", "unit": "bar"},
-    "isobar": {"symbol": "isobar", "name": "Isobaric", "unit": ""},
-    "flashpoint": {"symbol": "flashpoint", "name": "Flash-point calculation", "unit": ""},
-    "showmiscgap": {
-        "symbol": "misc_gap",
-        "name": "Miscibility gap detected",
-        "unit": "",
-        "note": "Estimated by interpolation.",
-    },
-    "unstable": {
-        "symbol": "unstable",
-        "name": "TPD unstable",
-        "unit": "",
-        "note": "Indicates instability from the tangent-plane distance test.",
-    },
-    "converged": {"symbol": "converged", "name": "LLE converged", "unit": ""},
-    "status_msg": {"symbol": "status", "name": "Status message", "unit": ""},
-    "w_min": {"symbol": "w_min", "name": "Trial-phase composition minimizing TPD(w)", "unit": "fraction"},
-    "tpd_w": {"symbol": "TPD_min", "name": "Minimum tangent-plane distance", "unit": ""},
-    "phiI": {"symbol": "phi_I", "name": "Phase I fraction", "unit": "fraction"},
-    "phiII": {"symbol": "phi_II", "name": "Phase II fraction", "unit": "fraction"},
-    "actI": {"symbol": "a_I", "name": "Activity in phase I", "unit": "dimensionless"},
-    "actII": {"symbol": "a_II", "name": "Activity in phase II", "unit": "dimensionless"},
     "act_interp": {
         "symbol": "a*",
         "name": "Interpolated activity",
-        "unit": "dimensionless",
         "note": "Estimated from interpolated miscibility-gap data; not from a full LLE calculation.",
     },
-    "xI": {"symbol": "x_I", "name": "Molar composition in phase I", "unit": "fraction"},
-    "xII": {"symbol": "x_II", "name": "Molar composition in phase II", "unit": "fraction"},
-    "solution molar fraction": {
-        "symbol": "x_sol",
-        "name": "Solubility molar fraction",
-        "unit": "fraction",
-        "note": "Equilibrium molar-fraction solubility; density is only used for volume-based solubilities.",
-    },
-    "solubility mol_per_L_solvent": {
-        "symbol": "S_mol_L_solvent",
-        "name": "Solubility in moles per L solvent",
-        "unit": "mol/L solvent",
-    },
-    "solubility g_per_L_solvent": {
-        "symbol": "S_g_L_solvent",
-        "name": "Solubility in grams per L solvent",
-        "unit": "g/L solvent",
-    },
-    "solubility mol_per_L_solution": {
-        "symbol": "S_mol_L_solution",
-        "name": "Solubility in moles per L solution",
-        "unit": "mol/L solution",
-    },
-    "solubility g_per_L_solution": {
-        "symbol": "S_g_L_solution",
-        "name": "Solubility in grams per L solution",
-        "unit": "g/L solution",
-    },
-    "solubility massfrac": {"symbol": "w_solubility", "name": "Solubility mass fraction", "unit": "fraction"},
 }
-
 
 def _property_metadata(
     *,
@@ -679,6 +588,13 @@ def get_block_child_names(data: Dict[str, Any], *path: str) -> frozenset[str]:
     return frozenset(block["keys"]) | frozenset(block["blocks"])
 
 # module-level private metadata/constants used to build CRSJob
+_crs_kf_def_path = Path(os.environ["AMSBIN"]) / "kf_def/crs.json"
+
+RESULT_TABLE_QUANTITY_METADATA = _build_result_quantity_metadata(
+    _load_crs_kf_def_metadata(_crs_kf_def_path.resolve()),
+    RESULT_TABLE_QUANTITY_METADATA_OVERRIDES,
+)
+
 _crs_json_path = Path(os.environ["AMSBIN"]) / "../data/input_def/crs.json"
 
 CRS_DATA = _load_crs_input_block_metadata(_crs_json_path.resolve())
