@@ -1363,10 +1363,22 @@ class CRSJob(SCMJob):
         return block
 
     @staticmethod
+    def _set_parameter_block(
+        block: Settings,
+        parameters: Dict[str, Any],
+        lowercase_keys: bool = False,
+    ) -> None:
+        for key, value in parameters.items():
+            if value is None:
+                continue
+            block[key.lower() if lowercase_keys else key] = value
+
+    @staticmethod
     def method_block(
         method: str = "COSMO-RS",
         *,
         include_defaults: bool = False,
+        parameter_set: Optional[str] = None,
         crsparameters: Optional[Dict[str, Any]] = None,
         sacparameters: Optional[Dict[str, Any]] = None,
         dispersion: Optional[Dict[str, float]] = None,
@@ -1375,46 +1387,39 @@ class CRSJob(SCMJob):
         """Return method-selection and method-parameter settings for COSMO-RS/SAC.
         The method name and validated parameter names are case-insensitive.
         """
-        s = Settings()
+        sett = Settings()
         normalized_method = CRSJob._normalize_method(method)
-        s.input.method = normalized_method
+        sett.input.method = normalized_method
 
-        method_parameter_defaults = (
-            CRSJob._copy_method_parameter_defaults(normalized_method) if include_defaults else {}
+        defaults = (
+            CRSJob._copy_method_parameter_defaults(normalized_method, parameter_set)
+            if include_defaults or parameter_set is not None
+            else {}
         )
 
-        for block_name, user_parameters in (
-            ("CRSParameters", crsparameters),
-            ("SACParameters", sacparameters),
-        ):
+        user_blocks = {
+            "CRSParameters": crsparameters,
+            "SACParameters": sacparameters,
+            "Dispersion": dispersion,
+            "Epsilon": epsilon,
+        }
+
+        for block_name, user_parameters in user_blocks.items():
+            if user_parameters is not None and not isinstance(user_parameters, dict):
+                raise TypeError(f"{block_name} parameters must be a dictionary")
+
             parameters = {
-                **method_parameter_defaults.get(block_name, {}),
+                **defaults.get(block_name, {}),
                 **(user_parameters or {}),
             }
+
             if parameters:
-                CRSJob._set_method_parameters(
-                    s.input[block_name],
+                CRSJob._set_parameter_block(
+                    sett.input[block_name],
                     parameters,
-                    block_name,
-                    normalized_method,
+                    lowercase_keys=block_name in {"CRSParameters", "SACParameters"},
                 )
-
-        for block_name, user_parameters in (
-            ("Dispersion", dispersion),
-            ("Epsilon", epsilon),
-        ):
-            parameters = {
-                **method_parameter_defaults.get(block_name, {}),
-                **(user_parameters or {}),
-            }
-            # parameters = {key: value for key, value in parameters.items() if value is not None}
-            if parameters:
-                CRSJob._set_non_none(s.input[block_name], parameters)
-                # block = s.input[block_name]
-                # for key, value in parameters.items():
-                #     block[key] = value
-
-        return s
+        return sett
 
     @staticmethod
     def _normalize_method(method: str) -> str:
@@ -1428,39 +1433,129 @@ class CRSJob(SCMJob):
         )
 
     @staticmethod
-    def _set_method_parameters(
-        block: Settings,
-        parameters: Dict[str, Any],
-        block_name: str,
-        method_name: str,
-    ) -> None:
-        """Set validated method parameters on a CRS method subblock."""
+    def method_options(
+        method: Optional[str] = None,
+        *,
+        exposed_only: bool = True,
+        as_df: bool = False,
+    ) -> Union[Tuple[Dict[str, Any], ...], "pd.DataFrame"]:
+        metadata = CRSJob._METHOD_PARAMETERS_METADATA
 
-        method_metadata = CRSJob._METHOD_PARAMETERS_METADATA.get(method_name, {})
-        if block_name not in method_metadata:
-            raise ValueError(f"{block_name} is not supported for method {method_name!r}")
+        normalized_method = CRSJob._normalize_method(method) if method is not None else None
 
-        allowed_keys = set(method_metadata[block_name])
+        rows = []
+        for parameter_set, preset in metadata.items():
+            if exposed_only and not preset.get("exposed", False):
+                continue
+            if normalized_method is not None and preset.get("method") != normalized_method:
+                continue
 
-        if block_name in {"CRSParameters", "SACParameters"}:
-            allowed_keys.update({"hb_all", "hb_hnof", "hb_temp", "hb_notemp"})
+            rows.append({
+                "method": preset.get("method"),
+                "parameter_set": parameter_set,
+                "default": bool(preset.get("default", False)),
+                "optimized_for_adf_sigma_profile": bool(
+                    preset.get("optimized_for_adf_sigma_profile", False)
+                ),
+            })
 
-        if block_name == "CRSParameters":
-            allowed_keys.update({"combi1998", "combi2005"})
+        rows.sort(key=lambda row: (row["method"] or "", row["parameter_set"]))
 
-        for key, value in parameters.items():
-            normalized_key = key.lower()
-            if normalized_key not in allowed_keys:
-                allowed = ", ".join(sorted(allowed_keys))
-                raise ValueError(f"Unsupported {block_name} key {key!r}. Allowed keys: {allowed}")
-            if value is not None:
-                block[normalized_key] = value
+        if as_df:
+            pd = CRSResults._import_pandas(
+                "parameter_set_table",
+                "as_df=True requires the 'pandas' package",
+            )
+            return pd.DataFrame(rows)
+
+        return tuple(rows)
+
+    # @staticmethod
+    # def _method_parameter_keys(method_name: str, block_name: str) -> Set[str]:
+    #     """Return allowed parameter names for a method parameter block."""
+    #     keys: Set[str] = set()
+
+    #     for preset in CRSJob._METHOD_PARAMETERS_METADATA.values():
+    #         if preset.get("method") != method_name:
+    #             continue
+
+    #         block = preset.get("parameter_blocks", {}).get(block_name)
+    #         if block is None:
+    #             continue
+
+    #         keys.update(str(key).lower() for key in block)
+
+    #     return keys
+
+    # @staticmethod
+    # def _set_method_parameters(
+    #     block: Settings,
+    #     parameters: Dict[str, Any],
+    #     block_name: str,
+    #     method_name: str,
+    # ) -> None:
+    #     """Set validated method parameters on a CRS method subblock."""
+
+    #     allowed_keys = CRSJob._method_parameter_keys(method_name, block_name)
+    #     for key, value in parameters.items():
+    #         normalized_key = key.lower()
+    #         if normalized_key not in allowed_keys:
+    #             allowed = ", ".join(sorted(allowed_keys))
+    #             raise ValueError(f"Unsupported {block_name} key {key!r}. Allowed keys: {allowed}")
+    #         if value is not None:
+    #             block[normalized_key] = value
 
     @staticmethod
-    def _copy_method_parameter_defaults(method: str) -> Dict[str, Dict[str, Any]]:
-        """Return a copy of default method parameters for a normalized method."""
-        defaults = CRSJob._METHOD_PARAMETERS_METADATA.get(method, {})
-        return {block_name: values.copy() for block_name, values in defaults.items()}
+    def _copy_method_parameter_defaults(
+        method: str,
+        parameter_set: Optional[str] = None,
+    ) -> Dict[str, Dict[str, Any]]:
+        metadata = CRSJob._METHOD_PARAMETERS_METADATA
+
+        def copy_parameter_blocks(preset: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+            return {
+                block_name: values.copy()
+                for block_name, values in preset["parameter_blocks"].items()
+            }
+
+        if parameter_set is not None:
+            parameter_set_key = parameter_set.strip().lower()
+            preset = metadata.get(parameter_set_key)
+            if preset is None:
+                raise ValueError(f"Unknown CRS parameter_set {parameter_set_key!r}")
+            if preset["method"] != method:
+                raise ValueError(
+                    f"CRS parameter_set {parameter_set_key!r} is for method "
+                    f"{preset['method']!r}, not {method!r}"
+                )
+            return copy_parameter_blocks(preset)
+
+        method_presets = [
+            preset
+            for preset in metadata.values()
+            if preset["method"] == method
+        ]
+
+        if not method_presets:
+            return {}
+
+        if len(method_presets) == 1:
+            return copy_parameter_blocks(method_presets[0])
+
+        default_presets = [
+            preset
+            for preset in method_presets
+            if preset.get("default", False)
+        ]
+
+        if len(default_presets) == 1:
+            return copy_parameter_blocks(default_presets[0])
+
+        raise ValueError(
+            f"Multiple parameter sets are available for method {method!r}: "
+            f"{', '.join(repr(preset['parameter_set']) for preset in method_presets)}. "
+            "Specify one explicitly with parameter_set=..."
+        )
 
     @staticmethod
     def compound_block(

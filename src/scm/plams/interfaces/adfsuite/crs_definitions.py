@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from typing import Any, Dict, Optional, Sequence, Tuple
+from typing import Any, Dict, Optional, Sequence, Set, Tuple
 
 
 RESULT_TABLE_UNSUPPORTED_PROPERTIES = ("SIGMAPROFILE", "PURESIGMAPROFILE", "SIGMAPOTENTIAL", "PURESIGMAPOTENTIAL")
@@ -603,10 +603,7 @@ _CRS_METHOD_PARAMETER_BLOCKS = frozenset(
     ("CRSParameters", "SACParameters", "Dispersion", "Epsilon")
 )
 
-def _load_crs_method_parameters_metadata(
-    json_path: Path,
-    exposed_methods: Sequence[str],
-) -> Dict[str, Dict[str, Dict[str, Any]]]:
+def _load_crs_method_parameters_metadata(json_path: Path) -> Dict[str, Dict[str, Any]]:
     with json_path.open(encoding="utf-8") as handle:
         data = json.load(handle)
 
@@ -617,59 +614,46 @@ def _load_crs_method_parameters_metadata(
     if not isinstance(presets, list):
         raise ValueError(f"CRS method parameter file {json_path} must contain a presets list")
 
-    result: Dict[str, Dict[str, Dict[str, Any]]] = {}
-    exposed_method_set = set(exposed_methods)
+    result: Dict[str, Dict[str, Any]] = {}
 
-    for method in exposed_methods:
-        candidates = [
-            preset for preset in presets
-            if preset.get("input_method") == method
-        ]
+    for preset in presets:
+        if not isinstance(preset, dict):
+            raise ValueError(f"CRS method parameter preset in {json_path} must be an object")
 
-        if not candidates:
-            continue
+        parameter_set = preset.get("parameter_set")
+        if not isinstance(parameter_set, str) or not parameter_set.strip():
+            raise ValueError(f"CRS method parameter preset in {json_path} must define parameter_set")
 
-        default_candidates = [
-            preset for preset in candidates
-            if preset.get("default", False)
-        ]
+        parameter_set = parameter_set.strip().lower()
+        if parameter_set in result:
+            raise ValueError(f"Duplicate CRS {parameter_set=!r} in {json_path}")
 
-        if len(default_candidates) == 1:
-            selected = default_candidates[0]
-        elif len(default_candidates) > 1:
-            raise ValueError(f"Multiple default CRS method parameter presets for {method!r}")
-        elif len(candidates) == 1:
-            selected = candidates[0]
-        else:
-            raise ValueError(
-                f"Multiple CRS method parameter presets for {method!r}, but none is marked default"
-            )
+        method = preset.get("method")
+        if not isinstance(method, str) or not method.strip():
+            raise ValueError(f"CRS {parameter_set=!r} must define method")
 
-        result[method] = _extract_crs_method_parameter_blocks(selected)
+        parameter_blocks = preset.get("parameter_blocks")
+        if not isinstance(parameter_blocks, dict):
+            raise ValueError(f"CRS {parameter_set=!r} must define parameter_blocks")
 
-    missing_methods = exposed_method_set - set(result)
-    if missing_methods:
-        missing = ", ".join(sorted(missing_methods))
-        raise ValueError(f"Missing CRS method parameter presets for exposed methods: {missing}")
+        for block_name, block in parameter_blocks.items():
+            if block_name not in _CRS_METHOD_PARAMETER_BLOCKS:
+                allowed = ", ".join(sorted(_CRS_METHOD_PARAMETER_BLOCKS))
+                raise ValueError(
+                    f"Unsupported parameter block {block_name!r} in CRS {parameter_set=!r}. "
+                    f"Allowed blocks: {allowed}"
+                )
+            if not isinstance(block, dict):
+                raise ValueError(
+                    f"{block_name} in CRS {parameter_set=!r} must be an object"
+                )
+
+        normalized_preset = preset.copy()
+        normalized_preset["parameter_set"] = parameter_set
+        normalized_preset["method"] = method
+        result[parameter_set] = normalized_preset
 
     return result
-
-
-def _extract_crs_method_parameter_blocks(
-    preset: Dict[str, Any],
-) -> Dict[str, Dict[str, Any]]:
-    blocks: Dict[str, Dict[str, Any]] = {}
-
-    for block_name in _CRS_METHOD_PARAMETER_BLOCKS:
-        block = preset.get(block_name)
-        if block is None:
-            continue
-        if not isinstance(block, dict):
-            preset_id = preset.get("id", "<unknown>")
-            raise ValueError(f"{block_name} in CRS method preset {preset_id!r} must be an object")
-        blocks[block_name] = block.copy()
-
-    return blocks
 
 CRS_METHODS = (
     "COSMORS",
@@ -681,16 +665,11 @@ CRS_METHODS = (
     "COSMOSACDHB-MESP",
 )
 
-_CRS_METHOD_PARAMETER_METHODS = (
-    "COSMO-RS",
-    "COSMOSAC2013",
-    "COSMOSAC2016",
-    "COSMOSACDHB",
-    "COSMOSACDHB-MESP",
-)
-
 _crs_method_parameters_path = Path(os.environ["AMSBIN"]) / "../data/crs/method_parameters.json"
-CRS_METHOD_PARAMETERS_METADATA = _load_crs_method_parameters_metadata(
-    _crs_method_parameters_path.resolve(),
-    _CRS_METHOD_PARAMETER_METHODS,
-)
+
+if _crs_method_parameters_path.is_file():
+    CRS_METHOD_PARAMETERS_METADATA = _load_crs_method_parameters_metadata(
+        _crs_method_parameters_path.resolve(),
+    )
+else:
+    CRS_METHOD_PARAMETERS_METADATA = {}
