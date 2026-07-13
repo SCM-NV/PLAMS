@@ -28,10 +28,12 @@ import atexit
 import shutil
 from abc import ABC, abstractmethod
 from tempfile import NamedTemporaryFile
+from pathlib import Path
 
 from scm.plams.core.functions import requires_optional_package, log
 from scm.plams.interfaces.adfsuite.errors import AMSExecutionError
 from scm.plams.interfaces.adfsuite.utils import requires_ams
+from scm.plams.interfaces.adfsuite.ams import AMSJob
 from scm.plams.mol.molecule import Molecule
 from scm.plams.core.private import run_with_timeout
 from scm.plams.tools.units import Units
@@ -46,7 +48,7 @@ except ImportError:
 if TYPE_CHECKING:
     from PIL import Image as PilImage
 
-__all__ = ["ViewConfig", "view"]
+__all__ = ["ViewConfig", "view", "view_orbital"]
 
 ViewDirections = Literal[
     "along_x",
@@ -123,6 +125,10 @@ class ViewConfig:
     :param unit_cell_edge_thickness: specify thickness of the displayed unit cell boundary, defaults to ``0.05``
     :param show_unit_cell_faces: display unit cell for periodic systems using semi-transparent faces, defaults to ``False``
     :param show_lattice_vectors: display the lattice vectors for periodic systems, defaults to ``False``
+    :param render_type: use isosurface, isosurface (wireframe) or volume rendering, defaults to ``iso``
+    :param iso_value: value to use for isosurface, defaults to ``0.03``
+    :param opacity: opacity for volume rendering, defaults to ``40``
+    :param grid: fineness of grid used for rendering, defaults to ``medium``
     :param backend: program to use as a backend to generate images, defaults to ``auto`` i.e. any available program
     :param timeout: kill visualization process after given time in seconds, defaults to ``10`` if window is not opened, otherwise no limit
     :param open_window: open AMSview in a dedicated window if ``True``, otherwise render image offscreen, defaults to ``False``
@@ -154,6 +160,13 @@ class ViewConfig:
     unit_cell_edge_thickness: float = 0.05
     show_unit_cell_faces: bool = False
     show_lattice_vectors: bool = False
+
+    # Iso/Volume rendering
+    orbital: Optional[Tuple[Literal["homo", "lumo"], int]] = None
+    render_type: Literal["iso", "iso_wireframe", "volume"] = "iso"
+    iso_value: float = 0.03
+    opacity: float = 40
+    grid: Literal["fine", "medium", "coarse"] = "medium"
 
     # Program
     backend: Literal[Backends] = "auto"
@@ -232,6 +245,27 @@ class ViewConfig:
         if not isinstance(self.show_lattice_vectors, bool):
             raise ValueError(f"show_lattice_vectors must be a boolean value, but was '{self.show_lattice_vectors}'")
 
+        if self.orbital:
+            if len(self.orbital) != 2:
+                raise ValueError(
+                    f"orbital must be a tuple of length 2, comprising 'homo' or 'lumo' and then the orbital index, but was '{self.orbital}'"
+                )
+            if not isinstance(self.orbital[0], str) or self.orbital[0] not in ["homo", "lumo"]:
+                raise ValueError(f"orbital first item must be one of: 'homo', 'lumo', but was '{self.orbital[0]}'")
+            if not isinstance(self.orbital[1], int):
+                raise ValueError(f"orbital second item must be an integer, but was '{self.orbital[1]}'")
+
+        if not isinstance(self.render_type, str) or self.render_type not in ["iso", "iso_wireframe", "volume"]:
+            raise ValueError(
+                f"render_type must be one of: 'iso', 'iso_wireframe', 'volume', but was '{self.render_type}'"
+            )
+        if not isinstance(self.iso_value, (int, float)) or self.iso_value < 0:
+            raise ValueError(f"iso_value must be a positive numeric value, but was '{self.iso_value}'")
+        if not isinstance(self.opacity, (int, float)) or self.opacity < 0 or self.opacity > 200:
+            raise ValueError(f"opacity must be a positive numeric value less than 200, but was '{self.opacity}'")
+        if not isinstance(self.grid, str) or self.grid not in ["fine", "medium", "coarse"]:
+            raise ValueError(f"grid must be one of: 'fine', 'medium', 'coarse' but was '{self.grid}'")
+
         if not isinstance(self.backend, str) or self.backend not in Backends.__args__:  # type: ignore[attr-defined]
             raise ValueError(
                 f"backend must be one of: '{', '.join(Backends.__args__)}'; but was '{self.backend}'"  # type: ignore[attr-defined]
@@ -244,7 +278,7 @@ class ViewConfig:
 
 @requires_optional_package("PIL")
 def view(
-    system: Union[Molecule, "ChemicalSystem"],
+    system: Union[Molecule, "ChemicalSystem", AMSJob, str, os.PathLike],
     config: Optional[ViewConfig] = None,
     *,
     width: Optional[int] = None,
@@ -263,7 +297,8 @@ def view(
     open_window: Optional[bool] = None,
 ) -> "PilImage.Image":
     """
-    View a chemical system or molecule in a Jupyter notebook by generating an image using AMSview/ASE
+    View a chemical system or molecule in a Jupyter notebook by generating an image using AMSview/ASE.
+    A completed AMSJob or rkf file can also be supplied, in which case the main molecule will be displayed from the results.
 
     :param system: molecule or chemical system to visualize
     :param config: configuration for view
@@ -342,7 +377,34 @@ def view(
     # Validation to help prevent crashing due to bad options
     config.validate()
 
+    if not isinstance(system, Molecule) and not (_has_scm_chemsys and isinstance(system, ChemicalSystem)):
+        if isinstance(system, AMSJob):
+            system = system.results.rkfpath()
+
+        if isinstance(system, (str, os.PathLike)):
+            system = Path(system)
+            if not (system.is_file() and system.suffix.lower() == ".rkf"):
+                raise ValueError(f"Path must be to an existing .rkf file, got: {system}")
+        else:
+            raise ValueError(
+                "System must be one of: Molecule, ChemicalSystem, a completed AMSJob, or a path to an existing .rkf file"
+            )
+
+    # restrictions for viewing orbitals
+    if config.orbital is not None:
+        if not isinstance(system, Path):
+            raise ValueError(
+                "System must be a completed AMSJob, or a path to an existing .rkf file when viewing orbitals"
+            )
+        if isinstance(selected_backend, _AsePlotBackend):
+            raise ValueError(f"Backend '{config.backend}' is not supported for viewing orbitals.")
+
     if config.guess_bonds:
+        if isinstance(system, Path):
+            raise ValueError(
+                "Bond guessing is only supported for a Molecule or ChemicalSystem, not an AMSJob or rkf file."
+            )
+
         system = system.copy()
         system.guess_bonds()
 
@@ -350,6 +412,91 @@ def view(
     img = selected_backend.generate_image(system, config)
 
     return img
+
+
+@requires_optional_package("PIL")
+def view_orbital(
+    system: Union[AMSJob, str, os.PathLike],
+    kind: Literal["homo", "lumo"] = "homo",
+    selector: int = 0,
+    config: Optional[ViewConfig] = None,
+    *,
+    width: Optional[int] = None,
+    height: Optional[int] = None,
+    padding: Optional[float] = None,
+    direction: Optional[ViewDirections] = None,
+    fixed_atom_size: Optional[bool] = None,
+    show_atom_labels: Optional[bool] = None,
+    atom_label_type: Optional[Literal["Element", "AtomType", "Name"]] = None,
+    guess_bonds: Optional[bool] = None,
+    show_regions: Optional[bool] = None,
+    show_unit_cell_edges: Optional[bool] = None,
+    show_lattice_vectors: Optional[bool] = None,
+    render_type: Optional[Literal["iso", "iso_wireframe", "volume"]] = None,
+    iso_value: Optional[float] = None,
+    opacity: Optional[float] = None,
+    grid: Optional[Literal["fine", "medium", "coarse"]] = None,
+    picture_path: Optional[Union[str, os.PathLike]] = None,
+    backend: Optional[Backends] = None,
+    open_window: Optional[bool] = None,
+) -> "PilImage.Image":
+    """
+    View an orbital from a completed AMS calculation in a Jupyter notebook by generating an image using AMSview.
+    A completed AMSJob or rkf file must be supplied, in which case the main molecule and selected orbital will be displayed from the results.
+
+    :param system: molecule or chemical system to visualize
+    :param kind: orbital type to view, one of ``homo`` or ``lumo``
+    :param selector: orbital to view, index relative to the homo/lumo
+    :param config: configuration for view
+    :param width: override for width of the image in pixels
+    :param height: override for height of the image in pixels
+    :param padding: override for padding around system in Angstrom
+    :param direction: override for direction to view system along
+    :param fixed_atom_size: override to use the same radius for all elements (except Hydrogen)
+    :param show_atom_labels: override to display text label on each atom
+    :param atom_label_type: override for property used for atom labels
+    :param guess_bonds: override for guessing bonds before viewing
+    :param show_regions: override to display translucent spheres on atoms according to their regions
+    :param show_unit_cell_edges: override to display unit cell for periodic systems using semi-transparent edges
+    :param show_lattice_vectors: override to display the lattice vectors for periodic systems
+    :param render_type: override for render type for orbitals
+    :param iso_value: override for isosurface rendering
+    :param opacity: override for opacity for volume rendering
+    :param grid: override for grid fineness for rendering
+    :param picture_path: override for path for the location to save the generated image file
+    :param backend: override for program to use as a backend to generate images
+    :param open_window: override to open AMSview in a dedicated window
+    :return: image of the molecule generated using AMSView
+    """
+    config = config or ViewConfig()
+    config.orbital = (kind, selector)
+    if render_type is not None:
+        config.render_type = render_type
+    if iso_value is not None:
+        config.iso_value = iso_value
+    if opacity is not None:
+        config.opacity = opacity
+    if grid is not None:
+        config.grid = grid
+
+    return view(
+        system,
+        config=config,
+        width=width,
+        height=height,
+        padding=padding,
+        direction=direction,
+        fixed_atom_size=fixed_atom_size,
+        show_atom_labels=show_atom_labels,
+        atom_label_type=atom_label_type,
+        guess_bonds=guess_bonds,
+        show_regions=show_regions,
+        show_unit_cell_edges=show_unit_cell_edges,
+        show_lattice_vectors=show_lattice_vectors,
+        picture_path=picture_path,
+        backend=backend,
+        open_window=open_window,
+    )
 
 
 class _ViewBackend(ABC):
@@ -370,7 +517,7 @@ class _ViewBackend(ABC):
 
     @classmethod
     @abstractmethod
-    def generate_image(cls, system: Union[Molecule, "ChemicalSystem"], config: ViewConfig) -> "PilImage.Image":
+    def generate_image(cls, system: Union[Molecule, "ChemicalSystem", Path], config: ViewConfig) -> "PilImage.Image":
         """
         Generate image file for the given system
 
@@ -512,7 +659,7 @@ class _AmsViewBackend(_ViewBackend):
     @classmethod
     def get_command(
         cls,
-        system: Union[Molecule, "ChemicalSystem"],
+        system: Union[Molecule, "ChemicalSystem", Path],
         config: ViewConfig,
         input_path: str,
         img_path: str,
@@ -525,10 +672,20 @@ class _AmsViewBackend(_ViewBackend):
         :param input_path: path to .in file for system
         :param img_path: path to output image file
         """
+        if isinstance(system, Path):
+            path = Path(system)
+            if not (path.is_file() and path.suffix.lower() == ".rkf"):
+                raise ValueError(f"Path must be to an existing .rkf file, got: {system}")
+            if _has_scm_chemsys:
+                system = ChemicalSystem.from_kf(str(path))
+            else:
+                system = Molecule(str(path), inputformat="rkf")
+
         command = [
             os.path.expandvars("$AMSBIN/amsview"),
             input_path,
             "-transparent",
+            "-antialias",
             "-scmgeometry",
             f"{config.width}x{config.height}",
             "-dpi",
@@ -559,6 +716,24 @@ class _AmsViewBackend(_ViewBackend):
             command += ["-showunitcell", f"{config.unit_cell_edge_thickness}"]
         else:
             command += ["-showunitcell", "hide"]
+        if config.orbital:
+            orbital_type, orbital_idx = config.orbital
+            if orbital_type == "homo":
+                command += ["-HOMO", f"{orbital_idx}"]
+            elif orbital_type == "lumo":
+                command += ["-LUMO", f"{orbital_idx}"]
+            if config.render_type.startswith("iso"):
+                command += ["-val", f"{config.iso_value}"]
+                if config.render_type == "iso_wireframe":
+                    command += ["-wireframe"]
+            elif config.render_type == "volume":
+                command += ["-volume", "-opacity", f"{config.opacity}"]
+            if config.grid.lower() == "fine":
+                command += ["-grid", "Fine"]
+            elif config.grid.lower() == "medium":
+                command += ["-grid", "Medium"]
+            elif config.grid.lower() == "coarse":
+                command += ["-grid", "Coarse"]
 
         if not config.open_window:
             command += ["-save", img_path, "-batch"]
@@ -573,10 +748,13 @@ class _AmsViewBackend(_ViewBackend):
         run_with_timeout(command, timeout=config.timeout)
 
     @classmethod
-    def write_system_input(cls, system: Union[Molecule, "ChemicalSystem"]) -> str:
+    def write_system_input(cls, system: Union[Molecule, "ChemicalSystem", Path]) -> Tuple[str, bool]:
         """
-        Write the system to a temporary AMS input file and return the path.
+        Write the system to a temporary AMS input file and return the path, and whether the caller should delete it.
         """
+        if isinstance(system, Path):
+            return str(system), False
+
         with NamedTemporaryFile(mode="w", suffix=".in", delete=False) as input_file:
             input_path = input_file.name
             if isinstance(system, Molecule):
@@ -585,9 +763,9 @@ class _AmsViewBackend(_ViewBackend):
                 input_file.write(str(system))
             else:
                 raise ValueError(
-                    f"System must be a PLAMS Molecule or a ChemicalSystem, but was {type(system).__name__}"
+                    f"System must be a PLAMS Molecule, ChemicalSystem or rkf path, but was {type(system).__name__}"
                 )
-        return input_path
+        return input_path, True
 
     @staticmethod
     def get_image_path(config: ViewConfig) -> Tuple[str, bool]:
@@ -619,19 +797,20 @@ class _AmsViewBackend(_ViewBackend):
         )
 
     @classmethod
-    def generate_image(cls, system: Union[Molecule, "ChemicalSystem"], config: ViewConfig) -> "PilImage.Image":
+    def generate_image(cls, system: Union[Molecule, "ChemicalSystem", Path], config: ViewConfig) -> "PilImage.Image":
         if config.open_window:
             save_config = replace(config, open_window=False, timeout=10)
             img = _AMSViewManager()._generate_image(system, save_config)
 
-            input_path = cls.write_system_input(system)
+            input_path, cleanup_input = cls.write_system_input(system)
             command = cls.get_command(system, config, input_path, "")
             try:
                 cls.run_command(command, config)
             except subprocess.CalledProcessError as ex:
                 raise AMSExecutionError(" ".join(command), ex.stderr)
             finally:
-                os.remove(input_path)
+                if cleanup_input and os.path.exists(input_path):
+                    os.remove(input_path)
 
             return img
 
@@ -723,9 +902,9 @@ class _AMSViewManager:
         if manager is not None:
             manager.close()
 
-    def _generate_image(self, system: Union[Molecule, "ChemicalSystem"], config: ViewConfig) -> "PilImage.Image":
+    def _generate_image(self, system: Union[Molecule, "ChemicalSystem", Path], config: ViewConfig) -> "PilImage.Image":
         with self._lock:
-            input_path = _AmsViewBackend.write_system_input(system)
+            input_path, cleanup_input = _AmsViewBackend.write_system_input(system)
             img_path, cleanup_image = _AmsViewBackend.get_image_path(config)
             final_img_path = img_path
 
@@ -751,7 +930,8 @@ class _AMSViewManager:
                 self.close()
                 raise AMSExecutionError("amsview -stdin -batch", str(ex))
             finally:
-                os.remove(input_path)
+                if cleanup_input and os.path.exists(input_path):
+                    os.remove(input_path)
                 if cleanup_image and os.path.exists(img_path):
                     os.remove(img_path)
 
@@ -850,12 +1030,12 @@ class _AmsViewXvfbBackend(_AmsViewBackend):
             run_with_timeout(command, timeout=config.timeout, env=env)
 
     @classmethod
-    def generate_image(cls, system: Union[Molecule, "ChemicalSystem"], config: ViewConfig) -> "PilImage.Image":
+    def generate_image(cls, system: Union[Molecule, "ChemicalSystem", Path], config: ViewConfig) -> "PilImage.Image":
         # do not open the AMSview window with xvfb, otherwise it will hang
         if config.open_window:
             config = replace(config, open_window=False, timeout=10)
 
-        input_path = cls.write_system_input(system)
+        input_path, cleanup_input = cls.write_system_input(system)
         img_path, cleanup_image = cls.get_image_path(config)
 
         command = cls.get_command(system, config, input_path, img_path)
@@ -866,7 +1046,8 @@ class _AmsViewXvfbBackend(_AmsViewBackend):
         except subprocess.CalledProcessError as ex:
             raise AMSExecutionError(" ".join(command), ex.stderr)
         finally:
-            os.remove(input_path)
+            if cleanup_input and os.path.exists(input_path):
+                os.remove(input_path)
             if cleanup_image and os.path.exists(img_path):
                 os.remove(img_path)
 
@@ -1111,7 +1292,7 @@ class _AsePlotBackend(_ViewBackend):
         super().check_available()
 
     @classmethod
-    def generate_image(cls, system: Union[Molecule, "ChemicalSystem"], config: ViewConfig) -> "PilImage.Image":
+    def generate_image(cls, system: Union[Molecule, "ChemicalSystem", Path], config: ViewConfig) -> "PilImage.Image":
         from PIL import Image as PilImage
         import matplotlib.pyplot as plt
         import matplotlib.patches as patches
@@ -1120,12 +1301,22 @@ class _AsePlotBackend(_ViewBackend):
         from scm.plams.interfaces.molecule.ase import toASE
 
         # Convert system to ASE atoms
+        if isinstance(system, Path):
+            path = Path(system)
+            if not (path.is_file() and path.suffix.lower() == ".rkf"):
+                raise ValueError(f"Path must be to an existing .rkf file, got: {system}")
+            if _has_scm_chemsys:
+                system = ChemicalSystem.from_kf(str(path))
+            else:
+                system = Molecule(str(path), inputformat="rkf")
         if isinstance(system, Molecule):
             ase_atoms = toASE(system)
         elif _has_scm_chemsys and isinstance(system, ChemicalSystem):
             ase_atoms = system.to_ase_atoms()
         else:
-            raise ValueError(f"System must be a PLAMS Molecule or a ChemicalSystem, but was {type(system).__name__}")
+            raise ValueError(
+                f"System must be a PLAMS Molecule, ChemicalSystem or rkf path, but was {type(system).__name__}"
+            )
 
         # Get image path for (temporary) file
         if config.picture_path:
@@ -1296,6 +1487,8 @@ class _AsePlotBackend(_ViewBackend):
                 resample=PilImage.Resampling.LANCZOS,
                 reducing_gap=3.0,
             )
+            # clear non-string dpi metadata which can cause issues rendering in a notebook
+            resized_img.info.clear()
         finally:
             plt.close(fig)
             if not config.picture_path:
