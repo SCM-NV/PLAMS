@@ -13,9 +13,15 @@ RESULT_TABLE_COMPONENT_BASE_COLUMNS = ("property", "mixture", "cid", "name",)
 RESULT_TABLE_COMPONENT_DEFAULT_QUANTITIES = (
     "frac1",
     "frac2",
+    "xI",
+    "xII",
     "solvent fraction",
     "composition molar fraction",
     "gamma",
+    "gammaI",
+    "gammaII",
+    "actI",
+    "actII",
     "logp",
     "vapor pressure",
     "henryc",
@@ -50,6 +56,7 @@ RESULT_TABLE_COMPONENT_KNOWN_QUANTITIES = tuple(
 RESULT_TABLE_COMPONENT_EXCLUDED_BY_PROPERTY = {
     "LLE": ("gamma",),
     "STABILITY": ("gamma",),
+    "LOGP": ("gamma",),
 }
 RESULT_TABLE_MIXTURE_DEFAULT_QUANTITIES = (
     "temperature",
@@ -61,6 +68,7 @@ RESULT_TABLE_MIXTURE_DEFAULT_QUANTITIES = (
     "showmiscgap",
     "unstable",
     "converged",
+    "llle_detected",
     "phiI",
     "phiII",
     "tpd_w",
@@ -70,7 +78,6 @@ RESULT_TABLE_MIXTURE_DEFAULT_QUANTITIES = (
 RESULT_TABLE_MIXTURE_EXTRA_QUANTITIES = (
     "Gibbs energy",
     "status_msg",
-    "llle_detected",
     "xI_unstable",
     "xII_unstable",
     "tpd_w_I",
@@ -143,8 +150,8 @@ def _extract_result_quantity_metadata_from_kf_def(data: Dict[str, Any]) -> Dict[
             if value_type not in {"section", "free_section", "subsection"} and "_comment" in value:
                 result[key] = {
                     "symbol": str(value.get("_symbol") or key),
-                    "name": _strip_comment_period(str(value.get("_comment", ""))) or key,
-                    "note": str(value.get("_note") or ""),
+                    "name": str(value.get("_gui_name") or ""), #_strip_comment_period(str(value.get("_comment", ""))) or key,
+                    "comment": str(value.get("_comment") or ""),
                     "unit": str(value.get("_unit") or ""),
                 }
 
@@ -173,7 +180,7 @@ RESULT_TABLE_QUANTITY_METADATA_OVERRIDES = {
     "act_interp": {
         "symbol": "a*",
         "name": "Interpolated activity",
-        "note": "Estimated from interpolated miscibility-gap data; not from a full LLE calculation.",
+        "comment": "Estimated from interpolated miscibility-gap data; not from a full LLE calculation.",
     },
 }
 
@@ -183,7 +190,7 @@ def _property_metadata(
     system_scope: str,
     input_keys: Dict[str, Sequence[str]],
     required_keys: Sequence[str] = (),
-    notes: Sequence[str] = (),
+    comments: Sequence[str] = (),
     hint_keys: Sequence[str] = (),
     builder: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
@@ -198,7 +205,7 @@ def _property_metadata(
         "system_scope": system_scope,
         "input_keys": normalized_input_keys,
         "required_keys": tuple(required_keys),
-        "notes": tuple(notes),
+        "comments": tuple(comments),
         "hint_keys": tuple(hint_keys),
         "builder": {} if builder is None else builder,
     }
@@ -340,7 +347,7 @@ CRS_PROPERTY_TYPE_METADATA: Dict[str, Dict[str, Any]] = {
         builder={
             "roles": ("compound",),
         },
-        notes=(
+        comments=(
             "Multiple COMPOUND blocks are treated as independent pure compounds.",
         ),
     ),
@@ -369,7 +376,7 @@ CRS_PROPERTY_TYPE_METADATA: Dict[str, Dict[str, Any]] = {
         builder={
             "roles": ("compound",),
         },
-        notes=(
+        comments=(
             "Multiple COMPOUND blocks are treated as independent pure compounds.",
         ),
 
@@ -422,7 +429,7 @@ CRS_PROPERTY_TYPE_METADATA: Dict[str, Dict[str, Any]] = {
         required_keys=("temperature",),
         hint_keys=("flashpoint",) + _VAPOR_PRESSURE_KEYS,
         builder={**_VLE_SWEEP_BUILDER, "roles": ("solvent",)},
-        notes=(
+        comments=(
             "frac1 and frac2 define two endpoint solutions mixed along the composition line.",
         ),
     ),
@@ -472,7 +479,7 @@ CRS_PROPERTY_TYPE_METADATA: Dict[str, Dict[str, Any]] = {
         builder={
             "roles": ("compound",),
         },
-        notes=(
+        comments=(
             "Multiple COMPOUND blocks are treated as independent pure compounds.",
         ),
     ),
@@ -498,7 +505,7 @@ CRS_PROPERTY_TYPE_METADATA: Dict[str, Dict[str, Any]] = {
         builder={
             "roles": ("compound",),
         },
-        notes=(
+        comments=(
             "Multiple COMPOUND blocks are treated as independent pure compounds.",
         ),
     ),

@@ -264,7 +264,7 @@ class CRSResults(SCMResults):
         """Return metadata describing CRS result table quantity columns.
 
         The returned dataframe describes raw CRS quantity keys, their table type,
-        symbol, descriptive name, unit, and optional note. Quantity selection uses
+        symbol, descriptive name, unit, and optional comment. Quantity selection uses
         the same raw CRS result keys and defaults as :meth:`get_result_table`.
         """
         pd = self._import_pandas(self.__class__.__name__ + ".get_result_table_metadata")
@@ -476,7 +476,7 @@ class CRSResults(SCMResults):
         return df.rename(columns={column: self._format_column_label(column, column_labels) for column in df.columns})
 
     def _build_quantity_metadata_table(self, pd: Any, table: str, quantities: Sequence[str]) -> "pd.DataFrame":
-        columns = ["table", "quantity", "symbol", "name", "unit", "note"]
+        columns = ["table", "quantity", "symbol", "name", "unit", "comment"]
         rows = []
         for quantity in quantities:
             metadata = self._RESULT_TABLE_QUANTITY_METADATA.get(quantity, {})
@@ -487,7 +487,7 @@ class CRSResults(SCMResults):
                     "symbol": metadata.get("symbol") or quantity,
                     "name": metadata.get("name") or quantity,
                     "unit": metadata.get("unit") or "",
-                    "note": metadata.get("note") or "",
+                    "comment": metadata.get("comment") or "",
                 }
             )
         return pd.DataFrame(rows, columns=columns)
@@ -664,10 +664,6 @@ class CRSResults(SCMResults):
                 else:
                     row[quantity] = self._get_mixture_quantity_value(results[quantity], mixture, nitems)
             rows.append(row)
-
-        # for quantity in quantities:
-        #     print("quantity", quantity)
-        #     self._get_mixture_quantity_value(results[quantity], mixture, nitems, check=True)
 
         return pd.DataFrame(rows, columns=["property", "mixture"] + list(quantities))
 
@@ -1224,8 +1220,8 @@ class CRSJob(SCMJob):
             f"compound_keys: {', '.join(metadata['input_keys']['compound']) or '-'}",
             f"required_keys: {', '.join(metadata['required_keys']) or '-'}",
         ]
-        for note in metadata.get("notes", []):
-            summary.append(f"note: {note}")
+        for comment in metadata.get("comments", []):
+            summary.append(f"comment: {comment}")
 
         summary.extend(CRSJob._property_type_input_hint_descriptions(metadata))
         return tuple(summary)
@@ -1776,9 +1772,10 @@ class CRSJob(SCMJob):
         normalized_path = CRSJob._normalize_path(path)
         if not normalized_path:
             raise ValueError(f"{method_name} requires a non-empty path")
-        if not Path(normalized_path).is_file():
-            raise FileNotFoundError(f"{method_name} path does not exist: {normalized_path}")
-        return normalized_path
+        absolute_path = Path(normalized_path).expanduser().resolve()
+        if not absolute_path.is_file():
+            raise FileNotFoundError(f"{method_name} path does not exist: {absolute_path}")
+        return str(absolute_path)
 
     @staticmethod
     def _validate_path_or_nested_entries(
@@ -2049,7 +2046,7 @@ class CRSJob(SCMJob):
         return filename_out
 
     @staticmethod
-    def compound_from_database(
+    def compound_block_from_coskf_database(
         identifier: str,
         database: Any,
         *,
@@ -2074,7 +2071,7 @@ class CRSJob(SCMJob):
         invalid_overrides = sorted(invalid_override_keys.intersection(compound_overrides))
         if invalid_overrides:
             invalid = ", ".join(invalid_overrides)
-            raise ValueError(f"compound_from_database does not accept override(s): {invalid}")
+            raise ValueError(f"compound_block_from_coskf_database does not accept override(s): {invalid}")
 
         normalized_property_type = None
         if property_type is not None:
@@ -2201,6 +2198,7 @@ class CRSInputBuilder:
         "describe",
         "apply_defaults",
         "to_settings",
+        "to_job",
     )
 
     _INTERNAL_ATTRIBUTES: ClassVar[Set[str]] = {
@@ -2322,13 +2320,18 @@ class CRSInputBuilder:
             raise AttributeError(self._invalid_key_message(key))
         return getattr(self, key, default)
 
-    def add_compound(self, compound: Settings, *, frac1: Optional[float] = None) -> "CRSInputBuilder":
+    def add_compound(
+        self,
+        compound: Union[Settings, PathLike],
+        *,
+        frac1: Optional[float] = None
+    ) -> "CRSInputBuilder":
         """Add a COMPOUND block for property types using generic compounds."""
         return self._add_compound_role("compound", compound, overrides={"frac1": frac1})
 
     def add_solvent(
         self,
-        compound: Settings,
+        compound: Union[Settings, PathLike],
         *,
         frac1: Optional[float] = None,
         frac2: Optional[float] = None,
@@ -2336,7 +2339,7 @@ class CRSInputBuilder:
         """Add a COMPOUND block as a solvent."""
         return self._add_compound_role("solvent", compound, overrides={"frac1": frac1, "frac2": frac2})
 
-    def add_solute(self, compound: Settings) -> "CRSInputBuilder":
+    def add_solute(self, compound: Union[Settings, PathLike]) -> "CRSInputBuilder":
         """Add a COMPOUND block as a solute."""
         return self._add_compound_role("solute", compound)
 
@@ -2359,9 +2362,9 @@ class CRSInputBuilder:
 
     def describe(
         self,
-        include_hints: bool = False,
         include_values: bool = False,
         include_compound_details: bool = False,
+        include_guidance: bool = False,
     ) -> Tuple[str, ...]:
         """Return property-type-specific input keys and mode descriptions."""
         descriptions: List[str] = [
@@ -2414,8 +2417,8 @@ class CRSInputBuilder:
             descriptions.append(mode_description)
             descriptions.extend(self._mode_hint_descriptions())
 
-        if include_hints:
-            descriptions.extend(self._note_descriptions())
+        if include_guidance:
+            descriptions.extend(self._comment_descriptions())
             descriptions.extend(self._input_hint_descriptions())
 
         return tuple(descriptions)
@@ -2466,10 +2469,19 @@ class CRSInputBuilder:
 
         return settings
 
+    def to_job(
+            self,
+            name: Optional[str] = None,
+            **kwargs,
+    ):
+        if name is None:
+            return CRSJob(settings=self.to_settings(), **kwargs)
+        return CRSJob(settings=self.to_settings(), name=name, **kwargs)
+
     # compound helpers
     def _add_compound_role(
         self, role: str,
-        compound: Settings,
+        compound: Union[Settings, PathLike],
         *,
         overrides: Optional[Dict[str, Any]] = None,
     ) -> "CRSInputBuilder":
@@ -2478,7 +2490,11 @@ class CRSInputBuilder:
             allowed = ", ".join(self._compound_roles) or "none"
             raise ValueError(f"{self.property_type} does not support {role} compounds. Supported roles: {allowed}")
 
-        normalized = CRSJob._normalize_compound(compound.copy())
+        if isinstance(compound, Settings):
+            normalized = CRSJob._normalize_compound(compound.copy())
+        else:
+            normalized = CRSJob.compound_block(compound)
+
         self._set_compound_overrides(normalized, overrides or {})
 
         if role == "solute":
@@ -2815,8 +2831,8 @@ class CRSInputBuilder:
             return None
         return f"compound_keys [compound]: {', '.join(compound_keys)}"
 
+    def _comment_descriptions(self) -> Tuple[str, ...]:
+        return tuple(f"comment: {comment}" for comment in self.metadata.get("comments", ()))
+
     def _input_hint_descriptions(self) -> Tuple[str, ...]:
         return CRSJob._property_type_input_hint_descriptions(self.metadata)
-
-    def _note_descriptions(self) -> Tuple[str, ...]:
-        return tuple(f"note: {note}" for note in self.metadata.get("notes", ()))
