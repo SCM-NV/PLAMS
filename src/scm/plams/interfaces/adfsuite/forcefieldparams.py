@@ -15,6 +15,12 @@ if TYPE_CHECKING:
 __all__ = ["ForceFieldPatch", "forcefield_params_from_kf"]
 
 
+class ForceFieldPatchError(Exception):
+    """
+    Error in handling the ForceFieldPatch object
+    """
+
+
 class ForceFieldPatch:
     """
     Class representing an Amber format force field patch file, as created by AMS
@@ -51,6 +57,15 @@ class ForceFieldPatch:
             self._set_dihedrals(lines)
             self._set_impropers(lines)
             self._set_ljparams(lines)
+
+    @classmethod
+    def from_frcmod(cls, prm_string: str) -> "ForceFieldPatch":
+        """
+        From text of an frcmod file
+        """
+        patch_string = cls._convert_frcmod(prm_string)
+        ret = ForceFieldPatch(patch_string)
+        return ret
 
     def get_text(self) -> str:
         """
@@ -167,6 +182,54 @@ class ForceFieldPatch:
         for key in vars(patch):
             if "type" in key or "lines" in key or "comment" in key:
                 self.__dict__[key] = patch.__dict__[key]
+
+    def get_fragment(self, types: Sequence[str]) -> "ForceFieldPatch":
+        """
+        Get the patch object for a subset of atom types
+
+        Note: This does not handle starred types (C*)
+        """
+
+        def get_data(
+            datatype: str, system_types: List[List[str]], system_typelines: List[str]
+        ) -> Tuple[List[List[str]], List[str]]:
+            """
+            Get the relevant data
+            """
+            fragment_types: List[List[str]] = []
+            fragment_typelines: List[str] = []
+            for it, connected_types in enumerate(system_types):
+                contypes = [t for t in connected_types if t in types]
+                if len(contypes) == 0:
+                    continue
+                elif len(contypes) < len(connected_types):
+                    continue
+                    # raise ForceFieldPatchError("Cannot extract fragment: Dependency in {datatype} [{" ".join(contypes)}]")
+                else:
+                    fragment_types.append(connected_types)
+                    fragment_typelines.append(system_typelines[it])
+            return fragment_types, fragment_typelines
+
+        ret = ForceFieldPatch()
+
+        for atomtype in types:
+            if atomtype not in self.types:
+                raise ForceFieldPatchError(f"Requested type {atomtype} not present in parent patch")
+
+        indices = [i for i, t in enumerate(self.types) if t in types]
+        ret.types = [self.types[i] for i in indices]
+        ret.typelines = [self.typelines[i] for i in indices]
+
+        indices = [i for i, t in enumerate(self.ljtypes) if t in types]
+        ret.ljtypes = [self.ljtypes[i] for i in indices]
+        ret.ljlines = [self.ljlines[i] for i in indices]
+
+        ret.bondtypes, ret.bondlines = get_data("bond", self.bondtypes, self.bondlines)
+        ret.angletypes, ret.anglelines = get_data("angle", self.angletypes, self.anglelines)
+        ret.dihedraltypes, ret.dihedrallines = get_data("dihedral", self.dihedraltypes, self.dihedrallines)
+        ret.impropertypes, ret.improperlines = get_data("improper", self.impropertypes, self.improperlines)
+
+        return ret
 
     def write_to_kf(self, kf: "KFFile") -> None:
         """
@@ -286,6 +349,120 @@ class ForceFieldPatch:
                 ljtypes.append(words[0])
                 ljlines.append(line)
         return ljtypes, ljlines
+
+    @staticmethod
+    def _convert_frcmod(prm_string: str) -> str:
+        """
+        Converts frcmod format to AMBER .dat format
+        """
+        sections = ForceFieldPatch._get_frcmod_sections(prm_string)
+
+        # First find all atom types
+        atomTypes = []
+        for txt in sections[2:]:
+            lines = txt.split("\n")
+            for line in lines:
+                single_term_atom_types = []
+                if len(line) > 0:
+                    single_term_atom_types = ForceFieldPatch._atom_types_from_frcmodline(line)
+                    # Add these types to atomTypes, if they are not yet in there
+                for atom_type in single_term_atom_types:
+                    if not atom_type in atomTypes:
+                        atomTypes.append(atom_type)
+
+        # Then add them to the mass section
+        # First: Is there already something in there?
+        # If so, remove that from the atomTypes list
+        remainingAtomTypes = ForceFieldPatch._non_present_atom_types(sections[0], atomTypes)
+        # Now add the not yet present elements to the atomTypes list (with made up values)
+        for atom_type in remainingAtomTypes:
+            sections[0] += atom_type + " 1.008" + "         0.000"
+            sections[0] += "               Added by AMS\n"
+
+        # Do the same for the LJ section
+        remainingAtomTypes = ForceFieldPatch._non_present_atom_types(sections[5], atomTypes)
+        for atom_type in remainingAtomTypes:
+            sections[5] += "  " + atom_type + "          0.0000  0.000"
+            sections[5] += "             Added by AMS\n"
+
+        # Now write all the sections in the appropriate format
+        block = "Patch to GAFF force field produced by prmcheck\n"
+        for i, section in enumerate(sections):
+            if i == 5:
+                block += "MOD4      RE\n"
+            lines = section.split("\n")
+            for line in lines:
+                if len(line) > 0:
+                    block += line + "\n"
+            block += "\n"
+            # There is a hydrophilic section before the bond-pars that can be skipped
+            if i == 0:
+                block += "\n"
+            # Here the .dat reader calls a Dummy routine twice that reads an empty line (9 and 10)
+            if i == 4:
+                block += "\n\n"
+        block += "END\n"
+
+        return block
+
+    @staticmethod
+    def _get_frcmod_sections(txt: str) -> List[str]:
+        """
+        Separate the sections into a list
+        """
+        sections = 6 * [""]
+        parts = txt.split("NONBON\n")
+        sections[5] = parts[1]  # nonbonded text
+        parts = parts[0].split("IMPROPER\n")
+        sections[4] = parts[1]  # improper text
+        parts = parts[0].split("DIHE\n")
+        sections[3] = parts[1]  # dihedral text
+        parts = parts[0].split("ANGLE\n")
+        sections[2] = parts[1]  # angle text
+        parts = parts[0].split("BOND\n")
+        sections[1] = parts[1]  # bond text
+        parts = parts[0].split("MASS\n")
+        sections[0] = parts[1]  # mass text
+        return sections
+
+    @staticmethod
+    def _atom_types_from_frcmodline(line: str) -> List[str]:
+        """
+        Read all the atomtypes from a frcmod line
+        """
+        # I have to look for a dash in specific places to find out the
+        # number of types here and add them
+        ntypes = 0
+        if line[2:3] == "-":
+            ntypes = 2
+        if line[5:6] == "-":
+            ntypes = 3
+        if line[8:9] == "-":
+            ntypes = 4
+        if line[0:2] == "  " and line[2:4] != "  " and line[6:8] == "  ":
+            ntypes = 1
+        if ntypes == 1:
+            # LJ section
+            words = [line[2:4]]
+        else:
+            words = [line[k * 3 : k * 3 + 2] for k in range(ntypes)]
+        return words
+
+    @staticmethod
+    def _non_present_atom_types(section: str, atomTypes: List[str]) -> List[str]:
+        """
+        First: Is there already something in there?
+        If so, remove that from the atomTypes list
+        """
+        remainingAtomTypes = atomTypes[:]
+        lines = section.split("\n")
+        for line in lines:
+            words = line.split()
+            if len(words) == 0:
+                continue
+            atomType = words[0]
+            remainingAtomTypes = [t for t in remainingAtomTypes if t != atomType]
+        return remainingAtomTypes
 
 
 def forcefield_params_from_kf(kf: "KFFile") -> Tuple[List[float], List[str], Optional[ForceFieldPatch]]:
