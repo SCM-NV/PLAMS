@@ -1850,6 +1850,9 @@ class CRSJob(SCMJob):
             if has_path == has_nested:
                 raise ValueError(f"{block_name} entries must define exactly one of _h or {nested_key}")
 
+        if "_ipython_canary_method_should_not_exist_" in block:
+            block.pop("_ipython_canary_method_should_not_exist_")
+
         CRSJob._validate_settings_keys(block_name, block, allowed_keys)
 
         if nested_key is not None and has_nested:
