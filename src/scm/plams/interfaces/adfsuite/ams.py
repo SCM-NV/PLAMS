@@ -35,11 +35,11 @@ from scm.plams.tools.kftools import KFFile, KFReader
 from scm.plams.tools.units import Units
 
 try:
-    from scm.pisa.block import DriverBlock
+    from scm.inputs._core import EngineInputModel, InputModel
 
-    _has_scm_pisa = True
+    _has_scm_inputs = True
 except ImportError:
-    _has_scm_pisa = False
+    _has_scm_inputs = False
 
 try:
     from scm.base import ChemicalSystem
@@ -2965,8 +2965,13 @@ class AMSJob(SingleJob):
                     break
             nn_flag = f"1-{nnode}" if nnode > 1 else f"{nnode}"
             ret += f'export SCM_SRUN_OPTIONS="$SCM_SRUN_OPTIONS -N {nn_flag}"\n'
-        if _has_scm_pisa and isinstance(self.settings.input, DriverBlock):
-            if self.settings.input.Engine.name in ("QuantumESPRESSO", "VASP"):
+        if (
+            _has_scm_inputs
+            and isinstance(self.settings.input, InputModel)
+            and not isinstance(self.settings.input, EngineInputModel)
+        ):
+            engine = getattr(self.settings.input, "Engine", None)
+            if engine is not None and engine.engine_name.casefold() in ("quantumespresso", "vasp"):
                 ret += "export SCM_DISABLE_MPI=1\n"
         else:
             if "QuantumEspresso" in self.settings.input or "VASP" in self.settings.input:
@@ -3230,18 +3235,22 @@ class AMSJob(SingleJob):
                 f"Incorrect 'molecule' attribute of job {self._full_name()}. 'molecule' should be a Molecule, a ChemicalSystem, a dictionary or None, and not {type(self.molecule).__name__}"
             )
 
-        if _has_scm_pisa and isinstance(self.settings.input, DriverBlock):
+        if (
+            _has_scm_inputs
+            and isinstance(self.settings.input, InputModel)
+            and not isinstance(self.settings.input, EngineInputModel)
+        ):
             # AMS specific way of writing input files:
-            #   self.settings.input is an input class that knows how to serialize itself to text input.
+            #   self.settings.input is an scm.inputs model that knows how to serialize itself to text input.
 
             # Generate initial input text
-            input_class: DriverBlock = self.settings.input
-            txtinp = input_class.get_input_string()
-            has_input_systems = hasattr(input_class, "System") and input_class.System.value_changed
+            input_model: InputModel = self.settings.input
+            txtinp = input_model.to_input()
+            has_input_systems = bool(getattr(input_model, "Systems", None))
 
             # Add/update any systems using the input molecules
             if not has_input_systems:
-                # if there are no system blocks in the input settings there is an optimisation whereby any
+                # if there are no system blocks in the input model there is an optimisation whereby any
                 # chemical systems can be serialised straight to text
                 system_blocks: Dict[str, str] = {}
                 for name, system in systems.items():
@@ -3255,9 +3264,12 @@ class AMSJob(SingleJob):
             elif systems:
                 # otherwise have to go first via serialisation to settings, merge, then serialise to text
                 # to avoid duplication replace the original text system block with the updated text
-                sys_text = str(input_class.System)
+                from scm.plams.interfaces.adfsuite.inputparser import input_to_settings
+
+                sys_text = input_model.to_input(only={"Systems"})
                 sys_text_updated = ""
-                system_blocks = merge_system_blocks(input_class.to_settings(), systems)
+                merge_source = input_to_settings(input_model.to_input(), program=AMSJob._command)
+                system_blocks = merge_system_blocks(merge_source, systems)
                 for system_block in system_blocks.values():
                     sys_text_updated += "\n" + system_block
                 txtinp = txtinp.replace(sys_text, sys_text_updated)

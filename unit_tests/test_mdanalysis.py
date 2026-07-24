@@ -11,7 +11,7 @@ from scm.plams import AMSVACFJob
 from scm.plams.recipes.md.trajectoryanalysis import AMSViscosityFromBinLogJob
 
 from test_helpers import skip_if_no_ams_installation
-from test_helpers import skip_if_no_scm_pisa
+from test_helpers import skip_if_no_scm_inputs
 
 
 @pytest.fixture(scope="session")
@@ -82,15 +82,17 @@ class TestMSDJob:
         D = msd_job.results.get_diffusion_coefficient()
         assert np.isclose(D, 2.7430808506924798e-08, atol=1e-13)
 
-    def test_pisa_use(self, mdjob):
+    def test_scm_inputs_use(self, mdjob):
         """
-        Test AMSMSDJob with Pisa object
+        Test AMSMSDJob with an scm.inputs model
         """
-        skip_if_no_scm_pisa()
-        from scm.input_classes import Analysis
+        skip_if_no_scm_inputs()
+        from scm.inputs import Analysis
 
         sets = Analysis()
-        sets.MeanSquareDisplacement.Atoms.Element = "O"
+        msd = Analysis.MeanSquareDisplacementBlock()
+        msd.Atoms.Element = ["O"]
+        sets.MeanSquareDisplacement = [msd]
         msd_job = AMSMSDJob(mdjob, settings=sets, start_time_fit_fs=20)
 
         # Check the input
@@ -184,16 +186,18 @@ class TestRDFJob:
         peak = x[ind]
         assert np.isclose(peak, 2.7407407407407405, atol=1e-8)
 
-    def test_pisa_use(self, mdjob):
+    def test_scm_inputs_use(self, mdjob):
         """
-        Test AMSRDFJob with Pisa settings
+        Test AMSRDFJob with an scm.inputs model
         """
-        skip_if_no_scm_pisa()
-        from scm.input_classes import Analysis
+        skip_if_no_scm_inputs()
+        from scm.inputs import Analysis
 
         sets = Analysis()
-        sets.RadialDistribution.AtomsFrom.Element = "O"
-        sets.RadialDistribution.AtomsTo.Element = "O"
+        rdf = Analysis.RadialDistributionBlock()
+        rdf.AtomsFrom.Element = ["O"]
+        rdf.AtomsTo.Element = ["O"]
+        sets.RadialDistribution = [rdf]
 
         rdf_job = AMSRDFJob(mdjob, settings=sets)
         txt = rdf_job.get_input()

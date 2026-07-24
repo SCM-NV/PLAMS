@@ -47,11 +47,11 @@ except ImportError:
     _has_scm_chemsys = False
 
 try:
-    from scm.pisa.block import DriverBlock
+    from scm.inputs._core import EngineInputModel, InputModel
 
-    _has_scm_pisa = True
+    _has_scm_inputs = True
 except ImportError:
-    _has_scm_pisa = False
+    _has_scm_inputs = False
 
 if TYPE_CHECKING:
     from scm.plams.core.jobmanager import JobManager
@@ -181,12 +181,12 @@ class Job(ABC):
                 self.settings = settings.copy()
             if isinstance(settings, Job):
                 self.settings = settings.settings.copy()
-            if _has_scm_pisa:
-                # allow users to pass a driverblock as the settings argument
-                if isinstance(settings, DriverBlock):
+            if _has_scm_inputs:
+                # allow users to pass an scm.inputs model as the settings argument
+                if isinstance(settings, InputModel) and not isinstance(settings, EngineInputModel):
                     self.settings.input = copy.deepcopy(settings)
                 # scm specific input objects need to be deepcopied to prevent them sharing references across jobs
-                elif hasattr(self.settings, "input") and isinstance(self.settings.input, DriverBlock):
+                elif hasattr(self.settings, "input") and isinstance(self.settings.input, InputModel):
                     if isinstance(settings, Settings):
                         self.settings.input = copy.deepcopy(settings.input)
                     elif isinstance(settings, Job):
