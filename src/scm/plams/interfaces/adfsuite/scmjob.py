@@ -29,7 +29,7 @@ from scm.plams.tools.kftools import KFFile
 from scm.plams.tools.units import Units
 
 try:
-    from scm.inputs._core import EngineInputModel, InputModel
+    from scm.inputs import EngineInputModel, InputModel
 
     _has_scm_inputs = True
 except ImportError:

@@ -27,7 +27,7 @@ except ImportError:
     _has_scm_base = False
 
 try:
-    from scm.inputs._core import EngineInputModel, InputModel
+    from scm.inputs import EngineInputModel, InputModel
 
     _has_scm_inputs = True
 except ImportError:
@@ -189,9 +189,9 @@ class JobAnalysis:
         self._fields: Dict[str, JobAnalysis._Field] = {}
 
         if _has_scm_inputs:
-            from scm.inputs import _INPUT_MODELS
+            from scm.inputs import input_model_registry
 
-            self._inputs_programs = {class_name: program for program, (_, class_name) in _INPUT_MODELS.items()}
+            self._inputs_programs = {class_name: program for program, class_name in input_model_registry().items()}
 
         if jobs:
             for j in jobs:

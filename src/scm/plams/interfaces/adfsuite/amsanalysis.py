@@ -16,7 +16,7 @@ from scm.plams.core.functions import log, requires_optional_package
 __all__ = ["AMSAnalysisJob", "AMSAnalysisResults", "convert_to_unicode"]
 
 try:
-    from scm.inputs._core import EngineInputModel, InputModel
+    from scm.inputs import EngineInputModel, InputModel
 
     _has_scm_inputs = True
 except ImportError:
