@@ -526,6 +526,7 @@ def get_conformations(
     EmbedParameters: str = "EmbedParameters",
     randomSeed: int = 1,
     best_rms: float = -1,
+    forceTransAmides: bool = False,
 ) -> Molecule: ...
 
 
@@ -543,6 +544,7 @@ def get_conformations(
     EmbedParameters: str = "EmbedParameters",
     randomSeed: int = 1,
     best_rms: float = -1,
+    forceTransAmides: bool = False,
 ) -> Union[List[Molecule], Molecule]: ...
 
 
@@ -559,6 +561,7 @@ def get_conformations(
     EmbedParameters: str = "EmbedParameters",
     randomSeed: int = 1,
     best_rms: float = -1,
+    forceTransAmides: bool = False,
 ) -> Union[List[Molecule], Molecule]:
     """
     Generates 3D conformation(s) for an rdkit_mol or a PLAMS Molecule
@@ -579,6 +582,7 @@ def get_conformations(
     :parameter list constraint_ats: List of atom indices to be constrained
     :parameter str EmbedParameters: Name of RDKit EmbedParameters class ('EmbedParameters', 'ETKDG')
     :parameter int randomSeed: The seed for the random number generator. If set to None the generated conformers will be non-deterministic.
+    :parameter bool forceTransAmides: Force amides, esters, and related structures into trans/oid conformations during embedding.
     :return: A molecule with hydrogens and 3D coordinates or a list of molecules if nconfs > 1
     :rtype: |Molecule| or list of PLAMS Molecules
     """
@@ -677,6 +681,8 @@ def get_conformations(
     param_obj = getattr(AllChem, EmbedParameters)()
     param_obj.pruneRmsThresh = rms
     param_obj.enforceChirality = enforceChirality
+    if hasattr(param_obj, "forceTransAmides"):
+        param_obj.forceTransAmides = forceTransAmides
     if useExpTorsionAnglePrefs != "default":  # The default (True of False) changes with rdkit versions
         param_obj.useExpTorsionAnglePrefs = True
     if constraint_ats is not None:

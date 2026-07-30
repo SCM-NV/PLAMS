@@ -921,7 +921,7 @@ class CRSResults(SCMResults):
         dict_species["NumRepMonmer"] = NumRepMonmer
         dict_species["NumStrucPerComp"] = NumStrucPerComp
 
-        if np.sum(Assoc) > 0:
+        if np.sum(Assoc) > 0:  # type: ignore[arg-type]
             Assoc_s_idx = self.readkf(section, "Assoc_s_idx")
             ReqCompIdxAssoc = self.readkf(section, "ReqCompIdxAssoc")
             NumReqCompAssoc = self.readkf(section, "NumReqCompAssoc")

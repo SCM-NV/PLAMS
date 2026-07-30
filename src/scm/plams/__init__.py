@@ -161,7 +161,7 @@ from scm.plams.tools.plot import (
     plot_msd,
     plot_work_function,
 )
-from scm.plams.tools.view import view, ViewConfig
+from scm.plams.tools.view import view, view_orbital, ViewConfig
 from scm.plams.tools.reaction import ReactionEquation
 from scm.plams.tools.reaction_energies import (
     balance_equation,
@@ -337,6 +337,7 @@ __all__ = [
     "plot_msd",
     "plot_work_function",
     "view",
+    "view_orbital",
     "ViewConfig",
     "SDFTrajectoryFile",
     "create_sdf_string",

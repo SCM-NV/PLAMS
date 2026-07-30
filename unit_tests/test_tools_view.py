@@ -12,6 +12,7 @@ from scm.plams.interfaces.adfsuite.ams import AMSJob
 from scm.plams.interfaces.molecule.rdkit import from_smiles
 from scm.plams.tools.view import (
     view,
+    view_orbital,
     ViewConfig,
     _AMSViewManager,
     _AmsViewBackend,
@@ -32,10 +33,16 @@ except ImportError:
 
 
 @pytest.fixture
-def water(xyz_folder):
+def water():
     water = from_smiles("O")
     water.guess_bonds()
     return water
+
+
+@pytest.fixture
+def water_opt(rkf_folder):
+    water_opt = rkf_folder / "water_optimization" / "ams.rkf"
+    return water_opt
 
 
 class TestLazyViewBacked:
@@ -66,7 +73,7 @@ class TestView:
             "ase_plot": _LazyViewBackend(_AsePlotBackend()),
         }
 
-    def test_backends_cache2(self, water):
+    def test_backends_cache(self, water):
         # Given backend cache
         import scm.plams.tools.view as viewer
 
@@ -132,6 +139,29 @@ class TestView:
 
         viewer._view_backends_cache = self.get_new_view_backends_cache()
 
+    def test_view_orbital_forwards_to_view(self, water_opt):
+        with patch("scm.plams.tools.view.view", return_value=MagicMock()) as mock_view:
+            result = view_orbital(
+                water_opt,
+                kind="lumo",
+                selector=1,
+                render_type="volume",
+                opacity=75,
+                grid="fine",
+                width=320,
+                backend="amsview",
+            )
+
+        assert result is mock_view.return_value
+        assert mock_view.call_args.args[0] == water_opt
+        config = mock_view.call_args.kwargs["config"]
+        assert config.orbital == ("lumo", 1)
+        assert config.render_type == "volume"
+        assert config.opacity == 75
+        assert config.grid == "fine"
+        assert mock_view.call_args.kwargs["width"] == 320
+        assert mock_view.call_args.kwargs["backend"] == "amsview"
+
 
 class TestAmsViewBackend:
 
@@ -148,11 +178,11 @@ class TestAmsViewBackend:
         [
             (
                 ViewConfig(),
-                "foo.in -transparent -scmgeometry 800x400 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 1.000000 -fixedatomsize -hideregions -showunitcell 0.05 -save bar.png -batch",
+                "foo.in -transparent -antialias -scmgeometry 800x400 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 1.000000 -fixedatomsize -hideregions -showunitcell 0.05 -save bar.png -batch",
             ),
             (
                 ViewConfig(width=100, height=100, normal=(1.0, 0.0, 0.0)),
-                "foo.in -transparent -scmgeometry 100x100 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 1.000000 0.000000 0.000000 -fixedatomsize -hideregions -showunitcell 0.05 -save bar.png -batch",
+                "foo.in -transparent -antialias -scmgeometry 100x100 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 1.000000 0.000000 0.000000 -fixedatomsize -hideregions -showunitcell 0.05 -save bar.png -batch",
             ),
             (
                 ViewConfig(
@@ -162,19 +192,31 @@ class TestAmsViewBackend:
                     atom_label_size=2,
                     show_regions=True,
                 ),
-                "foo.in -transparent -scmgeometry 800x400 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 1.000000 -atomlabel Element -labelcolor #FFFFFF -labelsize 2 -showunitcell 0.05 -save bar.png -batch",
+                "foo.in -transparent -antialias -scmgeometry 800x400 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 1.000000 -atomlabel Element -labelcolor #FFFFFF -labelsize 2 -showunitcell 0.05 -save bar.png -batch",
             ),
             (
                 ViewConfig(show_unit_cell_edges=True, unit_cell_edge_thickness=0.2),
-                "foo.in -transparent -scmgeometry 800x400 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 1.000000 -fixedatomsize -hideregions -showunitcell 0.2 -save bar.png -batch",
+                "foo.in -transparent -antialias -scmgeometry 800x400 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 1.000000 -fixedatomsize -hideregions -showunitcell 0.2 -save bar.png -batch",
             ),
             (
                 ViewConfig(show_unit_cell_faces=True, show_lattice_vectors=True),
-                "foo.in -transparent -scmgeometry 800x400 -dpi 300 -padding 0.000000 -showlatticevectors 1 -viewplane 0.000000 0.000000 1.000000 -fixedatomsize -hideregions -showunitcell faces -save bar.png -batch",
+                "foo.in -transparent -antialias -scmgeometry 800x400 -dpi 300 -padding 0.000000 -showlatticevectors 1 -viewplane 0.000000 0.000000 1.000000 -fixedatomsize -hideregions -showunitcell faces -save bar.png -batch",
             ),
             (
                 ViewConfig(dpi=600),
-                "foo.in -transparent -scmgeometry 800x400 -dpi 600 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 1.000000 -fixedatomsize -hideregions -showunitcell 0.05 -save bar.png -batch",
+                "foo.in -transparent -antialias -scmgeometry 800x400 -dpi 600 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 1.000000 -fixedatomsize -hideregions -showunitcell 0.05 -save bar.png -batch",
+            ),
+            (
+                ViewConfig(orbital=("homo", 0), render_type="iso"),
+                "foo.rkf -transparent -antialias -scmgeometry 800x400 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 1.000000 -fixedatomsize -hideregions -showunitcell 0.05 -HOMO 0 -val 0.03 -grid Medium -save bar.png -batch",
+            ),
+            (
+                ViewConfig(orbital=("lumo", 1), render_type="iso_wireframe", iso_value=0.01),
+                "foo.rkf -transparent -antialias -scmgeometry 800x400 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 1.000000 -fixedatomsize -hideregions -showunitcell 0.05 -LUMO 1 -val 0.01 -wireframe -grid Medium -save bar.png -batch",
+            ),
+            (
+                ViewConfig(orbital=("homo", -1), render_type="volume", opacity=100, grid="fine"),
+                "foo.rkf -transparent -antialias -scmgeometry 800x400 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 1.000000 -fixedatomsize -hideregions -showunitcell 0.05 -HOMO -1 -volume -opacity 100 -grid Fine -save bar.png -batch",
             ),
         ],
         ids=[
@@ -184,10 +226,16 @@ class TestAmsViewBackend:
             "unit_cell_edges",
             "unit_cell_faces_lattice_vectors",
             "pic_dpi",
+            "orbital_homo_iso",
+            "orbital_lumo+1_wireframe",
+            "orbital_homo-1_volume",
         ],
     )
-    def test_get_command(self, view_config, expected, water):
-        command = self.backend.get_command(water, view_config, input_path="foo.in", img_path="bar.png")
+    def test_get_command(self, view_config, expected, water, water_opt):
+        system = water if not view_config.orbital else water_opt
+        input_path = "foo.in" if not view_config.orbital else "foo.rkf"
+
+        command = self.backend.get_command(system, view_config, input_path=input_path, img_path="bar.png")
 
         command = str.join(" ", command[1:])
         assert command == expected
@@ -201,7 +249,7 @@ class TestAmsViewBackend:
         image = MagicMock()
 
         with patch.object(_AMSViewManager, "_generate_image", return_value=image) as mock_generate, patch.object(
-            self.backend, "write_system_input", return_value=str(input_path)
+            self.backend, "write_system_input", return_value=(str(input_path), True)
         ), patch.object(self.backend, "run_command") as mock_run_command:
             actual = self.backend.generate_image(water, ViewConfig(open_window=True))
 
@@ -470,7 +518,7 @@ class TestAMSViewManager:
             active -= 1
 
         with patch.object(
-            _AmsViewBackend, "write_system_input", side_effect=[str(path) for path in temp_paths]
+            _AmsViewBackend, "write_system_input", side_effect=[(str(path), True) for path in temp_paths]
         ), patch.object(
             _AmsViewBackend, "get_image_path", return_value=(str(tmp_path / "image.png"), False)
         ), patch.object(
