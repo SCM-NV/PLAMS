@@ -252,7 +252,7 @@ class CRSResults(SCMResults):
 
         if mixture is None:
             return self._rename_column_labels(component, column_labels)
-        combined = component.merge(mixture, on=["property", "mixture"], how="left")
+        combined = component.merge(mixture, on=["property", "method", "mixture"], how="left")
         return self._rename_column_labels(combined, column_labels)
 
     def get_result_table_metadata(
@@ -376,6 +376,750 @@ class CRSResults(SCMResults):
         assert combined is not None
         return combined
 
+
+    @staticmethod
+    def plot_lle_phase_diagram(
+        table: Any,
+        *,
+        experimental_phase_I: Optional[Any] = None,
+        experimental_phase_II: Optional[Any] = None,
+        experimental_temperature: Optional[Any] = None,
+        temperature: Optional[float] = None,
+        experimental_label: str = "exp",
+        component_labels: Optional[Sequence[str]] = None,
+        component_order: Optional[Sequence[int]] = None,
+        plot_tielines: bool = True,
+        plot_phase_boundaries: bool = False,
+        plot_feed: bool = False,
+        ax: Optional[Any] = None,
+        plot_fig: bool = True,
+    ) -> "Figure":
+        """Plot T-x binary or isothermal ternary CRS phase diagrams.
+
+        ``table`` must be a pandas.DataFrame prepared from one or more
+        :meth:`get_result_table` outputs for one ``LLE``, ``STABILITY``,
+        ``BINMIXCOEF``, or ``TERNARYMIX`` calculation.
+
+        When present, ``converged`` and ``llle_detected`` are used to keep only
+        converged, non-LLLE rows.
+
+        Ternary systems require a single temperature slice; pass ``temperature`` when
+        multiple temperatures are present.
+
+        ``LLE``, ``BINMIXCOEF``, and ``TERNARYMIX`` tables draw phase-I and phase-II
+        points. ``LLE`` may also draw feed compositions. ``STABILITY`` tables draw only
+        stable and unstable feed compositions.
+
+        Parameters
+        ----------
+        table
+            CRS LLE result table.
+        experimental_phase_I, experimental_phase_II
+            Optional experimental phase compositions with shape ``(n_tie_lines, n_components)``.
+        experimental_temperature
+            Optional experimental temperatures for binary T-x plots.
+        temperature
+            Temperature to plot for ternary diagrams with multiple temperatures.
+        experimental_label
+            Legend label for experimental data.
+        component_labels
+            Axis labels.
+        component_order
+            Axis order by ``cid``. Experimental arrays are reordered from sorted
+            ``cid`` order to this order.
+        plot_tielines
+            Whether to draw phase-I/phase-II tie-lines.
+        plot_phase_boundaries
+            Whether to draw phase-boundary curves.
+        plot_feed
+            Whether to draw feed compositions for ``LLE`` tables.
+        ax
+            Matplotlib axes to draw into. Ternary plots use ``python-ternary``.
+        plot_fig
+            Whether to show the figure.
+
+        Returns
+        -------
+        matplotlib.figure.Figure
+            The created or updated figure.
+        """
+        plt = CRSResults._import_matplotlib_pyplot("CRSResults.plot_lle_phase_diagram", plot_fig=plot_fig)
+        pd = CRSResults._import_pandas("CRSResults.plot_lle_phase_diagram")
+
+        if not isinstance(table, pd.DataFrame):
+            raise TypeError("table must be a pandas DataFrame")
+
+        method_color_cycle = cycle(plt.rcParams["axes.prop_cycle"].by_key()["color"])
+        plot_style = {
+            "marker_size": 36,
+            "phase_marker": "o",
+            "experimental_color": "#333333",
+
+            "feed_marker": "^",
+            "feed_label": "feed",
+            "feed_color": "#B8860B",
+
+            "stable_marker": "^",
+            "stable_label": "feed (stable)",
+            "stable_color": "#B8860B",
+            "unstable_marker": "x",
+            "unstable_label": "feed (unstable)",
+            "unstable_color": "#B8860B",
+
+            "tieline_linewidth": 1.0,
+            "tieline_alpha": 0.30,
+            "phase_boundary_linewidth": 1.5,
+            "phase_boundary_alpha": 0.80,
+
+            "grid_color": "#9A9A9A",
+            "grid_linewidth": 0.5,
+            "grid_alpha": 0.4,
+
+            "axis_color": "#555555",
+            "axis_boundary_linewidth": 1.2,
+            "axis_label_fontsize": 14,
+            "axis_labelpad": 12,
+            "axis_label_offsets": {"bottom": 0.00, "right": 0.10, "left": 0.10},
+
+            "tick_linewidth": 0.8,
+            "tick_fontsize": 10,
+            "tick_offset": 0.015,
+
+            "binary_figsize": (7, 6),
+            "ternary_figsize": (15, 13),
+            "ternary_legend_loc": "upper right",
+            "title_fontsize": 14,
+            "legend_fontsize": 12,
+        }
+
+        # Find required result columns and validate table-level assumptions.
+        def existing_column(candidates: Sequence[str]) -> Optional[str]:
+            for candidate in candidates:
+                if candidate in table.columns:
+                    return candidate
+            return None
+
+        def required_column(candidates: Sequence[str]) -> str:
+            column = existing_column(candidates)
+            if column is None:
+                raise ValueError(
+                    "plot_lle_phase_diagram requires an LLE result table with a {} column. "
+                    "Accepted column names: {}".format(candidates[-1], ", ".join(candidates))
+                )
+            return column
+
+        def require_one_supported_property_name(property_column: str) -> str:
+            property_names = tuple(str(value).upper() for value in table[property_column].dropna().unique())
+            supported_properties = ("LLE", "STABILITY", "BINMIXCOEF", "TERNARYMIX")
+            if len(property_names) != 1 or property_names[0] not in supported_properties:
+                raise ValueError(
+                    "plot_lle_phase_diagram only accepts one of {} result tables. Got {}.".format(
+                        ", ".join(supported_properties), property_names or "no property"
+                    )
+                )
+            return property_names[0]
+
+        def require_single_system_table() -> None:
+            names_per_cid = table[["cid", "name"]].dropna().drop_duplicates()
+            grouped = names_per_cid.groupby("cid")["name"].nunique()
+
+            if (grouped > 1).any():
+                raise ValueError(
+                    "plot_lle_phase_diagram only accepts results for one chemical system."
+                )
+
+        # Resolve all input columns before the plotting table is copied or filtered.
+        required_column(("method",))
+        required_column(("cid",))
+        required_column(("name",))
+        property_column = required_column(("property",))
+        property_name = require_one_supported_property_name(property_column)
+        require_single_system_table()
+
+        xI_column = required_column(("xI", "x_I", "Phase I mole fraction"))
+        xII_column = required_column(("xII", "x_II", "Phase II mole fraction"))
+        temperature_column = required_column(("temperature", "T", "Temperature [K]", "Temperature"))
+        converged_column = existing_column(("converged", "LLE flash solver converged"))
+        llle_detected_column = existing_column(("llle_detected", "LLLE detected"))
+        feed_column = None
+        unstable_column = None
+        if property_name in {"LLE", "STABILITY"}:
+            feed_column = required_column(("frac1", "x", "Feed mole fraction"))
+            unstable_column = required_column(("unstable", "Feed unstable"))
+
+        # Build the filtered plot table and normalize component axis metadata.
+        def filtered_plot_table(
+            plot_table: Any,
+            converged_column: Optional[str],
+            llle_detected_column: Optional[str],
+        ) -> Any:
+            if converged_column is not None:
+                plot_table = plot_table[plot_table[converged_column].astype(bool)].copy()
+
+            if llle_detected_column is not None:
+                plot_table = plot_table[~plot_table[llle_detected_column].astype(bool)].copy()
+
+            if plot_table.empty:
+                raise ValueError("No rows remain after filtering converged=True and llle_detected=False")
+
+            return plot_table
+
+        def normalized_component_plot_metadata(
+            plot_table: Any,
+            component_order: Optional[Sequence[int]],
+            component_labels: Optional[Sequence[str]],
+        ) -> Tuple[Tuple[int, ...], int, List[int], Tuple[str, ...]]:
+            base_order = tuple(int(cid) for cid in sorted(plot_table["cid"].dropna().unique()))
+            if component_order is None:
+                normalized_order = base_order
+            else:
+                normalized_order = tuple(int(cid) for cid in component_order)
+
+            if set(normalized_order) != set(base_order):
+                raise ValueError(
+                    "component_order must contain the same cid values as the table. "
+                    "Expected {}, got {}.".format(base_order, normalized_order)
+                )
+
+            ncomp = len(normalized_order)
+            if ncomp not in (2, 3):
+                raise NotImplementedError("Only binary and ternary phase diagrams are supported")
+
+            reorder_indices = [base_order.index(cid) for cid in normalized_order]
+
+            if component_labels is None:
+                name_table = plot_table[["cid", "name"]].drop_duplicates()
+                labels = []
+                for cid in normalized_order:
+                    name = str(name_table[name_table["cid"] == cid]["name"].iloc[0])
+                    labels.append("x{} ({})".format(len(labels) + 1, name))
+                normalized_labels = tuple(labels)
+            else:
+                normalized_labels = tuple(component_labels)
+
+            if len(normalized_labels) != ncomp:
+                raise ValueError("component_labels must contain {} labels".format(ncomp))
+
+            return normalized_order, ncomp, reorder_indices, normalized_labels
+
+        # Filter plot rows and derive the component order used by all arrays.
+        table = filtered_plot_table(table.copy(), converged_column, llle_detected_column)
+
+        component_order, ncomp, reorder_indices, component_labels = normalized_component_plot_metadata(
+            table,
+            component_order,
+            component_labels,
+        )
+
+        group_column = existing_column(("tie_line", "source"))
+        if group_column is None:
+            table["_lle_group"] = 0
+            group_column = "_lle_group"
+
+        # Convert grouped component rows into phase/feed arrays.
+        def get_tie_line_groups(method_table: Any) -> List[Any]:
+            groups = []
+            expected_cids = set(component_order)
+
+            for _, group in method_table.groupby(group_column, sort=True):
+                values = group.set_index("cid")
+                group_cids = set(int(cid) for cid in values.index)
+
+                if group_cids != expected_cids or len(group_cids) != len(values.index):
+                    raise ValueError(
+                        "plot_lle_phase_diagram only accepts complete tie-lines for one binary or ternary system."
+                    )
+
+                groups.append(values)
+
+            if not groups:
+                raise ValueError("No LLE tie-lines found.")
+
+            return groups
+
+        def phase_array(groups: Sequence[Any], column: str) -> "np.ndarray":
+            rows = [[float(values.loc[cid, column]) for cid in component_order] for values in groups]
+            arr = np.asarray(rows, dtype=float)
+            totals = arr.sum(axis=1, keepdims=True)
+            totals[totals == 0.0] = 1.0
+            return arr / totals
+
+        def group_array(groups: Sequence[Any], column: str) -> "np.ndarray":
+            values = []
+            for group in groups:
+                group_values = group[column].dropna()
+                if group_values.empty:
+                    raise ValueError("LLE group is missing a non-empty {} value".format(column))
+                values.append(float(group_values.iloc[0]))
+            return np.asarray(values, dtype=float)
+
+        def calculated_series(method_table: Any) -> Tuple[Sequence[Any], "np.ndarray", "np.ndarray", "np.ndarray"]:
+            groups = get_tie_line_groups(method_table)
+            return (
+                groups,
+                phase_array(groups, xI_column),
+                phase_array(groups, xII_column),
+                group_array(groups, temperature_column),
+            )
+
+        def iter_method_tables(plot_table: Any) -> List[Tuple[str, Any]]:
+            method_tables = [
+                (str(method), method_table.copy())
+                for method, method_table in plot_table.groupby("method", sort=True)
+            ]
+            if not method_tables:
+                raise ValueError("plot_lle_phase_diagram requires at least one non-empty method group")
+            return method_tables
+
+        def first_feed_series(
+            method_tables: Sequence[Tuple[str, Any]]
+        ) -> Tuple["np.ndarray", "np.ndarray", "np.ndarray"]:
+            assert feed_column is not None
+            assert unstable_column is not None
+
+            _, method_table = method_tables[0]
+            groups = get_tie_line_groups(method_table)
+            return (
+                phase_array(groups, feed_column),
+                group_array(groups, temperature_column),
+                group_array(groups, unstable_column).astype(bool),
+            )
+
+        def require_single_method(method_tables: Sequence[Tuple[str, Any]]) -> Tuple[str, Any]:
+            if len(method_tables) != 1:
+                raise ValueError("STABILITY phase diagrams require a single method")
+            return method_tables[0]
+
+        # Normalize experimental arrays to the plot component order.
+        def experimental_array(values: Optional[Any], name: str) -> Optional["np.ndarray"]:
+            if values is None:
+                return None
+            arr = np.asarray(values, dtype=float)
+            if arr.ndim != 2 or arr.shape[1] != ncomp:
+                raise ValueError("{} must have shape (n_tie_lines, ncomp={})".format(name, ncomp))
+            return arr[:, reorder_indices]
+
+        # Convert optional experimental inputs once so plot helpers can assume arrays.
+        exp_I = experimental_array(experimental_phase_I, "experimental_phase_I")
+        exp_II = experimental_array(experimental_phase_II, "experimental_phase_II")
+        exp_temperature = (
+            None if experimental_temperature is None else np.asarray(experimental_temperature, dtype=float).ravel()
+        )
+        if exp_temperature is not None:
+            for exp in (exp_I, exp_II):
+                if exp is not None and len(exp_temperature) != len(exp):
+                    raise ValueError("experimental_temperature must match the number of experimental tie-lines")
+
+        # Define binary plot primitives and layer helpers.
+        def plot_binary_phase_boundary(ax: Any, x: "np.ndarray", temperatures: "np.ndarray", color: str) -> None:
+            order = np.argsort(temperatures)
+            x_sort = x[order]
+            temperature_sort = temperatures[order]
+            ax.plot(
+                x_sort,
+                temperature_sort,
+                color=color,
+                alpha=plot_style["phase_boundary_alpha"],
+                linewidth=plot_style["phase_boundary_linewidth"],
+            )
+
+        def scatter_binary_points(
+            ax: Any,
+            x: "np.ndarray",
+            temperatures: "np.ndarray",
+            marker: str,
+            color: str,
+            label: str,
+            facecolors: Optional[str] = "none",
+        ) -> None:
+            scatter_kwargs = {
+                "marker": marker,
+                "color": color,
+                "s": plot_style["marker_size"],
+                "label": label,
+            }
+            if facecolors is not None:
+                scatter_kwargs["facecolors"] = facecolors
+            ax.scatter(x, temperatures, **scatter_kwargs)
+
+        def plot_binary_calculated(
+            ax: Any,
+            phase_I: "np.ndarray",
+            phase_II: "np.ndarray",
+            temperatures: "np.ndarray",
+            label: str,
+            color: str,
+        ) -> None:
+            marker = plot_style["phase_marker"]
+
+            scatter_binary_points(ax, phase_I[:, 0], temperatures, marker, color, label)
+            scatter_binary_points(ax, phase_II[:, 0], temperatures, marker, color, "_nolegend_")
+
+            if plot_phase_boundaries:
+                plot_binary_phase_boundary(ax, phase_I[:, 0], temperatures, color)
+                plot_binary_phase_boundary(ax, phase_II[:, 0], temperatures, color)
+
+        def plot_binary_feed(ax: Any, feed: "np.ndarray", temperatures: "np.ndarray") -> None:
+            marker = plot_style["feed_marker"]
+            color = plot_style["feed_color"]
+            label = plot_style["feed_label"]
+            scatter_binary_points(ax, feed[:, 0], temperatures, marker, color, label)
+
+        def plot_binary_feed_stability(
+            ax: Any, feed: "np.ndarray", temperatures: "np.ndarray", unstable: "np.ndarray"
+        ) -> None:
+            stable = ~unstable
+            marker = plot_style["unstable_marker"]
+            color = plot_style["unstable_color"]
+            label = plot_style["unstable_label"]
+            if unstable.any():
+                scatter_binary_points(
+                    ax, feed[unstable, 0], temperatures[unstable], marker, color, label, facecolors=None
+                )
+
+            marker = plot_style["stable_marker"]
+            color = plot_style["stable_color"]
+            label = plot_style["stable_label"]
+            if stable.any():
+                scatter_binary_points(ax, feed[stable, 0], temperatures[stable], marker, color, label)
+
+        def plot_binary_experimental(ax: Any, reference_temperature: "np.ndarray") -> None:
+            marker = plot_style["phase_marker"]
+            color = plot_style["experimental_color"]
+            label = experimental_label
+            if exp_I is not None:
+                exp_T = exp_temperature if exp_temperature is not None else reference_temperature
+                if len(exp_T) != len(exp_I):
+                    raise ValueError(
+                        "experimental_temperature is required when experimental_phase_I length "
+                        "does not match the calculated temperature grid"
+                    )
+                scatter_binary_points(ax, exp_I[:, 0], exp_T, marker, color, label)
+
+                if plot_phase_boundaries:
+                    plot_binary_phase_boundary(ax, exp_I[:, 0], exp_T, color)
+
+            if exp_II is not None:
+                exp_T = exp_temperature if exp_temperature is not None else reference_temperature
+                if len(exp_T) != len(exp_II):
+                    raise ValueError(
+                        "experimental_temperature is required when experimental_phase_II length "
+                        "does not match the calculated temperature grid"
+                    )
+                if exp_I is None:
+                    scatter_binary_points(ax, exp_II[:, 0], exp_T, marker, color, label)
+                else:
+                    scatter_binary_points(ax, exp_II[:, 0], exp_T, marker, color, "_nolegend_")
+
+                if plot_phase_boundaries:
+                    plot_binary_phase_boundary(ax, exp_II[:, 0], exp_T, color)
+
+        def finish_figure(fig: "Figure") -> "Figure":
+            fig.tight_layout()
+            if plot_fig:
+                plt.show()
+            return fig
+
+        # Draw binary T-x diagrams directly on a matplotlib axes.
+        if ncomp == 2:
+            if ax is None:
+                fig, ax = plt.subplots(figsize=plot_style["binary_figsize"])
+            else:
+                fig = ax.figure
+
+            method_tables = iter_method_tables(table)
+
+            def plot_binary_stability(method_tables: Sequence[Tuple[str, Any]]) -> None:
+                require_single_method(method_tables)
+                feed, temperatures, unstable = first_feed_series(method_tables)
+                plot_binary_feed_stability(ax, feed, temperatures, unstable)
+
+            def plot_binary_lle(method_tables: Sequence[Tuple[str, Any]]) -> "np.ndarray":
+                reference_temperature = None
+                for label, method_table in method_tables:
+                    color = next(method_color_cycle)
+                    _, phase_I, phase_II, temperatures = calculated_series(method_table)
+                    if reference_temperature is None:
+                        reference_temperature = temperatures
+                    plot_binary_calculated(ax, phase_I, phase_II, temperatures, label, color)
+                assert reference_temperature is not None
+                return reference_temperature
+
+            def plot_binary_lle_feed(method_tables: Sequence[Tuple[str, Any]]) -> None:
+                feed, feed_temperatures, unstable = first_feed_series(method_tables)
+                if len(method_tables) == 1:
+                    plot_binary_feed_stability(ax, feed, feed_temperatures, unstable)
+                else:
+                    plot_binary_feed(ax, feed, feed_temperatures)
+
+            # Dispatch binary plot layers by property type.
+            if property_name == "STABILITY":
+                plot_binary_stability(method_tables)
+            else:
+                reference_temperature = plot_binary_lle(method_tables)
+
+                if property_name == "LLE" and plot_feed:
+                    plot_binary_lle_feed(method_tables)
+
+                plot_binary_experimental(ax, reference_temperature)
+
+            ax.set_xlabel(
+                "{}".format(component_labels[0]),
+                fontsize=plot_style["axis_label_fontsize"],
+                labelpad=plot_style["axis_labelpad"],
+            )
+            ax.set_ylabel(
+                "Temperature (K)",
+                fontsize=plot_style["axis_label_fontsize"],
+                labelpad=plot_style["axis_labelpad"],
+            )
+            ax.set_xlim(0.0, 1.0)
+            ax.set_title("Binary {} phase diagram".format(property_name), fontsize=plot_style["title_fontsize"])
+            ax.legend(fontsize=plot_style["legend_fontsize"])
+
+            return finish_figure(fig)
+
+        # Select one temperature slice before building a ternary plot.
+        requested_temperature = temperature
+        plot_table = table
+        row_temperatures = np.asarray(plot_table[temperature_column], dtype=float)
+        unique_temperatures = np.unique(np.round(row_temperatures, decimals=8))
+
+        if requested_temperature is None:
+            if len(unique_temperatures) != 1:
+                raise ValueError(
+                    "Ternary LLE plots require a single temperature. "
+                    "Pass temperature=... to select one."
+                )
+            selected_temperature = float(unique_temperatures[0])
+        else:
+            selected_temperature = float(requested_temperature)
+            mask = np.isclose(row_temperatures, selected_temperature)
+            if not mask.any():
+                raise ValueError("No ternary LLE data found at temperature {:g} K".format(selected_temperature))
+            plot_table = plot_table.loc[mask].copy()
+
+        try:
+            import ternary
+        except ImportError:
+            raise ImportError(
+                "CRSResults.plot_lle_phase_diagram: ternary LLE plots require the 'python-ternary' package"
+            )
+
+        # Define ternary plot primitives and layer helpers.
+        def ternary_points(compositions: Any) -> List[Tuple[float, ...]]:
+            comp = np.asarray(compositions, dtype=float)
+            totals = comp.sum(axis=1, keepdims=True)
+            totals[totals == 0.0] = 1.0
+            return [tuple(row) for row in comp / totals]
+
+        def scatter_ternary_points(
+            tax: Any,
+            compositions: "np.ndarray",
+            marker: str,
+            color: str,
+            label: str,
+            facecolors: Optional[str] = "none",
+        ) -> None:
+            scatter_kwargs = {
+                "marker": marker,
+                "color": color,
+                "s": plot_style["marker_size"],
+                "label": label,
+            }
+            if facecolors is not None:
+                scatter_kwargs["facecolors"] = facecolors
+            tax.scatter(ternary_points(compositions), **scatter_kwargs)
+
+        def ordered_boundary_points(compositions: Any) -> List[Tuple[float, ...]]:
+            points = ternary_points(compositions)
+
+            if len(points) <= 2:
+                return points
+
+            comp = np.asarray(points, dtype=float)
+            remaining = list(range(len(comp)))
+            start = max(remaining, key=lambda i: comp[i, 0])
+            ordered = [start]
+            remaining.remove(start)
+
+            while remaining:
+                current = comp[ordered[-1]]
+                distances = np.linalg.norm(comp[remaining] - current, axis=1)
+                next_pos = int(np.argmin(distances))
+                ordered.append(remaining.pop(next_pos))
+
+            return [points[i] for i in ordered]
+
+        def plot_ternary_phase_boundary(tax: Any, compositions: "np.ndarray", color: str) -> None:
+            tax.plot(
+                ordered_boundary_points(compositions),
+                color=color,
+                linewidth=plot_style["phase_boundary_linewidth"],
+                alpha=plot_style["phase_boundary_alpha"],
+            )
+
+        def plot_ternary_tielines(
+            tax: Any,
+            phase_I: "np.ndarray",
+            phase_II: "np.ndarray",
+            color: str,
+        ) -> None:
+            for p1, p2 in zip(ternary_points(phase_I), ternary_points(phase_II)):
+                tax.line(
+                    p1,
+                    p2,
+                    color=color,
+                    linewidth=plot_style["tieline_linewidth"],
+                    alpha=plot_style["tieline_alpha"],
+                )
+
+        def plot_ternary_calculated(
+            tax: Any, phase_I: "np.ndarray", phase_II: "np.ndarray", label: str, color: str
+        ) -> None:
+            marker = plot_style["phase_marker"]
+
+            scatter_ternary_points(tax, phase_I, marker, color, label)
+            scatter_ternary_points(tax, phase_II, marker, color, "_nolegend_")
+
+            if plot_phase_boundaries:
+                plot_ternary_phase_boundary(tax, phase_I, color)
+                plot_ternary_phase_boundary(tax, phase_II, color)
+
+            if plot_tielines:
+                plot_ternary_tielines(tax, phase_I, phase_II, color)
+
+        def plot_ternary_feed(tax: Any, feed: "np.ndarray") -> None:
+            marker = plot_style["feed_marker"]
+            color = plot_style["feed_color"]
+            label = plot_style["feed_label"]
+            scatter_ternary_points(tax, feed, marker, color, label)
+
+        def plot_ternary_feed_stability(tax: Any, feed: "np.ndarray", unstable: "np.ndarray") -> None:
+            stable = ~unstable
+            marker = plot_style["unstable_marker"]
+            color = plot_style["unstable_color"]
+            label = plot_style["unstable_label"]
+            if unstable.any():
+                scatter_ternary_points(tax, feed[unstable], marker, color, label, facecolors=None)
+
+            marker = plot_style["stable_marker"]
+            color = plot_style["stable_color"]
+            label = plot_style["stable_label"]
+            if stable.any():
+                scatter_ternary_points(tax, feed[stable], marker, color, label)
+
+        def plot_ternary_experimental(tax: Any) -> None:
+            if exp_I is not None:
+                marker = plot_style["phase_marker"]
+                color = plot_style["experimental_color"]
+                label = experimental_label
+                scatter_ternary_points(tax, exp_I, marker, color, label)
+                if plot_phase_boundaries:
+                    plot_ternary_phase_boundary(tax, exp_I, color)
+
+            if exp_II is not None:
+                marker = plot_style["phase_marker"]
+                color = plot_style["experimental_color"]
+                label = experimental_label if exp_I is None else "_nolegend_"
+                scatter_ternary_points(tax, exp_II, marker, color, label)
+                if plot_phase_boundaries:
+                    plot_ternary_phase_boundary(tax, exp_II, color)
+
+            if plot_tielines and exp_I is not None and exp_II is not None:
+                plot_ternary_tielines(tax, exp_I, exp_II, plot_style["experimental_color"])
+
+        # Draw ternary isothermal diagrams through python-ternary.
+        fig, tax = ternary.figure(ax=ax, scale=1.0)
+        fig.set_size_inches(*plot_style["ternary_figsize"])
+        tax.gridlines(
+            color=plot_style["grid_color"],
+            multiple=0.1,
+            linewidth=plot_style["grid_linewidth"],
+            alpha=plot_style["grid_alpha"],
+        )
+        tax.boundary(
+            linewidth=plot_style["axis_boundary_linewidth"],
+            linestyle="-",
+            zorder=10,
+            axes_colors={axis: plot_style["axis_color"] for axis in ("l", "r", "b")},
+        )
+
+        method_tables = iter_method_tables(plot_table)
+
+        def plot_ternary_lle(method_tables: Sequence[Tuple[str, Any]]) -> None:
+            for label, method_table in method_tables:
+                color = next(method_color_cycle)
+                _, phase_I, phase_II, _ = calculated_series(method_table)
+                plot_ternary_calculated(tax, phase_I, phase_II, label, color)
+
+        def plot_ternary_lle_feed(method_tables: Sequence[Tuple[str, Any]]) -> None:
+            feed, _, unstable = first_feed_series(method_tables)
+            if len(method_tables) == 1:
+                plot_ternary_feed_stability(tax, feed, unstable)
+            else:
+                plot_ternary_feed(tax, feed)
+
+        def plot_ternary_stability(method_tables: Sequence[Tuple[str, Any]]) -> None:
+            require_single_method(method_tables)
+            feed, _, unstable = first_feed_series(method_tables)
+            plot_ternary_feed_stability(tax, feed, unstable)
+
+        # Dispatch ternary plot layers by property type.
+        if property_name == "STABILITY":
+            plot_ternary_stability(method_tables)
+        else:
+            plot_ternary_lle(method_tables)
+
+            if property_name == "LLE" and plot_feed:
+                plot_ternary_lle_feed(method_tables)
+
+            plot_ternary_experimental(tax)
+
+        tax.bottom_axis_label(
+            component_labels[0],
+            fontsize=plot_style["axis_label_fontsize"],
+            offset=plot_style["axis_label_offsets"]["bottom"],
+            color=plot_style["axis_color"],
+        )
+        tax.right_axis_label(
+            component_labels[1],
+            fontsize=plot_style["axis_label_fontsize"],
+            offset=plot_style["axis_label_offsets"]["right"],
+            color=plot_style["axis_color"],
+        )
+        tax.left_axis_label(
+            component_labels[2],
+            fontsize=plot_style["axis_label_fontsize"],
+            offset=plot_style["axis_label_offsets"]["left"],
+            color=plot_style["axis_color"],
+        )
+        tax.ticks(
+            axis="lbr",
+            multiple=0.1,
+            linewidth=plot_style["tick_linewidth"],
+            axes_colors={axis: plot_style["axis_color"] for axis in ("l", "r", "b")},
+            tick_formats="%.1f",
+            fontsize=plot_style["tick_fontsize"],
+            offset=plot_style["tick_offset"],
+        )
+
+        ax_obj = tax.get_axes()
+        ax_obj.set_aspect("equal")
+        tax.clear_matplotlib_ticks()
+
+        for spine in ax_obj.spines.values():
+            spine.set_visible(False)
+
+        ax_obj.legend(loc=plot_style["ternary_legend_loc"], fontsize=plot_style["legend_fontsize"])
+        tax.set_title(
+            "Ternary {} phase diagram at {:g} K".format(property_name, selected_temperature),
+            fontsize=plot_style["title_fontsize"],
+        )
+        tax._redraw_labels()
+
+        return finish_figure(fig)
+
     @staticmethod
     def _combine_result_table_frames(
         frames: Sequence[Tuple[int, Optional["pd.DataFrame"]]],
@@ -454,7 +1198,7 @@ class CRSResults(SCMResults):
         return str(property_value).rstrip().upper()
 
     def _format_column_label(self, key: str, column_labels: str) -> str:
-        if column_labels == "raw" or key in {"property", "mixture", "cid", "name", "molmass", "tie_line"}:
+        if column_labels == "raw" or key in {"property", "method", "mixture", "cid", "name", "molmass", "tie_line"}:
             return key
 
         metadata = self._RESULT_TABLE_QUANTITY_METADATA.get(key)
@@ -625,11 +1369,13 @@ class CRSResults(SCMResults):
         ncomp = int(results["ncomp"])
         nitems = int(results["nitems"])
         molmass = np.asarray(results["molmass"]).reshape(-1)
+        method = results["method"]
         rows = []
         for mixture in range(nitems):
             for cid in range(ncomp):
                 row: Dict[str, Any] = {
                     "property": property_name,
+                    "method": method,
                     "mixture": mixture,
                     "cid": cid,
                     "name": component_names[cid],
@@ -654,10 +1400,11 @@ class CRSResults(SCMResults):
             return None
 
         nitems = int(results["nitems"])
+        method = results["method"]
         lle_not_applicable = bool(results.get("isobar", False)) or bool(results.get("flashpoint", False))
         rows = []
         for mixture in range(nitems):
-            row: Dict[str, Any] = {"property": property_name, "mixture": mixture}
+            row: Dict[str, Any] = {"property": property_name, "method": method, "mixture": mixture}
             for quantity in quantities:
                 if quantity == "showmiscgap" and lle_not_applicable:
                     row[quantity] = np.nan
@@ -665,7 +1412,7 @@ class CRSResults(SCMResults):
                     row[quantity] = self._get_mixture_quantity_value(results[quantity], mixture, nitems)
             rows.append(row)
 
-        return pd.DataFrame(rows, columns=["property", "mixture"] + list(quantities))
+        return pd.DataFrame(rows, columns=["property", "method", "mixture"] + list(quantities))
 
     def _select_lle_columns(self, results: dict, property_name: str, quantities: Sequence[str]) -> Tuple[str, ...]:
         if property_name not in self._RESULT_TABLE_LLE_PROPERTIES or not quantities:
@@ -694,6 +1441,7 @@ class CRSResults(SCMResults):
         if not quantities:
             return pd.DataFrame(columns=columns)
 
+        method = results["method"]
         if property_name in {"LLE", "STABILITY"}:
             ncomp = int(results["ncomp"])
             nitems = 1
@@ -703,6 +1451,7 @@ class CRSResults(SCMResults):
             for cid in range(ncomp):
                 row = {
                     "property": property_name,
+                    "method": method,
                     "mixture": mixture,
                     "tie_line": 0,
                     "cid": cid,
@@ -734,6 +1483,7 @@ class CRSResults(SCMResults):
             rows = [
                 {
                     "property": property_name,
+                    "method": method,
                     "mixture": np.nan,
                     "tie_line": 0,
                     "cid": cid,
@@ -763,6 +1513,7 @@ class CRSResults(SCMResults):
         rows = [
             {
                 "property": property_name,
+                "method": method,
                 "mixture": np.nan,
                 "tie_line": tie_line,
                 "cid": cid,
@@ -998,21 +1749,7 @@ class CRSResults(SCMResults):
             terminal = "script"
 
         # Check if matplotlib is installed
-        try:
-            import matplotlib
-
-            if plot_fig:
-                if terminal == "jupyter":
-                    ipython.run_line_magic("matplotlib", "inline")
-                else:
-                    matplotlib.use("TkAgg")
-            elif not plot_fig:
-                matplotlib.use("Agg")
-
-            import matplotlib.pyplot as plt
-        except ImportError:
-            method = self.__class__.__name__ + ".plot"
-            raise ImportError("{}: this method requires the 'matplotlib' package".format(method))
+        plt = CRSResults._import_matplotlib_pyplot(self.__class__.__name__ + ".plot", plot_fig=plot_fig)
 
         self.get_results()
 
@@ -1131,6 +1868,17 @@ class CRSResults(SCMResults):
         except ImportError:
             raise ImportError("{}: {}".format(method, requirement))
         return pd
+
+    @staticmethod
+    def _import_matplotlib_pyplot(method: str, plot_fig: bool = True) -> Any:
+        try:
+            import matplotlib
+            if not plot_fig:
+                matplotlib.use("Agg")
+            import matplotlib.pyplot as plt
+        except ImportError:
+            raise ImportError(f"{method}: this method requires the 'matplotlib' package")
+        return plt
 
     @staticmethod
     def _dict_to_df(array_dict: dict, section: str, x_axis: str) -> "pd.DataFrame":

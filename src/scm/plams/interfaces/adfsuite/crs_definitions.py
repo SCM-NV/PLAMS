@@ -9,7 +9,7 @@ from typing import Any, Dict, Optional, Sequence, Set, Tuple
 RESULT_TABLE_UNSUPPORTED_PROPERTIES = ("SIGMAPROFILE", "PURESIGMAPROFILE", "SIGMAPOTENTIAL", "PURESIGMAPOTENTIAL")
 RESULT_TABLE_LLE_PROPERTIES = ("LLE", "STABILITY", "BINMIXCOEF", "TERNARYMIX")
 
-RESULT_TABLE_COMPONENT_BASE_COLUMNS = ("property", "mixture", "cid", "name",)
+RESULT_TABLE_COMPONENT_BASE_COLUMNS = ("property", "method", "mixture", "cid", "name",)
 RESULT_TABLE_COMPONENT_DEFAULT_QUANTITIES = (
     "frac1",
     "frac2",
@@ -92,7 +92,7 @@ RESULT_TABLE_MIXTURE_KNOWN_QUANTITIES = tuple(
     dict.fromkeys(RESULT_TABLE_MIXTURE_DEFAULT_QUANTITIES + RESULT_TABLE_MIXTURE_EXTRA_QUANTITIES)
 )
 
-RESULT_TABLE_LLE_BASE_COLUMNS = ("property", "mixture", "tie_line", "cid", "name",)
+RESULT_TABLE_LLE_BASE_COLUMNS = ("property", "method", "mixture", "tie_line", "cid", "name",)
 RESULT_TABLE_LLE_COLUMN_SPECS = {
     "x": {"quantities": ("x",), "kind": "component"},
     "temperature": {"quantities": ("temperature", "xlle"), "kind": "mixture"},
