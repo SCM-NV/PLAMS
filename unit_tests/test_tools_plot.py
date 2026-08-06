@@ -27,6 +27,7 @@ from scm.plams.tools.plot import (
     plot_molecule,
     plot_msd,
     plot_work_function,
+    plot_energy_landscape,
 )
 from test_helpers import skip_if_no_scm_pisa
 
@@ -564,3 +565,64 @@ def test_plot_work_function(run_calculations, rkf_tools_plot):
     ax.set_title("Electrostatic Potential Profile", fontsize=14)
     ax.set_xlabel("Length (Angstroms)", fontsize=13)
     ax.set_ylabel("Energy (eV)", fontsize=13)
+
+
+# ----------------------------------------------------------
+# Testing plot_energy_landscape
+# ----------------------------------------------------------
+@image_comparison(
+    baseline_images=["plot_energy_landscape"],
+    remove_text=True,
+    extensions=["png"],
+    style="mpl20",
+    tol=20,
+)
+def test_plot_energy_landscape(run_calculations, rkf_tools_plot, xyz_folder):
+    plt.close("all")
+
+    mol = Molecule()
+    mol.add_atom(Atom(symbol="H", coords=(0.26799604, 1.56164318, 0.80172174)))
+    mol.add_atom(Atom(symbol="O", coords=(0.70317302, 1.15034441, 0.02980438)))
+    mol.add_atom(Atom(symbol="N", coords=(0.07385403, -1.26509181, -0.02723174)))
+    mol.add_atom(Atom(symbol="C", coords=(0.33895691, -0.13354579, 0.04083563)))
+
+    sett = Settings()
+    sett.input.ams.UseSymmetry = "No"
+    sett.input.ams.Task = "PESExploration"
+    sett.input.ams.PESExploration.RandomSeed = 1
+    sett.input.ams.PESExploration.Job = "ProcessSearch"
+    sett.input.ams.PESExploration.NumExpeditions = 500
+    sett.input.ams.PESExploration.NumExplorers = 4
+    sett.input.ams.PESExploration.SaddleSearch.MaxEnergy = 6.0
+    sett.input.ams.PESExploration.SaddleSearch.MinEnergyBarrier = 0.1
+    sett.input.ams.PESExploration.StructureComparison.UseCovalent = "Yes"
+    sett.input.ams.UseSymmetry = "No"
+    sett.input.MOPAC.Model = "AM1"
+
+    # if run_calculations:
+    if False:
+        job = AMSJob(name="HCNO", molecule=mol, settings=sett)
+        job.run()
+    else:
+        job = AMSJob.load_external(rkf_tools_plot / "HCNO")
+
+    energy_landscape = job.results.get_energy_landscape()
+
+    _, ax = plt.subplots(3, 2, figsize=(20, 10))
+    plot_energy_landscape(energy_landscape, ax=ax[0, 0], layout="auto")
+    ax[0, 0].set_ylabel("Energy (eV)", fontsize=13)
+
+    plot_energy_landscape(energy_landscape, ax=ax[0, 1], layout="dfs")
+    plot_energy_landscape(energy_landscape, ax=ax[1, 0], layout="bfs")
+    plot_energy_landscape(energy_landscape, ax=ax[1, 1], layout="longest_path")
+    plot_energy_landscape(energy_landscape, ax=ax[2, 0], layout="force")
+    plot_energy_landscape(energy_landscape, ax=ax[2, 1], layout="crossings")
+
+    # Workaround: Matplotlib's @image_comparison misses some text in subplot grids.
+    # We manually hide the remaining text here to ensure visual regression tests
+    # pass consistently across different operating systems.
+    for axis in ax.flat:
+        axis.set_xlabel("")
+        axis.set_ylabel("")
+        for txt in axis.texts:
+            txt.set_visible(False)

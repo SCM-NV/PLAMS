@@ -11,11 +11,13 @@ from typing import (
     Sequence,
 )
 import numpy as np
+import scipy.ndimage
 
 from scm.plams.core.errors import MissingOptionalPackageError
 from scm.plams.core.functions import requires_optional_package
 from scm.plams.interfaces.adfsuite.ams import AMSJob
 from scm.plams.mol.molecule import Molecule
+from scm.plams.tools.units import Units
 
 try:
     from scm.base import ChemicalSystem
@@ -37,6 +39,7 @@ __all__ = [
     "plot_phonons_band_structure",
     "plot_phonons_dos",
     "plot_phonons_thermodynamic_properties",
+    "plot_energy_landscape",
     "plot_molecule",
     "plot_image_grid",
     "plot_correlation",
@@ -959,5 +962,467 @@ def plot_work_function(
             color="black",
             horizontalalignment="right",
         )
+
+    return ax
+
+
+@requires_optional_package("matplotlib")
+def plot_energy_landscape(
+    energy_landscape,
+    ax: Optional["plt.Axes"] = None,
+    unit: str = "eV",
+    landscape_width: float = 0.45,
+    spacing: float = 1.0,
+    ts_color: str = "red",
+    min_color: str = "black",
+    connector_color: str = "black",
+    connector_linestyle: Any = (0, (4, 4)),
+    label_states: bool = True,
+    layout: str = "auto",
+    force_iterations: int = 200,
+) -> "plt.Axes":
+    """Plot an energy landscape returned by ``AMSResults.get_energy_landscape()``.
+
+    State energies are shown relative to the global minimum in the requested
+    unit. Local minima are plotted in ``min_color`` and transition states in
+    ``ts_color``. Dashed connectors are drawn between connected states.
+
+    Parameters
+    ----------
+    energy_landscape
+        Energy landscape object returned by ``AMSResults.get_energy_landscape()``.
+    ax
+        Matplotlib axis to draw on. If ``None``, a new figure and axis are created.
+    unit
+        Energy unit used for the y-axis and for converting relative energies from Hartree.
+    landscape_width
+        Width of the horizontal line segment drawn for each state.
+    spacing
+        Horizontal spacing between consecutive plotted states within a component.
+    ts_color
+        Color used for transition-state level segments and their labels.
+    min_color
+        Color used for local-minimum level segments and their labels.
+    connector_color
+        Color used for the dashed lines connecting related states.
+    connector_linestyle
+        Matplotlib linestyle specification for the state-connection lines.
+    label_states
+        If ``True``, annotate each state with its integer state ID.
+    layout
+        Layout strategy used to order the states along the horizontal axis.
+        Supported values are ``"auto"``, ``"dfs"``, ``"bfs"``,
+        ``"longest_path"``, ``"force"``, and ``"crossings"``.
+    force_iterations
+        Number of relaxation iterations used by the ``"force"`` layout.
+
+    Returns
+    -------
+    matplotlib.axes.Axes
+        The axis containing the plotted energy landscape.
+    """
+    import matplotlib.pyplot as plt
+    from collections import deque
+    import itertools
+
+    states = list(energy_landscape)
+
+    if ax is None:
+        _, ax = plt.subplots()
+
+    if len(states) == 0:
+        ax.set_ylabel(f"Relative Energy ({unit})")
+        ax.set_xticks([])
+        return ax
+
+    state_map = {state.id: state for state in states}
+    # Build a graph representation of the landscape from the TS reactant/product links.
+    adjacency = {state.id: set() for state in states}
+    edge_pairs = set()
+    for state in states:
+        if state.reactants is not None:
+            adjacency[state.id].add(state.reactants.id)
+            adjacency[state.reactants.id].add(state.id)
+            edge_pairs.add(tuple(sorted((state.id, state.reactants.id))))
+        if state.products is not None:
+            adjacency[state.id].add(state.products.id)
+            adjacency[state.products.id].add(state.id)
+            edge_pairs.add(tuple(sorted((state.id, state.products.id))))
+
+    def _state_sort_key(state_id):
+        state = state_map[state_id]
+        return (state.isTS, state.energy, state.id)
+
+    def _component(start_id, remaining_ids):
+        component = set()
+        stack = [start_id]
+        while stack:
+            node = stack.pop()
+            if node in component:
+                continue
+            component.add(node)
+            stack.extend(adjacency[node] & remaining_ids)
+        return component
+
+    def _component_start(component):
+        endpoints = [node for node in component if len(adjacency[node] & component) <= 1]
+        candidates = endpoints if endpoints else list(component)
+        return min(candidates, key=_state_sort_key)
+
+    def _connected_components():
+        # Layout disconnected reaction networks independently before placing them side by side.
+        remaining_ids = {state.id for state in states}
+        components = []
+        while remaining_ids:
+            start_id = min(remaining_ids, key=_state_sort_key)
+            component = _component(start_id, remaining_ids)
+            components.append(component)
+            remaining_ids -= component
+        components.sort(key=lambda component: _state_sort_key(_component_start(component)))
+        return components
+
+    def _ordered_components(orderer):
+        ordered_ids = []
+        for component in _connected_components():
+            ordered_ids.extend(orderer(component))
+        return ordered_ids
+
+    def _dfs_order(component):
+        # Follow one branch deeply before backtracking, which often matches a reaction path view.
+        start_id = _component_start(component)
+        visited = set()
+        ordered_ids = []
+
+        def _visit(node):
+            visited.add(node)
+            ordered_ids.append(node)
+            neighbors = sorted(adjacency[node] & component, key=_state_sort_key)
+            for neighbor in neighbors:
+                if neighbor not in visited:
+                    _visit(neighbor)
+
+        _visit(start_id)
+        return ordered_ids
+
+    def _bfs_order(component):
+        # Expand level by level from one endpoint to keep nearby states grouped together.
+        start_id = _component_start(component)
+        queue = deque([start_id])
+        visited = {start_id}
+        ordered_ids = []
+        while queue:
+            node = queue.popleft()
+            ordered_ids.append(node)
+            neighbors = sorted(adjacency[node] & component, key=_state_sort_key)
+            for neighbor in neighbors:
+                if neighbor not in visited:
+                    visited.add(neighbor)
+                    queue.append(neighbor)
+        return ordered_ids
+
+    def _farthest(start_id, component):
+        distances = {start_id: 0}
+        parents = {start_id: None}
+        queue = deque([start_id])
+        while queue:
+            node = queue.popleft()
+            for neighbor in sorted(adjacency[node] & component, key=_state_sort_key):
+                if neighbor not in distances:
+                    distances[neighbor] = distances[node] + 1
+                    parents[neighbor] = node
+                    queue.append(neighbor)
+        farthest_id = max(
+            distances, key=lambda node: (distances[node], -int(state_map[node].isTS), -state_map[node].energy, -node)
+        )
+        return farthest_id, distances, parents
+
+    def _longest_path_order(component):
+        # Use the graph backbone first, then attach side branches around that main path.
+        start_id = _component_start(component)
+        end_a, _, _ = _farthest(start_id, component)
+        end_b, _, parents = _farthest(end_a, component)
+
+        backbone = []
+        node = end_b
+        while node is not None:
+            backbone.append(node)
+            node = parents[node]
+        backbone.reverse()
+
+        ordered_ids = []
+        placed = set()
+
+        def _add_side_branch(root_id, blocked):
+            neighbors = sorted((adjacency[root_id] & component) - blocked - placed, key=_state_sort_key)
+            for neighbor in neighbors:
+                ordered_ids.append(neighbor)
+                placed.add(neighbor)
+                _add_side_branch(neighbor, blocked | {root_id})
+
+        for node in backbone:
+            if node not in placed:
+                ordered_ids.append(node)
+                placed.add(node)
+            _add_side_branch(node, set(backbone))
+
+        leftovers = sorted(component - placed, key=_state_sort_key)
+        ordered_ids.extend(leftovers)
+        return ordered_ids
+
+    def _crossings_for_order(order):
+        # Score a 1D ordering by counting connector crossings and total connector length.
+        positions = {state_id: idx for idx, state_id in enumerate(order)}
+        edge_list = sorted(edge_pairs)
+        crossings = 0
+        edge_length = 0
+        for idx, (a1, b1) in enumerate(edge_list):
+            x1, x2 = sorted((positions[a1], positions[b1]))
+            edge_length += x2 - x1
+            for a2, b2 in edge_list[idx + 1 :]:
+                if len({a1, b1, a2, b2}) < 4:
+                    continue
+                y1, y2 = sorted((positions[a2], positions[b2]))
+                if (x1 < y1 < x2 < y2) or (y1 < x1 < y2 < x2):
+                    crossings += 1
+        return crossings, edge_length, tuple(order)
+
+    def _crossings_order(component):
+        # For small graphs try all permutations; otherwise improve a good initial guess locally.
+        component_list = sorted(component, key=_state_sort_key)
+        if len(component_list) <= 8:
+            return list(min(itertools.permutations(component_list), key=_crossings_for_order))
+
+        best = min(
+            (_dfs_order(component), _bfs_order(component), _longest_path_order(component)),
+            key=_crossings_for_order,
+        )
+        improved = list(best)
+        improved_flag = True
+        while improved_flag:
+            improved_flag = False
+            best_score = _crossings_for_order(improved)
+            for i in range(len(improved) - 1):
+                candidate = improved.copy()
+                candidate[i], candidate[i + 1] = candidate[i + 1], candidate[i]
+                candidate_score = _crossings_for_order(candidate)
+                if candidate_score < best_score:
+                    improved = candidate
+                    best_score = candidate_score
+                    improved_flag = True
+        return improved
+
+    def _force_order(component):
+        # Relax 1D positions with attractive edges and repulsive nodes, then sort by the relaxed positions.
+        component_ids = sorted(component, key=_state_sort_key)
+        initial = _longest_path_order(component)
+        x_pos = {state_id: float(index) for index, state_id in enumerate(initial)}
+        ideal_gap = max(spacing, 1.0)
+        for _ in range(max(force_iterations, 1)):
+            delta = {state_id: 0.0 for state_id in component_ids}
+            for i, left in enumerate(component_ids):
+                for right in component_ids[i + 1 :]:
+                    distance = x_pos[right] - x_pos[left]
+                    if abs(distance) < 1e-8:
+                        distance = 1e-8
+                    repulsion = 0.02 / abs(distance)
+                    delta[left] -= repulsion
+                    delta[right] += repulsion
+            for left, right in edge_pairs:
+                if left in component and right in component:
+                    distance = x_pos[right] - x_pos[left]
+                    attraction = 0.08 * (distance - ideal_gap)
+                    delta[left] += attraction
+                    delta[right] -= attraction
+            for state_id in component_ids:
+                state = state_map[state_id]
+                delta[state_id] += 0.03 * Units.convert(state.energy - min(s.energy for s in states), "hartree", unit)
+            for state_id in component_ids:
+                x_pos[state_id] += delta[state_id]
+            centered = np.mean([x_pos[state_id] for state_id in component_ids])
+            for state_id in component_ids:
+                x_pos[state_id] -= centered
+        return sorted(component_ids, key=lambda state_id: (x_pos[state_id],) + _state_sort_key(state_id))
+
+    layout_orderers = {
+        "dfs": lambda: _ordered_components(_dfs_order),
+        "bfs": lambda: _ordered_components(_bfs_order),
+        "longest_path": lambda: _ordered_components(_longest_path_order),
+        "force": lambda: _ordered_components(_force_order),
+        "crossings": lambda: _ordered_components(_crossings_order),
+    }
+
+    if layout == "auto":
+        # Compare all available strategies and keep the one with the cleanest connector pattern.
+        candidate_orders = {name: orderer() for name, orderer in layout_orderers.items()}
+        ordered_ids = min(
+            candidate_orders.values(),
+            key=lambda order: _crossings_for_order(order)
+            + (sum(abs(i - order.index(state.id)) for i, state in enumerate(states)),),
+        )
+    else:
+        if layout not in layout_orderers:
+            raise ValueError(
+                "Unsupported layout '{}'. Choose from 'auto', 'dfs', 'bfs', 'longest_path', 'force', or 'crossings'.".format(
+                    layout
+                )
+            )
+        ordered_ids = layout_orderers[layout]()
+
+    ordered_states = [state_map[state_id] for state_id in ordered_ids]
+    # Convert the chosen ordering into actual x-coordinates, leaving a gap between components.
+    component_gap = max(1.5 * spacing, spacing + landscape_width)
+    x_map = {}
+    current_x = 0.0
+    for component in _connected_components():
+        component_order = [state_id for state_id in ordered_ids if state_id in component]
+        for offset, state_id in enumerate(component_order):
+            x_map[state_id] = current_x + offset * spacing
+        current_x = x_map[component_order[-1]] + component_gap
+
+    reference_energy = min(state.energy for state in states)
+    relative_energies = {state.id: Units.convert(state.energy - reference_energy, "hartree", unit) for state in states}
+    half_width = landscape_width / 2.0
+
+    for state in ordered_states:
+        x_pos = x_map[state.id]
+        y_pos = relative_energies[state.id]
+        color = ts_color if state.isTS else min_color
+        ax.hlines(y=y_pos, xmin=x_pos - half_width, xmax=x_pos + half_width, colors=color, linewidth=1.6, zorder=3)
+        if label_states:
+            ax.text(x_pos, y_pos, str(state.id), ha="center", va="bottom", color=color, fontsize=11, zorder=4)
+
+    plotted_pairs = set()
+    # Draw each connection only once, even though TS links are visible from both endpoints.
+    for state in ordered_states:
+        x_pos = x_map[state.id]
+        y_pos = relative_energies[state.id]
+        for other in (state.reactants, state.products):
+            if other is None:
+                continue
+            pair = tuple(sorted((state.id, other.id)))
+            if pair in plotted_pairs:
+                continue
+            other_x = x_map[other.id]
+            other_y = relative_energies[other.id]
+            if other_x < x_pos:
+                x1, x2 = other_x + half_width, x_pos - half_width
+                y1, y2 = other_y, y_pos
+            else:
+                x1, x2 = x_pos + half_width, other_x - half_width
+                y1, y2 = y_pos, other_y
+            ax.plot([x1, x2], [y1, y2], color=connector_color, linestyle=connector_linestyle, linewidth=1.2, zorder=2)
+            plotted_pairs.add(pair)
+
+    ax.set_ylabel(f"Relative Energy ({unit})")
+    ax.set_xticks([])
+    x_values = [x_map[state.id] for state in ordered_states]
+    ax.set_xlim(min(x_values) - half_width - 0.2, max(x_values) + half_width + 0.2)
+
+    y_min = min(relative_energies.values())
+    y_max = max(relative_energies.values())
+    padding = 0.05 * max(y_max - y_min, 1.0)
+    ax.set_ylim(y_min - padding, y_max + padding)
+
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.spines["bottom"].set_visible(False)
+    ax.tick_params(axis="x", length=0)
+
+    return ax
+
+
+@requires_optional_package("matplotlib")
+# def plot_pes_scan_2d(
+#     job,
+#     ax,
+#     title,
+#     vrange=(0.0, 0.4),
+#     cmap="jet",
+#     add_colorbar=True,
+#     visible=True,
+#     animated=False,
+#     image_aspect="equal",
+#     axis_aspect=1.6,
+# ):
+def plot_pes_scan_2d(
+    RaveledPESCoords,
+    PES,
+    ax,
+    title="Hola",
+    vrange=(0.0, 0.4),
+    cmap="jet",
+    add_colorbar=True,
+    visible=True,
+    animated=False,
+    aspect="equal",
+    axis_aspect=1.6,
+    **kwargs,
+):
+    bohr_to_ang = Units.convert(1.0, "bohr", "angstrom")
+    hartree_to_ev = Units.convert(1.0, "hartree", "eV")
+
+    z = np.array(PES)
+    z = (z - min(z)) * hartree_to_ev
+    x = np.array(RaveledPESCoords[2]) * bohr_to_ang
+    y = np.array(RaveledPESCoords[0]) * bohr_to_ang
+
+    x = np.unique(x)
+    y = np.unique(y)
+    X, Y = np.meshgrid(x, y)
+    E = z.reshape(len(x), len(y))
+
+    Xi = scipy.ndimage.zoom(X, 4)
+    Yi = scipy.ndimage.zoom(Y, 4)
+    Ei = scipy.ndimage.zoom(E, 4)
+
+    contour = ax.contour(Xi, Yi, Ei, 10, linewidths=0.5, colors="black", alpha=0.5, zorder=2)
+    for collection in contour.collections:
+        collection.set_visible(visible)
+    #     collection.set_animated(animated)
+
+    image = ax.imshow(
+        Ei,
+        cmap=cmap,
+        interpolation="gaussian",
+        origin="lower",
+        aspect=aspect,
+        extent=[min(x), max(x), min(y), max(y)],
+        zorder=1,
+        # vmin=vrange[0],
+        # vmax=vrange[1],
+        # visible=visible,
+        # animated=animated,
+    )
+
+    ax.set_aspect("equal")
+
+    colorbar = None
+    if add_colorbar:
+        # colorbar = ax.figure.colorbar(image, ax=ax, shrink=0.825, pad=0.02, format='% 1.2f')
+        colorbar = ax.figure.colorbar(image, ax=ax)
+        colorbar.set_label("Energy (eV)")
+
+    # ax.set_xlabel("$X_{CO} (\AA)$", fontsize=13)
+    # ax.set_ylabel("$Y_{CO} (\AA)$", fontsize=13)
+    # ax.set_xlim(min(x), max(x))
+    # ax.set_ylim(min(y), max(y))
+    if axis_aspect is not None:
+        ax.set_aspect(axis_aspect)
+    #
+    # title_artist = ax.text(
+    #     0.5,
+    #     1.02,
+    #     title,
+    #     transform=ax.transAxes,
+    #     ha="center",
+    #     va="bottom",
+    #     fontsize=13,
+    #     visible=visible,
+    #     animated=animated,
+    # )
+    #
+    # artists = [image, *contour.collections, title_artist]
+    # if colorbar is not None:
+    #     artists.extend(colorbar.ax.get_children())
 
     return ax
