@@ -9,6 +9,8 @@ from typing import (
     Literal,
     cast,
     Sequence,
+    Set,
+    Callable,
 )
 import numpy as np
 
@@ -30,6 +32,7 @@ if TYPE_CHECKING:
     import ase
     from os import PathLike
     from PIL import Image as PilImage
+    from scm.plams.interfaces.adfsuite.ams import AMSResults
     from scm.plams.recipes.md.trajectoryanalysis import AMSMSDJob
 
 __all__ = [
@@ -967,7 +970,7 @@ def plot_work_function(
 
 @requires_optional_package("matplotlib")
 def plot_energy_landscape(
-    energy_landscape,
+    energy_landscape: "AMSResults.EnergyLandscape",
     ax: Optional["plt.Axes"] = None,
     unit: str = "eV",
     landscape_width: float = 0.45,
@@ -1036,8 +1039,8 @@ def plot_energy_landscape(
 
     state_map = {state.id: state for state in states}
     # Build a graph representation of the landscape from the TS reactant/product links.
-    adjacency = {state.id: set() for state in states}
-    edge_pairs = set()
+    adjacency: Dict[int, Set[int]] = {state.id: set() for state in states}
+    edge_pairs: Set[Tuple[int, int]] = set()
     for state in states:
         if state.reactants is not None:
             adjacency[state.id].add(state.reactants.id)
@@ -1048,12 +1051,12 @@ def plot_energy_landscape(
             adjacency[state.products.id].add(state.id)
             edge_pairs.add(tuple(sorted((state.id, state.products.id))))
 
-    def _state_sort_key(state_id):
+    def _state_sort_key(state_id: int) -> Tuple[bool, float, int]:
         state = state_map[state_id]
         return (state.isTS, state.energy, state.id)
 
-    def _component(start_id, remaining_ids):
-        component = set()
+    def _component(start_id: int, remaining_ids: Set[int]) -> Set[int]:
+        component: Set[int] = set()
         stack = [start_id]
         while stack:
             node = stack.pop()
@@ -1063,15 +1066,15 @@ def plot_energy_landscape(
             stack.extend(adjacency[node] & remaining_ids)
         return component
 
-    def _component_start(component):
+    def _component_start(component: Set[int]) -> int:
         endpoints = [node for node in component if len(adjacency[node] & component) <= 1]
         candidates = endpoints if endpoints else list(component)
         return min(candidates, key=_state_sort_key)
 
-    def _connected_components():
+    def _connected_components() -> List[Set[int]]:
         # Layout disconnected reaction networks independently before placing them side by side.
         remaining_ids = {state.id for state in states}
-        components = []
+        components: List[Set[int]] = []
         while remaining_ids:
             start_id = min(remaining_ids, key=_state_sort_key)
             component = _component(start_id, remaining_ids)
@@ -1080,19 +1083,19 @@ def plot_energy_landscape(
         components.sort(key=lambda component: _state_sort_key(_component_start(component)))
         return components
 
-    def _ordered_components(orderer):
-        ordered_ids = []
+    def _ordered_components(orderer: Callable[[Set[int]], List[int]]) -> List[int]:
+        ordered_ids: List[int] = []
         for component in _connected_components():
             ordered_ids.extend(orderer(component))
         return ordered_ids
 
-    def _dfs_order(component):
+    def _dfs_order(component: Set[int]) -> List[int]:
         # Follow one branch deeply before backtracking, which often matches a reaction path view.
         start_id = _component_start(component)
-        visited = set()
-        ordered_ids = []
+        visited: Set[int] = set()
+        ordered_ids: List[int] = []
 
-        def _visit(node):
+        def _visit(node: int) -> None:
             visited.add(node)
             ordered_ids.append(node)
             neighbors = sorted(adjacency[node] & component, key=_state_sort_key)
@@ -1103,12 +1106,12 @@ def plot_energy_landscape(
         _visit(start_id)
         return ordered_ids
 
-    def _bfs_order(component):
+    def _bfs_order(component: Set[int]) -> List[int]:
         # Expand level by level from one endpoint to keep nearby states grouped together.
         start_id = _component_start(component)
         queue = deque([start_id])
-        visited = {start_id}
-        ordered_ids = []
+        visited: Set[int] = {start_id}
+        ordered_ids: List[int] = []
         while queue:
             node = queue.popleft()
             ordered_ids.append(node)
@@ -1119,7 +1122,7 @@ def plot_energy_landscape(
                     queue.append(neighbor)
         return ordered_ids
 
-    def _farthest(start_id, component):
+    def _farthest(start_id: int, component: Set[int]) -> Tuple[int, Dict[int, int], Dict[int, Optional[int]]]:
         distances = {start_id: 0}
         parents = {start_id: None}
         queue = deque([start_id])
@@ -1135,23 +1138,23 @@ def plot_energy_landscape(
         )
         return farthest_id, distances, parents
 
-    def _longest_path_order(component):
+    def _longest_path_order(component: Set[int]) -> List[int]:
         # Use the graph backbone first, then attach side branches around that main path.
         start_id = _component_start(component)
         end_a, _, _ = _farthest(start_id, component)
         end_b, _, parents = _farthest(end_a, component)
 
-        backbone = []
+        backbone: List[int] = []
         node = end_b
         while node is not None:
             backbone.append(node)
             node = parents[node]
         backbone.reverse()
 
-        ordered_ids = []
-        placed = set()
+        ordered_ids: List[int] = []
+        placed: Set[int] = set()
 
-        def _add_side_branch(root_id, blocked):
+        def _add_side_branch(root_id: int, blocked: Set[int]) -> None:
             neighbors = sorted((adjacency[root_id] & component) - blocked - placed, key=_state_sort_key)
             for neighbor in neighbors:
                 ordered_ids.append(neighbor)
@@ -1168,7 +1171,7 @@ def plot_energy_landscape(
         ordered_ids.extend(leftovers)
         return ordered_ids
 
-    def _crossings_for_order(order):
+    def _crossings_for_order(order: Sequence[int]) -> Tuple[int, int, Tuple[int, ...]]:
         # Score a 1D ordering by counting connector crossings and total connector length.
         positions = {state_id: idx for idx, state_id in enumerate(order)}
         edge_list = sorted(edge_pairs)
@@ -1185,7 +1188,7 @@ def plot_energy_landscape(
                     crossings += 1
         return crossings, edge_length, tuple(order)
 
-    def _crossings_order(component):
+    def _crossings_order(component: Set[int]) -> List[int]:
         # For small graphs try all permutations; otherwise improve a good initial guess locally.
         component_list = sorted(component, key=_state_sort_key)
         if len(component_list) <= 8:
@@ -1210,14 +1213,14 @@ def plot_energy_landscape(
                     improved_flag = True
         return improved
 
-    def _force_order(component):
+    def _force_order(component: Set[int]) -> List[int]:
         # Relax 1D positions with attractive edges and repulsive nodes, then sort by the relaxed positions.
         component_ids = sorted(component, key=_state_sort_key)
         initial = _longest_path_order(component)
-        x_pos = {state_id: float(index) for index, state_id in enumerate(initial)}
+        x_pos: Dict[int, float] = {state_id: float(index) for index, state_id in enumerate(initial)}
         ideal_gap = max(spacing, 1.0)
         for _ in range(max(force_iterations, 1)):
-            delta = {state_id: 0.0 for state_id in component_ids}
+            delta: Dict[int, float] = {state_id: 0.0 for state_id in component_ids}
             for i, left in enumerate(component_ids):
                 for right in component_ids[i + 1 :]:
                     distance = x_pos[right] - x_pos[left]
@@ -1242,7 +1245,7 @@ def plot_energy_landscape(
                 x_pos[state_id] -= centered
         return sorted(component_ids, key=lambda state_id: (x_pos[state_id],) + _state_sort_key(state_id))
 
-    layout_orderers = {
+    layout_orderers: Dict[str, Callable[[], List[int]]] = {
         "dfs": lambda: _ordered_components(_dfs_order),
         "bfs": lambda: _ordered_components(_bfs_order),
         "longest_path": lambda: _ordered_components(_longest_path_order),
@@ -1252,8 +1255,8 @@ def plot_energy_landscape(
 
     if layout == "auto":
         # Compare all available strategies and keep the one with the cleanest connector pattern.
-        candidate_orders = {name: orderer() for name, orderer in layout_orderers.items()}
-        ordered_ids = min(
+        candidate_orders: Dict[str, List[int]] = {name: orderer() for name, orderer in layout_orderers.items()}
+        ordered_ids: List[int] = min(
             candidate_orders.values(),
             key=lambda order: _crossings_for_order(order)
             + (sum(abs(i - order.index(state.id)) for i, state in enumerate(states)),),
