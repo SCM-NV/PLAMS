@@ -1045,11 +1045,13 @@ def plot_energy_landscape(
         if state.reactants is not None:
             adjacency[state.id].add(state.reactants.id)
             adjacency[state.reactants.id].add(state.id)
-            edge_pairs.add(tuple(sorted((state.id, state.reactants.id))))
+            left_id, right_id = sorted((state.id, state.reactants.id))
+            edge_pairs.add((left_id, right_id))
         if state.products is not None:
             adjacency[state.id].add(state.products.id)
             adjacency[state.products.id].add(state.id)
-            edge_pairs.add(tuple(sorted((state.id, state.products.id))))
+            left_id, right_id = sorted((state.id, state.products.id))
+            edge_pairs.add((left_id, right_id))
 
     def _state_sort_key(state_id: int) -> Tuple[bool, float, int]:
         state = state_map[state_id]
@@ -1123,8 +1125,8 @@ def plot_energy_landscape(
         return ordered_ids
 
     def _farthest(start_id: int, component: Set[int]) -> Tuple[int, Dict[int, int], Dict[int, Optional[int]]]:
-        distances = {start_id: 0}
-        parents = {start_id: None}
+        distances: Dict[int, int] = {start_id: 0}
+        parents: Dict[int, Optional[int]] = {start_id: None}
         queue = deque([start_id])
         while queue:
             node = queue.popleft()
@@ -1145,7 +1147,7 @@ def plot_energy_landscape(
         end_b, _, parents = _farthest(end_a, component)
 
         backbone: List[int] = []
-        node = end_b
+        node: Optional[int] = end_b
         while node is not None:
             backbone.append(node)
             node = parents[node]
@@ -1192,7 +1194,7 @@ def plot_energy_landscape(
         # For small graphs try all permutations; otherwise improve a good initial guess locally.
         component_list = sorted(component, key=_state_sort_key)
         if len(component_list) <= 8:
-            return list(min(itertools.permutations(component_list), key=_crossings_for_order))
+            return list(min(itertools.permutations(component_list), key=lambda perm: _crossings_for_order(perm)))
 
         best = min(
             (_dfs_order(component), _bfs_order(component), _longest_path_order(component)),
