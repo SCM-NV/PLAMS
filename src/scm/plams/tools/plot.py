@@ -11,7 +11,6 @@ from typing import (
     Sequence,
 )
 import numpy as np
-import scipy.ndimage
 
 from scm.plams.core.errors import MissingOptionalPackageError
 from scm.plams.core.functions import requires_optional_package
@@ -1327,102 +1326,5 @@ def plot_energy_landscape(
     ax.spines["right"].set_visible(False)
     ax.spines["bottom"].set_visible(False)
     ax.tick_params(axis="x", length=0)
-
-    return ax
-
-
-@requires_optional_package("matplotlib")
-# def plot_pes_scan_2d(
-#     job,
-#     ax,
-#     title,
-#     vrange=(0.0, 0.4),
-#     cmap="jet",
-#     add_colorbar=True,
-#     visible=True,
-#     animated=False,
-#     image_aspect="equal",
-#     axis_aspect=1.6,
-# ):
-def plot_pes_scan_2d(
-    RaveledPESCoords,
-    PES,
-    ax,
-    title="Hola",
-    vrange=(0.0, 0.4),
-    cmap="jet",
-    add_colorbar=True,
-    visible=True,
-    animated=False,
-    aspect="equal",
-    axis_aspect=1.6,
-    **kwargs,
-):
-    bohr_to_ang = Units.convert(1.0, "bohr", "angstrom")
-    hartree_to_ev = Units.convert(1.0, "hartree", "eV")
-
-    z = np.array(PES)
-    z = (z - min(z)) * hartree_to_ev
-    x = np.array(RaveledPESCoords[2]) * bohr_to_ang
-    y = np.array(RaveledPESCoords[0]) * bohr_to_ang
-
-    x = np.unique(x)
-    y = np.unique(y)
-    X, Y = np.meshgrid(x, y)
-    E = z.reshape(len(x), len(y))
-
-    Xi = scipy.ndimage.zoom(X, 4)
-    Yi = scipy.ndimage.zoom(Y, 4)
-    Ei = scipy.ndimage.zoom(E, 4)
-
-    contour = ax.contour(Xi, Yi, Ei, 10, linewidths=0.5, colors="black", alpha=0.5, zorder=2)
-    for collection in contour.collections:
-        collection.set_visible(visible)
-    #     collection.set_animated(animated)
-
-    image = ax.imshow(
-        Ei,
-        cmap=cmap,
-        interpolation="gaussian",
-        origin="lower",
-        aspect=aspect,
-        extent=[min(x), max(x), min(y), max(y)],
-        zorder=1,
-        # vmin=vrange[0],
-        # vmax=vrange[1],
-        # visible=visible,
-        # animated=animated,
-    )
-
-    ax.set_aspect("equal")
-
-    colorbar = None
-    if add_colorbar:
-        # colorbar = ax.figure.colorbar(image, ax=ax, shrink=0.825, pad=0.02, format='% 1.2f')
-        colorbar = ax.figure.colorbar(image, ax=ax)
-        colorbar.set_label("Energy (eV)")
-
-    # ax.set_xlabel("$X_{CO} (\AA)$", fontsize=13)
-    # ax.set_ylabel("$Y_{CO} (\AA)$", fontsize=13)
-    # ax.set_xlim(min(x), max(x))
-    # ax.set_ylim(min(y), max(y))
-    if axis_aspect is not None:
-        ax.set_aspect(axis_aspect)
-    #
-    # title_artist = ax.text(
-    #     0.5,
-    #     1.02,
-    #     title,
-    #     transform=ax.transAxes,
-    #     ha="center",
-    #     va="bottom",
-    #     fontsize=13,
-    #     visible=visible,
-    #     animated=animated,
-    # )
-    #
-    # artists = [image, *contour.collections, title_artist]
-    # if colorbar is not None:
-    #     artists.extend(colorbar.ax.get_children())
 
     return ax
