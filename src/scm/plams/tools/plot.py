@@ -11,6 +11,7 @@ from typing import (
     Sequence,
     Set,
     Callable,
+    Iterable,
 )
 import numpy as np
 
@@ -1173,7 +1174,7 @@ def plot_energy_landscape(
         ordered_ids.extend(leftovers)
         return ordered_ids
 
-    def _crossings_for_order(order: Sequence[int]) -> Tuple[int, int, Tuple[int, ...]]:
+    def _crossings_for_order(order: Iterable[int]) -> Tuple[int, int, Tuple[int, ...]]:
         # Score a 1D ordering by counting connector crossings and total connector length.
         positions = {state_id: idx for idx, state_id in enumerate(order)}
         edge_list = sorted(edge_pairs)
