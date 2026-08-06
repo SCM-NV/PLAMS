@@ -1237,7 +1237,7 @@ def plot_energy_landscape(
                 delta[state_id] += 0.03 * Units.convert(state.energy - min(s.energy for s in states), "hartree", unit)
             for state_id in component_ids:
                 x_pos[state_id] += delta[state_id]
-            centered = np.mean([x_pos[state_id] for state_id in component_ids])
+            centered = float(np.mean([x_pos[state_id] for state_id in component_ids]))
             for state_id in component_ids:
                 x_pos[state_id] -= centered
         return sorted(component_ids, key=lambda state_id: (x_pos[state_id],) + _state_sort_key(state_id))
