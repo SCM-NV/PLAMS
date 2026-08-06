@@ -461,11 +461,11 @@ CRS_PROPERTY_TYPE_METADATA: Dict[str, Dict[str, Any]] = {
         description="Sigma profile for a solvent mixture.",
         system_scope="mixture",
         input_keys={
-            "top_level": ("temperature", "massfraction"),
+            "top_level": ("massfraction",),
             "property": ("nprofile", "sigmamax"),
             "compound": ("frac1",),
         },
-        required_keys=("temperature", "frac1"),
+        required_keys=("frac1",),
         builder={
             "roles": ("compound",),
         },
