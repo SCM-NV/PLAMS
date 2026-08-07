@@ -1355,10 +1355,13 @@ def plot_energy_landscape(
         for state in ordered_states:
             x_pos = x_map[state.id]
             y_pos = relative_energies[state.id]
-            inset_ax = ax.inset_axes(
-                [x_pos - molecule_width / 2.0, y_pos + molecule_y_offset * y_span, molecule_width, molecule_height],
-                transform=ax.transData,
+            inset_bounds = (
+                x_pos - molecule_width / 2.0,
+                y_pos + molecule_y_offset * y_span,
+                molecule_width,
+                molecule_height,
             )
+            inset_ax = ax.inset_axes(inset_bounds, transform=ax.transData)
             inset_ax.set_facecolor("none")
             inset_ax.patch.set_alpha(0.0)
             plot_molecule(state.molecule, ax=inset_ax, keep_axis=False, **molecule_plot_kwargs)
