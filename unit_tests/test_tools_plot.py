@@ -568,16 +568,16 @@ def test_plot_work_function(run_calculations, rkf_tools_plot):
 
 
 # ----------------------------------------------------------
-# Testing plot_energy_landscape
+# Testing plot_energy_landscape for molecules
 # ----------------------------------------------------------
 @image_comparison(
-    baseline_images=["plot_energy_landscape"],
+    baseline_images=["plot_energy_landscape_molecules"],
     remove_text=True,
     extensions=["png"],
     style="mpl20",
     tol=20,
 )
-def test_plot_energy_landscape(run_calculations, rkf_tools_plot, xyz_folder):
+def test_plot_energy_landscape_molecules(run_calculations, rkf_tools_plot, xyz_folder):
     plt.close("all")
 
     mol = Molecule()
@@ -599,8 +599,7 @@ def test_plot_energy_landscape(run_calculations, rkf_tools_plot, xyz_folder):
     sett.input.ams.UseSymmetry = "No"
     sett.input.MOPAC.Model = "AM1"
 
-    # if run_calculations:
-    if False:
+    if run_calculations:
         job = AMSJob(name="HCNO", molecule=mol, settings=sett)
         job.run()
     else:
@@ -609,14 +608,69 @@ def test_plot_energy_landscape(run_calculations, rkf_tools_plot, xyz_folder):
     energy_landscape = job.results.get_energy_landscape()
 
     _, ax = plt.subplots(3, 2, figsize=(20, 10))
-    plot_energy_landscape(energy_landscape, ax=ax[0, 0], layout="auto")
-    ax[0, 0].set_ylabel("Energy (eV)", fontsize=13)
+    plot_energy_landscape(energy_landscape, ax=ax[0, 0], layout="auto", show_molecules=True)
+    plot_energy_landscape(energy_landscape, ax=ax[0, 1], layout="dfs", show_molecules=True)
+    plot_energy_landscape(energy_landscape, ax=ax[1, 0], layout="bfs", show_molecules=True)
+    plot_energy_landscape(energy_landscape, ax=ax[1, 1], layout="longest_path", show_molecules=True)
+    plot_energy_landscape(energy_landscape, ax=ax[2, 0], layout="force", show_molecules=True)
+    plot_energy_landscape(energy_landscape, ax=ax[2, 1], layout="crossings", show_molecules=True)
 
-    plot_energy_landscape(energy_landscape, ax=ax[0, 1], layout="dfs")
-    plot_energy_landscape(energy_landscape, ax=ax[1, 0], layout="bfs")
-    plot_energy_landscape(energy_landscape, ax=ax[1, 1], layout="longest_path")
-    plot_energy_landscape(energy_landscape, ax=ax[2, 0], layout="force")
-    plot_energy_landscape(energy_landscape, ax=ax[2, 1], layout="crossings")
+    # Workaround: Matplotlib's @image_comparison misses some text in subplot grids.
+    # We manually hide the remaining text here to ensure visual regression tests
+    # pass consistently across different operating systems.
+    for axis in ax.flat:
+        axis.set_xlabel("")
+        axis.set_ylabel("")
+        for txt in axis.texts:
+            txt.set_visible(False)
+
+
+# ----------------------------------------------------------
+# Testing plot_energy_landscape for surfaces
+# ----------------------------------------------------------
+@image_comparison(
+    baseline_images=["plot_energy_landscape_surfaces"],
+    # remove_text=True,
+    extensions=["png"],
+    style="mpl20",
+    tol=20,
+)
+def test_plot_energy_landscape_surfaces(run_calculations, rkf_tools_plot, xyz_folder):
+    plt.close("all")
+
+    mol = Molecule(xyz_folder / "MetOH_Cu111.xyz")
+
+    sett = Settings()
+    sett.runscript.preamble_lines = ["export OMP_NUM_THREADS=1"]
+    sett.input.ams.Task = "PESExploration"
+    sett.input.ams.PESExploration.RandomSeed = 10
+    sett.input.ams.PESExploration.Job = "ProcessSearch"
+    sett.input.ams.PESExploration.NumExpeditions = 50
+    sett.input.ams.PESExploration.NumExplorers = 4
+    sett.input.ams.PESExploration.SaddleSearch.MaxEnergy = 3.0
+    sett.input.ams.PESExploration.SaddleSearch.MinEnergyBarrier = 0.1
+    sett.input.ams.PESExploration.SaddleSearch.DisplaceAlongNormalModesWeight = 0.7
+    sett.input.ams.PESExploration.StructureComparison.DistanceDifference = 0.5
+    sett.input.ams.PESExploration.StructureComparison.EnergyDifference = 0.5
+    sett.input.ReaxFF.ForceField = "CuCHO.ff"
+    sett.input.ReaxFF.Charges.Solver = "Direct"
+    sett.input.ams.Constraints.FixedRegion = "surface"
+
+    if run_calculations:
+        job = AMSJob(name="MetOH_Cu111", molecule=mol, settings=sett)
+        job.run()
+    else:
+        job = AMSJob.load_external(rkf_tools_plot / "MetOH_Cu111")
+
+    energy_landscape = job.results.get_energy_landscape()
+
+    _, ax = plt.subplots(3, 2, figsize=(40, 20))
+    plot_energy_landscape(energy_landscape, ax=ax[0, 0], layout="auto", show_molecules=True)
+    plot_energy_landscape(energy_landscape, ax=ax[0, 1], layout="dfs", show_molecules=True)
+    plot_energy_landscape(energy_landscape, ax=ax[1, 0], layout="bfs", show_molecules=True)
+    plot_energy_landscape(energy_landscape, ax=ax[1, 1], layout="longest_path", show_molecules=True)
+    plot_energy_landscape(energy_landscape, ax=ax[2, 0], layout="force", show_molecules=True)
+    plot_energy_landscape(energy_landscape, ax=ax[2, 1], layout="crossings", show_molecules=True)
 
     # Workaround: Matplotlib's @image_comparison misses some text in subplot grids.
     # We manually hide the remaining text here to ensure visual regression tests

@@ -983,6 +983,10 @@ def plot_energy_landscape(
     label_states: bool = True,
     layout: str = "auto",
     force_iterations: int = 200,
+    show_molecules: bool = False,
+    molecule_y_offset: float = 0.06,
+    molecule_scale: float = 0.12,
+    molecule_plot_kwargs: Optional[Dict[str, Any]] = None,
 ) -> "plt.Axes":
     """Plot an energy landscape returned by ``AMSResults.get_energy_landscape()``.
 
@@ -1018,6 +1022,16 @@ def plot_energy_landscape(
         ``"longest_path"``, ``"force"``, and ``"crossings"``.
     force_iterations
         Number of relaxation iterations used by the ``"force"`` layout.
+    show_molecules
+        If ``True``, draw a molecule sketch above each energy level.
+    molecule_y_offset
+        Vertical offset of the molecule sketches above the energy level, expressed as
+        a fraction of the visible energy span.
+    molecule_scale
+        Height of each molecule sketch, expressed as a fraction of the visible energy span.
+    molecule_plot_kwargs
+        Optional keyword arguments forwarded to :func:`plot_molecule` when drawing the
+        molecular structures.
 
     Returns
     -------
@@ -1029,6 +1043,7 @@ def plot_energy_landscape(
     import itertools
 
     states = list(energy_landscape)
+    molecule_plot_kwargs = dict(molecule_plot_kwargs or {})
 
     if ax is None:
         _, ax = plt.subplots()
@@ -1325,8 +1340,29 @@ def plot_energy_landscape(
 
     y_min = min(relative_energies.values())
     y_max = max(relative_energies.values())
-    padding = 0.05 * max(y_max - y_min, 1.0)
-    ax.set_ylim(y_min - padding, y_max + padding)
+    y_span = max(y_max - y_min, 1.0)
+    bottom_padding = 0.05 * y_span
+    top_padding = 0.05 * y_span
+    molecule_height = 0.0
+    if show_molecules:
+        molecule_height = molecule_scale * y_span
+        top_padding = max(top_padding, (molecule_y_offset + molecule_scale + 0.04) * y_span)
+    ax.set_ylim(y_min - bottom_padding, y_max + top_padding)
+
+    if show_molecules:
+        molecule_width = max(landscape_width * 1.6, 0.72 * spacing)
+        # Place a compact molecule sketch above each state without changing the energy layout itself.
+        for state in ordered_states:
+            x_pos = x_map[state.id]
+            y_pos = relative_energies[state.id]
+            inset_ax = ax.inset_axes(
+                [x_pos - molecule_width / 2.0, y_pos + molecule_y_offset * y_span, molecule_width, molecule_height],
+                transform=ax.transData,
+            )
+            inset_ax.set_facecolor("none")
+            inset_ax.patch.set_alpha(0.0)
+            plot_molecule(state.molecule, ax=inset_ax, keep_axis=False, **molecule_plot_kwargs)
+            inset_ax.set_zorder(5)
 
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
