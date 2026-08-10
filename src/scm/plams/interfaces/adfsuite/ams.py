@@ -2645,7 +2645,7 @@ class AMSResults(Results):
                                 ]
                 return "\n".join(lines)
 
-        def __init__(self, results: "AMSResults"):
+        def __init__(self, results: Optional["AMSResults"]):
             self._states: List["AMSResults.EnergyLandscape.State"] = []
             self._fragments: List["AMSResults.EnergyLandscape.Fragment"] = []
             self._fstates: List["AMSResults.EnergyLandscape.FragmentedState"] = []
