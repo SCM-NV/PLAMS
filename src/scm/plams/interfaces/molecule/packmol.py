@@ -50,7 +50,8 @@ def _to_plams_molecule(molecule: MoleculeLike) -> Molecule:
         pass
     else:
         if isinstance(molecule, ChemicalSystem):
-            return AMSJob.from_input(str(molecule)).molecule[""]
+            parsed_molecules = cast(Dict[str, Molecule], AMSJob.from_input(str(molecule)).molecule)
+            return parsed_molecules[""]
 
     raise TypeError(
         "molecules must contain only PLAMS Molecule or ChemicalSystem objects, "
