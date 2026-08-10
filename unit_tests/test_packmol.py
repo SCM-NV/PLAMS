@@ -863,6 +863,54 @@ class TestPackMol:
             for i, (m, _) in enumerate(mols.values()):
                 assert all(a.properties.region == {f"mol{i}"} for a in m.atoms)
 
+    @pytest.mark.parametrize("use_mixed_inputs", [False, True], ids=["chemical-systems", "mixed"])
+    def test_pack_mol_accepts_chemical_systems(self, use_mixed_inputs: bool) -> None:
+        skip_if_no_scm_base()
+
+        from scm.utils.conversions import plams_molecule_to_chemsys
+
+        water_ucs = plams_molecule_to_chemsys(self.water)
+        acetonitrile_ucs = plams_molecule_to_chemsys(self.acetonitrile)
+        molecules = [water_ucs, self.acetonitrile if use_mixed_inputs else acetonitrile_ucs]
+
+        _, details = packmol(
+            molecules=molecules,
+            n_molecules=[2, 3],
+            density=1.0,
+            executable=".",
+            _return_only_details=True,
+        )
+
+        assert details["n_atoms"] == 2 * len(self.water) + 3 * len(self.acetonitrile)
+        assert details["n_molecules"] == [2, 3]
+        assert details["mole_fractions"] == [0.4, 0.6]
+
+    def test_pack_mol_accepts_single_chemical_system(self) -> None:
+        skip_if_no_scm_base()
+
+        from scm.utils.conversions import plams_molecule_to_chemsys
+
+        water_ucs = plams_molecule_to_chemsys(self.water)
+        _, details = packmol(
+            molecules=water_ucs,
+            n_molecules=2,
+            density=1.0,
+            executable=".",
+            _return_only_details=True,
+        )
+
+        assert details["n_atoms"] == 2 * len(self.water)
+        assert details["n_molecules"] == [2]
+
+    def test_pack_mol_rejects_unsupported_molecule_type(self) -> None:
+        with pytest.raises(TypeError, match="only PLAMS Molecule or ChemicalSystem objects.*str"):
+            packmol(
+                molecules=[self.water, "not a molecule"],
+                n_molecules=[1, 1],
+                density=1.0,
+                executable=".",
+            )
+
 
 class TestGuessDensity:
 
