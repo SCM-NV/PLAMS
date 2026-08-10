@@ -50,9 +50,7 @@ def _to_plams_molecule(molecule: MoleculeLike) -> Molecule:
         pass
     else:
         if isinstance(molecule, ChemicalSystem):
-            from scm.utils.conversions import chemsys_to_plams_molecule
-
-            return chemsys_to_plams_molecule(molecule)
+            return AMSJob.from_input(str(molecule)).molecule[""]
 
     raise TypeError(
         "molecules must contain only PLAMS Molecule or ChemicalSystem objects, "
