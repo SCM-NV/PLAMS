@@ -567,17 +567,28 @@ def test_plot_work_function(run_calculations, rkf_tools_plot):
     ax.set_ylabel("Energy (eV)", fontsize=13)
 
 
+def force_remove_text(ax):
+    # Workaround: Matplotlib's @image_comparison misses some text in subplot grids.
+    # We manually hide the remaining text here to ensure visual regression tests
+    # pass consistently across different operating systems.
+    for axis in ax.flat:
+        axis.set_xlabel("")
+        axis.set_ylabel("")
+        for txt in axis.texts:
+            txt.set_visible(False)
+
+
 # ----------------------------------------------------------
-# Testing plot_energy_landscape for molecules
+# Testing plot_energy_landscape layouts for molecules
 # ----------------------------------------------------------
 @image_comparison(
-    baseline_images=["plot_energy_landscape_molecules"],
+    baseline_images=["plot_energy_landscape_molecules_layouts"],
     remove_text=True,
     extensions=["png"],
     style="mpl20",
     tol=20,
 )
-def test_plot_energy_landscape_molecules(run_calculations, rkf_tools_plot, xyz_folder):
+def test_plot_energy_landscape_molecules_layouts(run_calculations, rkf_tools_plot, xyz_folder):
     plt.close("all")
 
     mol = Molecule()
@@ -615,27 +626,20 @@ def test_plot_energy_landscape_molecules(run_calculations, rkf_tools_plot, xyz_f
     plot_energy_landscape(energy_landscape, ax=ax[2, 0], layout="force", show_molecules=True)
     plot_energy_landscape(energy_landscape, ax=ax[2, 1], layout="crossings", show_molecules=True)
 
-    # Workaround: Matplotlib's @image_comparison misses some text in subplot grids.
-    # We manually hide the remaining text here to ensure visual regression tests
-    # pass consistently across different operating systems.
-    for axis in ax.flat:
-        axis.set_xlabel("")
-        axis.set_ylabel("")
-        for txt in axis.texts:
-            txt.set_visible(False)
+    force_remove_text(ax)
 
 
 # ----------------------------------------------------------
-# Testing plot_energy_landscape for surfaces
+# Testing plot_energy_landscape layouts for surfaces
 # ----------------------------------------------------------
 @image_comparison(
-    baseline_images=["plot_energy_landscape_surfaces"],
-    # remove_text=True,
+    baseline_images=["plot_energy_landscape_surfaces_layouts"],
+    remove_text=True,
     extensions=["png"],
     style="mpl20",
     tol=20,
 )
-def test_plot_energy_landscape_surfaces(run_calculations, rkf_tools_plot, xyz_folder):
+def test_plot_energy_landscape_surfaces_layouts(run_calculations, rkf_tools_plot, xyz_folder):
     plt.close("all")
 
     mol = Molecule(xyz_folder / "MetOH_Cu111.xyz")
@@ -672,11 +676,78 @@ def test_plot_energy_landscape_surfaces(run_calculations, rkf_tools_plot, xyz_fo
     plot_energy_landscape(energy_landscape, ax=ax[2, 0], layout="force", show_molecules=True)
     plot_energy_landscape(energy_landscape, ax=ax[2, 1], layout="crossings", show_molecules=True)
 
-    # Workaround: Matplotlib's @image_comparison misses some text in subplot grids.
-    # We manually hide the remaining text here to ensure visual regression tests
-    # pass consistently across different operating systems.
-    for axis in ax.flat:
-        axis.set_xlabel("")
-        axis.set_ylabel("")
-        for txt in axis.texts:
-            txt.set_visible(False)
+    force_remove_text(ax)
+
+
+# ----------------------------------------------------------
+# Testing plot_energy_landscape functions
+# ----------------------------------------------------------
+@image_comparison(
+    baseline_images=["plot_energy_landscape_functions"],
+    remove_text=True,
+    extensions=["png"],
+    style="mpl20",
+    tol=20,
+)
+def test_plot_energy_landscape_functions(run_calculations, rkf_tools_plot, xyz_folder):
+    plt.close("all")
+
+    mol = Molecule()
+    mol.add_atom(Atom(symbol="H", coords=(0.26799604, 1.56164318, 0.80172174)))
+    mol.add_atom(Atom(symbol="O", coords=(0.70317302, 1.15034441, 0.02980438)))
+    mol.add_atom(Atom(symbol="N", coords=(0.07385403, -1.26509181, -0.02723174)))
+    mol.add_atom(Atom(symbol="C", coords=(0.33895691, -0.13354579, 0.04083563)))
+
+    sett = Settings()
+    sett.input.ams.UseSymmetry = "No"
+    sett.input.ams.Task = "PESExploration"
+    sett.input.ams.PESExploration.RandomSeed = 1
+    sett.input.ams.PESExploration.Job = "ProcessSearch"
+    sett.input.ams.PESExploration.NumExpeditions = 500
+    sett.input.ams.PESExploration.NumExplorers = 4
+    sett.input.ams.PESExploration.SaddleSearch.MaxEnergy = 6.0
+    sett.input.ams.PESExploration.SaddleSearch.MinEnergyBarrier = 0.1
+    sett.input.ams.PESExploration.StructureComparison.UseCovalent = "Yes"
+    sett.input.ams.UseSymmetry = "No"
+    sett.input.MOPAC.Model = "AM1"
+
+    if run_calculations:
+        job = AMSJob(name="HCNO", molecule=mol, settings=sett)
+        job.run()
+    else:
+        job = AMSJob.load_external(rkf_tools_plot / "HCNO")
+
+    energy_landscape = job.results.get_energy_landscape()
+    energy_landscape_select_states = energy_landscape.select_states([1, 6, 5, 7, 3], keep_original_ids=True)
+    energy_landscape_accessible_states = energy_landscape.accessible_states(3, 3.5, unit="eV", keep_original_ids=True)
+
+    _, ax = plt.subplots(2, 1, figsize=(10, 5))
+    plot_energy_landscape(
+        energy_landscape_select_states,
+        ax=ax[0],
+        layout="auto",
+        show_molecules=True,
+        molecule_y_offset=0.2,
+        molecule_scale=0.4,
+        molecule_plot_kwargs={"rotation": "0x,0y,0z"},
+        molecule_plot_kwargs_by_state={
+            7: {"rotation": "90x,0y,0z"},
+            3: {"rotation": "0x,90y,0z"},
+        },
+    )
+
+    plot_energy_landscape(
+        energy_landscape_accessible_states,
+        ax=ax[1],
+        layout="auto",
+        show_molecules=True,
+        molecule_y_offset=0.2,
+        molecule_scale=0.3,
+        molecule_plot_kwargs={"rotation": "0x,0y,0z"},
+        molecule_plot_kwargs_by_state={
+            7: {"rotation": "90x,0y,0z"},
+            3: {"rotation": "0x,90y,0z"},
+        },
+    )
+
+    force_remove_text(ax)

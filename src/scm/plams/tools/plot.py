@@ -987,6 +987,7 @@ def plot_energy_landscape(
     molecule_y_offset: float = 0.06,
     molecule_scale: float = 0.12,
     molecule_plot_kwargs: Optional[Dict[str, Any]] = None,
+    molecule_plot_kwargs_by_state: Optional[Dict[int, Dict[str, Any]]] = None,
 ) -> "plt.Axes":
     """Plot an energy landscape returned by ``AMSResults.get_energy_landscape()``.
 
@@ -1030,8 +1031,10 @@ def plot_energy_landscape(
     molecule_scale
         Height of each molecule sketch, expressed as a fraction of the visible energy span.
     molecule_plot_kwargs
-        Optional keyword arguments forwarded to :func:`plot_molecule` when drawing the
-        molecular structures.
+        Optional keyword arguments forwarded to :func:`plot_molecule` for all molecule insets.
+    molecule_plot_kwargs_by_state
+        Optional mapping from displayed state ID to per-state keyword arguments. These
+        overrides are merged on top of ``molecule_plot_kwargs`` for the matching states.
 
     Returns
     -------
@@ -1044,6 +1047,7 @@ def plot_energy_landscape(
 
     states = list(energy_landscape)
     molecule_plot_kwargs = dict(molecule_plot_kwargs or {})
+    molecule_plot_kwargs_by_state = dict(molecule_plot_kwargs_by_state or {})
 
     if ax is None:
         _, ax = plt.subplots()
@@ -1309,7 +1313,8 @@ def plot_energy_landscape(
         color = ts_color if state.isTS else min_color
         ax.hlines(y=y_pos, xmin=x_pos - half_width, xmax=x_pos + half_width, colors=color, linewidth=1.6, zorder=3)
         if label_states:
-            ax.text(x_pos, y_pos, str(state.id), ha="center", va="bottom", color=color, fontsize=11, zorder=4)
+            state_label = getattr(state, "display_id", state.id)
+            ax.text(x_pos, y_pos, str(state_label), ha="center", va="bottom", color=color, fontsize=11, zorder=4)
 
     plotted_pairs = set()
     # Draw each connection only once, even though TS links are visible from both endpoints.
@@ -1364,7 +1369,10 @@ def plot_energy_landscape(
             inset_ax = ax.inset_axes(inset_bounds, transform=ax.transData)
             inset_ax.set_facecolor("none")
             inset_ax.patch.set_alpha(0.0)
-            plot_molecule(state.molecule, ax=inset_ax, keep_axis=False, **molecule_plot_kwargs)
+            state_label = getattr(state, "display_id", state.id)
+            state_plot_kwargs = dict(molecule_plot_kwargs)
+            state_plot_kwargs.update(molecule_plot_kwargs_by_state.get(state_label, {}))
+            plot_molecule(state.molecule, ax=inset_ax, keep_axis=False, **state_plot_kwargs)
             inset_ax.set_zorder(5)
 
     ax.spines["top"].set_visible(False)
