@@ -353,7 +353,7 @@ class CRSResults(SCMResults):
             import matplotlib
 
             if plot_fig:
-                if terminal == "jupyter":
+                if terminal == "jupyter" and ipython is not None:
                     ipython.run_line_magic("matplotlib", "inline")
                 else:
                     matplotlib.use("TkAgg")
