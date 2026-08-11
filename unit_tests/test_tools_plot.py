@@ -620,22 +620,22 @@ def test_plot_energy_landscape_molecules_layouts(run_calculations, rkf_tools_plo
 
     _, ax = plt.subplots(3, 2, figsize=(20, 10))
     plot_energy_landscape(
-        energy_landscape, ax=ax[0, 0], layout="auto", show_molecules=True, molecule_plot_backend="view"
+        energy_landscape, ax=ax[0, 0], layout="auto", show_molecules=True, molecule_plot_backend="plot_molecule"
     )
     plot_energy_landscape(
-        energy_landscape, ax=ax[0, 1], layout="dfs", show_molecules=True, molecule_plot_backend="view"
+        energy_landscape, ax=ax[0, 1], layout="dfs", show_molecules=True, molecule_plot_backend="plot_molecule"
     )
     plot_energy_landscape(
-        energy_landscape, ax=ax[1, 0], layout="bfs", show_molecules=True, molecule_plot_backend="view"
+        energy_landscape, ax=ax[1, 0], layout="bfs", show_molecules=True, molecule_plot_backend="plot_molecule"
     )
     plot_energy_landscape(
-        energy_landscape, ax=ax[1, 1], layout="longest_path", show_molecules=True, molecule_plot_backend="view"
+        energy_landscape, ax=ax[1, 1], layout="longest_path", show_molecules=True, molecule_plot_backend="plot_molecule"
     )
     plot_energy_landscape(
-        energy_landscape, ax=ax[2, 0], layout="force", show_molecules=True, molecule_plot_backend="view"
+        energy_landscape, ax=ax[2, 0], layout="force", show_molecules=True, molecule_plot_backend="plot_molecule"
     )
     plot_energy_landscape(
-        energy_landscape, ax=ax[2, 1], layout="crossings", show_molecules=True, molecule_plot_backend="view"
+        energy_landscape, ax=ax[2, 1], layout="crossings", show_molecules=True, molecule_plot_backend="plot_molecule"
     )
 
     force_remove_text(ax)
