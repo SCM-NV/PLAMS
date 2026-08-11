@@ -12,6 +12,7 @@ This changelog is effective from the 2025 releases.
 ## [Unreleased]
 
 ### Added
+* Function `plot_energy_landscape` to visualize Energy Landscapes of completed AMS jobs
 * MultiJob now supports generic Job types for the self.children attribute
 * Function `view_orbital` to visualize orbitals of completed AMS jobs 
 
