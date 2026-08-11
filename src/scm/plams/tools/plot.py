@@ -985,7 +985,8 @@ def plot_energy_landscape(
     force_iterations: int = 200,
     show_molecules: bool = False,
     molecule_y_offset: float = 0.06,
-    molecule_scale: float = 0.12,
+    molecule_scale: float = 0.25,
+    molecule_plot_backend: Literal["view", "plot_molecule"] = "view",
     molecule_plot_kwargs: Optional[Dict[str, Any]] = None,
     molecule_plot_kwargs_by_state: Optional[Dict[int, Dict[str, Any]]] = None,
 ) -> "plt.Axes":
@@ -1030,8 +1031,13 @@ def plot_energy_landscape(
         a fraction of the visible energy span.
     molecule_scale
         Height of each molecule sketch, expressed as a fraction of the visible energy span.
+    molecule_plot_backend
+        Backend used to render molecule insets. Use ``"view"`` to forward
+        ``molecule_plot_kwargs`` to :func:`scm.plams.view`, or ``"plot_molecule"``
+        to forward them to :func:`plot_molecule`.
     molecule_plot_kwargs
-        Optional keyword arguments forwarded to :func:`plot_molecule` for all molecule insets.
+        Optional keyword arguments forwarded to the function selected by
+        ``molecule_plot_backend`` for all molecule insets.
     molecule_plot_kwargs_by_state
         Optional mapping from displayed state ID to per-state keyword arguments. These
         overrides are merged on top of ``molecule_plot_kwargs`` for the matching states.
@@ -1044,9 +1050,13 @@ def plot_energy_landscape(
     import matplotlib.pyplot as plt
     from collections import deque
     import itertools
+    import numpy as np
+    from scm.plams.tools.view import view
 
     states = list(energy_landscape)
     molecule_plot_kwargs = dict(molecule_plot_kwargs or {})
+    if molecule_plot_backend not in {"view", "plot_molecule"}:
+        raise ValueError("molecule_plot_backend must be either 'view' or 'plot_molecule'")
     molecule_plot_kwargs_by_state = dict(molecule_plot_kwargs_by_state or {})
 
     if ax is None:
@@ -1143,6 +1153,32 @@ def plot_energy_landscape(
                     visited.add(neighbor)
                     queue.append(neighbor)
         return ordered_ids
+
+    # ``view()`` returns a raster image with its own canvas and margins. Cropping away
+    # empty borders makes ``molecule_scale`` control the apparent molecule size instead
+    # of mostly scaling surrounding whitespace inside the inset.
+    def _crop_view_image(image: Any) -> Any:
+        image_array = np.asarray(image)
+        if image_array.ndim < 2:
+            return image
+
+        if image_array.ndim == 3 and image_array.shape[2] == 4:
+            mask = image_array[:, :, 3] > 0
+        elif image_array.ndim == 3:
+            mask = np.any(image_array[:, :, :3] < 250, axis=2)
+        else:
+            mask = image_array < 250
+
+        nonempty = np.argwhere(mask)
+        if nonempty.size == 0:
+            return image
+
+        y0, x0 = nonempty.min(axis=0)
+        y1, x1 = nonempty.max(axis=0) + 1
+        if x0 == 0 and y0 == 0 and y1 == image_array.shape[0] and x1 == image_array.shape[1]:
+            return image
+
+        return image.crop((int(x0), int(y0), int(x1), int(y1)))
 
     def _farthest(start_id: int, component: Set[int]) -> Tuple[int, Dict[int, int], Dict[int, Optional[int]]]:
         distances: Dict[int, int] = {start_id: 0}
@@ -1355,7 +1391,9 @@ def plot_energy_landscape(
     ax.set_ylim(y_min - bottom_padding, y_max + top_padding)
 
     if show_molecules:
-        molecule_width = max(landscape_width * 1.6, 0.72 * spacing)
+        base_molecule_scale = 0.16
+        scale_factor = molecule_scale / base_molecule_scale if base_molecule_scale > 0 else 1.0
+        molecule_width = max(landscape_width * 1.6, 0.72 * spacing) * scale_factor
         # Place a compact molecule sketch above each state without changing the energy layout itself.
         for state in ordered_states:
             x_pos = x_map[state.id]
@@ -1372,7 +1410,14 @@ def plot_energy_landscape(
             state_label = getattr(state, "display_id", state.id)
             state_plot_kwargs = dict(molecule_plot_kwargs)
             state_plot_kwargs.update(molecule_plot_kwargs_by_state.get(state_label, {}))
-            plot_molecule(state.molecule, ax=inset_ax, keep_axis=False, **state_plot_kwargs)
+            if molecule_plot_backend == "view":
+                state_plot_kwargs.setdefault("guess_bonds", True)
+                image = view(state.molecule, **state_plot_kwargs)
+                image = _crop_view_image(image)
+                inset_ax.imshow(image)
+                inset_ax.set_axis_off()
+            else:
+                plot_molecule(state.molecule, ax=inset_ax, keep_axis=False, **state_plot_kwargs)
             inset_ax.set_zorder(5)
 
     ax.spines["top"].set_visible(False)
