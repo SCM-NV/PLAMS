@@ -1021,7 +1021,19 @@ def plot_energy_landscape(
     layout
         Layout strategy used to order the states along the horizontal axis.
         Supported values are ``"auto"``, ``"dfs"``, ``"bfs"``,
-        ``"longest_path"``, ``"force"``, and ``"crossings"``.
+        ``"longest_path"``, ``"force"``, and ``"crossings"``:
+        - ``"auto"`` compares the available strategies and picks the one with
+            the cleanest connector pattern.
+        - ``"dfs"`` follows one branch deeply before backtracking, which can
+            resemble a reaction-path view.
+        - ``"bfs"`` expands level by level from one endpoint, keeping nearby
+            states grouped together.
+        - ``"longest_path"`` places the main backbone of the network first and
+            then attaches side branches around it.
+        - ``"force"`` uses a simple force-based relaxation to spread states
+            while reducing visual crowding.
+        - ``"crossings"`` tries to minimize connector crossings directly, which
+            can help for dense networks.
     force_iterations
         Number of relaxation iterations used by the ``"force"`` layout.
     show_molecules
