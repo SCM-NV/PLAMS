@@ -989,6 +989,10 @@ def plot_energy_landscape(
     molecule_plot_backend: Literal["view", "plot_molecule"] = "view",
     molecule_plot_kwargs: Optional[Dict[str, Any]] = None,
     molecule_plot_kwargs_by_state: Optional[Dict[int, Dict[str, Any]]] = None,
+    highlight_states: Optional[Sequence[int]] = None,
+    highlight_color: str = "gold",
+    highlight_linewidth: float = 8.0,
+    highlight_connector_color: Optional[str] = None,
 ) -> "plt.Axes":
     """Plot an energy landscape returned by ``AMSResults.get_energy_landscape()``.
 
@@ -1050,6 +1054,17 @@ def plot_energy_landscape(
     molecule_plot_kwargs_by_state
         Optional mapping from displayed state ID to per-state keyword arguments. These
         overrides are merged on top of ``molecule_plot_kwargs`` for the matching states.
+    highlight_states
+        Optional sequence of state IDs to highlight. Highlighted states and links are
+        emphasized by drawing a thicker colored underlay behind the regular plot.
+    highlight_color
+        Color used for the highlight underlay behind state segments and, by default,
+        behind highlighted links.
+    highlight_linewidth
+        Line width used for the highlight underlay behind state segments and links.
+    highlight_connector_color
+        Optional color used specifically for the highlighted-link underlay. If ``None``,
+        ``highlight_color`` is used.
 
     Returns
     -------
@@ -1064,6 +1079,9 @@ def plot_energy_landscape(
 
     states = list(energy_landscape)
     molecule_plot_kwargs = dict(molecule_plot_kwargs or {})
+    highlight_state_ids = set(highlight_states or [])
+    highlight_connector_color = highlight_connector_color or highlight_color
+    highlight_connector_linewidth = 0.7 * highlight_linewidth
     if molecule_plot_backend not in {"view", "plot_molecule"}:
         raise ValueError("molecule_plot_backend must be either 'view' or 'plot_molecule'")
     molecule_plot_kwargs_by_state = dict(molecule_plot_kwargs_by_state or {})
@@ -1355,23 +1373,40 @@ def plot_energy_landscape(
     for state in ordered_states:
         x_pos = x_map[state.id]
         y_pos = relative_energies[state.id]
-        color = ts_color if state.isTS else min_color
-        ax.hlines(y=y_pos, xmin=x_pos - half_width, xmax=x_pos + half_width, colors=color, linewidth=1.6, zorder=3)
+        state_label = getattr(state, "display_id", state.id)
+        state_highlight_id = state_label if hasattr(state, "display_id") else state.id
+        is_highlighted = state_highlight_id in highlight_state_ids
+        base_color = ts_color if state.isTS else min_color
+        if is_highlighted:
+            ax.hlines(
+                y=y_pos,
+                xmin=x_pos - half_width,
+                xmax=x_pos + half_width,
+                colors=highlight_color,
+                linewidth=highlight_linewidth,
+                zorder=2.5,
+            )
+        ax.hlines(y=y_pos, xmin=x_pos - half_width, xmax=x_pos + half_width, colors=base_color, linewidth=1.6, zorder=3)
         if label_states:
-            state_label = getattr(state, "display_id", state.id)
-            ax.text(x_pos, y_pos, str(state_label), ha="center", va="bottom", color=color, fontsize=11, zorder=4)
+            ax.text(x_pos, y_pos, str(state_label), ha="center", va="bottom", color=base_color, fontsize=11, zorder=4)
 
     plotted_pairs = set()
     # Draw each connection only once, even though TS links are visible from both endpoints.
     for state in ordered_states:
         x_pos = x_map[state.id]
         y_pos = relative_energies[state.id]
+        state_label = getattr(state, "display_id", state.id)
+        state_highlight_id = state_label if hasattr(state, "display_id") else state.id
+        state_highlighted = state_highlight_id in highlight_state_ids
         for other in (state.reactants, state.products):
             if other is None:
                 continue
             pair = tuple(sorted((state.id, other.id)))
             if pair in plotted_pairs:
                 continue
+            other_label = getattr(other, "display_id", other.id)
+            other_highlight_id = other_label if hasattr(other, "display_id") else other.id
+            other_highlighted = other_highlight_id in highlight_state_ids
             other_x = x_map[other.id]
             other_y = relative_energies[other.id]
             if other_x < x_pos:
@@ -1380,6 +1415,16 @@ def plot_energy_landscape(
             else:
                 x1, x2 = x_pos + half_width, other_x - half_width
                 y1, y2 = y_pos, other_y
+            link_highlighted = state_highlighted and other_highlighted
+            if link_highlighted:
+                ax.plot(
+                    [x1, x2],
+                    [y1, y2],
+                    color=highlight_connector_color,
+                    linestyle="solid",
+                    linewidth=highlight_connector_linewidth,
+                    zorder=1.5,
+                )
             ax.plot([x1, x2], [y1, y2], color=connector_color, linestyle=connector_linestyle, linewidth=1.2, zorder=2)
             plotted_pairs.add(pair)
 
