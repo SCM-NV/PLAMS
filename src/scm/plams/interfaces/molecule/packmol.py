@@ -23,6 +23,8 @@ if TYPE_CHECKING:
         pass
 
 T = TypeVar("T")
+MoleculeLike = Union[Molecule, "ChemicalSystem"]
+MoleculesInput = Union[List[MoleculeLike], MoleculeLike]
 
 __all__ = [
     "packmol",
@@ -36,6 +38,25 @@ __all__ = [
 
 def tolist(x: Union[T, List[T]]) -> List[T]:
     return x if isinstance(x, list) else [x]
+
+
+def _to_plams_molecule(molecule: MoleculeLike) -> Molecule:
+    if isinstance(molecule, Molecule):
+        return molecule
+
+    try:
+        from scm.base import ChemicalSystem
+    except ImportError:
+        pass
+    else:
+        if isinstance(molecule, ChemicalSystem):
+            parsed_molecules = cast(Dict[str, Molecule], AMSJob.from_input(str(molecule)).molecule)
+            return parsed_molecules[""]
+
+    raise TypeError(
+        "molecules must contain only PLAMS Molecule or ChemicalSystem objects, "
+        f"but received {type(molecule).__name__}"
+    )
 
 
 class PackMolError(MoleculeError):
@@ -482,7 +503,7 @@ def _guess_molecular_volume(molecule: Union[Molecule, "ChemicalSystem"]) -> floa
 
 @overload
 def packmol(
-    molecules: Union[List[Molecule], Molecule],
+    molecules: MoleculesInput,
     mole_fractions: Optional[List[float]] = ...,
     density: Optional[float] = ...,
     n_atoms: Optional[int] = ...,
@@ -501,7 +522,7 @@ def packmol(
 ) -> Molecule: ...
 @overload
 def packmol(
-    molecules: Union[List[Molecule], Molecule],
+    molecules: MoleculesInput,
     mole_fractions: Optional[List[float]] = ...,
     density: Optional[float] = ...,
     n_atoms: Optional[int] = ...,
@@ -520,7 +541,7 @@ def packmol(
 ) -> Tuple[Molecule, Dict[str, Any]]: ...
 @overload
 def packmol(
-    molecules: Union[List[Molecule], Molecule],
+    molecules: MoleculesInput,
     mole_fractions: Optional[List[float]] = ...,
     density: Optional[float] = ...,
     n_atoms: Optional[int] = ...,
@@ -539,7 +560,7 @@ def packmol(
 ) -> Tuple[None, Dict[str, Any]]: ...
 @overload
 def packmol(
-    molecules: Union[List[Molecule], Molecule],
+    molecules: MoleculesInput,
     mole_fractions: Optional[List[float]] = ...,
     density: Optional[float] = ...,
     n_atoms: Optional[int] = ...,
@@ -558,7 +579,7 @@ def packmol(
 ) -> Molecule: ...
 @overload
 def packmol(
-    molecules: Union[List[Molecule], Molecule],
+    molecules: MoleculesInput,
     mole_fractions: Optional[List[float]] = ...,
     density: Optional[float] = ...,
     n_atoms: Optional[int] = ...,
@@ -576,7 +597,7 @@ def packmol(
     _return_only_details: bool = False,
 ) -> Tuple[Molecule, Dict[str, Any]]: ...
 def packmol(
-    molecules: Union[List[Molecule], Molecule],
+    molecules: MoleculesInput,
     mole_fractions: Optional[List[float]] = None,
     density: Optional[float] = None,
     n_atoms: Optional[int] = None,
@@ -600,8 +621,8 @@ def packmol(
     It is *strongly recommended* to specify ``density`` and/or ``box_bounds``. Otherwise you will
     get a (very inaccurate) guessed density in a cubic box (experimental feature).
 
-    molecules : |Molecule| or list of Molecule
-        The molecules to pack
+    molecules : |Molecule|, ChemicalSystem, or list
+        The molecules to pack. A list may contain any mixture of PLAMS ``Molecule`` and ``ChemicalSystem`` objects.
 
     mole_fractions : list of float
         The mole fractions (in the same order as ``molecules``). Cannot be combined with ``n_molecules``. If not given, an equal (molar) mixture of all components will be created.
@@ -737,6 +758,11 @@ def packmol(
             raise ValueError("Illegal combination of arguments: mole_fractions is a list, when molecules is not")
         if region_names is not None and isinstance(region_names, list):
             raise ValueError("Illegal combination of arguments: region_names is a list, when molecules is not")
+
+    if isinstance(molecules, list):
+        molecules = [_to_plams_molecule(molecule) for molecule in molecules]
+    else:
+        molecules = _to_plams_molecule(molecules)
 
     if n_atoms is not None and n_molecules is not None and not one_n_molecules_missing:
         raise ValueError(
