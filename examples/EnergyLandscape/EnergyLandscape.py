@@ -148,7 +148,7 @@ ax
 # This cell selects a few states and applies a custom `ViewConfig` with an explicit normal and `normal_basis="abc"`. Even though we are visualizing molecules rather than periodic systems, this is still a valid basis choice here because it simply refers to the first, second, and third axes of the coordinate frame used by `view`. It shows how to control the `view` backend with a configuration object shared by all selected states.
 #
 
-energy_landscape_filter = energy_landscape.select_states([1, 6, 5, 7, 3], keep_original_ids=True)
+energy_landscape_filtered = energy_landscape.select_states([1, 6, 5, 7, 3], keep_original_ids=True)
 
 conf = ViewConfig(
     normal=(0.0, 1.0, 0.0),
@@ -158,7 +158,7 @@ conf = ViewConfig(
 
 fig, ax = plt.subplots(dpi=120)
 plot_energy_landscape(
-    energy_landscape_filter,
+    energy_landscape_filtered,
     ax=ax,
     show_molecules=True,
     molecule_scale=0.25,
@@ -174,7 +174,7 @@ ax
 # This cell keeps the `view` interface but switches its internal rendering backend to `ase_plot`. The point of this example is to show that the `view` backend can also be used in this way: it becomes closer in spirit to `molecule_plot_backend="plot_molecule"`, although it still relies on `ViewConfig` and therefore requires `view`-specific options instead of direct rotation strings.
 #
 
-energy_landscape_filter = energy_landscape.select_states([1, 6, 5, 7, 3], keep_original_ids=True)
+energy_landscape_filtered = energy_landscape.select_states([1, 6, 5, 7, 3], keep_original_ids=True)
 
 conf = ViewConfig(
     normal=(0.0, 1.0, 0.0),
@@ -184,7 +184,7 @@ conf = ViewConfig(
 
 fig, ax = plt.subplots(dpi=120)
 plot_energy_landscape(
-    energy_landscape_filter,
+    energy_landscape_filtered,
     ax=ax,
     show_molecules=True,
     molecule_scale=0.25,
@@ -200,11 +200,11 @@ ax
 # This cell uses `accessible_states` to build a reduced landscape containing only the states that can be reached from state 3 within a chosen energy window. This type of analysis is useful when you want to focus on the locally reachable part of the network instead of the full landscape.
 #
 
-energy_landscape_filter = energy_landscape.accessible_states(3, 3.5, unit="eV", keep_original_ids=True)
+energy_landscape_filtered = energy_landscape.accessible_states(3, 3.5, unit="eV", keep_original_ids=True)
 
 fig, ax = plt.subplots(dpi=120)
 plot_energy_landscape(
-    energy_landscape_filter,
+    energy_landscape_filtered,
     ax=ax,
     show_molecules=True,
     molecule_scale=0.25,
@@ -225,11 +225,11 @@ ax
 # This cell applies the same `plot_molecule` rotation to every molecule in the selected part of the landscape.
 #
 
-energy_landscape_filter = energy_landscape.select_states([1, 6, 5, 7, 3], keep_original_ids=True)
+energy_landscape_filtered = energy_landscape.select_states([1, 6, 5, 7, 3], keep_original_ids=True)
 
 fig, ax = plt.subplots(dpi=120)
 plot_energy_landscape(
-    energy_landscape_filter,
+    energy_landscape_filtered,
     ax=ax,
     show_molecules=True,
     molecule_scale=0.30,
@@ -245,11 +245,11 @@ plt.show()
 # This cell keeps a common base rotation for all molecules and then overrides it for selected states through `molecule_plot_kwargs_by_state`. This is useful when only a few structures need a different viewpoint.
 #
 
-energy_landscape_filter = energy_landscape.select_states([1, 6, 5, 7, 3], keep_original_ids=True)
+energy_landscape_filtered = energy_landscape.select_states([1, 6, 5, 7, 3], keep_original_ids=True)
 
 fig, ax = plt.subplots(dpi=120)
 plot_energy_landscape(
-    energy_landscape_filter,
+    energy_landscape_filtered,
     ax=ax,
     show_molecules=True,
     molecule_scale=0.30,
@@ -274,7 +274,7 @@ ax
 # This cell passes a single `ViewConfig` to all selected states, giving every molecule the same `view` orientation.
 #
 
-energy_landscape_filter = energy_landscape.select_states([1, 6, 5, 7, 3], keep_original_ids=True)
+energy_landscape_filtered = energy_landscape.select_states([1, 6, 5, 7, 3], keep_original_ids=True)
 
 conf_all = ViewConfig(
     normal=(0.0, 0.0, 1.0),
@@ -283,7 +283,7 @@ conf_all = ViewConfig(
 
 fig, ax = plt.subplots(dpi=120)
 plot_energy_landscape(
-    energy_landscape_filter,
+    energy_landscape_filtered,
     ax=ax,
     show_molecules=True,
     molecule_scale=0.30,
@@ -299,7 +299,7 @@ plt.show()
 # This cell starts from one common `ViewConfig` and then replaces it for a few states through `molecule_plot_kwargs_by_state`. This is the `view` analogue of the per-state rotation example shown above for `plot_molecule`.
 #
 
-energy_landscape_filter = energy_landscape.select_states([1, 6, 5, 7, 3], keep_original_ids=True)
+energy_landscape_filtered = energy_landscape.select_states([1, 6, 5, 7, 3], keep_original_ids=True)
 
 conf_all = ViewConfig(
     normal=(0.0, 0.0, 1.0),
@@ -316,7 +316,7 @@ conf_state_5 = ViewConfig(
 
 fig, ax = plt.subplots(dpi=120)
 plot_energy_landscape(
-    energy_landscape_filter,
+    energy_landscape_filtered,
     ax=ax,
     show_molecules=True,
     molecule_scale=0.30,
@@ -336,11 +336,11 @@ ax
 # This final example shows how to highlight a chosen subset of states directly in the energy landscape. The highlighting is drawn as a thick underlay behind the usual state and link lines, so the original appearance of the figure is preserved while the selected region is emphasized. When two highlighted states are connected, the corresponding link is highlighted as well. This can be useful for emphasizing a reaction path or a region of special interest inside a larger network.
 #
 
-energy_landscape_filter = energy_landscape.select_states([1, 6, 5, 7, 3], keep_original_ids=True)
+energy_landscape_filtered = energy_landscape.select_states([1, 6, 5, 7, 3], keep_original_ids=True)
 
 fig, ax = plt.subplots(dpi=120)
 plot_energy_landscape(
-    energy_landscape_filter,
+    energy_landscape_filtered,
     ax=ax,
     show_molecules=True,
     molecule_plot_backend="plot_molecule",
