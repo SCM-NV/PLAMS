@@ -18,6 +18,8 @@ from typing import (
     NamedTuple,
     ClassVar,
     Callable,
+    overload,
+    TypeVar,
 )
 import numpy as np
 
@@ -41,9 +43,155 @@ if TYPE_CHECKING:
     from matplotlib.figure import Figure
 
 
-__all__ = ["CRSResults", "CRSJob", "CRSResultTables", "CRSInputBuilder"]
+__all__ = [
+    "CRSResults",
+    "CRSJob",
+    "CRSResultTables",
+    "CRSMethodName",
+    "CRSPropertyName",
+    "CRSVaporPressureEquation",
+    "CRSSolubilityMode",
+    "CRSVLESweepMode",
+    "CRSInputBuilder",
+    "ACTIVITYCOEFInputBuilder",
+    "LOGPInputBuilder",
+    "SOLUBILITYInputBuilder",
+    "PURESOLUBILITYInputBuilder",
+    "VAPORPRESSUREInputBuilder",
+    "PUREVAPORPRESSUREInputBuilder",
+    "BOILINGPOINTInputBuilder",
+    "PUREBOILINGPOINTInputBuilder",
+    "FLASHPOINTInputBuilder",
+    "BINMIXCOEFInputBuilder",
+    "TERNARYMIXInputBuilder",
+    "COMPOSITIONLINEInputBuilder",
+    "LLEInputBuilder",
+    "STABILITYInputBuilder",
+    "SIGMAPROFILEInputBuilder",
+    "PURESIGMAPROFILEInputBuilder",
+    "SIGMAPOTENTIALInputBuilder",
+    "PURESIGMAPOTENTIALInputBuilder",
+]
 
 PathLike = Union[str, os.PathLike]
+
+CRSMethodName = Literal[
+    "COSMO-RS",
+    "COSMOSAC2013",
+    "COSMOSAC2016",
+    "COSMOSACDHB",
+    "COSMOSACDHB-MESP",
+]
+CRSPropertyName = Literal[
+    "ACTIVITYCOEF",
+    "LOGP",
+    "SOLUBILITY",
+    "PURESOLUBILITY",
+    "VAPORPRESSURE",
+    "PUREVAPORPRESSURE",
+    "BOILINGPOINT",
+    "PUREBOILINGPOINT",
+    "FLASHPOINT",
+    "BINMIXCOEF",
+    "TERNARYMIX",
+    "COMPOSITIONLINE",
+    "LLE",
+    "STABILITY",
+    "SIGMAPROFILE",
+    "PURESIGMAPROFILE",
+    "SIGMAPOTENTIAL",
+    "PURESIGMAPOTENTIAL",
+]
+CRSVaporPressureEquation = Literal[
+    "Antoine",
+    "VPM1",
+    "DIPPR101",
+    "DIPPR115",
+    "KDB",
+]
+CRSSolubilityMode = Literal["gas", "liquid", "solid"]
+CRSVLESweepMode = Literal["isotherm", "isobar", "flashpoint"]
+_CRSInputBuilderT = TypeVar("_CRSInputBuilderT", bound="CRSInputBuilder")
+
+_VAPOR_PRESSURE_KEYS = ("pvap", "tvap", "vp_equation", "vp_params")
+_FUSION_KEYS = ("meltingpoint", "hfusion", "cpfusion")
+_VLE_SWEEP_PROPERTY_KEYS = ("nfrac", "isotherm", "isobar", "flashpoint")
+_SIGMA_PROPERTY_KEYS = ("nprofile", "sigmamax")
+
+_PURE_COMPOUND_COMMENTS = ("Multiple COMPOUND blocks are treated as independent pure compounds.",)
+
+_VLE_SWEEP_MODE_CONFIG = {
+    "options": ("isotherm", "isobar", "flashpoint"),
+    "default": "isotherm",
+    "input_mapping": {
+        "isotherm": {"property": {"isotherm": True}},
+        "isobar": {"property": {"isobar": True}},
+        "flashpoint": {"property": {"flashpoint": True}},
+    },
+    "descriptions": {
+        "isotherm": (
+            "Composition scan at constant temperature.",
+            "Phase boundaries are interpolated from the scan.",
+            "Use LLE for robust phase-boundary calculations.",
+        ),
+        "isobar": ("Composition scan at constant pressure."),
+        "flashpoint": ("Estimate flash point using pure-compound flash points. Vapor-pressure inputs may improve results.",),
+    },
+}
+
+_SOLUBILITY_MODE_CONFIG = {
+    "options": ("gas", "liquid", "solid"),
+    "default": "solid",
+    "input_mapping": {
+        "gas": {"property": {"isobar": True}},
+        "liquid": {},
+        "solid": {},
+    },
+    "compound_required_keys": {
+        "solid": {
+            "solute": {
+                "any_of": (("meltingpoint", "hfusion"),),
+            },
+        },
+    },
+    "descriptions": {
+        "gas": (
+            "Calculate gas solubility at fixed partial pressure.",
+            "Top-level pressure is the solute partial pressure.",
+        ),
+        "liquid": (
+            "Calculate liquid solubility assuming the pure liquid solute as the coexisting phase.",
+            "Use LLE for miscible liquid systems.",
+        ),
+        "solid": (
+            "Calculate solid solubility using solute fusion-correction inputs.",
+        ),
+    },
+}
+
+
+class CRSInputRoute(NamedTuple):
+    """Route from a public CRS builder key to a PLAMS Settings input location."""
+
+    scope: Literal["top_level", "property"]
+    metadata: Dict[str, Any]
+
+
+class CRSModeConfig:
+    """Static mode configuration for one CRS property type."""
+
+    options: Tuple[str, ...]
+    default: Optional[str]
+    input_mapping: Dict[str, Any]
+    descriptions: Dict[str, Any]
+
+    def __init__(self, metadata: Optional[Dict[str, Any]] = None) -> None:
+        metadata = metadata or {}
+        self.options = tuple(metadata.get("options", ()))
+        self.default = metadata.get("default")
+        self.input_mapping = metadata.get("input_mapping", {})
+        self.descriptions = metadata.get("descriptions", {})
+
 
 
 class CRSResultTables(NamedTuple):
@@ -1897,7 +2045,6 @@ class CRSJob(SCMJob):
     _command = "crs"
     _result_type = CRSResults
     _subblock_end = "end"
-    _PROPERTY_TYPE_METADATA = crs_defs.CRS_PROPERTY_TYPE_METADATA
 
     _METHODS = crs_defs.CRS_METHODS
     _METHOD_ALIASES = {"COSMORS": "COSMO-RS", "COSMOSAC": "COSMOSAC2013"}
@@ -1944,9 +2091,22 @@ class CRSJob(SCMJob):
         return os.fspath(path)
 
     @staticmethod
-    def property_types() -> Tuple[str, ...]:
-        """Return the supported COSMO-RS problem types."""
-        return tuple(CRSJob._PROPERTY_TYPE_METADATA)
+    def property_types() -> Tuple[CRSPropertyName, ...]:
+        """Return the supported COSMO-RS property types."""
+        return cast(Tuple[CRSPropertyName, ...], tuple(_CRS_INPUT_BUILDER_CLASSES))
+
+    @staticmethod
+    def _property_type_metadata() -> Dict[str, Dict[str, Any]]:
+        """Return CRS property metadata derived from property-specific builders."""
+        return {
+            property_type: builder_class._metadata()
+            for property_type, builder_class in _CRS_INPUT_BUILDER_CLASSES.items()
+        }
+
+    @staticmethod
+    def _property_type_builder_class(property_type: str) -> type["CRSInputBuilder"]:
+        normalized = CRSJob._normalize_property_type(property_type)
+        return _CRS_INPUT_BUILDER_CLASSES[normalized]
 
     @staticmethod
     def property_type_metadata(
@@ -1954,14 +2114,12 @@ class CRSJob(SCMJob):
         as_summary: bool = True,
     ) -> Union[Dict[str, Any], Tuple[str, ...]]:
         """Return discoverability metadata for a COSMO-RS problem type."""
-        normalized = CRSJob._normalize_property_type(property_type)
-        data = CRSJob._PROPERTY_TYPE_METADATA[normalized]
-        metadata = {key: value.copy() if isinstance(value, list) else value for key, value in data.items()}
+        metadata = CRSJob._property_type_builder_class(property_type)._metadata()
         if not as_summary:
             return deepcopy(metadata)
 
         summary = [
-            f"{normalized}: {metadata['description']}",
+            f"{property_type}: {metadata['description']}",
             f"system_scope: {metadata['system_scope']}",
             f"top_level_keys: {', '.join(metadata['input_keys']['top_level']) or '-'}",
             f"property_keys: {', '.join(metadata['input_keys']['property']) or '-'}",
@@ -2075,7 +2233,6 @@ class CRSJob(SCMJob):
         value_name: str,
         allowed: Sequence[str],
         aliases: Optional[Dict[str, str]] = None,
-        supported_values: Optional[Sequence[str]] = None,
     ) -> str:
         """Normalize and validate a string choice against supported values."""
         if not isinstance(value, str):
@@ -2085,7 +2242,7 @@ class CRSJob(SCMJob):
         if aliases is not None:
             normalized = aliases.get(normalized, normalized)
         if normalized not in allowed:
-            supported = ", ".join(supported_values if supported_values is not None else allowed)
+            supported = ", ".join(allowed)
             raise ValueError(f"Unsupported {value_name} {value!r}. Supported values: {supported}")
         return normalized
 
@@ -2095,8 +2252,7 @@ class CRSJob(SCMJob):
         return CRSJob._normalize_choice(
             property_type,
             value_name="property_type",
-            allowed=CRSJob._PROPERTY_TYPE_METADATA,
-            supported_values=CRSJob.property_types(),
+            allowed=CRSJob.property_types(),
         )
 
     @staticmethod
@@ -2173,7 +2329,6 @@ class CRSJob(SCMJob):
             value_name="method",
             allowed=CRSJob._METHODS,
             aliases=CRSJob._METHOD_ALIASES,
-            supported_values=CRSJob.methods(),
         )
 
     @staticmethod
@@ -2832,9 +2987,10 @@ class CRSJob(SCMJob):
             if normalized_property_type is None:
                 requested_property_keys: Tuple[str, ...] = ()
             else:
+                metadata = CRSJob._property_type_builder_class(normalized_property_type)._metadata()
                 requested_property_keys = tuple(
                     key
-                    for key in CRSJob._PROPERTY_TYPE_METADATA[normalized_property_type]["compound_keys"]
+                    for key in metadata["input_keys"]["compound"]
                     if key not in {"name", "frac1", "frac2", "nring"}
                 )
         else:
@@ -2889,49 +3045,270 @@ class CRSJob(SCMJob):
                 db._close_connection()
 
     @staticmethod
+    @overload
     def input_builder(
-        property_type: str,
+        property_type: Literal["ACTIVITYCOEF"],
         *,
-        method: str = "COSMO-RS",
+        method: CRSMethodName = "COSMO-RS",
+        mode: Optional[str] = None,
+        use_defaults: bool = False,
+        **kwargs: Any,
+    ) -> "ACTIVITYCOEFInputBuilder": ...
+
+    @staticmethod
+    @overload
+    def input_builder(
+        property_type: Literal["LOGP"],
+        *,
+        method: CRSMethodName = "COSMO-RS",
+        mode: Optional[str] = None,
+        use_defaults: bool = False,
+        **kwargs: Any,
+    ) -> "LOGPInputBuilder": ...
+
+    @staticmethod
+    @overload
+    def input_builder(
+        property_type: Literal["SOLUBILITY"],
+        *,
+        method: CRSMethodName = "COSMO-RS",
+        mode: Optional[CRSSolubilityMode] = None,
+        use_defaults: bool = False,
+        **kwargs: Any,
+    ) -> "SOLUBILITYInputBuilder": ...
+
+    @staticmethod
+    @overload
+    def input_builder(
+        property_type: Literal["PURESOLUBILITY"],
+        *,
+        method: CRSMethodName = "COSMO-RS",
+        mode: Optional[CRSSolubilityMode] = None,
+        use_defaults: bool = False,
+        **kwargs: Any,
+    ) -> "PURESOLUBILITYInputBuilder": ...
+
+    @staticmethod
+    @overload
+    def input_builder(
+        property_type: Literal["VAPORPRESSURE"],
+        *,
+        method: CRSMethodName = "COSMO-RS",
+        mode: Optional[str] = None,
+        use_defaults: bool = False,
+        **kwargs: Any,
+    ) -> "VAPORPRESSUREInputBuilder": ...
+
+    @staticmethod
+    @overload
+    def input_builder(
+        property_type: Literal["PUREVAPORPRESSURE"],
+        *,
+        method: CRSMethodName = "COSMO-RS",
+        mode: Optional[str] = None,
+        use_defaults: bool = False,
+        **kwargs: Any,
+    ) -> "PUREVAPORPRESSUREInputBuilder": ...
+
+    @staticmethod
+    @overload
+    def input_builder(
+        property_type: Literal["BOILINGPOINT"],
+        *,
+        method: CRSMethodName = "COSMO-RS",
+        mode: Optional[str] = None,
+        use_defaults: bool = False,
+        **kwargs: Any,
+    ) -> "BOILINGPOINTInputBuilder": ...
+
+    @staticmethod
+    @overload
+    def input_builder(
+        property_type: Literal["PUREBOILINGPOINT"],
+        *,
+        method: CRSMethodName = "COSMO-RS",
+        mode: Optional[str] = None,
+        use_defaults: bool = False,
+        **kwargs: Any,
+    ) -> "PUREBOILINGPOINTInputBuilder": ...
+
+    @staticmethod
+    @overload
+    def input_builder(
+        property_type: Literal["FLASHPOINT"],
+        *,
+        method: CRSMethodName = "COSMO-RS",
+        mode: Optional[str] = None,
+        use_defaults: bool = False,
+        **kwargs: Any,
+    ) -> "FLASHPOINTInputBuilder": ...
+
+    @staticmethod
+    @overload
+    def input_builder(
+        property_type: Literal["BINMIXCOEF"],
+        *,
+        method: CRSMethodName = "COSMO-RS",
+        mode: Optional[CRSVLESweepMode] = None,
+        use_defaults: bool = False,
+        **kwargs: Any,
+    ) -> "BINMIXCOEFInputBuilder": ...
+
+    @staticmethod
+    @overload
+    def input_builder(
+        property_type: Literal["TERNARYMIX"],
+        *,
+        method: CRSMethodName = "COSMO-RS",
+        mode: Optional[CRSVLESweepMode] = None,
+        use_defaults: bool = False,
+        **kwargs: Any,
+    ) -> "TERNARYMIXInputBuilder": ...
+
+    @staticmethod
+    @overload
+    def input_builder(
+        property_type: Literal["COMPOSITIONLINE"],
+        *,
+        method: CRSMethodName = "COSMO-RS",
+        mode: Optional[CRSVLESweepMode] = None,
+        use_defaults: bool = False,
+        **kwargs: Any,
+    ) -> "COMPOSITIONLINEInputBuilder": ...
+
+    @staticmethod
+    @overload
+    def input_builder(
+        property_type: Literal["LLE"],
+        *,
+        method: CRSMethodName = "COSMO-RS",
+        mode: Optional[str] = None,
+        use_defaults: bool = False,
+        **kwargs: Any,
+    ) -> "LLEInputBuilder": ...
+
+    @staticmethod
+    @overload
+    def input_builder(
+        property_type: Literal["STABILITY"],
+        *,
+        method: CRSMethodName = "COSMO-RS",
+        mode: Optional[str] = None,
+        use_defaults: bool = False,
+        **kwargs: Any,
+    ) -> "STABILITYInputBuilder": ...
+
+    @staticmethod
+    @overload
+    def input_builder(
+        property_type: Literal["SIGMAPROFILE"],
+        *,
+        method: CRSMethodName = "COSMO-RS",
+        mode: Optional[str] = None,
+        use_defaults: bool = False,
+        **kwargs: Any,
+    ) -> "SIGMAPROFILEInputBuilder": ...
+
+    @staticmethod
+    @overload
+    def input_builder(
+        property_type: Literal["PURESIGMAPROFILE"],
+        *,
+        method: CRSMethodName = "COSMO-RS",
+        mode: Optional[str] = None,
+        use_defaults: bool = False,
+        **kwargs: Any,
+    ) -> "PURESIGMAPROFILEInputBuilder": ...
+
+    @staticmethod
+    @overload
+    def input_builder(
+        property_type: Literal["SIGMAPOTENTIAL"],
+        *,
+        method: CRSMethodName = "COSMO-RS",
+        mode: Optional[str] = None,
+        use_defaults: bool = False,
+        **kwargs: Any,
+    ) -> "SIGMAPOTENTIALInputBuilder": ...
+
+    @staticmethod
+    @overload
+    def input_builder(
+        property_type: Literal["PURESIGMAPOTENTIAL"],
+        *,
+        method: CRSMethodName = "COSMO-RS",
+        mode: Optional[str] = None,
+        use_defaults: bool = False,
+        **kwargs: Any,
+    ) -> "PURESIGMAPOTENTIALInputBuilder": ...
+
+    @staticmethod
+    @overload
+    def input_builder(
+        property_type: CRSPropertyName,
+        *,
+        method: CRSMethodName = "COSMO-RS",
+        mode: Optional[str] = None,
+        use_defaults: bool = False,
+        **kwargs: Any,
+    ) -> "CRSInputBuilder": ...
+
+    @staticmethod
+    def input_builder(
+        property_type: CRSPropertyName,
+        *,
+        method: CRSMethodName = "COSMO-RS",
         mode: Optional[str] = None,
         use_defaults: bool = False,
         **kwargs: Any,
     ) -> "CRSInputBuilder":
-        """Return a property-type-aware builder for CRS input settings.
-        ``method`` selects the COSMO-RS/SAC method.
-        ``mode`` is supported only for selected property types.
+        """Return a property-specific CRS input builder.
 
         Example::
 
-            crs_input = CRSJob.input_builder("SOLUBILITY", temperature="353.15 373.15 10", mode="gas")
+            builder = CRSJob.input_builder(
+                "ACTIVITYCOEF",
+                method="COSMOSAC2013",
+                mode="gas",
+                temperature="353.15 373.15 10",
+            )
 
-            benzene = CRSJob.compound_block(CRSJob.coskf_from_database("Benzene.coskf"))
-            benzene.pvap = 353.3
-            benzene.tvap = 1.01325
+            builder.add_solvent(CRSJob.coskf_from_database("Water.coskf"), frac1=1.0)
+            builder.add_solute(CRSJob.coskf_from_database("Benzene.coskf"))
 
-            water = CRSJob.compound_block(CRSJob.coskf_from_database("Water.coskf"), frac1=1.0)
-            water.vp_equation = "Antoine"
-            water.vp_params = "5.40221 1838.675 -31.737 0.0 0.0"
+            settings = builder.to_settings()
 
-            crs_input.add_solvent(water)
-            crs_input.add_solute(benzene)
-
-            settings = crs_input.to_settings()
-
-        Use ``builder.describe()`` and ``CRSJob.property_type_metadata(...)`` for available keys.
+        Use ``builder.describe()`` to inspect supported keys, modes, and compound roles.
         """
-        return CRSInputBuilder(property_type)._configure(
+        normalized_property_type = CRSJob._normalize_property_type(property_type)
+        builder_class = _CRS_INPUT_BUILDER_CLASSES[normalized_property_type]
+        return builder_class(
             method=method,
             mode=mode,
             use_defaults=use_defaults,
-            values=kwargs
+            **kwargs,
         )
 
 
 class CRSInputBuilder:
     """Property-type builder for CRSJob input settings."""
 
-    _DEFAULT_INPUT_KEYS: ClassVar[Dict[str, Tuple[str, ...]]] = {
+    _PROPERTY_TYPE: ClassVar[Optional[str]] = None
+    _DESCRIPTION: ClassVar[str] = ""
+    _SYSTEM_SCOPE: ClassVar[str] = ""
+    _INPUT_KEYS: ClassVar[Dict[str, Tuple[str, ...]]] = {
+        "top_level": (),
+        "property": (),
+        "compound": (),
+    }
+    _REQUIRED_KEYS: ClassVar[Tuple[str, ...]] = ()
+    _HINT_KEYS: ClassVar[Tuple[str, ...]] = ()
+    _COMMENTS: ClassVar[Tuple[str, ...]] = ()
+    _COMPOUND_ROLES: ClassVar[Tuple[str, ...]] = ()
+    _COMPOUND_ROLE_CONFIG: ClassVar[Dict[str, Dict[str, Optional[int]]]] = {}
+    _MODE_CONFIG: ClassVar[Dict[str, Any]] = {}
+
+    _AUTO_DEFAULT_KEYS: ClassVar[Dict[str, Tuple[str, ...]]] = {
         "top_level": ("temperature", "pressure"),
         "property": ("nfrac", "nprofile", "sigmamax"),
     }
@@ -2945,6 +3322,7 @@ class CRSInputBuilder:
         "property_type",
         "method",
         "method_options",
+        "set",
         "get",
         "describe",
         "apply_defaults",
@@ -2953,73 +3331,135 @@ class CRSInputBuilder:
     )
 
     _INTERNAL_ATTRIBUTES: ClassVar[Set[str]] = {
-        "property_type",
-        "metadata",
         "_method",
-        "_top_level_keys",
-        "_property_keys",
-        "_flat_keys",
+        "_accepted_keys",
         "_mode",
-        "_has_mode",
-        "_mode_options",
-        "_mode_default",
-        "_mode_input_mapping",
+        "_mode_config",
         "_active_mode_input_keys",
         "_compound_roles",
         "_compounds_by_role",
     }
 
-    def __init__(self, property_type: str) -> None:
-        normalized = CRSJob._normalize_property_type(property_type)
-        metadata = CRSJob._PROPERTY_TYPE_METADATA[normalized]
-        mode_metadata = metadata["builder"].get("mode")
+    def __init__(
+        self,
+        property_type: Optional[CRSPropertyName] = None,
+        *,
+        method: CRSMethodName = "COSMO-RS",
+        mode: Optional[str] = None,
+        use_defaults: bool = False,
+        **kwargs: Any,
+    ) -> None:
+        normalized = type(self)._resolve_property_type(property_type)
+
+        metadata = type(self)._metadata()
         builder_metadata = metadata["builder"]
 
-        top_level_keys = set(metadata["input_keys"]["top_level"])
-        property_keys = set(metadata["input_keys"]["property"])
-
-        mode_options = tuple(mode_metadata.get("keys", ())) if mode_metadata else ()
-        mode_default = mode_metadata.get("default") if mode_metadata else None
-        mode_input_mapping = mode_metadata.get("set", {}) if mode_metadata else {}
+        accepted_keys = self._build_accepted_keys(metadata)
+        mode_config = type(self)._mode_config()
 
         compound_roles = tuple(builder_metadata.get("roles", ()))
         compounds_by_role = {role: [] for role in compound_roles}
 
         object.__setattr__(self, "property_type", normalized)
         object.__setattr__(self, "metadata", metadata)
-        object.__setattr__(self, "_top_level_keys", top_level_keys)
-        object.__setattr__(self, "_property_keys", property_keys)
-        object.__setattr__(self, "_flat_keys", top_level_keys | property_keys)
+        object.__setattr__(self, "_accepted_keys", accepted_keys)
         object.__setattr__(self, "_method", CRSJob._normalize_method("COSMO-RS"))
 
         # User modes can set CRS input keys; for example, mode="gas" sets isobar=True.
-        object.__setattr__(self, "_has_mode", mode_metadata is not None)
         object.__setattr__(self, "_mode", None)
+        object.__setattr__(self, "_mode_config", mode_config)
         object.__setattr__(self, "_active_mode_input_keys", set())
-        object.__setattr__(self, "_mode_options", mode_options)
-        object.__setattr__(self, "_mode_default", mode_default)
-        object.__setattr__(self, "_mode_input_mapping", mode_input_mapping)
 
         object.__setattr__(self, "_compound_roles", compound_roles)
         object.__setattr__(self, "_compounds_by_role", compounds_by_role)
 
+        self._reject_mode_controlled_keys(kwargs)
+        self._set_method(method)
+        self._set_mode_or_default(mode)
+
+        for key, value in kwargs.items():
+            self._set_input_value(key, value)
+
+        if use_defaults:
+            self.apply_defaults()
+
+    @classmethod
+    def _resolve_property_type(cls, property_type: Optional[CRSPropertyName]) -> str:
+        if cls._PROPERTY_TYPE is None:
+            raise TypeError("CRSInputBuilder is a base class; use CRSJob.input_builder()")
+        if property_type is None:
+            return cls._PROPERTY_TYPE
+
+        normalized = CRSJob._normalize_property_type(property_type)
+        if normalized != cls._PROPERTY_TYPE:
+            raise ValueError(f"{cls.__name__} only supports property_type={cls._PROPERTY_TYPE!r}")
+        return normalized
+
+    @classmethod
+    def _metadata(cls) -> Dict[str, Any]:
+        """Return the property metadata declared by this property-specific builder class."""
+        if cls._PROPERTY_TYPE is None:
+            raise TypeError("CRSInputBuilder base class does not define property metadata")
+
+        input_keys = {
+            "top_level": tuple(cls._INPUT_KEYS.get("top_level", ())),
+            "property": tuple(cls._INPUT_KEYS.get("property", ())),
+            "compound": tuple(cls._INPUT_KEYS.get("compound", ())),
+        }
+        builder: Dict[str, Any] = {"roles": tuple(cls._COMPOUND_ROLES)}
+        if cls._COMPOUND_ROLE_CONFIG:
+            builder["role_config"] = deepcopy(cls._COMPOUND_ROLE_CONFIG)
+        if cls._MODE_CONFIG:
+            builder["mode"] = deepcopy(cls._MODE_CONFIG)
+
+        return {
+            "description": cls._DESCRIPTION,
+            "system_scope": cls._SYSTEM_SCOPE,
+            "input_keys": input_keys,
+            "required_keys": tuple(cls._REQUIRED_KEYS),
+            "comments": tuple(cls._COMMENTS),
+            "hint_keys": tuple(cls._HINT_KEYS),
+            "builder": builder,
+        }
+
+    @classmethod
+    def _mode_config(cls) -> CRSModeConfig:
+        return CRSModeConfig(cls._MODE_CONFIG)
+
+    @classmethod
+    def _build_accepted_keys(cls, metadata: Dict[str, Any]) -> Dict[str, CRSInputRoute]:
+        """Build public builder-key routes for top-level and PROPERTY input keys."""
+        accepted_keys = {
+            key: CRSInputRoute(scope="top_level", metadata=CRS_DATA[key])
+            for key in metadata["input_keys"].get("top_level", ()) + cls._GLOBAL_TOP_LEVEL_KEYS
+        }
+
+        property_key_metadata = get_block_keys(CRS_DATA, "property")
+        accepted_keys.update(
+            {
+                key: CRSInputRoute(scope="property", metadata=property_key_metadata[key])
+                for key in metadata["input_keys"].get("property", ())
+            }
+        )
+
+        return accepted_keys
+
     def __dir__(self) -> List[str]:
         """Return property-type-specific completions for interactive use."""
         entries = set()
-        entries.update(self._flat_keys)
-        entries.update(self._GLOBAL_TOP_LEVEL_KEYS)
+        entries.update(self._accepted_keys)
         entries.update(self._COMMON_DIR_ENTRIES)
 
-        if self._has_mode:
-            entries.difference_update(self._mode_options)
+        if self._mode_config.options:
+            entries.difference_update(self._mode_config.options)
             entries.difference_update(self._active_mode_input_keys)
             entries.update({"mode", "mode_options"})
 
-        if "compound" in self._compound_roles:
+        if "compound" in self._compound_roles and hasattr(type(self), "add_compound"):
             entries.add("add_compound")
-        if "solvent" in self._compound_roles:
+        if "solvent" in self._compound_roles and hasattr(type(self), "add_solvent"):
             entries.add("add_solvent")
-        if "solute" in self._compound_roles:
+        if "solute" in self._compound_roles and hasattr(type(self), "add_solute"):
             entries.add("add_solute")
 
         return sorted(entries)
@@ -3029,31 +3469,15 @@ class CRSInputBuilder:
             object.__setattr__(self, key, value)
             return
 
-        if key in self._GLOBAL_TOP_LEVEL_KEYS:
-            object.__setattr__(self, key, value)
-            return
-
-        if key in self._flat_keys:
-            object.__setattr__(self, key, value)
-            return
-
-        if key == "mode":
-            self._set_mode(value)
-            return
-
-        if key == "method":
-            self._set_method(value)
-            return
-
-        raise AttributeError(self._invalid_key_message(key))
+        self._set_input_value(key, value)
 
     @property
-    def mode(self) -> Optional[str]:
-        return self._mode
+    def method(self) -> str:
+        return self._method
 
     @property
-    def mode_options(self) -> Tuple[str, ...]:
-        return self._mode_options
+    def method_options(self) -> Tuple[str, ...]:
+        return CRSJob.methods()
 
     def get(self, key: str, default: Any = None) -> Any:
         """Return an input value if set, otherwise return default."""
@@ -3064,50 +3488,28 @@ class CRSInputBuilder:
         if key == "mode":
             return self._mode
         if key == "mode_options":
-            return self._mode_options
-        if key in self._GLOBAL_TOP_LEVEL_KEYS:
-            return getattr(self, key, default)
-        if key not in self._flat_keys:
-            raise AttributeError(self._invalid_key_message(key))
-        return getattr(self, key, default)
+            return self._mode_config.options
+        self._validate_input_key(key)
+        return self._get_value(key) if self._has_value(key) else default
 
-    def add_compound(
-        self,
-        compound: Union[Settings, PathLike],
-        *,
-        frac1: Optional[float] = None
-    ) -> "CRSInputBuilder":
-        """Add a COMPOUND block for property types using generic compounds."""
-        return self._add_compound_role("compound", compound, overrides={"frac1": frac1})
-
-    def add_solvent(
-        self,
-        compound: Union[Settings, PathLike],
-        *,
-        frac1: Optional[float] = None,
-        frac2: Optional[float] = None,
-    ) -> "CRSInputBuilder":
-        """Add a COMPOUND block as a solvent."""
-        return self._add_compound_role("solvent", compound, overrides={"frac1": frac1, "frac2": frac2})
-
-    def add_solute(self, compound: Union[Settings, PathLike]) -> "CRSInputBuilder":
-        """Add a COMPOUND block as a solute."""
-        return self._add_compound_role("solute", compound)
+    def set(self: _CRSInputBuilderT, **kwargs: Any) -> _CRSInputBuilderT:
+        """Set one or more property-type-aware CRS input values."""
+        self._reject_mode_controlled_keys(kwargs)
+        for key, value in kwargs.items():
+            self._set_input_value(key, value)
+        return self
 
     def apply_defaults(self) -> "CRSInputBuilder":
-        """Set default input values for unset supported keys."""
-        for key in self._DEFAULT_INPUT_KEYS["top_level"]:
-            if key not in self._top_level_keys or hasattr(self, key):
+        """Set auto-default input values for unset supported keys."""
+        for key, route in sorted(self._accepted_keys.items()):
+            if self._has_value(key):
                 continue
-            if key == "pressure" and not getattr(self, "isobar", False):
-                continue
-            object.__setattr__(self, key, self._get_default_value(CRS_DATA[key]))
 
-        property_key_metadata = get_block_keys(CRS_DATA, "property")
-        for key in self._DEFAULT_INPUT_KEYS["property"]:
-            if key not in self._property_keys or hasattr(self, key):
+            has_default, value = self._auto_default_candidate(key, route)
+            if not has_default:
                 continue
-            object.__setattr__(self, key, self._get_default_value(property_key_metadata[key]))
+
+            self._set_value(key, value)
 
         return self
 
@@ -3118,55 +3520,13 @@ class CRSInputBuilder:
         include_guidance: bool = False,
     ) -> Tuple[str, ...]:
         """Return property-type-specific input keys and mode descriptions."""
-        descriptions: List[str] = [
-            self._format_input_description(
-                "method",
-                "top_level",
-                {"type": "multiple_choice", "description": "COSMO-RS/SAC method."},
-                value=self._method,
-                value_label="set" if include_values else None,
-            )
+
+        descriptions = [
+            self._method_description(include_values=include_values),
+            *self._input_descriptions(include_values=include_values),
+            *self._compound_descriptions(include_details=include_compound_details),
+            *self._mode_descriptions(),
         ]
-
-        for key in sorted(self._top_level_keys):
-            metadata = CRS_DATA[key]
-            value_label, value = self._input_value_state(key, "top_level", metadata, include_values)
-            descriptions.append(
-                self._format_input_description(
-                    key,
-                    "top_level",
-                    metadata,
-                    value=value,
-                    value_label=value_label,
-                )
-            )
-
-        property_key_metadata = get_block_keys(CRS_DATA, "property")
-        for key in sorted(self._visible_property_keys()):
-            metadata = property_key_metadata[key]
-            value_label, value = self._input_value_state(key, "property", metadata, include_values)
-
-            descriptions.append(
-                self._format_input_description(
-                    key,
-                    "property",
-                    metadata,
-                    value=value,
-                    value_label=value_label,
-                )
-            )
-
-        if include_compound_details:
-            descriptions.extend(self._compound_key_detail_descriptions())
-        else:
-            compound_keys = self._compound_keys_description()
-            if compound_keys is not None:
-                descriptions.append(compound_keys)
-
-        mode_description = self._mode_description()
-        if mode_description is not None:
-            descriptions.append(mode_description)
-            descriptions.extend(self._mode_hint_descriptions())
 
         if include_guidance:
             descriptions.extend(self._comment_descriptions())
@@ -3178,38 +3538,26 @@ class CRSInputBuilder:
         """Build PLAMS Settings, optionally omitting COMPOUND blocks."""
         self._validate_required_inputs()
         if include_compounds:
+            self._validate_compound_role_counts(check="bounds")
             self._validate_compound_required_keys_by_mode()
 
         settings = Settings()
         settings.input.method = self._method
         settings.input.property._h = self.property_type
 
-        for key in self._top_level_keys:
-            if not hasattr(self, key):
+        for key, route in sorted(self._accepted_keys.items()):
+            if not self._has_value(key):
                 continue
 
-            value = getattr(self, key)
-            metadata = CRS_DATA[key]
-            if metadata.get("type") == "bool" and value == metadata.get("default"):
-                continue
+            value = self._get_value(key)
+            metadata = route.metadata
 
-            settings.input[key] = value
-
-
-        for key in self._GLOBAL_TOP_LEVEL_KEYS:
-            if not hasattr(self, key):
-                continue
-
-            value = getattr(self, key)
-            metadata = CRS_DATA[key]
-            if value == metadata.get("default"):
-                continue
-
-            settings.input[key] = value
-
-        for key in self._property_keys | self._active_mode_input_keys:
-            if hasattr(self, key):
-                settings.input.property[key] = getattr(self, key)
+            if route.scope == "top_level":
+                if metadata.get("type") == "bool" and value == metadata.get("default"):
+                    continue
+                settings.input[key] = value
+            elif route.scope == "property":
+                settings.input.property[key] = value
 
         if not include_compounds:
             return settings
@@ -3229,6 +3577,96 @@ class CRSInputBuilder:
             return CRSJob(settings=self.to_settings(), **kwargs)
         return CRSJob(settings=self.to_settings(), name=name, **kwargs)
 
+    # General value helpers
+    def _validate_input_key(self, key: str) -> None:
+        if key not in self._accepted_keys:
+            raise AttributeError(self._invalid_key_message(key))
+
+    def _set_input_value(self, key: str, value: Any) -> None:
+        if key == "mode":
+            self._set_mode(value)
+            return
+        if key == "method":
+            self._set_method(value)
+            return
+
+        self._validate_input_key(key)
+        self._set_value(key, value)
+
+    def _set_value(self, key: str, value: Any) -> None:
+        object.__setattr__(self, key, value)
+
+    def _get_value(self, key: str) -> Any:
+        return getattr(self, key)
+
+    def _has_value(self, key: str) -> bool:
+        return hasattr(self, key)
+
+    def _set_method(self, method: CRSMethodName) -> None:
+        object.__setattr__(self, "_method", CRSJob._normalize_method(method))
+
+
+    # mode helpers
+    def _set_mode_or_default(self, mode: Optional[str]) -> None:
+        selected_mode = self._mode_config.default if mode is None else mode
+        if selected_mode is not None:
+            self._set_mode(selected_mode)
+
+    def _mode_values(self, mode: str) -> Dict[str, Any]:
+        if not self._mode_config.options:
+            raise ValueError(f"{self.property_type} does not support mode")
+
+        normalized_mode = mode.lower()
+        if normalized_mode not in self._mode_config.options:
+            allowed = ", ".join(self._mode_config.options)
+            raise ValueError(f"Unsupported mode {mode!r} for {self.property_type}. Supported modes: {allowed}")
+
+        values: Dict[str, Any] = {}
+        mode_values = self._mode_config.input_mapping.get(normalized_mode, {})
+        for _, scoped_values in mode_values.items():
+            values.update(scoped_values)
+        return values
+
+    def _mode_controlled_property_keys(self) -> Set[str]:
+        keys = set(self._mode_config.options)
+
+        for mode in self._mode_config.options:
+            property_values = self._mode_config.input_mapping.get(mode, {}).get("property", {})
+            keys.update(property_values)
+
+        return keys
+
+    def _set_mode(self, mode: str) -> None:
+        normalized_mode = mode.lower()
+        values = self._mode_values(normalized_mode)
+
+        for key in self._active_mode_input_keys:
+            if hasattr(self, key):
+                object.__delattr__(self, key)
+
+        for key, value in values.items():
+            object.__setattr__(self, key, value)
+
+        object.__setattr__(self, "_mode", normalized_mode)
+        object.__setattr__(self, "_active_mode_input_keys", set(values))
+
+    def _reject_mode_controlled_keys(self, values: Dict[str, Any]) -> None:
+        if not self._mode_config.options:
+            return
+
+        # Mode-controlled flags, such as isobar, must be selected through mode=.
+        provided = self._mode_controlled_property_keys().intersection(values)
+        if not provided:
+            return
+
+        provided_keys = ", ".join(sorted(provided))
+        allowed_modes = ", ".join(self._mode_config.options)
+
+        raise ValueError(
+            f"{self.property_type} mode-controlled key(s) must be set with mode=, "
+            f"not keyword arguments: {provided_keys}. Supported modes: {allowed_modes}"
+        )
+
     # compound helpers
     def _add_compound_role(
         self, role: str,
@@ -3240,6 +3678,8 @@ class CRSInputBuilder:
         if role not in self._compound_roles:
             allowed = ", ".join(self._compound_roles) or "none"
             raise ValueError(f"{self.property_type} does not support {role} compounds. Supported roles: {allowed}")
+
+        self._validate_compound_role_counts(check="max", role=role)
 
         if isinstance(compound, Settings):
             normalized = CRSJob._normalize_compound(compound.copy())
@@ -3273,26 +3713,29 @@ class CRSInputBuilder:
     def _compound_input_keys(self) -> Set[str]:
         return set(self.metadata["input_keys"].get("compound", ()))
 
+    def _validate_compound_override_key(self, key: str) -> str:
+        allowed = self._compound_input_keys()
+
+        if key not in allowed:
+            allowed_keys = ", ".join(sorted(allowed)) or "none"
+            raise ValueError(
+                f"{key} is not valid for {self.property_type} compounds. "
+                f"Supported compound keys: {allowed_keys}"
+            )
+
+        return key
+
     def _set_compound_overrides(
         self,
         compound: Settings,
         overrides: Dict[str, Any],
     ) -> None:
         """Apply validated compound-key overrides such as frac1 and frac2."""
-        allowed = self._compound_input_keys()
-
         for key, value in overrides.items():
             if value is None:
                 continue
 
-            if key not in allowed:
-                allowed_keys = ", ".join(sorted(allowed)) or "none"
-                raise ValueError(
-                    f"{key} is not valid for {self.property_type} compounds. "
-                    f"Supported compound keys: {allowed_keys}"
-                )
-
-            compound[key] = value
+            compound[self._validate_compound_override_key(key)] = value
 
     def _compound_blocks(self) -> List[Settings]:
         compounds: List[Settings] = []
@@ -3310,6 +3753,62 @@ class CRSInputBuilder:
         mode_metadata = self.metadata["builder"].get("mode", {})
         requirements = mode_metadata.get("compound_required_keys", {})
         return requirements.get(self._mode, {})
+
+
+    # validation helpers
+    def _validate_required_inputs(self) -> None:
+        """Validate required top-level and PROPERTY input keys."""
+        required_keys = set(self.metadata["required_keys"])
+
+        missing = sorted(
+            key for key in required_keys
+            if key in self._accepted_keys and not self._has_value(key)
+        )
+
+        if missing:
+            raise ValueError(f"{self.property_type} missing required input key(s): {', '.join(missing)}")
+
+    def _validate_compound_role_counts(
+        self,
+        *,
+        check: Literal["max", "bounds"],
+        role: Optional[str] = None,
+    ) -> None:
+        """Validate property-specific compound role cardinality constraints."""
+        role_config = self.metadata["builder"].get("role_config", {})
+        roles = (role,) if role is not None else self._compound_roles
+
+        for current_role in roles:
+            config = role_config.get(current_role, {})
+            count = len(self._compounds_by_role.get(current_role, ()))
+            min_count = config.get("min_count")
+            max_count = config.get("max_count")
+
+            if check == "max":
+                if max_count is not None and count >= max_count:
+                    raise ValueError(
+                        f"{self.property_type} supports at most {max_count} compound block(s) "
+                        f"for role {current_role!r}"
+                    )
+                continue
+
+            if min_count is not None and max_count == min_count and count != min_count:
+                raise ValueError(
+                    f"{self.property_type} requires exactly {min_count} compound block(s) "
+                    f"for role {current_role!r}; got {count}"
+                )
+
+            if min_count is not None and count < min_count:
+                raise ValueError(
+                    f"{self.property_type} requires at least {min_count} compound block(s) "
+                    f"for role {current_role!r}; got {count}"
+                )
+
+            if max_count is not None and count > max_count:
+                raise ValueError(
+                    f"{self.property_type} supports at most {max_count} compound block(s) "
+                    f"for role {current_role!r}; got {count}"
+                )
 
     def _validate_compound_required_keys(
         self,
@@ -3356,115 +3855,20 @@ class CRSInputBuilder:
                     index=index,
                 )
 
-    # validation helpers
-    def _validate_required_inputs(self) -> None:
-        """Validate required top-level and PROPERTY input keys."""
-        required_keys = set(self.metadata["required_keys"])
-
-        missing = sorted(
-            key for key in required_keys
-            if (
-                (key in self._top_level_keys or key in self._property_keys)
-                and not hasattr(self, key)
-            )
-        )
-
-        if missing:
-            raise ValueError(f"{self.property_type} missing required input key(s): {', '.join(missing)}")
-
-    # mode/config helpers
-    def _mode_values(self, mode: str) -> Dict[str, Any]:
-        if not self._has_mode:
-            raise ValueError(f"{self.property_type} does not support mode")
-
-        normalized_mode = mode.lower()
-        if normalized_mode not in self._mode_options:
-            allowed = ", ".join(self._mode_options)
-            raise ValueError(f"Unsupported mode {mode!r} for {self.property_type}. Supported modes: {allowed}")
-
-        values: Dict[str, Any] = {}
-        mode_values = self._mode_input_mapping.get(normalized_mode, {})
-        for _, scoped_values in mode_values.items():
-            values.update(scoped_values)
-        return values
-
-    def _mode_controlled_property_keys(self) -> Set[str]:
-        keys = set(self._mode_options)
-
-        for mode in self._mode_options:
-            property_values = self._mode_input_mapping.get(mode, {}).get("property", {})
-            keys.update(property_values)
-
-        return keys
-
-    def _visible_property_keys(self) -> Set[str]:
-        return self._property_keys.difference(self._mode_controlled_property_keys())
-
-    def _set_mode(self, mode: str) -> None:
-        normalized_mode = mode.lower()
-        values = self._mode_values(normalized_mode)
-
-        for key in self._active_mode_input_keys:
-            if hasattr(self, key):
-                object.__delattr__(self, key)
-
-        for key, value in values.items():
-            object.__setattr__(self, key, value)
-
-        object.__setattr__(self, "_mode", normalized_mode)
-        object.__setattr__(self, "_active_mode_input_keys", set(values))
-
-    def _reject_mode_keys(self, values: Dict[str, Any]) -> None:
-        if not self._has_mode:
-            return
-        provided = set(self._mode_options).intersection(values)
-        if not provided:
-            return
-
-        provided_keys = ", ".join(sorted(provided))
-        allowed = ", ".join(self._mode_options)
-        raise ValueError(
-            f"{self.property_type} mode keys must be set with mode=, not keyword arguments: "
-            f"{provided_keys}. Supported modes: {allowed}"
-        )
-
-    @property
-    def method(self) -> str:
-        return self._method
-
-    @property
-    def method_options(self) -> Tuple[str, ...]:
-        return CRSJob.methods()
-
-    def _set_method(self, method: str) -> None:
-        object.__setattr__(self, "_method", CRSJob._normalize_method(method))
-
-    def _configure(
-        self,
-        *,
-        method: str = "COSMO-RS",
-        mode: Optional[str] = None,
-        use_defaults: bool = False,
-        values: Dict[str, Any],
-    ) -> "CRSInputBuilder":
-        self._reject_mode_keys(values)
-        self._set_method(method)
-
-        if mode is None:
-            mode = self._mode_default
-
-        if mode is not None:
-            self._set_mode(mode)
-
-        for key, value in values.items():
-            setattr(self, key, value)
-
-        if use_defaults:
-            self.apply_defaults()
-
-        return self
 
     # formatting/default helpers
+    def _auto_default_candidate(self, key: str, route: CRSInputRoute) -> Tuple[bool, Any]:
+        if key not in self._AUTO_DEFAULT_KEYS.get(route.scope, ()):
+            return False, None
+
+        if key == "pressure" and not getattr(self, "isobar", False):
+            return False, None
+
+        if "default" not in route.metadata:
+            return False, None
+
+        return True, self._get_default_value(route.metadata)
+
     @staticmethod
     def _get_default_value(metadata: Dict[str, Any]) -> Any:
         value = metadata.get("default")
@@ -3472,40 +3876,29 @@ class CRSInputBuilder:
             return value[0]
         return value
 
-    def _auto_default_value(self, key: str, scope: str, metadata: Dict[str, Any]) -> Tuple[bool, Any]:
-        if key not in self._DEFAULT_INPUT_KEYS.get(scope, ()):
-            return False, None
-        if key == "pressure" and not getattr(self, "isobar", False):
-            return False, None
-        if "default" not in metadata:
-            return False, None
-        return True, self._get_default_value(metadata)
-
     def _input_value_state(
         self,
         key: str,
-        scope: str,
-        metadata: Dict[str, Any],
+        route: CRSInputRoute,
         include_values: bool,
     ) -> Tuple[Optional[str], Any]:
         if not include_values:
             return None, None
 
-        if hasattr(self, key):
-            return "set", getattr(self, key)
+        if self._has_value(key):
+            return "set", self._get_value(key)
 
-        has_auto_default, auto_default = self._auto_default_value(key, scope, metadata)
-        if has_auto_default:
-            return "auto-default", auto_default
+        has_default, value = self._auto_default_candidate(key, route)
+        if has_default:
+            return "auto-default", value
 
         return "unset", None
 
     def _invalid_key_message(self, key: str) -> str:
-        allowed_keys = set(self._flat_keys)
-        allowed_keys.update(self._GLOBAL_TOP_LEVEL_KEYS)
+        allowed_keys = set(self._accepted_keys)
         allowed_keys.add("method")
 
-        if self._has_mode:
+        if self._mode_config.options:
             allowed_keys.add("mode")
 
         allowed = ", ".join(sorted(allowed_keys))
@@ -3520,55 +3913,56 @@ class CRSInputBuilder:
         value: Any = None,
         value_label: Optional[str] = None,
     ) -> str:
-        type_unit = metadata.get("type", "")
-        if metadata.get("unit"):
-            type_unit = f"{type_unit} [{metadata['unit']}]"
+        input_type = metadata.get("type", "")
+        unit = metadata.get("unit")
+        type_unit = f"{input_type} [{unit}]" if unit else input_type
+        description = metadata.get("description", "")
 
-        line = f"{key} [{scope}] {type_unit}: {metadata['description']}"
+        line = f"{key} [{scope}] {type_unit}: {description}"
 
         if value_label is not None:
             line = f"{line} {value_label}: {value!r}"
 
         return line
 
+    def _method_description(self, *, include_values: bool) -> str:
+        return self._format_input_description(
+            "method",
+            "top_level",
+            {"type": "multiple_choice", "description": "COSMO-RS/SAC method."},
+            value=self._method,
+            value_label="set" if include_values else None,
+        )
 
-    def _mode_description(self) -> Optional[str]:
-        if not self._has_mode:
-            return None
+    def _input_descriptions(self, *, include_values: bool) -> Tuple[str, ...]:
+        excluded_keys = set(self._GLOBAL_TOP_LEVEL_KEYS)
+        excluded_keys.update(self._mode_controlled_property_keys())
 
-        options = []
-        for mode in self._mode_options:
-            label = f"{mode} (*)" if mode == self._mode else mode
-            options.append(label)
+        descriptions = []
+        for key, route in sorted(self._accepted_keys.items()):
+            if key in excluded_keys:
+                continue
 
-        option_text = ", ".join(options)
+            value_label, value = self._input_value_state(key, route, include_values)
+            descriptions.append(
+                self._format_input_description(
+                    key,
+                    route.scope,
+                    route.metadata,
+                    value=value,
+                    value_label=value_label,
+                )
+            )
 
-        if self._mode_default is not None:
-            return f"mode [mode]: {option_text} (default: {self._mode_default})"
-        return f"mode [mode]: {option_text}"
+        return tuple(descriptions)
 
-    def _mode_hint_descriptions(self) -> Tuple[str, ...]:
-        if not self._has_mode:
-            return ()
-
-        mode_hints = self.metadata["builder"].get("mode", {}).get("mode_hints", {})
-        lines = []
-
-        for mode in self._mode_options:
-            hints = mode_hints.get(mode, ())
-            if isinstance(hints, str):
-                hints = (hints,)
-
-            mode_label = f"{mode} (*)" if mode == self._mode else mode
-            for hint in hints:
-                lines.append(f"mode_hint [{mode_label}]: {hint}")
-
-        return tuple(lines)
-
-    def _compound_key_detail_descriptions(self) -> Tuple[str, ...]:
-        compound_keys = self.metadata["input_keys"].get("compound", ())
+    def _compound_descriptions(self, *, include_details: bool) -> Tuple[str, ...]:
+        compound_keys = tuple(self.metadata["input_keys"].get("compound", ()))
         if not compound_keys:
             return ()
+
+        if not include_details:
+            return (f"compound_keys [compound]: {', '.join(compound_keys)}",)
 
         compound_key_metadata = get_block_keys(CRS_DATA, "compound")
         return tuple(
@@ -3576,14 +3970,409 @@ class CRSInputBuilder:
             for key in compound_keys
         )
 
-    def _compound_keys_description(self) -> Optional[str]:
-        compound_keys = self.metadata["input_keys"].get("compound", ())
-        if not compound_keys:
-            return None
-        return f"compound_keys [compound]: {', '.join(compound_keys)}"
+    def _mode_description_text(self, mode: str) -> str:
+        descriptions = self._mode_config.descriptions.get(mode, ())
+        if isinstance(descriptions, str):
+            return descriptions
+        return " ".join(descriptions)
+
+    def _mode_state_label(self, mode: str) -> str:
+        labels = []
+        if mode == self._mode:
+            labels.append("current")
+        if mode == self._mode_config.default:
+            labels.append("default")
+        return f" ({', '.join(labels)})" if labels else ""
+
+    def _mode_descriptions(self) -> Tuple[str, ...]:
+        if not self._mode_config.options:
+            return ()
+
+        return tuple(
+            f"mode [{mode}]{self._mode_state_label(mode)}: {self._mode_description_text(mode)}"
+            for mode in self._mode_config.options
+        )
 
     def _comment_descriptions(self) -> Tuple[str, ...]:
         return tuple(f"comment: {comment}" for comment in self.metadata.get("comments", ()))
 
     def _input_hint_descriptions(self) -> Tuple[str, ...]:
         return CRSJob._property_type_input_hint_descriptions(self.metadata)
+
+
+class _CompoundRoleMixin:
+    def add_compound(
+        self: _CRSInputBuilderT,
+        compound: Union[Settings, PathLike],
+        **kwargs: Any,
+    ) -> _CRSInputBuilderT:
+        """Add a COMPOUND block for property types using generic compounds."""
+        return self._add_compound_role("compound", compound, overrides=kwargs)
+
+
+class _SolventRoleMixin:
+    def add_solvent(
+        self: _CRSInputBuilderT,
+        compound: Union[Settings, PathLike],
+        **kwargs: Any,
+    ) -> _CRSInputBuilderT:
+        """Add a COMPOUND block as a solvent."""
+        return self._add_compound_role("solvent", compound, overrides=kwargs)
+
+
+class _SoluteRoleMixin:
+    def add_solute(
+        self: _CRSInputBuilderT,
+        compound: Union[Settings, PathLike],
+        **kwargs: Any,
+    ) -> _CRSInputBuilderT:
+        """Add a COMPOUND block as a solute."""
+        return self._add_compound_role("solute", compound, overrides=kwargs)
+
+
+class ACTIVITYCOEFInputBuilder(_SolventRoleMixin, _SoluteRoleMixin, CRSInputBuilder):
+    """Builder for ACTIVITYCOEF CRS input settings."""
+
+    _PROPERTY_TYPE: ClassVar[str] = "ACTIVITYCOEF"
+    _DESCRIPTION: ClassVar[str] = "Activity coefficients in a solvent mixture."
+    _SYSTEM_SCOPE: ClassVar[str] = "solvent_mixture_with_solutes"
+    _INPUT_KEYS: ClassVar[Dict[str, Tuple[str, ...]]] = {
+        "top_level": ("temperature", "massfraction"),
+        "property": ("densitysolvent",),
+        "compound": ("frac1", "density") + _VAPOR_PRESSURE_KEYS,
+    }
+    _REQUIRED_KEYS: ClassVar[Tuple[str, ...]] = ("temperature", "frac1")
+    _HINT_KEYS: ClassVar[Tuple[str, ...]] = ("densitysolvent", "density")
+    _COMPOUND_ROLES: ClassVar[Tuple[str, ...]] = ("solvent", "solute")
+
+
+class LOGPInputBuilder(_SolventRoleMixin, _SoluteRoleMixin, CRSInputBuilder):
+    """Builder for LOGP CRS input settings."""
+
+    _PROPERTY_TYPE: ClassVar[str] = "LOGP"
+    _DESCRIPTION: ClassVar[str] = "Partition coefficients between two immiscible solvent phases."
+    _SYSTEM_SCOPE: ClassVar[str] = "mixture"
+    _INPUT_KEYS: ClassVar[Dict[str, Tuple[str, ...]]] = {
+        "top_level": ("temperature", "massfraction"),
+        "property": ("volumequotient",),
+        "compound": ("frac1", "frac2", "density"),
+    }
+    _REQUIRED_KEYS: ClassVar[Tuple[str, ...]] = ("temperature", "frac1", "frac2")
+    _HINT_KEYS: ClassVar[Tuple[str, ...]] = ("volumequotient",)
+    _COMPOUND_ROLES: ClassVar[Tuple[str, ...]] = ("solvent", "solute")
+    _COMPOUND_ROLE_CONFIG: ClassVar[Dict[str, Dict[str, Optional[int]]]] = {
+        "solvent": {"min_count": 2},
+        "solute": {"min_count": 1},
+    }
+
+
+class _SolubilityModeMixin:
+    @property
+    def mode(self) -> Optional[CRSSolubilityMode]:
+        return cast(Optional[CRSSolubilityMode], self._mode)
+
+    @mode.setter
+    def mode(self, mode: CRSSolubilityMode) -> None:
+        self._set_mode(mode)
+
+    @property
+    def mode_options(self) -> Tuple[CRSSolubilityMode, ...]:
+        return cast(Tuple[CRSSolubilityMode, ...], self._mode_config.options)
+
+
+class _VLESweepModeMixin:
+    @property
+    def mode(self) -> Optional[CRSVLESweepMode]:
+        return cast(Optional[CRSVLESweepMode], self._mode)
+
+    @mode.setter
+    def mode(self, mode: CRSVLESweepMode) -> None:
+        self._set_mode(mode)
+
+    @property
+    def mode_options(self) -> Tuple[CRSVLESweepMode, ...]:
+        return cast(Tuple[CRSVLESweepMode, ...], self._mode_config.options)
+
+
+class SOLUBILITYInputBuilder(_SolubilityModeMixin, _SolventRoleMixin, _SoluteRoleMixin, CRSInputBuilder):
+    """Builder for SOLUBILITY CRS input settings."""
+
+    _PROPERTY_TYPE: ClassVar[str] = "SOLUBILITY"
+    _DESCRIPTION: ClassVar[str] = "Solubility of solutes in a solvent mixture or under gas-pressure conditions."
+    _SYSTEM_SCOPE: ClassVar[str] = "solvent_with_solutes"
+    _INPUT_KEYS: ClassVar[Dict[str, Tuple[str, ...]]] = {
+        "top_level": ("temperature", "pressure", "massfraction"),
+        "property": ("densitysolvent", "isobar"),
+        "compound": ("frac1", "density") + _FUSION_KEYS + _VAPOR_PRESSURE_KEYS,
+    }
+    _REQUIRED_KEYS: ClassVar[Tuple[str, ...]] = ("temperature", "frac1")
+    _HINT_KEYS: ClassVar[Tuple[str, ...]] = ("densitysolvent", "density") + _FUSION_KEYS + _VAPOR_PRESSURE_KEYS
+    _COMPOUND_ROLES: ClassVar[Tuple[str, ...]] = ("solvent", "solute")
+    _MODE_CONFIG: ClassVar[Dict[str, Any]] = _SOLUBILITY_MODE_CONFIG
+
+
+class PURESOLUBILITYInputBuilder(_SolubilityModeMixin, _SolventRoleMixin, _SoluteRoleMixin, CRSInputBuilder):
+    """Builder for PURESOLUBILITY CRS input settings."""
+
+    _PROPERTY_TYPE: ClassVar[str] = "PURESOLUBILITY"
+    _DESCRIPTION: ClassVar[str] = "Solubility of a solute in pure solvents over a temperature range."
+    _SYSTEM_SCOPE: ClassVar[str] = "pure_solvent_with_solute"
+    _INPUT_KEYS: ClassVar[Dict[str, Tuple[str, ...]]] = {
+        "top_level": ("temperature", "pressure"),
+        "property": ("isobar",),
+        "compound": ("frac1", "density") + _FUSION_KEYS + _VAPOR_PRESSURE_KEYS,
+    }
+    _REQUIRED_KEYS: ClassVar[Tuple[str, ...]] = ("temperature", "frac1")
+    _HINT_KEYS: ClassVar[Tuple[str, ...]] = ("density",) + _FUSION_KEYS + _VAPOR_PRESSURE_KEYS
+    _COMPOUND_ROLES: ClassVar[Tuple[str, ...]] = ("solvent", "solute")
+    _COMPOUND_ROLE_CONFIG: ClassVar[Dict[str, Dict[str, Optional[int]]]] = {
+        "solvent": {"min_count": 1},
+        "solute": {"min_count": 1, "max_count": 1},
+    }
+    _MODE_CONFIG: ClassVar[Dict[str, Any]] = _SOLUBILITY_MODE_CONFIG
+
+
+class VAPORPRESSUREInputBuilder(_CompoundRoleMixin, CRSInputBuilder):
+    """Builder for VAPORPRESSURE CRS input settings."""
+
+    _PROPERTY_TYPE: ClassVar[str] = "VAPORPRESSURE"
+    _DESCRIPTION: ClassVar[str] = "Vapor pressure of a mixture at fixed temperature."
+    _SYSTEM_SCOPE: ClassVar[str] = "mixture"
+    _INPUT_KEYS: ClassVar[Dict[str, Tuple[str, ...]]] = {
+        "top_level": ("temperature", "massfraction"),
+        "compound": ("frac1",) + _VAPOR_PRESSURE_KEYS,
+    }
+    _REQUIRED_KEYS: ClassVar[Tuple[str, ...]] = ("temperature", "frac1")
+    _HINT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature",) + _VAPOR_PRESSURE_KEYS
+    _COMPOUND_ROLES: ClassVar[Tuple[str, ...]] = ("compound",)
+
+
+class PUREVAPORPRESSUREInputBuilder(_CompoundRoleMixin, CRSInputBuilder):
+    """Builder for PUREVAPORPRESSURE CRS input settings."""
+
+    _PROPERTY_TYPE: ClassVar[str] = "PUREVAPORPRESSURE"
+    _DESCRIPTION: ClassVar[str] = "Pure-compound vapor pressure over a temperature range."
+    _SYSTEM_SCOPE: ClassVar[str] = "pure_compounds"
+    _INPUT_KEYS: ClassVar[Dict[str, Tuple[str, ...]]] = {
+        "top_level": ("temperature",),
+        "compound": _VAPOR_PRESSURE_KEYS,
+    }
+    _REQUIRED_KEYS: ClassVar[Tuple[str, ...]] = ("temperature",)
+    _HINT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature",) + _VAPOR_PRESSURE_KEYS
+    _COMMENTS: ClassVar[Tuple[str, ...]] = _PURE_COMPOUND_COMMENTS
+    _COMPOUND_ROLES: ClassVar[Tuple[str, ...]] = ("compound",)
+
+
+class BOILINGPOINTInputBuilder(_CompoundRoleMixin, CRSInputBuilder):
+    """Builder for BOILINGPOINT CRS input settings."""
+
+    _PROPERTY_TYPE: ClassVar[str] = "BOILINGPOINT"
+    _DESCRIPTION: ClassVar[str] = "Boiling temperature of a mixture for a pressure range."
+    _SYSTEM_SCOPE: ClassVar[str] = "mixture"
+    _INPUT_KEYS: ClassVar[Dict[str, Tuple[str, ...]]] = {
+        "top_level": ("pressure", "massfraction"),
+        "compound": ("frac1",) + _VAPOR_PRESSURE_KEYS,
+    }
+    _REQUIRED_KEYS: ClassVar[Tuple[str, ...]] = ("pressure",)
+    _HINT_KEYS: ClassVar[Tuple[str, ...]] = ("pressure",) + _VAPOR_PRESSURE_KEYS
+    _COMPOUND_ROLES: ClassVar[Tuple[str, ...]] = ("compound",)
+
+
+class PUREBOILINGPOINTInputBuilder(_CompoundRoleMixin, CRSInputBuilder):
+    """Builder for PUREBOILINGPOINT CRS input settings."""
+
+    _PROPERTY_TYPE: ClassVar[str] = "PUREBOILINGPOINT"
+    _DESCRIPTION: ClassVar[str] = "Pure-compound boiling point over a pressure range."
+    _SYSTEM_SCOPE: ClassVar[str] = "pure_compounds"
+    _INPUT_KEYS: ClassVar[Dict[str, Tuple[str, ...]]] = {
+        "top_level": ("pressure",),
+        "compound": _VAPOR_PRESSURE_KEYS,
+    }
+    _REQUIRED_KEYS: ClassVar[Tuple[str, ...]] = ("pressure",)
+    _HINT_KEYS: ClassVar[Tuple[str, ...]] = ("pressure",) + _VAPOR_PRESSURE_KEYS
+    _COMMENTS: ClassVar[Tuple[str, ...]] = _PURE_COMPOUND_COMMENTS
+    _COMPOUND_ROLES: ClassVar[Tuple[str, ...]] = ("compound",)
+
+
+class FLASHPOINTInputBuilder(_CompoundRoleMixin, CRSInputBuilder):
+    """Builder for FLASHPOINT CRS input settings."""
+
+    _PROPERTY_TYPE: ClassVar[str] = "FLASHPOINT"
+    _DESCRIPTION: ClassVar[str] = "Flash point of a mixture using user-supplied pure-compound flash points."
+    _SYSTEM_SCOPE: ClassVar[str] = "mixture"
+    _INPUT_KEYS: ClassVar[Dict[str, Tuple[str, ...]]] = {
+        "top_level": ("massfraction",),
+        "compound": ("frac1", "flashpoint") + _VAPOR_PRESSURE_KEYS,
+    }
+    _REQUIRED_KEYS: ClassVar[Tuple[str, ...]] = ("frac1",)
+    _HINT_KEYS: ClassVar[Tuple[str, ...]] = ("flashpoint",) + _VAPOR_PRESSURE_KEYS
+    _COMPOUND_ROLES: ClassVar[Tuple[str, ...]] = ("compound",)
+
+
+class BINMIXCOEFInputBuilder(_VLESweepModeMixin, _CompoundRoleMixin, CRSInputBuilder):
+    """Builder for BINMIXCOEF CRS input settings."""
+
+    _PROPERTY_TYPE: ClassVar[str] = "BINMIXCOEF"
+    _DESCRIPTION: ClassVar[str] = "Binary-mixture coefficients over a composition range."
+    _SYSTEM_SCOPE: ClassVar[str] = "binary_mixture"
+    _INPUT_KEYS: ClassVar[Dict[str, Tuple[str, ...]]] = {
+        "top_level": ("temperature", "pressure", "massfraction"),
+        "property": _VLE_SWEEP_PROPERTY_KEYS,
+        "compound": ("frac1",) + _VAPOR_PRESSURE_KEYS + ("flashpoint",),
+    }
+    _REQUIRED_KEYS: ClassVar[Tuple[str, ...]] = ("temperature",)
+    _HINT_KEYS: ClassVar[Tuple[str, ...]] = ("flashpoint",) + _VAPOR_PRESSURE_KEYS
+    _COMPOUND_ROLES: ClassVar[Tuple[str, ...]] = ("compound",)
+    _COMPOUND_ROLE_CONFIG: ClassVar[Dict[str, Dict[str, Optional[int]]]] = {
+        "compound": {"min_count": 2, "max_count": 2},
+    }
+    _MODE_CONFIG: ClassVar[Dict[str, Any]] = _VLE_SWEEP_MODE_CONFIG
+
+
+class TERNARYMIXInputBuilder(_VLESweepModeMixin, _CompoundRoleMixin, CRSInputBuilder):
+    """Builder for TERNARYMIX CRS input settings."""
+
+    _PROPERTY_TYPE: ClassVar[str] = "TERNARYMIX"
+    _DESCRIPTION: ClassVar[str] = "Ternary mixture property sweep over composition space."
+    _SYSTEM_SCOPE: ClassVar[str] = "ternary_mixture"
+    _INPUT_KEYS: ClassVar[Dict[str, Tuple[str, ...]]] = {
+        "top_level": ("temperature", "pressure", "massfraction"),
+        "property": _VLE_SWEEP_PROPERTY_KEYS,
+        "compound": ("frac1",) + _VAPOR_PRESSURE_KEYS + ("flashpoint",),
+    }
+    _REQUIRED_KEYS: ClassVar[Tuple[str, ...]] = ("temperature",)
+    _HINT_KEYS: ClassVar[Tuple[str, ...]] = ("flashpoint",) + _VAPOR_PRESSURE_KEYS
+    _COMPOUND_ROLES: ClassVar[Tuple[str, ...]] = ("compound",)
+    _COMPOUND_ROLE_CONFIG: ClassVar[Dict[str, Dict[str, Optional[int]]]] = {
+        "compound": {"min_count": 3, "max_count": 3},
+    }
+    _MODE_CONFIG: ClassVar[Dict[str, Any]] = _VLE_SWEEP_MODE_CONFIG
+
+
+class COMPOSITIONLINEInputBuilder(_VLESweepModeMixin, _SolventRoleMixin, CRSInputBuilder):
+    """Builder for COMPOSITIONLINE CRS input settings."""
+
+    _PROPERTY_TYPE: ClassVar[str] = "COMPOSITIONLINE"
+    _DESCRIPTION: ClassVar[str] = "Composition-line calculation between two endpoint phase compositions."
+    _SYSTEM_SCOPE: ClassVar[str] = "binary_mixture"
+    _INPUT_KEYS: ClassVar[Dict[str, Tuple[str, ...]]] = {
+        "top_level": ("temperature", "pressure", "massfraction"),
+        "property": _VLE_SWEEP_PROPERTY_KEYS,
+        "compound": ("frac1", "frac2") + _VAPOR_PRESSURE_KEYS + ("flashpoint",),
+    }
+    _REQUIRED_KEYS: ClassVar[Tuple[str, ...]] = ("temperature",)
+    _HINT_KEYS: ClassVar[Tuple[str, ...]] = ("flashpoint",) + _VAPOR_PRESSURE_KEYS
+    _COMMENTS: ClassVar[Tuple[str, ...]] = (
+        "frac1 and frac2 define two endpoint solutions mixed along the composition line.",
+    )
+    _COMPOUND_ROLES: ClassVar[Tuple[str, ...]] = ("solvent",)
+    _MODE_CONFIG: ClassVar[Dict[str, Any]] = _VLE_SWEEP_MODE_CONFIG
+
+
+class LLEInputBuilder(_CompoundRoleMixin, CRSInputBuilder):
+    """Builder for LLE CRS input settings."""
+
+    _PROPERTY_TYPE: ClassVar[str] = "LLE"
+    _DESCRIPTION: ClassVar[str] = "Liquid-liquid equilibrium for a ternary mixture."
+    _SYSTEM_SCOPE: ClassVar[str] = "mixture"
+    _INPUT_KEYS: ClassVar[Dict[str, Tuple[str, ...]]] = {
+        "top_level": ("temperature", "massfraction"),
+        "compound": ("frac1",),
+    }
+    _REQUIRED_KEYS: ClassVar[Tuple[str, ...]] = ("temperature", "frac1")
+    _COMPOUND_ROLES: ClassVar[Tuple[str, ...]] = ("compound",)
+
+
+class STABILITYInputBuilder(_CompoundRoleMixin, CRSInputBuilder):
+    """Builder for STABILITY CRS input settings."""
+
+    _PROPERTY_TYPE: ClassVar[str] = "STABILITY"
+    _DESCRIPTION: ClassVar[str] = "Michelsen tangent-plane-distance stability test for a feed composition."
+    _SYSTEM_SCOPE: ClassVar[str] = "mixture"
+    _INPUT_KEYS: ClassVar[Dict[str, Tuple[str, ...]]] = {
+        "top_level": ("temperature", "massfraction"),
+        "compound": ("frac1",),
+    }
+    _REQUIRED_KEYS: ClassVar[Tuple[str, ...]] = ("temperature", "frac1")
+    _COMPOUND_ROLES: ClassVar[Tuple[str, ...]] = ("compound",)
+
+
+class SIGMAPROFILEInputBuilder(_CompoundRoleMixin, CRSInputBuilder):
+    """Builder for SIGMAPROFILE CRS input settings."""
+
+    _PROPERTY_TYPE: ClassVar[str] = "SIGMAPROFILE"
+    _DESCRIPTION: ClassVar[str] = "Sigma profile for a solvent mixture."
+    _SYSTEM_SCOPE: ClassVar[str] = "mixture"
+    _INPUT_KEYS: ClassVar[Dict[str, Tuple[str, ...]]] = {
+        "top_level": ("massfraction",),
+        "property": _SIGMA_PROPERTY_KEYS,
+        "compound": ("frac1",),
+    }
+    _REQUIRED_KEYS: ClassVar[Tuple[str, ...]] = ("frac1",)
+    _COMPOUND_ROLES: ClassVar[Tuple[str, ...]] = ("compound",)
+
+
+class PURESIGMAPROFILEInputBuilder(_CompoundRoleMixin, CRSInputBuilder):
+    """Builder for PURESIGMAPROFILE CRS input settings."""
+
+    _PROPERTY_TYPE: ClassVar[str] = "PURESIGMAPROFILE"
+    _DESCRIPTION: ClassVar[str] = "Sigma profile for pure compounds."
+    _SYSTEM_SCOPE: ClassVar[str] = "pure_compounds"
+    _INPUT_KEYS: ClassVar[Dict[str, Tuple[str, ...]]] = {
+        "property": _SIGMA_PROPERTY_KEYS,
+    }
+    _COMMENTS: ClassVar[Tuple[str, ...]] = _PURE_COMPOUND_COMMENTS
+    _COMPOUND_ROLES: ClassVar[Tuple[str, ...]] = ("compound",)
+
+
+class SIGMAPOTENTIALInputBuilder(_CompoundRoleMixin, CRSInputBuilder):
+    """Builder for SIGMAPOTENTIAL CRS input settings."""
+
+    _PROPERTY_TYPE: ClassVar[str] = "SIGMAPOTENTIAL"
+    _DESCRIPTION: ClassVar[str] = "Sigma potential for a solvent mixture."
+    _SYSTEM_SCOPE: ClassVar[str] = "mixture"
+    _INPUT_KEYS: ClassVar[Dict[str, Tuple[str, ...]]] = {
+        "top_level": ("temperature", "massfraction"),
+        "property": _SIGMA_PROPERTY_KEYS,
+        "compound": ("frac1",),
+    }
+    _REQUIRED_KEYS: ClassVar[Tuple[str, ...]] = ("temperature", "frac1")
+    _COMPOUND_ROLES: ClassVar[Tuple[str, ...]] = ("compound",)
+
+
+class PURESIGMAPOTENTIALInputBuilder(_CompoundRoleMixin, CRSInputBuilder):
+    """Builder for PURESIGMAPOTENTIAL CRS input settings."""
+
+    _PROPERTY_TYPE: ClassVar[str] = "PURESIGMAPOTENTIAL"
+    _DESCRIPTION: ClassVar[str] = "Sigma potential for pure compounds."
+    _SYSTEM_SCOPE: ClassVar[str] = "pure_compounds"
+    _INPUT_KEYS: ClassVar[Dict[str, Tuple[str, ...]]] = {
+        "property": _SIGMA_PROPERTY_KEYS,
+    }
+    _COMMENTS: ClassVar[Tuple[str, ...]] = _PURE_COMPOUND_COMMENTS
+    _COMPOUND_ROLES: ClassVar[Tuple[str, ...]] = ("compound",)
+
+
+_CRS_INPUT_BUILDER_CLASSES: Dict[str, type[CRSInputBuilder]] = {
+    cls._PROPERTY_TYPE: cls
+    for cls in (
+        ACTIVITYCOEFInputBuilder,
+        LOGPInputBuilder,
+        SOLUBILITYInputBuilder,
+        PURESOLUBILITYInputBuilder,
+        VAPORPRESSUREInputBuilder,
+        PUREVAPORPRESSUREInputBuilder,
+        BOILINGPOINTInputBuilder,
+        PUREBOILINGPOINTInputBuilder,
+        FLASHPOINTInputBuilder,
+        BINMIXCOEFInputBuilder,
+        TERNARYMIXInputBuilder,
+        COMPOSITIONLINEInputBuilder,
+        LLEInputBuilder,
+        STABILITYInputBuilder,
+        SIGMAPROFILEInputBuilder,
+        PURESIGMAPROFILEInputBuilder,
+        SIGMAPOTENTIALInputBuilder,
+        PURESIGMAPOTENTIALInputBuilder,
+    )
+}
