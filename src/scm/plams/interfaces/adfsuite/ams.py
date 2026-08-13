@@ -544,8 +544,8 @@ class AMSResults(Results):
         *species* is ``None``, all detected formulas are returned; otherwise, only the requested
         formulas are included.
         """
-        n_molecule_types = self.readrkf("Molecules", "Num molecules")
-        if n_molecule_types is None:
+        n_molecule_types_raw = self.readrkf("Molecules", "Num molecules")
+        if n_molecule_types_raw is None:
             raise KeyError(
                 "Molecule information is not present in ams.rkf. "
                 "Run MD with MolecularDynamics%Trajectory%WriteMolecules=True."
@@ -553,13 +553,13 @@ class AMSResults(Results):
 
         # The Molecules section defines the lookup table: molecule type N has the formula
         # stored in ``Molecule name N``. History/Mols.Type below contains these type numbers.
+        n_molecule_types = cast(int, n_molecule_types_raw)
         molecule_names = [
-            self.readrkf("Molecules", f"Molecule name {molecule_type}")
-            for molecule_type in range(1, int(n_molecule_types) + 1)
+            cast(str, self.readrkf("Molecules", f"Molecule name {molecule_type}"))
+            for molecule_type in range(1, n_molecule_types + 1)
         ]
         if any(name is None for name in molecule_names):
             raise KeyError("Molecule names are incomplete in the ams.rkf file")
-        molecule_names = cast(List[str], molecule_names)
 
         try:
             molecule_type_history = self.get_history_property("Mols.Type")
