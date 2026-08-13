@@ -14,6 +14,7 @@ This changelog is effective from the 2025 releases.
 ### Added
 * MultiJob now supports generic Job types for the self.children attribute
 * Function `view_orbital` to visualize orbitals of completed AMS jobs 
+* `AMSResults.get_molecule_count_history` to extract molecular-formula populations from reactive MD trajectories, and `plot_molecule_counts` in `scm.plams.tools.plot` to visualize them
 
 ### Changed
 * `Molecule.readmol2` can now read non-integer bond orders
@@ -137,5 +138,4 @@ This changelog is effective from the 2025 releases.
 ### Removed
 * Legacy `BANDJob`, `DFTBJob`, `UFFJob`, `MOPACJob`, `ReaxFFJob`, `CSHessianADFJob` and `ADFJob` have been removed
 * Exception classes `AMSPipeDecodeError`, `AMSPipeError`, `AMSPipeInvalidArgumentError`, `AMSPipeLogicError`, `AMSPipeRuntimeError`, `AMSPipeUnknownArgumentError`, `AMSPipeUnknownMethodError`, `AMSPipeUnknownVersionError`, were moved from scm.plams to scm.amspipe.
-
 

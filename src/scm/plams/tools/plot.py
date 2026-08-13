@@ -16,6 +16,7 @@ from scm.plams.core.errors import MissingOptionalPackageError
 from scm.plams.core.functions import requires_optional_package
 from scm.plams.interfaces.adfsuite.ams import AMSJob
 from scm.plams.mol.molecule import Molecule
+from scm.plams.tools.units import Units
 
 try:
     from scm.base import ChemicalSystem
@@ -41,6 +42,7 @@ __all__ = [
     "plot_image_grid",
     "plot_correlation",
     "plot_msd",
+    "plot_molecule_counts",
     "plot_work_function",
     "plot_grid_molecules",
 ]
@@ -802,6 +804,65 @@ def plot_msd(
     ax.set_xlabel("Correlation time (fs)")
     ax.set_ylabel("Mean square displacement (ang^2)")
     ax.set_title(f"MSD: Diffusion coefficient = {diffusion_coefficient:.2e} m^2/s")
+
+    return ax
+
+
+@requires_optional_package("matplotlib")
+def plot_molecule_counts(
+    job: AMSJob,
+    species: Optional[Sequence[str]] = None,
+    x_axis: Literal["time", "frame"] = "time",
+    time_unit: str = "fs",
+    ax: Optional["plt.Axes"] = None,
+) -> "plt.Axes":
+    """Plot populations of molecular species detected in a reactive MD trajectory.
+
+    The trajectory must have been run with ``MolecularDynamics%Trajectory%WriteMolecules=True``.
+
+    job
+        An AMS MD job with molecule information stored in its ``ams.rkf`` file.
+
+    species
+        Molecular formulas to plot. If ``None``, plot every detected molecular formula.
+
+    x_axis
+        ``"time"`` (default) plots against the saved MD time. ``"frame"`` plots against the
+        one-based trajectory frame number.
+
+    time_unit
+        Unit for the time axis when ``x_axis="time"``. The time values stored in ``ams.rkf`` are
+        in fs.
+
+    ax
+        Matplotlib axis. If ``None``, one is created.
+
+    Returns
+    -------
+    matplotlib.axes.Axes
+        The axis containing one curve per selected molecular formula.
+    """
+    import matplotlib.pyplot as plt
+
+    if x_axis not in {"time", "frame"}:
+        raise ValueError(f"x_axis must be 'time' or 'frame', not {x_axis!r}")
+
+    frames, time_fs, counts = job.results.get_molecule_count_history(species=species)
+    if x_axis == "time":
+        x = Units.convert(time_fs, "fs", time_unit)
+        xlabel = f"Time ({time_unit})"
+    else:
+        x = frames
+        xlabel = "Frame"
+
+    if ax is None:
+        _, ax = plt.subplots()
+
+    for name, population in counts.items():
+        ax.plot(x, population, label=name)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel("Molecule count")
+    ax.legend()
 
     return ax
 

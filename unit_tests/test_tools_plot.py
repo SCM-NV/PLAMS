@@ -25,6 +25,7 @@ from scm.plams.tools.plot import (
     plot_correlation,
     plot_grid_molecules,
     plot_molecule,
+    plot_molecule_counts,
     plot_msd,
     plot_work_function,
 )
@@ -404,6 +405,31 @@ def test_plot_correlation(run_calculations, rkf_tools_plot):
 
     assert np.allclose(x, x0, 1e-5)
     assert np.allclose(y, y0, 1e-5)
+
+
+# ----------------------------------------------------------
+# Testing plot_molecule_counts
+# ----------------------------------------------------------
+def test_plot_molecule_counts(rkf_tools_plot):
+    plt.close("all")
+
+    job = AMSJob.load_external(rkf_tools_plot / "md")
+    frames, time_fs, counts = job.results.get_molecule_count_history(species=["H2O"])
+    assert frames[:2].tolist() == [1, 2]
+    assert time_fs[:2].tolist() == pytest.approx([0.0, 0.5])
+    assert counts["H2O"][:2].tolist() == [16, 16]
+
+    ax = plot_molecule_counts(job, species=["H2O"], time_unit="ps")
+
+    assert ax.get_xlabel() == "Time (ps)"
+    assert ax.get_ylabel() == "Molecule count"
+    assert ax.lines[0].get_label() == "H2O"
+    assert ax.lines[0].get_xdata().tolist()[:2] == pytest.approx([0.0, 0.0005])
+    assert ax.lines[0].get_ydata().tolist()[:2] == [16, 16]
+
+    ax = plot_molecule_counts(job, x_axis="frame")
+    assert ax.get_xlabel() == "Frame"
+    assert ax.lines[0].get_xdata().tolist()[:2] == [1, 2]
 
 
 # ----------------------------------------------------------
