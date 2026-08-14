@@ -1,5 +1,6 @@
 import os
 import re
+from collections import Counter
 
 from typing import (
     Dict,
@@ -531,6 +532,75 @@ class AMSResults(Results):
         else:
             values = [main.read(history_section, f"{varname}({step})") for step in range(1, nentries + 1)]  # type: ignore[misc]
         return values
+
+    def get_molecule_count_history(
+        self, species: Optional[Sequence[str]] = None
+    ) -> Tuple[np.ndarray, np.ndarray, Dict[str, np.ndarray]]:
+        """Return molecular formula populations for every saved MD frame.
+
+        The MD trajectory must have been run with
+        ``MolecularDynamics%Trajectory%WriteMolecules=True``. Returns one-based frame indices,
+        MD times in fs, and a dictionary with one population array per molecular formula. When
+        *species* is ``None``, all detected formulas are returned; otherwise, only the requested
+        formulas are included.
+        """
+        n_molecule_types_raw = self.readrkf("Molecules", "Num molecules")
+        if n_molecule_types_raw is None:
+            raise KeyError(
+                "Molecule information is not present in ams.rkf. "
+                "Run MD with MolecularDynamics%Trajectory%WriteMolecules=True."
+            )
+
+        # The Molecules section defines the lookup table: molecule type N has the formula
+        # stored in ``Molecule name N``. History/Mols.Type below contains these type numbers.
+        n_molecule_types = cast(int, n_molecule_types_raw)
+        molecule_names = [
+            cast(str, self.readrkf("Molecules", f"Molecule name {molecule_type}"))
+            for molecule_type in range(1, n_molecule_types + 1)
+        ]
+        if any(name is None for name in molecule_names):
+            raise KeyError("Molecule names are incomplete in the ams.rkf file")
+
+        try:
+            molecule_type_history = self.get_history_property("Mols.Type")
+        except KeyError as error:
+            raise KeyError(
+                "Molecule history is not present in ams.rkf. "
+                "Run MD with MolecularDynamics%Trajectory%WriteMolecules=True."
+            ) from error
+        if molecule_type_history is None:
+            raise KeyError("Molecule history is not present in the ams.rkf file")
+
+        available_species = list(dict.fromkeys(molecule_names))
+        if species is None:
+            selected_species = available_species
+        else:
+            selected_species = [species] if isinstance(species, str) else list(dict.fromkeys(species))
+            unknown_species = set(selected_species) - set(available_species)
+            if unknown_species:
+                raise ValueError(f"Unknown molecular formula(s): {', '.join(sorted(unknown_species))}")
+
+        try:
+            time = self.get_history_property("Time", "MDHistory")
+        except KeyError as error:
+            raise KeyError("MD time history is not present in the ams.rkf file") from error
+        if time is None:
+            raise KeyError("MD time history is not present in the ams.rkf file")
+        if len(time) != len(molecule_type_history):
+            raise ValueError("MD time and molecule histories have different lengths")
+
+        counts = {name: np.zeros(len(molecule_type_history), dtype=int) for name in selected_species}
+        for frame_index, molecule_types in enumerate(molecule_type_history):
+            # Each History/Mols.Type(frame) entry lists one type number per detected molecule in
+            # that frame. Count them and use the Molecules lookup table to obtain populations per
+            # molecular formula. Multiple type numbers with the same formula are accumulated.
+            for molecule_type, count in Counter(molecule_types).items():
+                name = molecule_names[molecule_type - 1]
+                if name in counts:
+                    counts[name][frame_index] += count
+        frames = np.arange(1, len(molecule_type_history) + 1)
+        time_fs = np.asarray(time, dtype=float)
+        return frames, time_fs, counts
 
     def get_property_at_step(self, step: int, varname: str, history_section: str = "History") -> Optional["TRead"]:
         """Return the value of *varname* in the history section *history_section at step *step*."""
