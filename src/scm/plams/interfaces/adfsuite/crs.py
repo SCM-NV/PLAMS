@@ -585,7 +585,7 @@ class CRSResults(SCMResults):
         keys such as ``"profile"`` and ``"hbprofile"``. With ``split=True``,
         each selected profile column is drawn on a separate subplot.
         """
-        plt = CRSResults._import_matplotlib_pyplot("CRSResults.plot_sigma_profile_table", plot_fig=plot_fig)
+        plt = CRSResults._import_matplotlib_pyplot("CRSResults.plot_sigma_profile_table")
 
         sigma_column = CRSResults._resolve_sigma_profile_table_column(table, "sigma")
         name_column = CRSResults._resolve_sigma_profile_table_column(table, "name")
@@ -789,7 +789,7 @@ class CRSResults(SCMResults):
         matplotlib.figure.Figure
             The created or updated figure.
         """
-        plt = CRSResults._import_matplotlib_pyplot("CRSResults.plot_lle_phase_diagram", plot_fig=plot_fig)
+        plt = CRSResults._import_matplotlib_pyplot("CRSResults.plot_lle_phase_diagram")
         pd = CRSResults._import_pandas("CRSResults.plot_lle_phase_diagram")
 
         if not isinstance(table, pd.DataFrame):
@@ -2232,22 +2232,22 @@ class CRSResults(SCMResults):
             return ret[: array.shape[1]]
 
         # Check running enviroment
-        try:
-            from IPython import get_ipython
+        # try:
+        #     from IPython import get_ipython
 
-            ipython = get_ipython()
-            if ipython is not None:
-                if "zmqshell" in str(type(ipython)):
-                    terminal = "jupyter"
-                else:
-                    terminal = "interactive"
-            else:
-                terminal = "script"
-        except ImportError:
-            terminal = "script"
+        #     ipython = get_ipython()
+        #     if ipython is not None:
+        #         if "zmqshell" in str(type(ipython)):
+        #             terminal = "jupyter"
+        #         else:
+        #             terminal = "interactive"
+        #     else:
+        #         terminal = "script"
+        # except ImportError:
+        #     terminal = "script"
 
         # Check if matplotlib is installed
-        plt = CRSResults._import_matplotlib_pyplot(self.__class__.__name__ + ".plot", plot_fig=plot_fig)
+        plt = CRSResults._import_matplotlib_pyplot(self.__class__.__name__ + ".plot")
 
         self.get_results()
 
@@ -2368,11 +2368,8 @@ class CRSResults(SCMResults):
         return pd
 
     @staticmethod
-    def _import_matplotlib_pyplot(method: str, plot_fig: bool = True) -> Any:
+    def _import_matplotlib_pyplot(method: str) -> Any:
         try:
-            import matplotlib
-            if not plot_fig:
-                matplotlib.use("Agg")
             import matplotlib.pyplot as plt
         except ImportError:
             raise ImportError(f"{method}: this method requires the 'matplotlib' package")
