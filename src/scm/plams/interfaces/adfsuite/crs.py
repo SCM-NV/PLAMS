@@ -202,6 +202,15 @@ class CRSResultTables(NamedTuple):
     lle: Optional["pd.DataFrame"]
 
 
+class CRSSigmaProfileColumn(NamedTuple):
+    """Column mapping for sigma-profile KF arrays."""
+
+    column: str
+    compound_source: str
+    mixture_total_source: Optional[str] = None
+    hb_channel: Optional[int] = None
+
+
 class CRSResults(SCMResults):
     """A |SCMResults| subclass for accessing results of |CRSJob|."""
 
@@ -223,6 +232,31 @@ class CRSResults(SCMResults):
     _RESULT_TABLE_LLE_EXTRA_QUANTITIES = crs_defs.RESULT_TABLE_LLE_EXTRA_QUANTITIES
     _RESULT_TABLE_LLE_KNOWN_QUANTITIES = crs_defs.RESULT_TABLE_LLE_KNOWN_QUANTITIES
     _RESULT_TABLE_QUANTITY_METADATA = crs_defs.RESULT_TABLE_QUANTITY_METADATA
+    _SIGMA_PROFILE_PROPERTIES = ("SIGMAPROFILE", "PURESIGMAPROFILE")
+    _SIGMA_PROFILE_DEFAULT_COLUMNS = (
+        CRSSigmaProfileColumn(column="profile", compound_source="profil", mixture_total_source="profiltot"),
+        CRSSigmaProfileColumn(
+            column="hbprofile",
+            compound_source="hbprofil",
+            mixture_total_source="hbprofiltot",
+            hb_channel=0,
+        ),
+        CRSSigmaProfileColumn(
+            column="ohprofile",
+            compound_source="hbprofil",
+            mixture_total_source="hbprofiltot",
+            hb_channel=1,
+        ),
+        CRSSigmaProfileColumn(
+            column="otprofile",
+            compound_source="hbprofil",
+            mixture_total_source="hbprofiltot",
+            hb_channel=2,
+        ),
+    )
+    _SIGMA_PROFILE_EXTRA_COLUMNS = (
+        CRSSigmaProfileColumn(column="orthprofile", compound_source="chdorth"),
+    )
 
     @property
     def section(self) -> str:
@@ -364,17 +398,22 @@ class CRSResults(SCMResults):
 
         By default, this method returns one combined dataframe with one row per
         ``(mixture, cid)`` pair. With ``split=True`` it returns separate component,
-        mixture, and LLE tables. Sigma profile and sigma potential sections are
-        intentionally handled by :meth:`get_sigma_profile` and
-        :meth:`get_sigma_potential` instead. Quantity selection always uses raw
-        CRS result keys; ``column_labels`` only controls the returned dataframe
-        column names.
+        mixture, and LLE tables. Sigma profile sections return one row per
+        ``(compound, sigma)`` pair. Sigma potential sections are intentionally
+        handled by :meth:`get_sigma_potential` instead. Quantity selection always
+        uses raw CRS result keys; ``column_labels`` only controls the returned
+        dataframe column names.
         """
         pd = self._import_pandas(self.__class__.__name__ + ".get_result_table")
 
         column_labels = self._normalize_column_label_mode(column_labels)
         results = self.get_results(section)
         property_name = self._result_property_name(results, section)
+        if property_name in self._SIGMA_PROFILE_PROPERTIES:
+            if split:
+                raise ValueError("split=True is not supported for sigma profile result tables.")
+            table = self._build_sigma_profile_result_table(pd, results, property_name, quantities)
+            return self._rename_column_labels(table, column_labels)
         if property_name in self._RESULT_TABLE_UNSUPPORTED_PROPERTIES:
             raise NotImplementedError(
                 "{} results are not supported by get_result_table(); use get_sigma_profile() "
@@ -419,6 +458,11 @@ class CRSResults(SCMResults):
 
         results = self.get_results(section)
         property_name = self._result_property_name(results, section)
+        if property_name in self._SIGMA_PROFILE_PROPERTIES:
+            if split:
+                raise ValueError("split=True is not supported for sigma profile result table metadata.")
+            quantities = tuple(column.column for column in self._select_sigma_profile_columns(results, quantities))
+            return self._build_quantity_metadata_table(pd, "sigma_profile", ("frac1", "sigma") + quantities)
         if property_name in self._RESULT_TABLE_UNSUPPORTED_PROPERTIES:
             raise NotImplementedError(
                 "{} results are not supported by get_result_table_metadata(); use get_sigma_profile() "
@@ -523,6 +567,160 @@ class CRSResults(SCMResults):
         )
         assert combined is not None
         return combined
+
+    @staticmethod
+    def plot_sigma_profile_table(
+        table: Any,
+        *,
+        y: Optional[Union[str, Sequence[str]]] = None,
+        split: bool = False,
+        ax: Optional[Any] = None,
+        plot_fig: bool = True,
+    ) -> "Figure":
+        """Plot a sigma profile table returned by :meth:`get_result_table`.
+
+        The table may use raw, symbol, name, or name-unit column labels. By default,
+        the main sigma profile columns are plotted when present. Pass *y* to select
+        explicit columns, using either the current dataframe labels or raw quantity
+        keys such as ``"profile"`` and ``"hbprofile"``. With ``split=True``,
+        each selected profile column is drawn on a separate subplot.
+        """
+        plt = CRSResults._import_matplotlib_pyplot("CRSResults.plot_sigma_profile_table", plot_fig=plot_fig)
+
+        sigma_column = CRSResults._resolve_sigma_profile_table_column(table, "sigma")
+        name_column = CRSResults._resolve_sigma_profile_table_column(table, "name")
+        y_columns = CRSResults._resolve_sigma_profile_y_columns(table, y)
+        if not y_columns:
+            raise ValueError("Sigma profile table does not contain any plottable profile columns.")
+
+        if split:
+            fig, axes = CRSResults._sigma_profile_subplot_axes(plt, ax, len(y_columns))
+        else:
+            if ax is None:
+                fig, ax = plt.subplots()
+            else:
+                fig = ax.figure
+            axes = (ax,)
+
+        groups = [(name, group.sort_values(sigma_column)) for name, group in table.groupby(name_column, sort=False)]
+        color_by_name, linestyle_by_column = CRSResults._sigma_profile_plot_styles(plt, groups, y_columns)
+        for axis_index, axis in enumerate(axes):
+            axis_y_columns = (y_columns[axis_index],) if split else y_columns
+            for name, group in groups:
+                is_total = str(name) == "Total"
+                for y_column in axis_y_columns:
+                    axis.plot(
+                        group[sigma_column],
+                        group[y_column],
+                        color=color_by_name[name],
+                        linestyle=linestyle_by_column[y_column],
+                        linewidth=2.0 if is_total else 1.2,
+                        alpha=0.95 if is_total else 0.85,
+                        label="{}: {}".format(name, y_column) if not split else str(name),
+                    )
+            axis.set_ylabel(axis_y_columns[0] if split else "sigma profile")
+            axis.legend()
+
+        axes[-1].set_xlabel(sigma_column)
+
+        if plot_fig:
+            plt.show()
+        return fig
+
+    @staticmethod
+    def _sigma_profile_plot_styles(
+        plt: Any,
+        groups: Sequence[Tuple[Any, Any]],
+        y_columns: Sequence[str],
+    ) -> Tuple[Dict[Any, Any], Dict[str, str]]:
+        color_cycle = cycle(plt.rcParams["axes.prop_cycle"].by_key()["color"])
+        color_by_name = {name: next(color_cycle) for name, _ in groups}
+        linestyles = ("-", "--", ":", "-.")
+        linestyle_by_column = {
+            column: linestyles[index % len(linestyles)]
+            for index, column in enumerate(y_columns)
+        }
+        return color_by_name, linestyle_by_column
+
+    @staticmethod
+    def _sigma_profile_subplot_axes(plt: Any, ax: Optional[Any], nplots: int) -> Tuple[Any, Tuple[Any, ...]]:
+        if ax is None:
+            fig, axes = plt.subplots(nplots, 1, sharex=True, squeeze=False)
+            return fig, tuple(axes[:, 0])
+
+        if hasattr(ax, "ravel") and not hasattr(ax, "plot"):
+            axes = tuple(ax.ravel())
+        else:
+            try:
+                axes = tuple(ax)
+            except TypeError:
+                axes = (ax,)
+
+        if len(axes) != nplots:
+            raise ValueError("split=True requires {} axes; got {}".format(nplots, len(axes)))
+
+        return axes[0].figure, axes
+
+    @staticmethod
+    def _default_sigma_profile_y_keys(table: Any) -> Tuple[str, ...]:
+        has_oh = CRSResults._resolve_sigma_profile_table_column(
+            table, "ohprofile", required=False
+        ) is not None
+        has_ot = CRSResults._resolve_sigma_profile_table_column(
+            table, "otprofile", required=False
+        ) is not None
+
+        if has_oh or has_ot:
+            return ("profile", "ohprofile", "otprofile")
+        return ("profile", "hbprofile")
+
+    @staticmethod
+    def _resolve_sigma_profile_y_columns(
+        table: Any,
+        y: Optional[Union[str, Sequence[str]]],
+    ) -> Tuple[str, ...]:
+        requested = (
+            CRSResults._default_sigma_profile_y_keys(table)
+            if y is None
+            else (y,) if isinstance(y, str)
+            else tuple(y)
+        )
+        required = y is not None
+
+        columns = tuple(
+            CRSResults._resolve_sigma_profile_table_column(table, key, required=required)
+            for key in requested
+        )
+        return tuple(column for column in columns if column is not None)
+
+    @staticmethod
+    def _resolve_sigma_profile_table_column(table: Any, key: str, *, required: bool = True) -> Optional[str]:
+        for column in CRSResults._sigma_profile_table_column_candidates(key):
+            if column in table.columns:
+                return column
+
+        if required:
+            raise ValueError(
+                "Sigma profile table is missing a {} column. Accepted labels: {}".format(
+                    key, ", ".join(CRSResults._sigma_profile_table_column_candidates(key))
+                )
+            )
+        return None
+
+    @staticmethod
+    def _sigma_profile_table_column_candidates(key: str) -> Tuple[str, ...]:
+        metadata = CRSResults._RESULT_TABLE_QUANTITY_METADATA.get(key, {})
+        candidates = [key]
+        symbol = metadata.get("symbol")
+        name = metadata.get("name")
+        unit = metadata.get("unit")
+        if symbol:
+            candidates.append(symbol)
+        if name:
+            candidates.append(name)
+            if unit:
+                candidates.append("{} [{}]".format(name, unit))
+        return tuple(dict.fromkeys(candidates))
 
 
     @staticmethod
@@ -1505,6 +1703,158 @@ class CRSResults(SCMResults):
             pass
 
         return os.path.basename(name_or_path)
+
+    def _select_sigma_profile_columns(
+        self,
+        results: dict,
+        quantities: Union[str, Sequence[str]],
+    ) -> Tuple[CRSSigmaProfileColumn, ...]:
+        available_columns = self._available_sigma_profile_columns(results)
+        available_by_name = {column.column: column for column in available_columns}
+
+        if quantities == "default":
+            return tuple(column for column in self._SIGMA_PROFILE_DEFAULT_COLUMNS if column.column in available_by_name)
+
+        if quantities == "all":
+            return available_columns
+
+        if isinstance(quantities, str):
+            raise ValueError("quantities must be 'default', 'all', or a sequence of quantity names.")
+
+        requested = tuple(quantities)
+        unknown = sorted(set(requested) - set(available_by_name))
+        if unknown:
+            raise KeyError(
+                "Unknown sigma profile quantity/quantities: {}. Available quantities: {}".format(
+                    unknown, ", ".join(sorted(available_by_name))
+                )
+            )
+        return tuple(available_by_name[quantity] for quantity in requested)
+
+    def _available_sigma_profile_columns(self, results: dict) -> Tuple[CRSSigmaProfileColumn, ...]:
+        columns = []
+        nhb = int(results.get("nhb", 0))
+        for column in self._SIGMA_PROFILE_DEFAULT_COLUMNS + self._SIGMA_PROFILE_EXTRA_COLUMNS:
+            if column.compound_source not in results:
+                continue
+            if column.hb_channel is not None and column.hb_channel >= nhb:
+                continue
+            columns.append(column)
+        return tuple(columns)
+
+    def _build_sigma_profile_result_table(
+        self,
+        pd: Any,
+        results: dict,
+        property_name: str,
+        quantities: Union[str, Sequence[str]],
+    ) -> "pd.DataFrame":
+        columns = self._select_sigma_profile_columns(results, quantities)
+        ncomp = int(results["ncomp"])
+        nitems = int(results["nitems"])
+        nhb = int(results["nhb"])
+        sigma = np.asarray(results["chdval"], dtype=float).reshape(nitems)
+        frac1 = self._sigma_profile_frac1_values(results, ncomp)
+        method = results["method"]
+        component_names = self._resolve_component_names(results, ncomp)
+
+        rows = []
+        for cid in range(ncomp):
+            profile_values = {
+                column.column: self._sigma_profile_component_values(results, column, cid, ncomp, nitems, nhb)
+                for column in columns
+            }
+            for index, sigma_value in enumerate(sigma):
+                row: Dict[str, Any] = {
+                    "property": property_name,
+                    "method": method,
+                    "mixture": 0,
+                    "cid": cid,
+                    "name": component_names[cid],
+                    "frac1": frac1[cid],
+                    "sigma": sigma_value,
+                }
+                for column in columns:
+                    row[column.column] = profile_values[column.column][index]
+                rows.append(row)
+
+        if property_name == "SIGMAPROFILE":
+            total_values = self._sigma_profile_total_values(results, columns, nitems, nhb)
+            if total_values:
+                for index, sigma_value in enumerate(sigma):
+                    row = {
+                        "property": property_name,
+                        "method": method,
+                        "mixture": 0,
+                        "cid": np.nan,
+                        "name": "Total",
+                        "frac1": np.nan,
+                        "sigma": sigma_value,
+                    }
+                    for column in columns:
+                        total_column_values = total_values.get(column.column)
+                        row[column.column] = np.nan if total_column_values is None else total_column_values[index]
+                    rows.append(row)
+
+        return pd.DataFrame(
+            rows,
+            columns=[
+                "property",
+                "method",
+                "mixture",
+                "cid",
+                "name",
+                "frac1",
+                "sigma",
+                *(column.column for column in columns),
+            ],
+        )
+
+    @staticmethod
+    def _sigma_profile_frac1_values(results: dict, ncomp: int) -> "np.ndarray":
+        frac1 = np.full(ncomp, np.nan)
+        if "frac1" not in results:
+            return frac1
+
+        values = np.asarray(results["frac1"], dtype=float).reshape(-1)
+        frac1[: min(ncomp, values.size)] = values[:ncomp]
+        return frac1
+
+    @staticmethod
+    def _sigma_profile_component_values(
+        results: dict,
+        column: CRSSigmaProfileColumn,
+        cid: int,
+        ncomp: int,
+        nitems: int,
+        nhb: int,
+    ) -> "np.ndarray":
+        values = np.asarray(results[column.compound_source], dtype=float)
+        if column.hb_channel is None:
+            return values.reshape(ncomp, nitems)[cid]
+        if nhb == 1 and values.shape == (ncomp, nitems):
+            return values[cid]
+        return values.reshape(nhb, ncomp, nitems)[column.hb_channel, cid]
+
+    @staticmethod
+    def _sigma_profile_total_values(
+        results: dict,
+        columns: Sequence[CRSSigmaProfileColumn],
+        nitems: int,
+        nhb: int,
+    ) -> Dict[str, "np.ndarray"]:
+        total_values = {}
+        for column in columns:
+            if column.mixture_total_source is None or column.mixture_total_source not in results:
+                continue
+            values = np.asarray(results[column.mixture_total_source], dtype=float)
+            if column.hb_channel is None:
+                total_values[column.column] = values.reshape(nitems)
+            elif nhb == 1 and values.shape == (nitems,):
+                total_values[column.column] = values
+            else:
+                total_values[column.column] = values.reshape(nhb, nitems)[column.hb_channel]
+        return total_values
 
     def _build_result_component_table(
         self,
@@ -3475,6 +3825,10 @@ class CRSInputBuilder:
     def method(self) -> str:
         return self._method
 
+    @method.setter
+    def method(self, method: CRSMethodName) -> None:
+        self._set_method(method)
+
     @property
     def method_options(self) -> Tuple[str, ...]:
         return CRSJob.methods()
@@ -4029,6 +4383,9 @@ class _SoluteRoleMixin:
         """Add a COMPOUND block as a solute."""
         return self._add_compound_role("solute", compound, overrides=kwargs)
 
+class _SigmaPropertyMixin:
+    nprofile: int
+    sigmamax: float
 
 class ACTIVITYCOEFInputBuilder(_SolventRoleMixin, _SoluteRoleMixin, CRSInputBuilder):
     """Builder for ACTIVITYCOEF CRS input settings."""
@@ -4297,7 +4654,7 @@ class STABILITYInputBuilder(_CompoundRoleMixin, CRSInputBuilder):
     _COMPOUND_ROLES: ClassVar[Tuple[str, ...]] = ("compound",)
 
 
-class SIGMAPROFILEInputBuilder(_CompoundRoleMixin, CRSInputBuilder):
+class SIGMAPROFILEInputBuilder(_SigmaPropertyMixin, _CompoundRoleMixin, CRSInputBuilder):
     """Builder for SIGMAPROFILE CRS input settings."""
 
     _PROPERTY_TYPE: ClassVar[str] = "SIGMAPROFILE"
@@ -4312,7 +4669,7 @@ class SIGMAPROFILEInputBuilder(_CompoundRoleMixin, CRSInputBuilder):
     _COMPOUND_ROLES: ClassVar[Tuple[str, ...]] = ("compound",)
 
 
-class PURESIGMAPROFILEInputBuilder(_CompoundRoleMixin, CRSInputBuilder):
+class PURESIGMAPROFILEInputBuilder(_SigmaPropertyMixin, _CompoundRoleMixin, CRSInputBuilder):
     """Builder for PURESIGMAPROFILE CRS input settings."""
 
     _PROPERTY_TYPE: ClassVar[str] = "PURESIGMAPROFILE"
@@ -4325,7 +4682,7 @@ class PURESIGMAPROFILEInputBuilder(_CompoundRoleMixin, CRSInputBuilder):
     _COMPOUND_ROLES: ClassVar[Tuple[str, ...]] = ("compound",)
 
 
-class SIGMAPOTENTIALInputBuilder(_CompoundRoleMixin, CRSInputBuilder):
+class SIGMAPOTENTIALInputBuilder(_SigmaPropertyMixin, _CompoundRoleMixin, CRSInputBuilder):
     """Builder for SIGMAPOTENTIAL CRS input settings."""
 
     _PROPERTY_TYPE: ClassVar[str] = "SIGMAPOTENTIAL"
@@ -4340,7 +4697,7 @@ class SIGMAPOTENTIALInputBuilder(_CompoundRoleMixin, CRSInputBuilder):
     _COMPOUND_ROLES: ClassVar[Tuple[str, ...]] = ("compound",)
 
 
-class PURESIGMAPOTENTIALInputBuilder(_CompoundRoleMixin, CRSInputBuilder):
+class PURESIGMAPOTENTIALInputBuilder(_SigmaPropertyMixin, _CompoundRoleMixin, CRSInputBuilder):
     """Builder for PURESIGMAPOTENTIAL CRS input settings."""
 
     _PROPERTY_TYPE: ClassVar[str] = "PURESIGMAPOTENTIAL"

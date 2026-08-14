@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 
-RESULT_TABLE_UNSUPPORTED_PROPERTIES = ("SIGMAPROFILE", "PURESIGMAPROFILE", "SIGMAPOTENTIAL", "PURESIGMAPOTENTIAL")
+RESULT_TABLE_UNSUPPORTED_PROPERTIES = ("SIGMAPOTENTIAL", "PURESIGMAPOTENTIAL")
 RESULT_TABLE_LLE_PROPERTIES = ("LLE", "STABILITY", "BINMIXCOEF", "TERNARYMIX")
 
 RESULT_TABLE_COMPONENT_BASE_COLUMNS = ("property", "method", "mixture", "cid", "name",)
@@ -177,6 +177,12 @@ def _build_result_quantity_metadata(
 
 RESULT_TABLE_QUANTITY_METADATA_OVERRIDES = {
     "x": {"symbol": "x", "name": "Feed molar composition", "unit": "fraction"},
+    "sigma": {"symbol": "sigma", "name": "Sigma", "unit": "e/A**2"},
+    "profile": {"symbol": "p(sigma)", "name": "Total sigma profile"},
+    "hbprofile": {"symbol": "p_HB(sigma)", "name": "HB sigma profile"},
+    "ohprofile": {"symbol": "p_OH(sigma)", "name": "OH sigma profile"},
+    "otprofile": {"symbol": "p_OT(sigma)", "name": "OT sigma profile"},
+    "orthprofile": {"symbol": "orth(sigma)", "name": "Orthogonal sigma profile", "unit": "e/A**2"},
     "act_interp": {
         "symbol": "a*",
         "name": "Interpolated activity",
