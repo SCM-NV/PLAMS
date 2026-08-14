@@ -2231,22 +2231,6 @@ class CRSResults(SCMResults):
             ret = ret.ravel()  # Flatten it
             return ret[: array.shape[1]]
 
-        # Check running enviroment
-        # try:
-        #     from IPython import get_ipython
-
-        #     ipython = get_ipython()
-        #     if ipython is not None:
-        #         if "zmqshell" in str(type(ipython)):
-        #             terminal = "jupyter"
-        #         else:
-        #             terminal = "interactive"
-        #     else:
-        #         terminal = "script"
-        # except ImportError:
-        #     terminal = "script"
-
-        # Check if matplotlib is installed
         plt = CRSResults._import_matplotlib_pyplot(self.__class__.__name__ + ".plot")
 
         self.get_results()
