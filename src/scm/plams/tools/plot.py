@@ -981,7 +981,7 @@ def plot_energy_landscape(
     connector_color: str = "black",
     connector_linestyle: Any = (0, (4, 4)),
     label_states: bool = True,
-    layout: str = "auto",
+    layout: str = Literal["auto", "dfs", "bfs", "longest_path", "force", "crossings"],
     force_iterations: int = 200,
     show_molecules: bool = False,
     molecule_y_offset: float = 0.06,
