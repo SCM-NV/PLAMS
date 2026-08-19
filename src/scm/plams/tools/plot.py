@@ -9,6 +9,9 @@ from typing import (
     Literal,
     cast,
     Sequence,
+    Set,
+    Callable,
+    Iterable,
 )
 import numpy as np
 
@@ -30,6 +33,7 @@ if TYPE_CHECKING:
     import ase
     from os import PathLike
     from PIL import Image as PilImage
+    from scm.plams.interfaces.adfsuite.ams import AMSResults
     from scm.plams.recipes.md.trajectoryanalysis import AMSMSDJob
 
 __all__ = [
@@ -38,6 +42,7 @@ __all__ = [
     "plot_phonons_band_structure",
     "plot_phonons_dos",
     "plot_phonons_thermodynamic_properties",
+    "plot_energy_landscape",
     "plot_molecule",
     "plot_image_grid",
     "plot_correlation",
@@ -1020,5 +1025,518 @@ def plot_work_function(
             color="black",
             horizontalalignment="right",
         )
+
+    return ax
+
+
+@requires_optional_package("matplotlib")
+def plot_energy_landscape(
+    energy_landscape: "AMSResults.EnergyLandscape",
+    ax: Optional["plt.Axes"] = None,
+    unit: str = "eV",
+    landscape_width: float = 0.45,
+    spacing: float = 1.0,
+    ts_color: str = "red",
+    min_color: str = "black",
+    connector_color: str = "black",
+    connector_linestyle: Any = (0, (4, 4)),
+    label_states: bool = True,
+    layout: Literal["auto", "dfs", "bfs", "longest_path", "force", "crossings"] = "auto",
+    force_iterations: int = 200,
+    show_molecules: bool = False,
+    molecule_y_offset: float = 0.06,
+    molecule_scale: float = 0.25,
+    molecule_plot_backend: Literal["view", "plot_molecule"] = "view",
+    molecule_plot_kwargs: Optional[Dict[str, Any]] = None,
+    molecule_plot_kwargs_by_state: Optional[Dict[int, Dict[str, Any]]] = None,
+    highlight_states: Optional[Sequence[int]] = None,
+    highlight_color: str = "gold",
+    highlight_linewidth: float = 8.0,
+    highlight_connector_color: Optional[str] = None,
+) -> "plt.Axes":
+    """Plot an energy landscape returned by ``AMSResults.get_energy_landscape()``.
+
+    State energies are shown relative to the global minimum in the requested
+    unit. Local minima are plotted in ``min_color`` and transition states in
+    ``ts_color``. Dashed connectors are drawn between connected states.
+
+    Parameters
+    ----------
+    energy_landscape
+        Energy landscape object returned by ``AMSResults.get_energy_landscape()``.
+    ax
+        Matplotlib axis to draw on. If ``None``, a new figure and axis are created.
+    unit
+        Energy unit used for the y-axis and for converting relative energies from Hartree.
+    landscape_width
+        Width of the horizontal line segment drawn for each state.
+    spacing
+        Horizontal spacing between consecutive plotted states within a component.
+    ts_color
+        Color used for transition-state level segments and their labels.
+    min_color
+        Color used for local-minimum level segments and their labels.
+    connector_color
+        Color used for the dashed lines connecting related states.
+    connector_linestyle
+        Matplotlib linestyle specification for the state-connection lines.
+    label_states
+        If ``True``, annotate each state with its integer state ID.
+    layout
+        Layout strategy used to order the states along the horizontal axis.
+        Supported values are ``"auto"``, ``"dfs"``, ``"bfs"``,
+        ``"longest_path"``, ``"force"``, and ``"crossings"``.
+        Use ``"auto"`` to compare the available strategies and pick the one
+        with the cleanest connector pattern. Use ``"dfs"`` to follow one branch
+        deeply before backtracking, which can resemble a reaction-path view.
+        Use ``"bfs"`` to expand level by level from one endpoint, keeping
+        nearby states grouped together. Use ``"longest_path"`` to place the
+        main backbone of the network first and then attach side branches around
+        it. Use ``"force"`` to apply a simple force-based relaxation that spreads
+        states while reducing visual crowding. Use ``"crossings"`` to minimize
+        connector crossings directly, which can help for dense networks.
+    force_iterations
+        Number of relaxation iterations used by the ``"force"`` layout.
+    show_molecules
+        If ``True``, draw a molecule sketch above each energy level.
+    molecule_y_offset
+        Vertical offset of the molecule sketches above the energy level, expressed as
+        a fraction of the visible energy span.
+    molecule_scale
+        Height of each molecule sketch, expressed as a fraction of the visible energy span.
+    molecule_plot_backend
+        Backend used to render molecule insets. Use ``"view"`` to forward
+        ``molecule_plot_kwargs`` to :func:`scm.plams.view`, or ``"plot_molecule"``
+        to forward them to :func:`plot_molecule`.
+    molecule_plot_kwargs
+        Optional keyword arguments forwarded to the function selected by
+        ``molecule_plot_backend`` for all molecule insets.
+    molecule_plot_kwargs_by_state
+        Optional mapping from displayed state ID to per-state keyword arguments. These
+        overrides are merged on top of ``molecule_plot_kwargs`` for the matching states.
+    highlight_states
+        Optional sequence of state IDs to highlight. Highlighted states and links are
+        emphasized by drawing a thicker colored underlay behind the regular plot.
+    highlight_color
+        Color used for the highlight underlay behind state segments and, by default,
+        behind highlighted links.
+    highlight_linewidth
+        Line width used for the highlight underlay behind state segments and links.
+    highlight_connector_color
+        Optional color used specifically for the highlighted-link underlay. If ``None``,
+        ``highlight_color`` is used.
+
+    Returns
+    -------
+    matplotlib.axes.Axes
+        The axis containing the plotted energy landscape.
+    """
+    import matplotlib.pyplot as plt
+    from collections import deque
+    import itertools
+    import numpy as np
+    from scm.plams.tools.view import view
+
+    states = list(energy_landscape)
+    molecule_plot_kwargs = dict(molecule_plot_kwargs or {})
+    highlight_state_ids = set(highlight_states or [])
+    highlight_connector_color = highlight_connector_color or highlight_color
+    highlight_connector_linewidth = 0.7 * highlight_linewidth
+    if molecule_plot_backend not in {"view", "plot_molecule"}:
+        raise ValueError("molecule_plot_backend must be either 'view' or 'plot_molecule'")
+    molecule_plot_kwargs_by_state = dict(molecule_plot_kwargs_by_state or {})
+
+    if ax is None:
+        _, ax = plt.subplots()
+
+    if len(states) == 0:
+        ax.set_ylabel(f"Relative Energy ({unit})")
+        ax.set_xticks([])
+        return ax
+
+    state_map = {state.id: state for state in states}
+    # Build a graph representation of the landscape from the TS reactant/product links.
+    adjacency: Dict[int, Set[int]] = {state.id: set() for state in states}
+    edge_pairs: Set[Tuple[int, int]] = set()
+    for state in states:
+        if state.reactants is not None:
+            adjacency[state.id].add(state.reactants.id)
+            adjacency[state.reactants.id].add(state.id)
+            left_id, right_id = sorted((state.id, state.reactants.id))
+            edge_pairs.add((left_id, right_id))
+        if state.products is not None:
+            adjacency[state.id].add(state.products.id)
+            adjacency[state.products.id].add(state.id)
+            left_id, right_id = sorted((state.id, state.products.id))
+            edge_pairs.add((left_id, right_id))
+
+    def _state_sort_key(state_id: int) -> Tuple[bool, float, int]:
+        state = state_map[state_id]
+        return (state.isTS, state.energy, state.id)
+
+    def _component(start_id: int, remaining_ids: Set[int]) -> Set[int]:
+        component: Set[int] = set()
+        stack = [start_id]
+        while stack:
+            node = stack.pop()
+            if node in component:
+                continue
+            component.add(node)
+            stack.extend(adjacency[node] & remaining_ids)
+        return component
+
+    def _component_start(component: Set[int]) -> int:
+        endpoints = [node for node in component if len(adjacency[node] & component) <= 1]
+        candidates = endpoints if endpoints else list(component)
+        return min(candidates, key=_state_sort_key)
+
+    def _connected_components() -> List[Set[int]]:
+        # Layout disconnected reaction networks independently before placing them side by side.
+        remaining_ids = {state.id for state in states}
+        components: List[Set[int]] = []
+        while remaining_ids:
+            start_id = min(remaining_ids, key=_state_sort_key)
+            component = _component(start_id, remaining_ids)
+            components.append(component)
+            remaining_ids -= component
+        components.sort(key=lambda component: _state_sort_key(_component_start(component)))
+        return components
+
+    def _ordered_components(orderer: Callable[[Set[int]], List[int]]) -> List[int]:
+        ordered_ids: List[int] = []
+        for component in _connected_components():
+            ordered_ids.extend(orderer(component))
+        return ordered_ids
+
+    def _dfs_order(component: Set[int]) -> List[int]:
+        # Follow one branch deeply before backtracking, which often matches a reaction path view.
+        start_id = _component_start(component)
+        visited: Set[int] = set()
+        ordered_ids: List[int] = []
+
+        def _visit(node: int) -> None:
+            visited.add(node)
+            ordered_ids.append(node)
+            neighbors = sorted(adjacency[node] & component, key=_state_sort_key)
+            for neighbor in neighbors:
+                if neighbor not in visited:
+                    _visit(neighbor)
+
+        _visit(start_id)
+        return ordered_ids
+
+    def _bfs_order(component: Set[int]) -> List[int]:
+        # Expand level by level from one endpoint to keep nearby states grouped together.
+        start_id = _component_start(component)
+        queue = deque([start_id])
+        visited: Set[int] = {start_id}
+        ordered_ids: List[int] = []
+        while queue:
+            node = queue.popleft()
+            ordered_ids.append(node)
+            neighbors = sorted(adjacency[node] & component, key=_state_sort_key)
+            for neighbor in neighbors:
+                if neighbor not in visited:
+                    visited.add(neighbor)
+                    queue.append(neighbor)
+        return ordered_ids
+
+    # ``view()`` returns a raster image with its own canvas and margins. Cropping away
+    # empty borders makes ``molecule_scale`` control the apparent molecule size instead
+    # of mostly scaling surrounding whitespace inside the inset.
+    def _crop_view_image(image: Any) -> Any:
+        image_array = np.asarray(image)
+        if image_array.ndim < 2:
+            return image
+
+        if image_array.ndim == 3 and image_array.shape[2] == 4:
+            mask = image_array[:, :, 3] > 0
+        elif image_array.ndim == 3:
+            mask = np.any(image_array[:, :, :3] < 250, axis=2)
+        else:
+            mask = image_array < 250
+
+        nonempty = np.argwhere(mask)
+        if nonempty.size == 0:
+            return image
+
+        y0, x0 = nonempty.min(axis=0)
+        y1, x1 = nonempty.max(axis=0) + 1
+        if x0 == 0 and y0 == 0 and y1 == image_array.shape[0] and x1 == image_array.shape[1]:
+            return image
+
+        return image.crop((int(x0), int(y0), int(x1), int(y1)))
+
+    def _farthest(start_id: int, component: Set[int]) -> Tuple[int, Dict[int, int], Dict[int, Optional[int]]]:
+        distances: Dict[int, int] = {start_id: 0}
+        parents: Dict[int, Optional[int]] = {start_id: None}
+        queue = deque([start_id])
+        while queue:
+            node = queue.popleft()
+            for neighbor in sorted(adjacency[node] & component, key=_state_sort_key):
+                if neighbor not in distances:
+                    distances[neighbor] = distances[node] + 1
+                    parents[neighbor] = node
+                    queue.append(neighbor)
+        farthest_id = max(
+            distances, key=lambda node: (distances[node], -int(state_map[node].isTS), -state_map[node].energy, -node)
+        )
+        return farthest_id, distances, parents
+
+    def _longest_path_order(component: Set[int]) -> List[int]:
+        # Use the graph backbone first, then attach side branches around that main path.
+        start_id = _component_start(component)
+        end_a, _, _ = _farthest(start_id, component)
+        end_b, _, parents = _farthest(end_a, component)
+
+        backbone: List[int] = []
+        node: Optional[int] = end_b
+        while node is not None:
+            backbone.append(node)
+            node = parents[node]
+        backbone.reverse()
+
+        ordered_ids: List[int] = []
+        placed: Set[int] = set()
+
+        def _add_side_branch(root_id: int, blocked: Set[int]) -> None:
+            neighbors = sorted((adjacency[root_id] & component) - blocked - placed, key=_state_sort_key)
+            for neighbor in neighbors:
+                ordered_ids.append(neighbor)
+                placed.add(neighbor)
+                _add_side_branch(neighbor, blocked | {root_id})
+
+        for node in backbone:
+            if node not in placed:
+                ordered_ids.append(node)
+                placed.add(node)
+            _add_side_branch(node, set(backbone))
+
+        leftovers = sorted(component - placed, key=_state_sort_key)
+        ordered_ids.extend(leftovers)
+        return ordered_ids
+
+    def _crossings_for_order(order: Iterable[int]) -> Tuple[int, int, Tuple[int, ...]]:
+        # Score a 1D ordering by counting connector crossings and total connector length.
+        positions = {state_id: idx for idx, state_id in enumerate(order)}
+        edge_list = sorted(edge_pairs)
+        crossings = 0
+        edge_length = 0
+        for idx, (a1, b1) in enumerate(edge_list):
+            x1, x2 = sorted((positions[a1], positions[b1]))
+            edge_length += x2 - x1
+            for a2, b2 in edge_list[idx + 1 :]:
+                if len({a1, b1, a2, b2}) < 4:
+                    continue
+                y1, y2 = sorted((positions[a2], positions[b2]))
+                if (x1 < y1 < x2 < y2) or (y1 < x1 < y2 < x2):
+                    crossings += 1
+        return crossings, edge_length, tuple(order)
+
+    def _crossings_order(component: Set[int]) -> List[int]:
+        # For small graphs try all permutations; otherwise improve a good initial guess locally.
+        component_list = sorted(component, key=_state_sort_key)
+        if len(component_list) <= 8:
+            return list(min(itertools.permutations(component_list), key=lambda perm: _crossings_for_order(perm)))
+
+        best = min(
+            (_dfs_order(component), _bfs_order(component), _longest_path_order(component)),
+            key=_crossings_for_order,
+        )
+        improved = list(best)
+        improved_flag = True
+        while improved_flag:
+            improved_flag = False
+            best_score = _crossings_for_order(improved)
+            for i in range(len(improved) - 1):
+                candidate = improved.copy()
+                candidate[i], candidate[i + 1] = candidate[i + 1], candidate[i]
+                candidate_score = _crossings_for_order(candidate)
+                if candidate_score < best_score:
+                    improved = candidate
+                    best_score = candidate_score
+                    improved_flag = True
+        return improved
+
+    def _force_order(component: Set[int]) -> List[int]:
+        # Relax 1D positions with attractive edges and repulsive nodes, then sort by the relaxed positions.
+        component_ids = sorted(component, key=_state_sort_key)
+        initial = _longest_path_order(component)
+        x_pos: Dict[int, float] = {state_id: float(index) for index, state_id in enumerate(initial)}
+        ideal_gap = max(spacing, 1.0)
+        for _ in range(max(force_iterations, 1)):
+            delta: Dict[int, float] = {state_id: 0.0 for state_id in component_ids}
+            for i, left in enumerate(component_ids):
+                for right in component_ids[i + 1 :]:
+                    distance = x_pos[right] - x_pos[left]
+                    if abs(distance) < 1e-8:
+                        distance = 1e-8
+                    repulsion = 0.02 / abs(distance)
+                    delta[left] -= repulsion
+                    delta[right] += repulsion
+            for left, right in edge_pairs:
+                if left in component and right in component:
+                    distance = x_pos[right] - x_pos[left]
+                    attraction = 0.08 * (distance - ideal_gap)
+                    delta[left] += attraction
+                    delta[right] -= attraction
+            for state_id in component_ids:
+                state = state_map[state_id]
+                delta[state_id] += 0.03 * Units.convert(state.energy - min(s.energy for s in states), "hartree", unit)
+            for state_id in component_ids:
+                x_pos[state_id] += delta[state_id]
+            centered = float(np.mean([x_pos[state_id] for state_id in component_ids]))
+            for state_id in component_ids:
+                x_pos[state_id] -= centered
+        return sorted(component_ids, key=lambda state_id: (x_pos[state_id],) + _state_sort_key(state_id))
+
+    layout_orderers: Dict[str, Callable[[], List[int]]] = {
+        "dfs": lambda: _ordered_components(_dfs_order),
+        "bfs": lambda: _ordered_components(_bfs_order),
+        "longest_path": lambda: _ordered_components(_longest_path_order),
+        "force": lambda: _ordered_components(_force_order),
+        "crossings": lambda: _ordered_components(_crossings_order),
+    }
+
+    if layout == "auto":
+        # Compare all available strategies and keep the one with the cleanest connector pattern.
+        candidate_orders: Dict[str, List[int]] = {name: orderer() for name, orderer in layout_orderers.items()}
+        ordered_ids: List[int] = min(
+            candidate_orders.values(),
+            key=lambda order: _crossings_for_order(order)
+            + (sum(abs(i - order.index(state.id)) for i, state in enumerate(states)),),
+        )
+    else:
+        if layout not in layout_orderers:
+            raise ValueError(
+                "Unsupported layout '{}'. Choose from 'auto', 'dfs', 'bfs', 'longest_path', 'force', or 'crossings'.".format(
+                    layout
+                )
+            )
+        ordered_ids = layout_orderers[layout]()
+
+    ordered_states = [state_map[state_id] for state_id in ordered_ids]
+    # Convert the chosen ordering into actual x-coordinates, leaving a gap between components.
+    component_gap = max(1.5 * spacing, spacing + landscape_width)
+    x_map = {}
+    current_x = 0.0
+    for component in _connected_components():
+        component_order = [state_id for state_id in ordered_ids if state_id in component]
+        for offset, state_id in enumerate(component_order):
+            x_map[state_id] = current_x + offset * spacing
+        current_x = x_map[component_order[-1]] + component_gap
+
+    reference_energy = min(state.energy for state in states)
+    relative_energies = {state.id: Units.convert(state.energy - reference_energy, "hartree", unit) for state in states}
+    half_width = landscape_width / 2.0
+
+    for state in ordered_states:
+        x_pos = x_map[state.id]
+        y_pos = relative_energies[state.id]
+        state_label = getattr(state, "display_id", state.id)
+        state_highlight_id = state_label if hasattr(state, "display_id") else state.id
+        is_highlighted = state_highlight_id in highlight_state_ids
+        base_color = ts_color if state.isTS else min_color
+        if is_highlighted:
+            ax.hlines(
+                y=y_pos,
+                xmin=x_pos - half_width,
+                xmax=x_pos + half_width,
+                colors=highlight_color,
+                linewidth=highlight_linewidth,
+                zorder=2.5,
+            )
+        ax.hlines(y=y_pos, xmin=x_pos - half_width, xmax=x_pos + half_width, colors=base_color, linewidth=1.6, zorder=3)
+        if label_states:
+            ax.text(x_pos, y_pos, str(state_label), ha="center", va="bottom", color=base_color, fontsize=11, zorder=4)
+
+    plotted_pairs = set()
+    # Draw each connection only once, even though TS links are visible from both endpoints.
+    for state in ordered_states:
+        x_pos = x_map[state.id]
+        y_pos = relative_energies[state.id]
+        state_label = getattr(state, "display_id", state.id)
+        state_highlight_id = state_label if hasattr(state, "display_id") else state.id
+        state_highlighted = state_highlight_id in highlight_state_ids
+        for other in (state.reactants, state.products):
+            if other is None:
+                continue
+            pair = tuple(sorted((state.id, other.id)))
+            if pair in plotted_pairs:
+                continue
+            other_label = getattr(other, "display_id", other.id)
+            other_highlight_id = other_label if hasattr(other, "display_id") else other.id
+            other_highlighted = other_highlight_id in highlight_state_ids
+            other_x = x_map[other.id]
+            other_y = relative_energies[other.id]
+            if other_x < x_pos:
+                x1, x2 = other_x + half_width, x_pos - half_width
+                y1, y2 = other_y, y_pos
+            else:
+                x1, x2 = x_pos + half_width, other_x - half_width
+                y1, y2 = y_pos, other_y
+            link_highlighted = state_highlighted and other_highlighted
+            if link_highlighted:
+                ax.plot(
+                    [x1, x2],
+                    [y1, y2],
+                    color=highlight_connector_color,
+                    linestyle="solid",
+                    linewidth=highlight_connector_linewidth,
+                    zorder=1.5,
+                )
+            ax.plot([x1, x2], [y1, y2], color=connector_color, linestyle=connector_linestyle, linewidth=1.2, zorder=2)
+            plotted_pairs.add(pair)
+
+    ax.set_ylabel(f"Relative Energy ({unit})")
+    ax.set_xticks([])
+    x_values = [x_map[state.id] for state in ordered_states]
+    ax.set_xlim(min(x_values) - half_width - 0.2, max(x_values) + half_width + 0.2)
+
+    y_min = min(relative_energies.values())
+    y_max = max(relative_energies.values())
+    y_span = max(y_max - y_min, 1.0)
+    bottom_padding = 0.05 * y_span
+    top_padding = 0.05 * y_span
+    molecule_height = 0.0
+    if show_molecules:
+        molecule_height = molecule_scale * y_span
+        top_padding = max(top_padding, (molecule_y_offset + molecule_scale + 0.04) * y_span)
+    ax.set_ylim(y_min - bottom_padding, y_max + top_padding)
+
+    if show_molecules:
+        base_molecule_scale = 0.16
+        scale_factor = molecule_scale / base_molecule_scale if base_molecule_scale > 0 else 1.0
+        molecule_width = max(landscape_width * 1.6, 0.72 * spacing) * scale_factor
+        # Place a compact molecule sketch above each state without changing the energy layout itself.
+        for state in ordered_states:
+            x_pos = x_map[state.id]
+            y_pos = relative_energies[state.id]
+            inset_bounds = (
+                x_pos - molecule_width / 2.0,
+                y_pos + molecule_y_offset * y_span,
+                molecule_width,
+                molecule_height,
+            )
+            inset_ax = ax.inset_axes(inset_bounds, transform=ax.transData)
+            inset_ax.set_facecolor("none")
+            inset_ax.patch.set_alpha(0.0)
+            state_label = getattr(state, "display_id", state.id)
+            state_plot_kwargs = dict(molecule_plot_kwargs)
+            state_plot_kwargs.update(molecule_plot_kwargs_by_state.get(state_label, {}))
+            if molecule_plot_backend == "view":
+                state_plot_kwargs.setdefault("guess_bonds", True)
+                image = view(state.molecule, **state_plot_kwargs)
+                image = _crop_view_image(image)
+                inset_ax.imshow(image)
+                inset_ax.set_axis_off()
+            else:
+                plot_molecule(state.molecule, ax=inset_ax, keep_axis=False, **state_plot_kwargs)
+            inset_ax.set_zorder(5)
+
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.spines["bottom"].set_visible(False)
+    ax.tick_params(axis="x", length=0)
 
     return ax

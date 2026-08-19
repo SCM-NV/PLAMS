@@ -2591,6 +2591,7 @@ class AMSResults(Results):
                 productsID: Optional[int] = None,
                 prefactorsFromReactant: Optional[float] = None,
                 prefactorsFromProduct: Optional[float] = None,
+                originalID: Optional[int] = None,
             ):
                 self._landscape = landscape
                 self.engfile = engfile
@@ -2602,10 +2603,15 @@ class AMSResults(Results):
                 self.productsID = productsID
                 self.prefactorsFromReactant = prefactorsFromReactant
                 self.prefactorsFromProduct = prefactorsFromProduct
+                self.originalID = originalID
 
             @property
             def id(self) -> int:
                 return self._landscape._states.index(self) + 1
+
+            @property
+            def display_id(self) -> int:
+                return self.originalID if self.originalID is not None else self.id
 
             @property
             def reactants(self) -> Optional["AMSResults.EnergyLandscape.State"]:
@@ -2618,7 +2624,7 @@ class AMSResults(Results):
             def __str__(self) -> str:
                 if self.isTS:
                     lines = [
-                        f"State {self.id}: {self.molecule.get_formula(False)} transition state @ {self.energy:.8f} Hartree (found {self.count} times"
+                        f"State {self.display_id}: {self.molecule.get_formula(False)} transition state @ {self.energy:.8f} Hartree (found {self.count} times"
                         + (f", results on {self.engfile})" if self.engfile is not None else ")")
                     ]
                     if self.reactantsID is not None:
@@ -2638,7 +2644,7 @@ class AMSResults(Results):
                         lines += [f"     Prefactors: {self.prefactorsFromReactant:.3E}:?"]
                 else:
                     lines = [
-                        f"State {self.id}: {self.molecule.get_formula(False)} local minimum @ {self.energy:.8f} Hartree (found {self.count} times"
+                        f"State {self.display_id}: {self.molecule.get_formula(False)} local minimum @ {self.energy:.8f} Hartree (found {self.count} times"
                         + (f", results on {self.engfile})" if self.engfile is not None else ")")
                     ]
                 return "\n".join(lines)
@@ -2709,7 +2715,7 @@ class AMSResults(Results):
                                 ]
                 return "\n".join(lines)
 
-        def __init__(self, results: "AMSResults"):
+        def __init__(self, results: Optional["AMSResults"]):
             self._states: List["AMSResults.EnergyLandscape.State"] = []
             self._fragments: List["AMSResults.EnergyLandscape.Fragment"] = []
             self._fstates: List["AMSResults.EnergyLandscape.FragmentedState"] = []
@@ -2844,6 +2850,99 @@ class AMSResults(Results):
 
         def __len__(self) -> int:
             return len(self._states)
+
+        def select_states(
+            self, state_ids: Sequence[int], keep_original_ids: bool = False
+        ) -> "AMSResults.EnergyLandscape":
+            """Return a new energy landscape containing only the selected states.
+
+            The returned landscape contains copies of the selected stationary
+            points in the order given by ``state_ids``. Reactant/product links
+            are kept only when the linked state is also part of the selected
+            set. If ``keep_original_ids`` is ``True``, the copied states display
+            their original IDs in string representations. Fragment and
+            fragmented-state information is not copied.
+            """
+            unique_state_ids = list(dict.fromkeys(state_ids))
+            invalid_ids = [state_id for state_id in unique_state_ids if state_id < 1 or state_id > len(self._states)]
+            if invalid_ids:
+                raise ValueError(f"Invalid state ids requested: {invalid_ids}")
+
+            selected_landscape = AMSResults.EnergyLandscape(None)
+            id_map = {old_id: new_id for new_id, old_id in enumerate(unique_state_ids, start=1)}
+
+            for old_id in unique_state_ids:
+                state = self._states[old_id - 1]
+                reactants_id = id_map.get(state.reactantsID) if state.reactantsID is not None else None
+                products_id = id_map.get(state.productsID) if state.productsID is not None else None
+                selected_landscape._states.append(
+                    AMSResults.EnergyLandscape.State(
+                        selected_landscape,
+                        state.engfile,
+                        state.energy,
+                        state.molecule.copy(),
+                        state.count,
+                        state.isTS,
+                        reactants_id,
+                        products_id,
+                        state.prefactorsFromReactant,
+                        state.prefactorsFromProduct,
+                        old_id if keep_original_ids else None,
+                    )
+                )
+
+            return selected_landscape
+
+        def accessible_states(
+            self, start_state_id: int, energy_window: float, unit: str = "eV", keep_original_ids: bool = False
+        ) -> "AMSResults.EnergyLandscape":
+            """Return the states reachable from ``start_state_id`` within an energy window.
+
+            A state is considered accessible if there exists a connected path from
+            the starting state such that the maximum energy encountered along the
+            path does not exceed the starting-state energy plus ``energy_window``.
+            The returned value is a new ``EnergyLandscape`` containing only the
+            accessible states. If ``keep_original_ids`` is ``True``, the copied
+            states display their original IDs in string representations.
+            """
+            if start_state_id < 1 or start_state_id > len(self._states):
+                raise ValueError(f"Invalid start_state_id: {start_state_id}")
+            if energy_window < 0.0:
+                raise ValueError(f"energy_window must be non-negative, got {energy_window}")
+
+            window_hartree = Units.convert(energy_window, unit, "hartree")
+            start_state = self._states[start_state_id - 1]
+            energy_limit = start_state.energy + window_hartree
+
+            adjacency: Dict[int, Set[int]] = {state.id: set() for state in self._states}
+            for state in self._states:
+                if state.reactantsID is not None:
+                    adjacency[state.id].add(state.reactantsID)
+                    adjacency[state.reactantsID].add(state.id)
+                if state.productsID is not None:
+                    adjacency[state.id].add(state.productsID)
+                    adjacency[state.productsID].add(state.id)
+
+            required_energy: Dict[int, float] = {start_state_id: start_state.energy}
+            pending_ids: Set[int] = {start_state_id}
+
+            while pending_ids:
+                current_id = min(pending_ids, key=lambda state_id: required_energy[state_id])
+                pending_ids.remove(current_id)
+                current_required = required_energy[current_id]
+
+                for neighbor_id in adjacency[current_id]:
+                    neighbor_energy = self._states[neighbor_id - 1].energy
+                    path_required = max(current_required, neighbor_energy)
+                    if path_required > energy_limit:
+                        continue
+                    previous_required = required_energy.get(neighbor_id)
+                    if previous_required is None or path_required < previous_required:
+                        required_energy[neighbor_id] = path_required
+                        pending_ids.add(neighbor_id)
+
+            accessible_ids = [state.id for state in self._states if state.id in required_energy]
+            return self.select_states(accessible_ids, keep_original_ids=keep_original_ids)
 
     def get_energy_landscape(self) -> "AMSResults.EnergyLandscape":
         """Returns the energy landscape obtained from a PESExploration job run by the AMS driver. The energy landscape is a set of stationary PES points (local minima and transition states).
