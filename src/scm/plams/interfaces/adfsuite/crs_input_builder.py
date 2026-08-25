@@ -196,7 +196,7 @@ class CRSInputBuilder:
             entries.difference_update(self._mode_controlled_input_keys())
         for role in self._compound_roles():
             entries.add(f"add_{role}")
-            entries.add(f"add_{role}_from_database")
+            entries.add(f"add_{role}_from_adfcrs_database")
         return sorted(entries)
 
     def get(self, key: str, default: Any = None) -> Any:
@@ -334,7 +334,7 @@ class CRSInputBuilder:
         self._compounds_by_role[role].append(normalized)
         return self
 
-    def _add_compound_role_from_database(
+    def _add_compound_role_from_adfcrs_database(
         self: _CRSInputBuilderT,
         role: str,
         name: str,
@@ -439,9 +439,9 @@ class _SolventRoleMixin:
         """Add a COMPOUND block as a solvent."""
         return self._add_compound_role("solvent", compound, **kwargs)
 
-    def add_solvent_from_database(self: _CRSInputBuilderT, name: str, **kwargs: Any) -> _CRSInputBuilderT:
+    def add_solvent_from_adfcrs_database(self: _CRSInputBuilderT, name: str, **kwargs: Any) -> _CRSInputBuilderT:
         """Add a database COMPOUND block as a solvent."""
-        return self._add_compound_role_from_database("solvent", name, **kwargs)
+        return self._add_compound_role_from_adfcrs_database("solvent", name, **kwargs)
 
 
 class _SoluteRoleMixin:
@@ -451,9 +451,9 @@ class _SoluteRoleMixin:
         """Add a COMPOUND block as a solute."""
         return self._add_compound_role("solute", compound, **kwargs)
 
-    def add_solute_from_database(self: _CRSInputBuilderT, name: str, **kwargs: Any) -> _CRSInputBuilderT:
+    def add_solute_from_adfcrs_database(self: _CRSInputBuilderT, name: str, **kwargs: Any) -> _CRSInputBuilderT:
         """Add a database COMPOUND block as a solute."""
-        return self._add_compound_role_from_database("solute", name, **kwargs)
+        return self._add_compound_role_from_adfcrs_database("solute", name, **kwargs)
 
 
 class _CompoundRoleMixin:
@@ -463,9 +463,9 @@ class _CompoundRoleMixin:
         """Add a generic COMPOUND block."""
         return self._add_compound_role("compound", compound, **kwargs)
 
-    def add_compound_from_database(self: _CRSInputBuilderT, name: str, **kwargs: Any) -> _CRSInputBuilderT:
+    def add_compound_from_adfcrs_database(self: _CRSInputBuilderT, name: str, **kwargs: Any) -> _CRSInputBuilderT:
         """Add a generic database COMPOUND block."""
-        return self._add_compound_role_from_database("compound", name, **kwargs)
+        return self._add_compound_role_from_adfcrs_database("compound", name, **kwargs)
 
 
 class _TemperatureMixin:
