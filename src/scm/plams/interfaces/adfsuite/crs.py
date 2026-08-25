@@ -1,4 +1,3 @@
-import inspect
 import os
 import subprocess
 from itertools import cycle
@@ -8,7 +7,7 @@ import numpy as np
 
 from scm.plams.interfaces.adfsuite.scmjob import SCMJob, SCMResults
 from scm.plams.tools.units import Units
-from scm.plams.core.functions import log
+from scm.plams.core.functions import log, requires_optional_package
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -287,16 +286,11 @@ class CRSResults(SCMResults):
             dict_Asson = None  # type: ignore[assignment]
 
         if as_df:
-            try:
-                import pandas as pd
-
-                return pd.DataFrame(dict_species), pd.DataFrame(dict_Asson)
-            except ImportError:
-                method = inspect.stack()[2][3]
-                raise ImportError("{}: as_df=True requires the 'pandas' package".format(method))
+            return self._plain_dict_to_df(dict_species), self._plain_dict_to_df(dict_Asson)
         else:
             return dict_species, dict_Asson
 
+    @requires_optional_package("matplotlib")
     def plot(
         self,
         *arrays: "np.ndarray",
@@ -353,22 +347,17 @@ class CRSResults(SCMResults):
         except ImportError:
             terminal = "script"
 
-        # Check if matplotlib is installed
-        try:
-            import matplotlib
+        import matplotlib
 
-            if plot_fig:
-                if terminal == "jupyter" and ipython is not None:
-                    ipython.run_line_magic("matplotlib", "inline")
-                else:
-                    matplotlib.use("TkAgg")
-            elif not plot_fig:
-                matplotlib.use("Agg")
+        if plot_fig:
+            if terminal == "jupyter" and ipython is not None:
+                ipython.run_line_magic("matplotlib", "inline")
+            else:
+                matplotlib.use("TkAgg")
+        else:
+            matplotlib.use("Agg")
 
-            import matplotlib.pyplot as plt
-        except ImportError:
-            method = self.__class__.__name__ + ".plot"
-            raise ImportError("{}: this method requires the 'matplotlib' package".format(method))
+        import matplotlib.pyplot as plt
 
         self.get_results()
 
@@ -481,18 +470,26 @@ class CRSResults(SCMResults):
         return ret
 
     @staticmethod
+    @requires_optional_package("pandas")
     def _dict_to_df(array_dict: dict, section: str, x_axis: str) -> "pd.DataFrame":
         """Attempt to convert a dictionary into a DataFrame."""
-        try:
-            import pandas as pd
-        except ImportError:
-            method = inspect.stack()[2][3]
-            raise ImportError("{}: as_df=True requires the 'pandas' package".format(method))
+        import pandas as pd
 
         index = pd.Index(array_dict.pop(x_axis), name=x_axis)
         df = pd.DataFrame(array_dict, index=index)
         df.columns.name = section.lower()
         return df
+
+    @staticmethod
+    @requires_optional_package("pandas")
+    def _plain_dict_to_df(data: Optional[Dict[str, Any]]) -> Optional["pd.DataFrame"]:
+        """Convert a plain dictionary of columns into a DataFrame."""
+        if data is None:
+            return None
+
+        import pandas as pd
+
+        return pd.DataFrame(data)
 
 
 class CRSJob(SCMJob):
