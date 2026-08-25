@@ -116,6 +116,12 @@ class CRSInputBuilder:
     _EXPOSED_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ()
     _REQUIRED_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ()
     _MODE_CONFIG: ClassVar[_ModeConfig] = _ModeConfig()
+    # Runtime value normalization for explicit builder inputs. These groups keep
+    # constructor kwargs, set(**kwargs), and property setters consistent.
+    _FLOAT_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ()
+    _FLOAT_LIST_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ()
+    _INT_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ()
+    _BOOL_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ()
 
     # Compound kwargs accepted by add_compound/add_solvent/add_solute methods.
     # These keys can affect CRS calculations; role config defines supported roles, count limits, and required keys.
@@ -273,7 +279,69 @@ class CRSInputBuilder:
 
     def _set_input_value(self, key: str, value: Any) -> None:
         self._validate_input_key(key)
+        value = self._normalize_input_value(key, value)
         self._values[key] = value
+
+    def _normalize_input_value(self, key: str, value: Any) -> Any:
+        if key in self._FLOAT_LIST_INPUT_KEYS:
+            return self._normalize_float_range_input(key, value)
+        if key in self._FLOAT_INPUT_KEYS:
+            self._validate_float_input(key, value)
+        elif key in self._INT_INPUT_KEYS:
+            self._validate_int_input(key, value)
+        elif key in self._BOOL_INPUT_KEYS:
+            self._validate_bool_input(key, value)
+        return value
+
+    def _validate_float_input(self, key: str, value: Any) -> None:
+        if isinstance(value, bool) or not isinstance(value, (float, int)):
+            raise TypeError(f"{key} must be a single float value")
+
+    def _normalize_float_range_input(self, key: str, value: _FloatListInput) -> Union[_FloatInput, str]:
+        if isinstance(value, str):
+            self._validate_float_range_string(key, value)
+            return value
+        if isinstance(value, bool):
+            raise TypeError(f"{key} must be a float value or a range [low, high, nsteps]")
+        if isinstance(value, (float, int)):
+            return value
+        if isinstance(value, Sequence):
+            if len(value) != 3:
+                raise ValueError(f"{key} range must contain [low, high, nsteps]")
+            low, high, nsteps = value
+            if (
+                isinstance(low, bool)
+                or isinstance(high, bool)
+                or isinstance(nsteps, bool)
+                or not isinstance(low, (float, int))
+                or not isinstance(high, (float, int))
+                or not isinstance(nsteps, int)
+            ):
+                raise TypeError(f"{key} range must be [float, float, int]")
+            return f"{low} {high} {nsteps}"
+
+        raise TypeError(f"{key} must be a float value or a range [low, high, nsteps]")
+
+    def _validate_float_range_string(self, key: str, value: str) -> None:
+        fields = value.split()
+        if len(fields) not in (1, 3):
+            raise ValueError(f"{key} must be a single value or range: low high nsteps")
+
+        try:
+            float(fields[0])
+            if len(fields) == 3:
+                float(fields[1])
+                int(fields[2])
+        except ValueError as exc:
+            raise TypeError(f"{key} range string must be: float float int") from exc
+
+    def _validate_int_input(self, key: str, value: Any) -> None:
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise TypeError(f"{key} must be an integer value")
+
+    def _validate_bool_input(self, key: str, value: Any) -> None:
+        if not isinstance(value, bool):
+            raise TypeError(f"{key} must be a boolean value")
 
     def _validate_input_key(self, key: str) -> None:
         if key not in self._accepted_keys:
@@ -473,7 +541,7 @@ class _TemperatureMixin:
 
     @property
     def temperature(self) -> Optional[_FloatInput]:
-        """Temperature input as a single value."""
+        """Temperature in K as a single value."""
         return self.get("temperature")
 
     @temperature.setter
@@ -486,7 +554,7 @@ class _TemperatureListMixin:
 
     @property
     def temperature(self) -> Optional[_FloatListInput]:
-        """Temperature input as a single value, range string, or sequence of values."""
+        """Temperature in K as a single value or range [temperature, temperature_high, nsteps]."""
         return self.get("temperature")
 
     @temperature.setter
@@ -499,7 +567,7 @@ class _PressureMixin:
 
     @property
     def pressure(self) -> Optional[_FloatInput]:
-        """Pressure input as a single value."""
+        """Pressure in bar as a single value."""
         return self.get("pressure")
 
     @pressure.setter
@@ -512,7 +580,7 @@ class _PressureListMixin:
 
     @property
     def pressure(self) -> Optional[_FloatListInput]:
-        """Pressure input as a single value, range string, or sequence of values."""
+        """Pressure in bar as a single value or range [pressure, pressure_high, nsteps]."""
         return self.get("pressure")
 
     @pressure.setter
@@ -596,7 +664,7 @@ class _VLESweepModeMixin:
 
 
 class ACTIVITYCOEFInputBuilder(
-    _TemperatureListMixin,
+    _TemperatureMixin,
     _MassFractionMixin,
     _DensitySolventMixin,
     _SolventRoleMixin,
@@ -610,8 +678,10 @@ class ACTIVITYCOEFInputBuilder(
     _PROPERTY_TYPE: ClassVar[str] = "ACTIVITYCOEF"
     _DESCRIPTION: ClassVar[str] = "Activity coefficients in a solvent mixture."
     _EXPOSED_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature", "massfraction", "densitysolvent")
-    _CALCULATION_COMPOUND_KEYS: ClassVar[Tuple[str, ...]] = ("frac1", "density") + _VAPOR_PRESSURE_KEYS
     _REQUIRED_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature",)
+    _FLOAT_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature", "densitysolvent")
+    _BOOL_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("massfraction",)
+    _CALCULATION_COMPOUND_KEYS: ClassVar[Tuple[str, ...]] = ("frac1", "density") + _VAPOR_PRESSURE_KEYS
     _COMPOUND_ROLE_CONFIG: ClassVar[Mapping[str, _CompoundRoleConfig]] = {
         "solvent": _CompoundRoleConfig(required_keys=("frac1",)),
         "solute": _CompoundRoleConfig(),
@@ -642,6 +712,9 @@ class SOLUBILITYInputBuilder(
         "isobar",
     )
     _REQUIRED_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature",)
+    _FLOAT_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("pressure", "densitysolvent")
+    _FLOAT_LIST_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature",)
+    _BOOL_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("massfraction",)
     _CALCULATION_COMPOUND_KEYS: ClassVar[Tuple[str, ...]] = ("frac1", "density") + _FUSION_KEYS + _VAPOR_PRESSURE_KEYS
     _COMPOUND_ROLE_CONFIG: ClassVar[Mapping[str, _CompoundRoleConfig]] = {
         "solvent": _CompoundRoleConfig(required_keys=("frac1",)),
@@ -687,6 +760,9 @@ class BINMIXCOEFInputBuilder(
     )
     _CALCULATION_COMPOUND_KEYS: ClassVar[Tuple[str, ...]] = ("frac1",) + _VAPOR_PRESSURE_KEYS + ("flashpoint",)
     _REQUIRED_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature",)
+    _FLOAT_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature", "pressure")
+    _INT_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("nfrac",)
+    _BOOL_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("massfraction",)
     _COMPOUND_ROLE_CONFIG: ClassVar[Mapping[str, _CompoundRoleConfig]] = {
         "compound": _CompoundRoleConfig(min_count=2, max_count=2),
     }
