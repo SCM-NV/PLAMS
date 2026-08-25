@@ -4,6 +4,7 @@ import os
 from dataclasses import dataclass, field
 from typing import Any, ClassVar, Dict, List, Literal, Mapping, Optional, Sequence, Set, Tuple, Type, TypeVar, Union
 
+from scm.plams.core.functions import log
 from scm.plams.core.settings import Settings
 from scm.plams.interfaces.adfsuite.crs_definitions import CRS_METHODS, get_block_keys, get_crs_input_data
 
@@ -424,18 +425,19 @@ class CRSInputBuilder:
         for key, value in overrides.items():
             if value is None:
                 continue
-            self._validate_compound_key(key)
+            if not self._accepts_compound_key(key):
+                log(
+                    f"Ignoring compound key {key!r} for {self.property_type}: it does not affect this calculation.",
+                    3,
+                )
+                continue
             compound[key] = value
 
-    def _validate_compound_key(self, key: str) -> None:
-        allowed = set(self._CALCULATION_COMPOUND_KEYS)
-        if key not in allowed:
-            allowed_keys = ", ".join(sorted(allowed))
-            raise ValueError(f"{key!r} is not valid for {self.property_type} compounds. Supported keys: {allowed_keys}")
-
+    def _accepts_compound_key(self, key: str) -> bool:
         compound_keys = get_block_keys(get_crs_input_data(), "compound")
         if key not in compound_keys:
             raise ValueError(f"{key!r} is not a COMPOUND input key in crs.json")
+        return key in self._CALCULATION_COMPOUND_KEYS
 
     def _compound_blocks(self) -> List[Settings]:
         compounds: List[Settings] = []
