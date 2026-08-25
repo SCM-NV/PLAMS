@@ -2,7 +2,7 @@ import inspect
 import os
 import subprocess
 from itertools import cycle
-from typing import Optional, List, Dict, TYPE_CHECKING, Set, Union, Any, Tuple, cast
+from typing import Optional, List, Dict, TYPE_CHECKING, Set, Union, Any, Tuple, cast, overload, Literal
 
 import numpy as np
 
@@ -13,6 +13,11 @@ from scm.plams.core.functions import log
 if TYPE_CHECKING:
     import pandas as pd
     from matplotlib.figure import Figure
+    from scm.plams.interfaces.adfsuite.crs_input_builder import (
+        ACTIVITYCOEFInputBuilder,
+        BINMIXCOEFInputBuilder,
+        SOLUBILITYInputBuilder,
+    )
 
 __all__ = ["CRSResults", "CRSJob"]
 
@@ -503,17 +508,99 @@ class CRSJob(SCMJob):
         self.settings.ignore_molecule = True
 
     @staticmethod
-    def database() -> str:
+    def methods() -> Tuple[str, ...]:
+        """Return supported CRS method names."""
+        from scm.plams.interfaces.adfsuite.crs_input_builder import methods
+
+        return methods()
+
+    @staticmethod
+    def _normalize_method(method: str) -> str:
+        """Normalize and validate a CRS method name."""
+        from scm.plams.interfaces.adfsuite.crs_input_builder import normalize_method
+
+        return normalize_method(method)
+
+    @staticmethod
+    def _normalize_property_type(property_type: str) -> str:
+        """Normalize and validate a supported input-builder property type."""
+        from scm.plams.interfaces.adfsuite.crs_input_builder import normalize_property_type
+
+        return normalize_property_type(property_type)
+
+
+    @staticmethod
+    @overload
+    def input_builder(
+        property_type: "Literal['ACTIVITYCOEF']",
+        *,
+        method: str = "COSMO-RS",
+        mode: Optional[str] = None,
+        **kwargs: Any,
+    ) -> "ACTIVITYCOEFInputBuilder": ...
+
+    @staticmethod
+    @overload
+    def input_builder(
+        property_type: "Literal['SOLUBILITY']",
+        *,
+        method: str = "COSMO-RS",
+        mode: Optional[str] = None,
+        **kwargs: Any,
+    ) -> "SOLUBILITYInputBuilder": ...
+
+    @staticmethod
+    @overload
+    def input_builder(
+        property_type: "Literal['BINMIXCOEF']",
+        *,
+        method: str = "COSMO-RS",
+        mode: Optional[str] = None,
+        **kwargs: Any,
+    ) -> "BINMIXCOEFInputBuilder": ...
+
+    @staticmethod
+    def input_builder(
+        property_type: str,
+        *,
+        method: str = "COSMO-RS",
+        mode: Optional[str] = None,
+        **kwargs: Any,
+    ) -> Any:
+        """Return a property-specific CRS input builder."""
+        from scm.plams.interfaces.adfsuite.crs_input_builder import input_builder
+
+        return input_builder(property_type, method=method, mode=mode, job_cls=CRSJob, **kwargs)
+
+
+    @staticmethod
+    def adfcrs_database_path() -> str:
+        """Return the path to the bundled ADFCRS-2018 COSKF database directory."""
         database_path = os.path.join(os.environ["SCM_PKG_ADFCRSDIR"], "ADFCRS-2018")
         if not os.path.isdir(database_path):
             raise FileNotFoundError("The ADFCRS-2018 database does not seem to be installed")
         return database_path
 
     @staticmethod
-    def coskf_from_database(name: str) -> str:
+    def coskf_from_adfcrs_database(name: str) -> str:
+        """Return the path to a COSKF file in the bundled ADFCRS-2018 database."""
         if not name.endswith(".coskf"):
             name += ".coskf"
-        return os.path.join(CRSJob.database(), name)
+
+        path = os.path.join(CRSJob.adfcrs_database_path(), name)
+        if not os.path.isfile(path):
+            raise FileNotFoundError(f"COSKF file {name!r} was not found in the ADFCRS-2018 database")
+        return path
+
+    @staticmethod
+    def database() -> str:
+        """Legacy alias for adfcrs_database_path()."""
+        return CRSJob.adfcrs_database_path()
+
+    @staticmethod
+    def coskf_from_database(name: str) -> str:
+        """Legacy alias for coskf_from_adfcrs_database()."""
+        return CRSJob.coskf_from_adfcrs_database(name)
 
     @staticmethod
     def cos_to_coskf(filename: str) -> str:
