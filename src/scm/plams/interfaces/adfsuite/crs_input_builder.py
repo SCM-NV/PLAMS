@@ -58,14 +58,24 @@ _METHOD_ALIASES = {
 _VAPOR_PRESSURE_KEYS = ("pvap", "tvap", "vp_equation", "vp_params")
 _FUSION_KEYS = ("meltingpoint", "hfusion", "cpfusion")
 _VLE_SWEEP_PROPERTY_KEYS = ("nfrac", "isotherm", "isobar", "flashpoint")
-_SIGMA_PROPERTY_KEYS = (
-    "nprofile",
-    "sigmamax",
+_SIGMA_KEYS = ("nprofile", "sigmamax")
+_SIGMA_MOMENT_KEYS = (
     "sigmamomentpower",
     "sigmamomenthblevel",
     "sigmamomenthbcutoff",
     "sigmamomenthbcutoffbase",
-    "sigmamomenthbcutoffstep",
+    "sigmamomenthbcutoffstep"
+)
+# Technical top-level CRS inputs exposed through set_expert_options() for all properties.
+# The keys and value types are validated from crs.json; only the expert-option
+# grouping is kept here for now and may move to crs.json metadata later.
+_EXPERT_INPUT_KEYS = (
+    "usepolycombiforpolymer",
+    "pdh_correction",
+    "ignore_coskfatoms",
+    "output_energy_components",
+    "reuse_sigma_profile",
+    "update_sigma_profile",
 )
 
 
@@ -129,6 +139,8 @@ class CRSInputBuilder:
         "_job_cls",
         "_values",
         "_accepted_keys",
+        "_expert_keys",
+        "_expert_values",
         "_mode_config",
         "_mode",
         "_active_mode_input_keys",
@@ -170,6 +182,8 @@ class CRSInputBuilder:
         self._job_cls = job_cls
         self._values: Dict[str, Any] = {}
         self._accepted_keys = self._build_accepted_keys()
+        self._expert_keys = self._build_expert_keys()
+        self._expert_values: Dict[str, Any] = {}
         self._mode_config = self._MODE_CONFIG
         self._mode: Optional[str] = None
         self._active_mode_input_keys: Set[str] = set()
@@ -199,6 +213,20 @@ class CRSInputBuilder:
 
         return accepted
 
+    @classmethod
+    def _build_expert_keys(cls) -> Dict[str, _InputRoute]:
+        data = get_crs_input_data()
+        property_keys = get_block_keys(data, "property")
+        expert_keys: Dict[str, _InputRoute] = {}
+
+        for key in _EXPERT_INPUT_KEYS:
+            route = cls._input_route_from_schema(key, data, property_keys)
+            if route.scope != "top_level":
+                raise ValueError(f"CRS expert option {key!r} must be a top-level input key")
+            expert_keys[key] = route
+
+        return expert_keys
+
     @staticmethod
     def _input_route_from_schema(
         key: str,
@@ -216,9 +244,11 @@ class CRSInputBuilder:
     def __dir__(self) -> List[str]:
         entries = {
             "describe",
+            "expert_options",
             "get",
             "method",
             "set",
+            "set_expert_options",
             "to_job",
             "to_settings",
         }
@@ -247,7 +277,23 @@ class CRSInputBuilder:
             self._set_input_value(key, value)
         return self
 
-    def describe(self, *, include_values: bool = False, include_compound_details: bool = False) -> Tuple[str, ...]:
+    def expert_options(self) -> Tuple[str, ...]:
+        """Return supported expert option names."""
+        return tuple(sorted(self._expert_keys))
+
+    def set_expert_options(self: _CRSInputBuilderT, **kwargs: Any) -> _CRSInputBuilderT:
+        """Set technical top-level CRS options."""
+        for key, value in kwargs.items():
+            self._set_expert_option(key, value)
+        return self
+
+    def describe(
+        self,
+        *,
+        include_values: bool = False,
+        include_compound_details: bool = False,
+        include_expert_options: bool = False,
+    ) -> Tuple[str, ...]:
         """Return concise descriptions of supported inputs and compound roles."""
         lines = [f"{self.property_type}: {self._DESCRIPTION}", f"method [top_level]: {self.method}"]
 
@@ -266,6 +312,18 @@ class CRSInputBuilder:
                 lines.append(self._format_key_description(key, "compound", compound_key_metadata[key]))
         elif compound_keys:
             lines.append(f"compound_keys [compound]: {', '.join(compound_keys)}")
+
+        if include_expert_options:
+            for key, route in sorted(self._expert_keys.items()):
+                lines.append(
+                    self._format_key_description(
+                        key,
+                        "expert",
+                        route.metadata,
+                        include_values=include_values,
+                        values=self._expert_values,
+                    )
+                )
 
         return tuple(lines)
 
@@ -288,6 +346,9 @@ class CRSInputBuilder:
             elif route.scope == "property":
                 settings.input.property[key] = self._values[key]
 
+        for key in sorted(self._expert_values):
+            settings.input[key] = self._expert_values[key]
+
         if include_compounds:
             compounds = self._compound_blocks()
             if compounds:
@@ -305,11 +366,16 @@ class CRSInputBuilder:
 
     def _set_input_value(self, key: str, value: Any) -> None:
         self._validate_input_key(key)
-        value = self._normalize_input_value(key, value)
+        value = self._normalize_value_by_metadata(key, value, self._accepted_keys[key].metadata)
         self._values[key] = value
 
-    def _normalize_input_value(self, key: str, value: Any) -> Any:
-        input_type = self._accepted_keys[key].metadata.get("type")
+    def _set_expert_option(self, key: str, value: Any) -> None:
+        self._validate_expert_key(key)
+        route = self._expert_keys[key]
+        self._expert_values[key] = self._normalize_value_by_metadata(key, value, route.metadata)
+
+    def _normalize_value_by_metadata(self, key: str, value: Any, metadata: Mapping[str, Any]) -> Any:
+        input_type = metadata.get("type")
 
         if key in self._SINGLE_VALUE_INPUT_KEYS:
             if input_type == "float_list":
@@ -392,6 +458,11 @@ class CRSInputBuilder:
         if key not in self._accepted_keys:
             allowed = ", ".join(sorted(self._accepted_keys))
             raise AttributeError(f"{key!r} is not valid for {self.property_type}. Allowed input keys: {allowed}")
+
+    def _validate_expert_key(self, key: str) -> None:
+        if key not in self._expert_keys:
+            allowed = ", ".join(sorted(self._expert_keys))
+            raise ValueError(f"{key!r} is not a CRS expert input key. Supported expert options: {allowed}")
 
     def _set_mode_or_default(self, mode: Optional[str]) -> None:
         selected_mode = self._mode_config.default if mode is None else mode
@@ -540,13 +611,15 @@ class CRSInputBuilder:
         metadata: Mapping[str, Any],
         *,
         include_values: bool = False,
+        values: Optional[Mapping[str, Any]] = None,
     ) -> str:
         input_type = metadata.get("type", "")
         unit = metadata.get("unit")
         type_unit = f"{input_type} [{unit}]" if unit else input_type
         line = f"{key} [{scope}] {type_unit}: {metadata.get('description', '')}"
         if include_values:
-            line += f" value: {self._values.get(key)!r}"
+            value_source = self._values if values is None else values
+            line += f" value: {value_source.get(key)!r}"
         return line
 
 
@@ -591,7 +664,7 @@ class _TemperatureMixin:
 
     @property
     def temperature(self) -> Optional[_FloatInput]:
-        """Temperature in K as a single value."""
+        """Temperature in K."""
         return self.get("temperature")
 
     @temperature.setter
@@ -604,7 +677,7 @@ class _TemperatureListMixin:
 
     @property
     def temperature(self) -> Optional[_FloatListInput]:
-        """Temperature in K as a single value or range [temperature, temperature_high, nsteps]."""
+        """Temperature in K, as one value or [low, high, nsteps]."""
         return self.get("temperature")
 
     @temperature.setter
@@ -617,7 +690,7 @@ class _PressureMixin:
 
     @property
     def pressure(self) -> Optional[_FloatInput]:
-        """Pressure in bar as a single value."""
+        """Pressure in bar."""
         return self.get("pressure")
 
     @pressure.setter
@@ -630,7 +703,7 @@ class _PressureListMixin:
 
     @property
     def pressure(self) -> Optional[_FloatListInput]:
-        """Pressure in bar as a single value or range [pressure, pressure_high, nsteps]."""
+        """Pressure in bar, as one value or [low, high, nsteps]."""
         return self.get("pressure")
 
     @pressure.setter
@@ -643,7 +716,7 @@ class _MassFractionMixin:
 
     @property
     def massfraction(self) -> Optional[bool]:
-        """Use mass fractions instead of molar fractions."""
+        """Interpret compound fractions as mass fractions instead of mole fractions."""
         return self.get("massfraction")
 
     @massfraction.setter
@@ -656,25 +729,12 @@ class _DensitySolventMixin:
 
     @property
     def densitysolvent(self) -> Optional[_FloatInput]:
-        """Density of the solvent."""
+        """Solvent density in kg/L."""
         return self.get("densitysolvent")
 
     @densitysolvent.setter
     def densitysolvent(self, value: _FloatInput) -> None:
         self._set_input_value("densitysolvent", value)
-
-
-class _NFracMixin:
-    __slots__ = ()
-
-    @property
-    def nfrac(self) -> Optional[int]:
-        """Number of different mixtures for mixture sweeps."""
-        return self.get("nfrac")
-
-    @nfrac.setter
-    def nfrac(self, value: int) -> None:
-        self._set_input_value("nfrac", value)
 
 
 class _SigmaMomentMixin:
@@ -691,7 +751,7 @@ class _SigmaMomentMixin:
 
     @property
     def sigmamomenthblevel(self) -> Optional[_IntegerListInput]:
-        """Hydrogen-bond sigma moment cutoff levels."""
+        """Hydrogen-bond sigma moment levels; level 1 uses cutoff, higher levels use cutoffbase + level * cutoffstep."""
         return self.get("sigmamomenthblevel")
 
     @sigmamomenthblevel.setter
@@ -700,7 +760,7 @@ class _SigmaMomentMixin:
 
     @property
     def sigmamomenthbcutoff(self) -> Optional[_FloatInput]:
-        """Hydrogen-bond sigma moment cutoff for level 1."""
+        """Cutoff for level 1 hydrogen-bond sigma moment in e/Angstrom^2."""
         return self.get("sigmamomenthbcutoff")
 
     @sigmamomenthbcutoff.setter
@@ -709,7 +769,7 @@ class _SigmaMomentMixin:
 
     @property
     def sigmamomenthbcutoffbase(self) -> Optional[_FloatInput]:
-        """Base cutoff used for hydrogen-bond sigma moment levels above 1."""
+        """Cutoff base for higher-level hydrogen-bond sigma moment in e/Angstrom^2."""
         return self.get("sigmamomenthbcutoffbase")
 
     @sigmamomenthbcutoffbase.setter
@@ -718,12 +778,25 @@ class _SigmaMomentMixin:
 
     @property
     def sigmamomenthbcutoffstep(self) -> Optional[_FloatInput]:
-        """Cutoff increment used for hydrogen-bond sigma moment levels above 1."""
+        """Cutoff step for higher-level hydrogen-bond sigma moment in e/Angstrom^2."""
         return self.get("sigmamomenthbcutoffstep")
 
     @sigmamomenthbcutoffstep.setter
     def sigmamomenthbcutoffstep(self, value: _FloatInput) -> None:
         self._set_input_value("sigmamomenthbcutoffstep", value)
+
+
+class _SigmaPotentialMixin:
+    __slots__ = ()
+
+    @property
+    def estpotential(self) -> Optional[bool]:
+        """Estimate sigma potential where the sigma profile has no area."""
+        return self.get("estpotential")
+
+    @estpotential.setter
+    def estpotential(self, value: bool) -> None:
+        self._set_input_value("estpotential", value)
 
 
 class _SigmaMixin:
@@ -747,6 +820,7 @@ class _SigmaMixin:
     def sigmamax(self, value: _FloatInput) -> None:
         self._set_input_value("sigmamax", value)
 
+
 class _SolubilityModeMixin:
     __slots__ = ()
 
@@ -765,7 +839,8 @@ class _SolubilityModeMixin:
         return tuple(self._mode_config.options)
 
 
-class _VLESweepModeMixin:
+class _VLESweepMixin:
+    """Inputs for VLE-style sweep properties."""
     __slots__ = ()
 
     @property
@@ -781,6 +856,15 @@ class _VLESweepModeMixin:
     def mode_options(self) -> Tuple[str, ...]:
         """Supported VLE sweep mode names."""
         return tuple(self._mode_config.options)
+
+    @property
+    def nfrac(self) -> Optional[int]:
+        """Mixture-fraction resolution: binary n+5, ternary (n+1)*(n+2)/2, composition line n+1."""
+        return self.get("nfrac")
+
+    @nfrac.setter
+    def nfrac(self, value: int) -> None:
+        self._set_input_value("nfrac", value)
 
 
 class ACTIVITYCOEFInputBuilder(
@@ -1020,8 +1104,7 @@ class BINMIXCOEFInputBuilder(
     _TemperatureMixin,
     _PressureMixin,
     _MassFractionMixin,
-    _NFracMixin,
-    _VLESweepModeMixin,
+    _VLESweepMixin,
     _CompoundRoleMixin,
     CRSInputBuilder,
 ):
@@ -1052,8 +1135,7 @@ class TERNARYMIXInputBuilder(
     _TemperatureMixin,
     _PressureMixin,
     _MassFractionMixin,
-    _NFracMixin,
-    _VLESweepModeMixin,
+    _VLESweepMixin,
     _CompoundRoleMixin,
     CRSInputBuilder,
 ):
@@ -1081,8 +1163,7 @@ class COMPOSITIONLINEInputBuilder(
     _TemperatureMixin,
     _PressureMixin,
     _MassFractionMixin,
-    _NFracMixin,
-    _VLESweepModeMixin,
+    _VLESweepMixin,
     _SolventRoleMixin,
     CRSInputBuilder,
 ):
@@ -1164,7 +1245,7 @@ class SIGMAPROFILEInputBuilder(
 
     _PROPERTY_TYPE: ClassVar[str] = "SIGMAPROFILE"
     _DESCRIPTION: ClassVar[str] = "Sigma profile for a solvent mixture."
-    _EXPOSED_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("massfraction", *_SIGMA_PROPERTY_KEYS)
+    _EXPOSED_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("massfraction", *_SIGMA_KEYS, *_SIGMA_MOMENT_KEYS)
     _CALCULATION_COMPOUND_KEYS: ClassVar[Tuple[str, ...]] = ("frac1",)
     _COMPOUND_ROLE_CONFIG: ClassVar[Mapping[str, _CompoundRoleConfig]] = {
         "compound": _CompoundRoleConfig(required_keys=("frac1",)),
@@ -1183,7 +1264,7 @@ class PURESIGMAPROFILEInputBuilder(
 
     _PROPERTY_TYPE: ClassVar[str] = "PURESIGMAPROFILE"
     _DESCRIPTION: ClassVar[str] = "Sigma profile for pure compounds."
-    _EXPOSED_INPUT_KEYS: ClassVar[Tuple[str, ...]] = _SIGMA_PROPERTY_KEYS
+    _EXPOSED_INPUT_KEYS: ClassVar[Tuple[str, ...]] = (*_SIGMA_KEYS, *_SIGMA_MOMENT_KEYS)
     _COMPOUND_ROLE_CONFIG: ClassVar[Mapping[str, _CompoundRoleConfig]] = {
         "compound": _CompoundRoleConfig(),
     }
@@ -1193,6 +1274,7 @@ class SIGMAPOTENTIALInputBuilder(
     _TemperatureMixin,
     _MassFractionMixin,
     _SigmaMixin,
+    _SigmaPotentialMixin,
     _CompoundRoleMixin,
     CRSInputBuilder,
 ):
@@ -1202,7 +1284,7 @@ class SIGMAPOTENTIALInputBuilder(
 
     _PROPERTY_TYPE: ClassVar[str] = "SIGMAPOTENTIAL"
     _DESCRIPTION: ClassVar[str] = "Sigma potential for a solvent mixture."
-    _EXPOSED_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature", "massfraction", *_SIGMA_PROPERTY_KEYS)
+    _EXPOSED_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature", "massfraction", *_SIGMA_KEYS, "estpotential")
     _REQUIRED_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature",)
     _SINGLE_VALUE_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature",)
     _CALCULATION_COMPOUND_KEYS: ClassVar[Tuple[str, ...]] = ("frac1",)
@@ -1214,6 +1296,7 @@ class SIGMAPOTENTIALInputBuilder(
 class PURESIGMAPOTENTIALInputBuilder(
     _TemperatureMixin,
     _SigmaMixin,
+    _SigmaPotentialMixin,
     _CompoundRoleMixin,
     CRSInputBuilder,
 ):
@@ -1223,7 +1306,7 @@ class PURESIGMAPOTENTIALInputBuilder(
 
     _PROPERTY_TYPE: ClassVar[str] = "PURESIGMAPOTENTIAL"
     _DESCRIPTION: ClassVar[str] = "Sigma potential for pure compounds."
-    _EXPOSED_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature", *_SIGMA_PROPERTY_KEYS)
+    _EXPOSED_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature", *_SIGMA_KEYS, "estpotential")
     _REQUIRED_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature",)
     _SINGLE_VALUE_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature",)
     _COMPOUND_ROLE_CONFIG: ClassVar[Mapping[str, _CompoundRoleConfig]] = {
