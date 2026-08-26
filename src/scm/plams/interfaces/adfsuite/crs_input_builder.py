@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
-from typing import Any, ClassVar, Dict, List, Literal, Mapping, Optional, Sequence, Set, Tuple, Type, TypeVar, Union
+from typing import Any, Callable, ClassVar, Dict, List, Literal, Mapping, Optional, Sequence, Set, Tuple, Type, TypeVar, Union
 
 from scm.plams.core.functions import log
 from scm.plams.core.settings import Settings
@@ -12,8 +12,23 @@ from scm.plams.interfaces.adfsuite.crs_definitions import CRS_METHODS, get_block
 __all__ = [
     "ACTIVITYCOEFInputBuilder",
     "BINMIXCOEFInputBuilder",
+    "BOILINGPOINTInputBuilder",
+    "COMPOSITIONLINEInputBuilder",
     "CRSInputBuilder",
+    "FLASHPOINTInputBuilder",
+    "LLEInputBuilder",
+    "LOGPInputBuilder",
+    "PUREBOILINGPOINTInputBuilder",
+    "PURESIGMAPOTENTIALInputBuilder",
+    "PURESIGMAPROFILEInputBuilder",
+    "PURESOLUBILITYInputBuilder",
+    "PUREVAPORPRESSUREInputBuilder",
+    "SIGMAPOTENTIALInputBuilder",
+    "SIGMAPROFILEInputBuilder",
     "SOLUBILITYInputBuilder",
+    "STABILITYInputBuilder",
+    "TERNARYMIXInputBuilder",
+    "VAPORPRESSUREInputBuilder",
     "input_builder",
     "methods",
 ]
@@ -31,6 +46,7 @@ _SolubilityMode = Literal["solid", "liquid", "gas"]
 _VLESweepMode = Literal["isotherm", "isobar", "flashpoint"]
 _FloatInput = Union[float, int]
 _FloatListInput = Union[_FloatInput, str, Sequence[_FloatInput]]
+_IntegerListInput = Union[int, str, Sequence[int]]
 
 _CRSInputBuilderT = TypeVar("_CRSInputBuilderT", bound="CRSInputBuilder")
 
@@ -41,6 +57,17 @@ _METHOD_ALIASES = {
 
 _VAPOR_PRESSURE_KEYS = ("pvap", "tvap", "vp_equation", "vp_params")
 _FUSION_KEYS = ("meltingpoint", "hfusion", "cpfusion")
+_VLE_SWEEP_PROPERTY_KEYS = ("nfrac", "isotherm", "isobar", "flashpoint")
+_SIGMA_PROPERTY_KEYS = (
+    "nprofile",
+    "sigmamax",
+    "sigmamomentpower",
+    "sigmamomenthblevel",
+    "sigmamomenthbcutoff",
+    "sigmamomenthbcutoffbase",
+    "sigmamomenthbcutoffstep",
+)
+
 
 @dataclass(frozen=True)
 class _InputRoute:
@@ -64,6 +91,7 @@ class _ModeOptionConfig:
     """Input values enabled by one property mode."""
 
     input_values: Mapping[str, Any] = field(default_factory=dict)
+    required_input_keys: Tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -83,11 +111,11 @@ _SOLUBILITY_MODE_CONFIG = _ModeConfig(
     },
 )
 
-_BINMIXCOEF_MODE_CONFIG = _ModeConfig(
+_VLE_SWEEP_MODE_CONFIG = _ModeConfig(
     default="isotherm",
     options={
-        "isotherm": _ModeOptionConfig(input_values={"isotherm": True}),
-        "isobar": _ModeOptionConfig(input_values={"isobar": True}),
+        "isotherm": _ModeOptionConfig(input_values={"isotherm": True}, required_input_keys=("temperature",)),
+        "isobar": _ModeOptionConfig(input_values={"isobar": True}, required_input_keys=("pressure",)),
         "flashpoint": _ModeOptionConfig(input_values={"flashpoint": True}),
     },
 )
@@ -117,12 +145,9 @@ class CRSInputBuilder:
     _EXPOSED_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ()
     _REQUIRED_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ()
     _MODE_CONFIG: ClassVar[_ModeConfig] = _ModeConfig()
-    # Runtime value normalization for explicit builder inputs. These groups keep
-    # constructor kwargs, set(**kwargs), and property setters consistent.
-    _FLOAT_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ()
-    _FLOAT_LIST_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ()
-    _INT_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ()
-    _BOOL_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ()
+    # crs.json defines primitive input types. This builder-level override only
+    # constrains schema float_list keys that are semantically single values here.
+    _SINGLE_VALUE_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ()
 
     # Compound kwargs accepted by add_compound/add_solvent/add_solute methods.
     # These keys can affect CRS calculations; role config defines supported roles, count limits, and required keys.
@@ -284,13 +309,25 @@ class CRSInputBuilder:
         self._values[key] = value
 
     def _normalize_input_value(self, key: str, value: Any) -> Any:
-        if key in self._FLOAT_LIST_INPUT_KEYS:
-            return self._normalize_float_range_input(key, value)
-        if key in self._FLOAT_INPUT_KEYS:
+        input_type = self._accepted_keys[key].metadata.get("type")
+
+        if key in self._SINGLE_VALUE_INPUT_KEYS:
+            if input_type == "float_list":
+                self._validate_float_input(key, value)
+                return value
+            if input_type == "integer_list":
+                self._validate_int_input(key, value)
+                return value
+
+        if input_type == "float_list":
+            return self._normalize_float_list_input(key, value)
+        if input_type == "integer_list":
+            return self._normalize_integer_list_input(key, value)
+        if input_type == "float":
             self._validate_float_input(key, value)
-        elif key in self._INT_INPUT_KEYS:
+        elif input_type == "integer":
             self._validate_int_input(key, value)
-        elif key in self._BOOL_INPUT_KEYS:
+        elif input_type == "bool":
             self._validate_bool_input(key, value)
         return value
 
@@ -298,43 +335,50 @@ class CRSInputBuilder:
         if isinstance(value, bool) or not isinstance(value, (float, int)):
             raise TypeError(f"{key} must be a single float value")
 
-    def _normalize_float_range_input(self, key: str, value: _FloatListInput) -> Union[_FloatInput, str]:
+    def _normalize_float_list_input(self, key: str, value: _FloatListInput) -> Union[_FloatInput, str]:
         if isinstance(value, str):
-            self._validate_float_range_string(key, value)
+            self._validate_list_string(key, value, float, "float")
             return value
         if isinstance(value, bool):
-            raise TypeError(f"{key} must be a float value or a range [low, high, nsteps]")
+            raise TypeError(f"{key} must be a float value or a list of float values")
         if isinstance(value, (float, int)):
             return value
         if isinstance(value, Sequence):
-            if len(value) != 3:
-                raise ValueError(f"{key} range must contain [low, high, nsteps]")
-            low, high, nsteps = value
-            if (
-                isinstance(low, bool)
-                or isinstance(high, bool)
-                or isinstance(nsteps, bool)
-                or not isinstance(low, (float, int))
-                or not isinstance(high, (float, int))
-                or not isinstance(nsteps, int)
-            ):
-                raise TypeError(f"{key} range must be [float, float, int]")
-            return f"{low} {high} {nsteps}"
+            if not value:
+                raise ValueError(f"{key} float list must not be empty")
+            if any(isinstance(item, bool) or not isinstance(item, (float, int)) for item in value):
+                raise TypeError(f"{key} must be a float value or a list of float values")
+            return " ".join(str(item) for item in value)
 
-        raise TypeError(f"{key} must be a float value or a range [low, high, nsteps]")
+        raise TypeError(f"{key} must be a float value or a list of float values")
 
-    def _validate_float_range_string(self, key: str, value: str) -> None:
+    def _normalize_integer_list_input(self, key: str, value: _IntegerListInput) -> Union[int, str]:
+        if isinstance(value, str):
+            self._validate_list_string(key, value, int, "integer")
+            return value
+        if isinstance(value, bool):
+            raise TypeError(f"{key} must be an integer value or a list of integer values")
+        if isinstance(value, int):
+            return value
+        if isinstance(value, Sequence):
+            if not value:
+                raise ValueError(f"{key} integer list must not be empty")
+            if any(isinstance(item, bool) or not isinstance(item, int) for item in value):
+                raise TypeError(f"{key} must be an integer value or a list of integer values")
+            return " ".join(str(item) for item in value)
+
+        raise TypeError(f"{key} must be an integer value or a list of integer values")
+
+    def _validate_list_string(self, key: str, value: str, converter: Callable[[str], Any], value_name: str) -> None:
         fields = value.split()
-        if len(fields) not in (1, 3):
-            raise ValueError(f"{key} must be a single value or range: low high nsteps")
+        if not fields:
+            raise ValueError(f"{key} {value_name} list must not be empty")
 
         try:
-            float(fields[0])
-            if len(fields) == 3:
-                float(fields[1])
-                int(fields[2])
+            for field in fields:
+                converter(field)
         except ValueError as exc:
-            raise TypeError(f"{key} range string must be: float float int") from exc
+            raise TypeError(f"{key} string must contain only {value_name} values") from exc
 
     def _validate_int_input(self, key: str, value: Any) -> None:
         if isinstance(value, bool) or not isinstance(value, int):
@@ -446,7 +490,11 @@ class CRSInputBuilder:
         return compounds
 
     def _validate_required_inputs(self) -> None:
-        missing = [key for key in self._REQUIRED_INPUT_KEYS if key not in self._values]
+        required_keys = list(self._REQUIRED_INPUT_KEYS)
+        if self._mode is not None:
+            required_keys.extend(self._mode_config.options[self._mode].required_input_keys)
+
+        missing = [key for key in required_keys if key not in self._values]
         if missing:
             raise ValueError(f"{self.property_type} missing required input key(s): {', '.join(missing)}")
 
@@ -629,6 +677,76 @@ class _NFracMixin:
         self._set_input_value("nfrac", value)
 
 
+class _SigmaMomentMixin:
+    __slots__ = ()
+
+    @property
+    def sigmamomentpower(self) -> Optional[_IntegerListInput]:
+        """Powers used for sigma moment output."""
+        return self.get("sigmamomentpower")
+
+    @sigmamomentpower.setter
+    def sigmamomentpower(self, value: _IntegerListInput) -> None:
+        self._set_input_value("sigmamomentpower", value)
+
+    @property
+    def sigmamomenthblevel(self) -> Optional[_IntegerListInput]:
+        """Hydrogen-bond sigma moment cutoff levels."""
+        return self.get("sigmamomenthblevel")
+
+    @sigmamomenthblevel.setter
+    def sigmamomenthblevel(self, value: _IntegerListInput) -> None:
+        self._set_input_value("sigmamomenthblevel", value)
+
+    @property
+    def sigmamomenthbcutoff(self) -> Optional[_FloatInput]:
+        """Hydrogen-bond sigma moment cutoff for level 1."""
+        return self.get("sigmamomenthbcutoff")
+
+    @sigmamomenthbcutoff.setter
+    def sigmamomenthbcutoff(self, value: _FloatInput) -> None:
+        self._set_input_value("sigmamomenthbcutoff", value)
+
+    @property
+    def sigmamomenthbcutoffbase(self) -> Optional[_FloatInput]:
+        """Base cutoff used for hydrogen-bond sigma moment levels above 1."""
+        return self.get("sigmamomenthbcutoffbase")
+
+    @sigmamomenthbcutoffbase.setter
+    def sigmamomenthbcutoffbase(self, value: _FloatInput) -> None:
+        self._set_input_value("sigmamomenthbcutoffbase", value)
+
+    @property
+    def sigmamomenthbcutoffstep(self) -> Optional[_FloatInput]:
+        """Cutoff increment used for hydrogen-bond sigma moment levels above 1."""
+        return self.get("sigmamomenthbcutoffstep")
+
+    @sigmamomenthbcutoffstep.setter
+    def sigmamomenthbcutoffstep(self, value: _FloatInput) -> None:
+        self._set_input_value("sigmamomenthbcutoffstep", value)
+
+
+class _SigmaMixin:
+    __slots__ = ()
+
+    @property
+    def nprofile(self) -> Optional[int]:
+        """Number of sigma profile or sigma potential data points."""
+        return self.get("nprofile")
+
+    @nprofile.setter
+    def nprofile(self, value: int) -> None:
+        self._set_input_value("nprofile", value)
+
+    @property
+    def sigmamax(self) -> Optional[_FloatInput]:
+        """Maximum sigma value for sigma profile or sigma potential output."""
+        return self.get("sigmamax")
+
+    @sigmamax.setter
+    def sigmamax(self, value: _FloatInput) -> None:
+        self._set_input_value("sigmamax", value)
+
 class _SolubilityModeMixin:
     __slots__ = ()
 
@@ -644,7 +762,7 @@ class _SolubilityModeMixin:
     @property
     def mode_options(self) -> Tuple[str, ...]:
         """Supported solubility mode names."""
-        return self._mode_config.options
+        return tuple(self._mode_config.options)
 
 
 class _VLESweepModeMixin:
@@ -662,7 +780,7 @@ class _VLESweepModeMixin:
     @property
     def mode_options(self) -> Tuple[str, ...]:
         """Supported VLE sweep mode names."""
-        return self._mode_config.options
+        return tuple(self._mode_config.options)
 
 
 class ACTIVITYCOEFInputBuilder(
@@ -681,13 +799,44 @@ class ACTIVITYCOEFInputBuilder(
     _DESCRIPTION: ClassVar[str] = "Activity coefficients in a solvent mixture."
     _EXPOSED_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature", "massfraction", "densitysolvent")
     _REQUIRED_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature",)
-    _FLOAT_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature", "densitysolvent")
-    _BOOL_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("massfraction",)
+    _SINGLE_VALUE_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature",)
     _CALCULATION_COMPOUND_KEYS: ClassVar[Tuple[str, ...]] = ("frac1", "density") + _VAPOR_PRESSURE_KEYS
     _COMPOUND_ROLE_CONFIG: ClassVar[Mapping[str, _CompoundRoleConfig]] = {
         "solvent": _CompoundRoleConfig(required_keys=("frac1",)),
         "solute": _CompoundRoleConfig(),
     }
+
+
+class LOGPInputBuilder(
+    _TemperatureMixin,
+    _MassFractionMixin,
+    _SolventRoleMixin,
+    _SoluteRoleMixin,
+    CRSInputBuilder,
+):
+    """Builder for LOGP CRS input settings."""
+
+    __slots__ = ()
+
+    _PROPERTY_TYPE: ClassVar[str] = "LOGP"
+    _DESCRIPTION: ClassVar[str] = "Partition coefficients between two immiscible solvent phases."
+    _EXPOSED_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature", "massfraction", "volumequotient")
+    _REQUIRED_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature",)
+    _SINGLE_VALUE_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature",)
+    _CALCULATION_COMPOUND_KEYS: ClassVar[Tuple[str, ...]] = ("frac1", "frac2", "density")
+    _COMPOUND_ROLE_CONFIG: ClassVar[Mapping[str, _CompoundRoleConfig]] = {
+        "solvent": _CompoundRoleConfig(min_count=2, required_keys=("frac1", "frac2")),
+        "solute": _CompoundRoleConfig(min_count=1),
+    }
+
+    @property
+    def volumequotient(self) -> Optional[_FloatInput]:
+        """Molar-volume ratio of solvent 1 to solvent 2."""
+        return self.get("volumequotient")
+
+    @volumequotient.setter
+    def volumequotient(self, value: _FloatInput) -> None:
+        self._set_input_value("volumequotient", value)
 
 
 class SOLUBILITYInputBuilder(
@@ -714,9 +863,7 @@ class SOLUBILITYInputBuilder(
         "isobar",
     )
     _REQUIRED_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature",)
-    _FLOAT_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("pressure", "densitysolvent")
-    _FLOAT_LIST_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature",)
-    _BOOL_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("massfraction",)
+    _SINGLE_VALUE_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("pressure",)
     _CALCULATION_COMPOUND_KEYS: ClassVar[Tuple[str, ...]] = ("frac1", "density") + _FUSION_KEYS + _VAPOR_PRESSURE_KEYS
     _COMPOUND_ROLE_CONFIG: ClassVar[Mapping[str, _CompoundRoleConfig]] = {
         "solvent": _CompoundRoleConfig(required_keys=("frac1",)),
@@ -734,6 +881,139 @@ class SOLUBILITYInputBuilder(
                 raise ValueError(
                     f"{self.property_type} solute #{index} requires meltingpoint and hfusion for mode='solid'"
                 )
+
+
+class PURESOLUBILITYInputBuilder(
+    _TemperatureListMixin,
+    _PressureMixin,
+    _SolubilityModeMixin,
+    _SolventRoleMixin,
+    _SoluteRoleMixin,
+    CRSInputBuilder,
+):
+    """Builder for PURESOLUBILITY CRS input settings."""
+
+    __slots__ = ()
+
+    _PROPERTY_TYPE: ClassVar[str] = "PURESOLUBILITY"
+    _DESCRIPTION: ClassVar[str] = "Solubility of a solute in pure solvents over a temperature range."
+    _EXPOSED_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature", "pressure", "isobar")
+    _REQUIRED_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature",)
+    _SINGLE_VALUE_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("pressure",)
+    _CALCULATION_COMPOUND_KEYS: ClassVar[Tuple[str, ...]] = ("frac1", "density") + _FUSION_KEYS + _VAPOR_PRESSURE_KEYS
+    _COMPOUND_ROLE_CONFIG: ClassVar[Mapping[str, _CompoundRoleConfig]] = {
+        "solvent": _CompoundRoleConfig(min_count=1),
+        "solute": _CompoundRoleConfig(min_count=1, max_count=1),
+    }
+    _MODE_CONFIG: ClassVar[_ModeConfig] = _SOLUBILITY_MODE_CONFIG
+
+    def _validate_required_compound_keys(self) -> None:
+        super()._validate_required_compound_keys()
+        if self.mode != "solid":
+            return
+
+        for index, compound in enumerate(self._compounds_by_role.get("solute", ()), start=1):
+            if not (_has_compound_key(compound, "meltingpoint") and _has_compound_key(compound, "hfusion")):
+                raise ValueError(
+                    f"{self.property_type} solute #{index} requires meltingpoint and hfusion for mode='solid'"
+                )
+
+
+class VAPORPRESSUREInputBuilder(
+    _TemperatureMixin,
+    _MassFractionMixin,
+    _CompoundRoleMixin,
+    CRSInputBuilder,
+):
+    """Builder for VAPORPRESSURE CRS input settings."""
+
+    __slots__ = ()
+
+    _PROPERTY_TYPE: ClassVar[str] = "VAPORPRESSURE"
+    _DESCRIPTION: ClassVar[str] = "Vapor pressure of a mixture at fixed temperature."
+    _EXPOSED_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature", "massfraction")
+    _REQUIRED_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature",)
+    _SINGLE_VALUE_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature",)
+    _CALCULATION_COMPOUND_KEYS: ClassVar[Tuple[str, ...]] = ("frac1",) + _VAPOR_PRESSURE_KEYS
+    _COMPOUND_ROLE_CONFIG: ClassVar[Mapping[str, _CompoundRoleConfig]] = {
+        "compound": _CompoundRoleConfig(required_keys=("frac1",)),
+    }
+
+
+class PUREVAPORPRESSUREInputBuilder(
+    _TemperatureListMixin,
+    _CompoundRoleMixin,
+    CRSInputBuilder,
+):
+    """Builder for PUREVAPORPRESSURE CRS input settings."""
+
+    __slots__ = ()
+
+    _PROPERTY_TYPE: ClassVar[str] = "PUREVAPORPRESSURE"
+    _DESCRIPTION: ClassVar[str] = "Pure-compound vapor pressure over a temperature range."
+    _EXPOSED_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature",)
+    _REQUIRED_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature",)
+    _CALCULATION_COMPOUND_KEYS: ClassVar[Tuple[str, ...]] = _VAPOR_PRESSURE_KEYS
+    _COMPOUND_ROLE_CONFIG: ClassVar[Mapping[str, _CompoundRoleConfig]] = {
+        "compound": _CompoundRoleConfig(),
+    }
+
+
+class BOILINGPOINTInputBuilder(
+    _PressureListMixin,
+    _MassFractionMixin,
+    _CompoundRoleMixin,
+    CRSInputBuilder,
+):
+    """Builder for BOILINGPOINT CRS input settings."""
+
+    __slots__ = ()
+
+    _PROPERTY_TYPE: ClassVar[str] = "BOILINGPOINT"
+    _DESCRIPTION: ClassVar[str] = "Boiling temperature of a mixture for a pressure range."
+    _EXPOSED_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("pressure", "massfraction")
+    _REQUIRED_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("pressure",)
+    _CALCULATION_COMPOUND_KEYS: ClassVar[Tuple[str, ...]] = ("frac1",) + _VAPOR_PRESSURE_KEYS
+    _COMPOUND_ROLE_CONFIG: ClassVar[Mapping[str, _CompoundRoleConfig]] = {
+        "compound": _CompoundRoleConfig(),
+    }
+
+
+class PUREBOILINGPOINTInputBuilder(
+    _PressureListMixin,
+    _CompoundRoleMixin,
+    CRSInputBuilder,
+):
+    """Builder for PUREBOILINGPOINT CRS input settings."""
+
+    __slots__ = ()
+
+    _PROPERTY_TYPE: ClassVar[str] = "PUREBOILINGPOINT"
+    _DESCRIPTION: ClassVar[str] = "Pure-compound boiling point over a pressure range."
+    _EXPOSED_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("pressure",)
+    _REQUIRED_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("pressure",)
+    _CALCULATION_COMPOUND_KEYS: ClassVar[Tuple[str, ...]] = _VAPOR_PRESSURE_KEYS
+    _COMPOUND_ROLE_CONFIG: ClassVar[Mapping[str, _CompoundRoleConfig]] = {
+        "compound": _CompoundRoleConfig(),
+    }
+
+
+class FLASHPOINTInputBuilder(
+    _MassFractionMixin,
+    _CompoundRoleMixin,
+    CRSInputBuilder,
+):
+    """Builder for FLASHPOINT CRS input settings."""
+
+    __slots__ = ()
+
+    _PROPERTY_TYPE: ClassVar[str] = "FLASHPOINT"
+    _DESCRIPTION: ClassVar[str] = "Flash point of a mixture using user-supplied pure-compound flash points."
+    _EXPOSED_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("massfraction",)
+    _CALCULATION_COMPOUND_KEYS: ClassVar[Tuple[str, ...]] = ("frac1", "flashpoint") + _VAPOR_PRESSURE_KEYS
+    _COMPOUND_ROLE_CONFIG: ClassVar[Mapping[str, _CompoundRoleConfig]] = {
+        "compound": _CompoundRoleConfig(required_keys=("frac1",)),
+    }
 
 
 class BINMIXCOEFInputBuilder(
@@ -761,20 +1041,215 @@ class BINMIXCOEFInputBuilder(
         "nfrac",
     )
     _CALCULATION_COMPOUND_KEYS: ClassVar[Tuple[str, ...]] = ("frac1",) + _VAPOR_PRESSURE_KEYS + ("flashpoint",)
-    _REQUIRED_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature",)
-    _FLOAT_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature", "pressure")
-    _INT_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("nfrac",)
-    _BOOL_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("massfraction",)
+    _SINGLE_VALUE_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature", "pressure")
     _COMPOUND_ROLE_CONFIG: ClassVar[Mapping[str, _CompoundRoleConfig]] = {
         "compound": _CompoundRoleConfig(min_count=2, max_count=2),
     }
-    _MODE_CONFIG: ClassVar[_ModeConfig] = _BINMIXCOEF_MODE_CONFIG
+    _MODE_CONFIG: ClassVar[_ModeConfig] = _VLE_SWEEP_MODE_CONFIG
+
+
+class TERNARYMIXInputBuilder(
+    _TemperatureMixin,
+    _PressureMixin,
+    _MassFractionMixin,
+    _NFracMixin,
+    _VLESweepModeMixin,
+    _CompoundRoleMixin,
+    CRSInputBuilder,
+):
+    """Builder for TERNARYMIX CRS input settings."""
+
+    __slots__ = ()
+
+    _PROPERTY_TYPE: ClassVar[str] = "TERNARYMIX"
+    _DESCRIPTION: ClassVar[str] = "Ternary mixture property sweep over composition space."
+    _EXPOSED_INPUT_KEYS: ClassVar[Tuple[str, ...]] = (
+        "temperature",
+        "pressure",
+        "massfraction",
+        *_VLE_SWEEP_PROPERTY_KEYS,
+    )
+    _SINGLE_VALUE_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature", "pressure")
+    _CALCULATION_COMPOUND_KEYS: ClassVar[Tuple[str, ...]] = ("frac1",) + _VAPOR_PRESSURE_KEYS + ("flashpoint",)
+    _COMPOUND_ROLE_CONFIG: ClassVar[Mapping[str, _CompoundRoleConfig]] = {
+        "compound": _CompoundRoleConfig(min_count=3, max_count=3),
+    }
+    _MODE_CONFIG: ClassVar[_ModeConfig] = _VLE_SWEEP_MODE_CONFIG
+
+
+class COMPOSITIONLINEInputBuilder(
+    _TemperatureMixin,
+    _PressureMixin,
+    _MassFractionMixin,
+    _NFracMixin,
+    _VLESweepModeMixin,
+    _SolventRoleMixin,
+    CRSInputBuilder,
+):
+    """Builder for COMPOSITIONLINE CRS input settings."""
+
+    __slots__ = ()
+
+    _PROPERTY_TYPE: ClassVar[str] = "COMPOSITIONLINE"
+    _DESCRIPTION: ClassVar[str] = "Composition-line calculation between two endpoint phase compositions."
+    _EXPOSED_INPUT_KEYS: ClassVar[Tuple[str, ...]] = (
+        "temperature",
+        "pressure",
+        "massfraction",
+        *_VLE_SWEEP_PROPERTY_KEYS,
+    )
+    _SINGLE_VALUE_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature", "pressure")
+    _CALCULATION_COMPOUND_KEYS: ClassVar[Tuple[str, ...]] = (
+        "frac1",
+        "frac2",
+    ) + _VAPOR_PRESSURE_KEYS + ("flashpoint",)
+    _COMPOUND_ROLE_CONFIG: ClassVar[Mapping[str, _CompoundRoleConfig]] = {
+        "solvent": _CompoundRoleConfig(),
+    }
+    _MODE_CONFIG: ClassVar[_ModeConfig] = _VLE_SWEEP_MODE_CONFIG
+
+
+class LLEInputBuilder(
+    _TemperatureMixin,
+    _MassFractionMixin,
+    _CompoundRoleMixin,
+    CRSInputBuilder,
+):
+    """Builder for LLE CRS input settings."""
+
+    __slots__ = ()
+
+    _PROPERTY_TYPE: ClassVar[str] = "LLE"
+    _DESCRIPTION: ClassVar[str] = "Liquid-liquid equilibrium for a ternary mixture."
+    _EXPOSED_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature", "massfraction")
+    _REQUIRED_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature",)
+    _SINGLE_VALUE_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature",)
+    _CALCULATION_COMPOUND_KEYS: ClassVar[Tuple[str, ...]] = ("frac1",)
+    _COMPOUND_ROLE_CONFIG: ClassVar[Mapping[str, _CompoundRoleConfig]] = {
+        "compound": _CompoundRoleConfig(required_keys=("frac1",)),
+    }
+
+
+class STABILITYInputBuilder(
+    _TemperatureMixin,
+    _MassFractionMixin,
+    _CompoundRoleMixin,
+    CRSInputBuilder,
+):
+    """Builder for STABILITY CRS input settings."""
+
+    __slots__ = ()
+
+    _PROPERTY_TYPE: ClassVar[str] = "STABILITY"
+    _DESCRIPTION: ClassVar[str] = "Michelsen tangent-plane-distance stability test for a feed composition."
+    _EXPOSED_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature", "massfraction")
+    _REQUIRED_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature",)
+    _SINGLE_VALUE_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature",)
+    _CALCULATION_COMPOUND_KEYS: ClassVar[Tuple[str, ...]] = ("frac1",)
+    _COMPOUND_ROLE_CONFIG: ClassVar[Mapping[str, _CompoundRoleConfig]] = {
+        "compound": _CompoundRoleConfig(required_keys=("frac1",)),
+    }
+
+
+class SIGMAPROFILEInputBuilder(
+    _MassFractionMixin,
+    _SigmaMixin,
+    _SigmaMomentMixin,
+    _CompoundRoleMixin,
+    CRSInputBuilder,
+):
+    """Builder for SIGMAPROFILE CRS input settings."""
+
+    __slots__ = ()
+
+    _PROPERTY_TYPE: ClassVar[str] = "SIGMAPROFILE"
+    _DESCRIPTION: ClassVar[str] = "Sigma profile for a solvent mixture."
+    _EXPOSED_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("massfraction", *_SIGMA_PROPERTY_KEYS)
+    _CALCULATION_COMPOUND_KEYS: ClassVar[Tuple[str, ...]] = ("frac1",)
+    _COMPOUND_ROLE_CONFIG: ClassVar[Mapping[str, _CompoundRoleConfig]] = {
+        "compound": _CompoundRoleConfig(required_keys=("frac1",)),
+    }
+
+
+class PURESIGMAPROFILEInputBuilder(
+    _SigmaMixin,
+    _SigmaMomentMixin,
+    _CompoundRoleMixin,
+    CRSInputBuilder,
+):
+    """Builder for PURESIGMAPROFILE CRS input settings."""
+
+    __slots__ = ()
+
+    _PROPERTY_TYPE: ClassVar[str] = "PURESIGMAPROFILE"
+    _DESCRIPTION: ClassVar[str] = "Sigma profile for pure compounds."
+    _EXPOSED_INPUT_KEYS: ClassVar[Tuple[str, ...]] = _SIGMA_PROPERTY_KEYS
+    _COMPOUND_ROLE_CONFIG: ClassVar[Mapping[str, _CompoundRoleConfig]] = {
+        "compound": _CompoundRoleConfig(),
+    }
+
+
+class SIGMAPOTENTIALInputBuilder(
+    _TemperatureMixin,
+    _MassFractionMixin,
+    _SigmaMixin,
+    _CompoundRoleMixin,
+    CRSInputBuilder,
+):
+    """Builder for SIGMAPOTENTIAL CRS input settings."""
+
+    __slots__ = ()
+
+    _PROPERTY_TYPE: ClassVar[str] = "SIGMAPOTENTIAL"
+    _DESCRIPTION: ClassVar[str] = "Sigma potential for a solvent mixture."
+    _EXPOSED_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature", "massfraction", *_SIGMA_PROPERTY_KEYS)
+    _REQUIRED_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature",)
+    _SINGLE_VALUE_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature",)
+    _CALCULATION_COMPOUND_KEYS: ClassVar[Tuple[str, ...]] = ("frac1",)
+    _COMPOUND_ROLE_CONFIG: ClassVar[Mapping[str, _CompoundRoleConfig]] = {
+        "compound": _CompoundRoleConfig(required_keys=("frac1",)),
+    }
+
+
+class PURESIGMAPOTENTIALInputBuilder(
+    _TemperatureMixin,
+    _SigmaMixin,
+    _CompoundRoleMixin,
+    CRSInputBuilder,
+):
+    """Builder for PURESIGMAPOTENTIAL CRS input settings."""
+
+    __slots__ = ()
+
+    _PROPERTY_TYPE: ClassVar[str] = "PURESIGMAPOTENTIAL"
+    _DESCRIPTION: ClassVar[str] = "Sigma potential for pure compounds."
+    _EXPOSED_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature", *_SIGMA_PROPERTY_KEYS)
+    _REQUIRED_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature",)
+    _SINGLE_VALUE_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature",)
+    _COMPOUND_ROLE_CONFIG: ClassVar[Mapping[str, _CompoundRoleConfig]] = {
+        "compound": _CompoundRoleConfig(),
+    }
 
 
 _CRS_INPUT_BUILDER_CLASSES: Dict[str, Type[CRSInputBuilder]] = {
     "ACTIVITYCOEF": ACTIVITYCOEFInputBuilder,
+    "LOGP": LOGPInputBuilder,
     "SOLUBILITY": SOLUBILITYInputBuilder,
+    "PURESOLUBILITY": PURESOLUBILITYInputBuilder,
+    "VAPORPRESSURE": VAPORPRESSUREInputBuilder,
+    "PUREVAPORPRESSURE": PUREVAPORPRESSUREInputBuilder,
+    "BOILINGPOINT": BOILINGPOINTInputBuilder,
+    "PUREBOILINGPOINT": PUREBOILINGPOINTInputBuilder,
+    "FLASHPOINT": FLASHPOINTInputBuilder,
     "BINMIXCOEF": BINMIXCOEFInputBuilder,
+    "TERNARYMIX": TERNARYMIXInputBuilder,
+    "COMPOSITIONLINE": COMPOSITIONLINEInputBuilder,
+    "LLE": LLEInputBuilder,
+    "STABILITY": STABILITYInputBuilder,
+    "SIGMAPROFILE": SIGMAPROFILEInputBuilder,
+    "PURESIGMAPROFILE": PURESIGMAPROFILEInputBuilder,
+    "SIGMAPOTENTIAL": SIGMAPOTENTIALInputBuilder,
+    "PURESIGMAPOTENTIAL": PURESIGMAPOTENTIALInputBuilder,
 }
 
 

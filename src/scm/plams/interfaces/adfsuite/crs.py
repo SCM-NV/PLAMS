@@ -15,7 +15,22 @@ if TYPE_CHECKING:
     from scm.plams.interfaces.adfsuite.crs_input_builder import (
         ACTIVITYCOEFInputBuilder,
         BINMIXCOEFInputBuilder,
+        BOILINGPOINTInputBuilder,
+        COMPOSITIONLINEInputBuilder,
+        FLASHPOINTInputBuilder,
+        LLEInputBuilder,
+        LOGPInputBuilder,
+        PUREBOILINGPOINTInputBuilder,
+        PURESIGMAPOTENTIALInputBuilder,
+        PURESIGMAPROFILEInputBuilder,
+        PURESOLUBILITYInputBuilder,
+        PUREVAPORPRESSUREInputBuilder,
+        SIGMAPOTENTIALInputBuilder,
+        SIGMAPROFILEInputBuilder,
         SOLUBILITYInputBuilder,
+        STABILITYInputBuilder,
+        TERNARYMIXInputBuilder,
+        VAPORPRESSUREInputBuilder,
     )
 
 __all__ = ["CRSResults", "CRSJob"]
@@ -539,6 +554,16 @@ class CRSJob(SCMJob):
     @staticmethod
     @overload
     def input_builder(
+        property_type: "Literal['LOGP']",
+        *,
+        method: str = "COSMO-RS",
+        mode: Optional[str] = None,
+        **kwargs: Any,
+    ) -> "LOGPInputBuilder": ...
+
+    @staticmethod
+    @overload
+    def input_builder(
         property_type: "Literal['SOLUBILITY']",
         *,
         method: str = "COSMO-RS",
@@ -549,12 +574,162 @@ class CRSJob(SCMJob):
     @staticmethod
     @overload
     def input_builder(
+        property_type: "Literal['PURESOLUBILITY']",
+        *,
+        method: str = "COSMO-RS",
+        mode: Optional[str] = None,
+        **kwargs: Any,
+    ) -> "PURESOLUBILITYInputBuilder": ...
+
+    @staticmethod
+    @overload
+    def input_builder(
+        property_type: "Literal['VAPORPRESSURE']",
+        *,
+        method: str = "COSMO-RS",
+        mode: Optional[str] = None,
+        **kwargs: Any,
+    ) -> "VAPORPRESSUREInputBuilder": ...
+
+    @staticmethod
+    @overload
+    def input_builder(
+        property_type: "Literal['PUREVAPORPRESSURE']",
+        *,
+        method: str = "COSMO-RS",
+        mode: Optional[str] = None,
+        **kwargs: Any,
+    ) -> "PUREVAPORPRESSUREInputBuilder": ...
+
+    @staticmethod
+    @overload
+    def input_builder(
+        property_type: "Literal['BOILINGPOINT']",
+        *,
+        method: str = "COSMO-RS",
+        mode: Optional[str] = None,
+        **kwargs: Any,
+    ) -> "BOILINGPOINTInputBuilder": ...
+
+    @staticmethod
+    @overload
+    def input_builder(
+        property_type: "Literal['PUREBOILINGPOINT']",
+        *,
+        method: str = "COSMO-RS",
+        mode: Optional[str] = None,
+        **kwargs: Any,
+    ) -> "PUREBOILINGPOINTInputBuilder": ...
+
+    @staticmethod
+    @overload
+    def input_builder(
+        property_type: "Literal['FLASHPOINT']",
+        *,
+        method: str = "COSMO-RS",
+        mode: Optional[str] = None,
+        **kwargs: Any,
+    ) -> "FLASHPOINTInputBuilder": ...
+
+    @staticmethod
+    @overload
+    def input_builder(
         property_type: "Literal['BINMIXCOEF']",
         *,
         method: str = "COSMO-RS",
         mode: Optional[str] = None,
         **kwargs: Any,
     ) -> "BINMIXCOEFInputBuilder": ...
+
+    @staticmethod
+    @overload
+    def input_builder(
+        property_type: "Literal['TERNARYMIX']",
+        *,
+        method: str = "COSMO-RS",
+        mode: Optional[str] = None,
+        **kwargs: Any,
+    ) -> "TERNARYMIXInputBuilder": ...
+
+    @staticmethod
+    @overload
+    def input_builder(
+        property_type: "Literal['COMPOSITIONLINE']",
+        *,
+        method: str = "COSMO-RS",
+        mode: Optional[str] = None,
+        **kwargs: Any,
+    ) -> "COMPOSITIONLINEInputBuilder": ...
+
+    @staticmethod
+    @overload
+    def input_builder(
+        property_type: "Literal['LLE']",
+        *,
+        method: str = "COSMO-RS",
+        mode: Optional[str] = None,
+        **kwargs: Any,
+    ) -> "LLEInputBuilder": ...
+
+    @staticmethod
+    @overload
+    def input_builder(
+        property_type: "Literal['STABILITY']",
+        *,
+        method: str = "COSMO-RS",
+        mode: Optional[str] = None,
+        **kwargs: Any,
+    ) -> "STABILITYInputBuilder": ...
+
+    @staticmethod
+    @overload
+    def input_builder(
+        property_type: "Literal['SIGMAPROFILE']",
+        *,
+        method: str = "COSMO-RS",
+        mode: Optional[str] = None,
+        **kwargs: Any,
+    ) -> "SIGMAPROFILEInputBuilder": ...
+
+    @staticmethod
+    @overload
+    def input_builder(
+        property_type: "Literal['PURESIGMAPROFILE']",
+        *,
+        method: str = "COSMO-RS",
+        mode: Optional[str] = None,
+        **kwargs: Any,
+    ) -> "PURESIGMAPROFILEInputBuilder": ...
+
+    @staticmethod
+    @overload
+    def input_builder(
+        property_type: "Literal['SIGMAPOTENTIAL']",
+        *,
+        method: str = "COSMO-RS",
+        mode: Optional[str] = None,
+        **kwargs: Any,
+    ) -> "SIGMAPOTENTIALInputBuilder": ...
+
+    @staticmethod
+    @overload
+    def input_builder(
+        property_type: "Literal['PURESIGMAPOTENTIAL']",
+        *,
+        method: str = "COSMO-RS",
+        mode: Optional[str] = None,
+        **kwargs: Any,
+    ) -> "PURESIGMAPOTENTIALInputBuilder": ...
+
+    @staticmethod
+    @overload
+    def input_builder(
+        property_type: str,
+        *,
+        method: str = "COSMO-RS",
+        mode: Optional[str] = None,
+        **kwargs: Any,
+    ) -> Any: ...
 
     @staticmethod
     def input_builder(
