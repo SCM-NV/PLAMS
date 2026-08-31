@@ -1004,7 +1004,7 @@ class TestPackMolAround:
         num_atoms = []
         box = empty
         for _ in range(6):
-            box = packmol_around(box, water, density=0.5)
+            box = packmol_around(box, water, density=0.5, seed=1)
             num_atoms.append(len(box))
 
         assert num_atoms == [51, 75, 87, 93, 96, 99]
