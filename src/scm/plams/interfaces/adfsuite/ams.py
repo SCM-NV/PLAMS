@@ -3281,7 +3281,13 @@ class AMSJob(SingleJob):
                     return special[spec_type](value)
             return value
 
-        def serialize(key: str, value: Any, indent: int, end: str = "End") -> str:
+        def serialize(
+            key: str,
+            value: Any,
+            indent: int,
+            end: str = "End",
+            parent_key: Optional[str] = None,
+        ) -> str:
             """Given a *key* and its corresponding *value* from the |Settings| instance produce a snippet of the input file representing this pair.
 
             If the value is a nested |Settings| instance, use recursive calls to build the snippet for the entire block. Indent the result with *indent* spaces.
@@ -3300,9 +3306,9 @@ class AMSJob(SingleJob):
                 while f"_{i}" in value:
                     if isinstance(value[f"_{i}"], Settings):
                         for ckey in value[f"_{i}"]:
-                            ret += serialize(ckey, value[f"_{i}"][ckey], indent + 2)
+                            ret += serialize(ckey, value[f"_{i}"][ckey], indent + 2, parent_key=key)
                     else:
-                        ret += serialize("", value["_" + str(i)], indent + 2)
+                        ret += serialize("", value["_" + str(i)], indent + 2, parent_key=key)
                     i += 1
 
                 # Figure out the order in which we should serialize the entries in the block
@@ -3329,22 +3335,22 @@ class AMSJob(SingleJob):
                     split_key = key.lower().split()
                     split_ckey = ckey.lower().split()
                     if len(split_key) > 0 and split_key[0] == "engine" and ckey.lower() == "input":
-                        ret += serialize(ckey, cvalue, indent + 2, "EndInput")
+                        ret += serialize(ckey, cvalue, indent + 2, "EndInput", parent_key=key)
                     # REB: For the hybrid engine. How to deal with the space in ckey (Engine DFTB)? Replace by underscore?
                     elif len(split_ckey) > 0 and split_ckey[0] == "engine":
                         engine = " ".join(ckey.split("_"))
-                        ret += serialize(engine, cvalue, indent + 2, end="EndEngine") + "\n"
+                        ret += serialize(engine, cvalue, indent + 2, end="EndEngine", parent_key=key) + "\n"
                     else:
-                        ret += serialize(ckey, cvalue, indent + 2)
+                        ret += serialize(ckey, cvalue, indent + 2, parent_key=key)
 
                 # Close block
-                if key.lower() == "input":
+                if key.lower() == "input" and (parent_key or "").lower() != "plumed":
                     end = "endinput"
                 ret += " " * indent + end + "\n"
 
             elif isinstance(value, list):
                 for el in value:
-                    ret += serialize(key, el, indent, end)
+                    ret += serialize(key, el, indent, end, parent_key=parent_key)
             elif value == "" or value is True:
                 ret += " " * indent + key + "\n"
             elif value is False or value is None:
