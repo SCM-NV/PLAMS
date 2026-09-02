@@ -139,6 +139,13 @@ class CRSResults(SCMResults):
         except:
             nstruct = ncomp
 
+        try:
+            nmoment = cast(int, self.readkf(section, "nmoment"))
+            nhb_moment = cast(int, self.readkf(section, "nhb_moment"))
+        except:
+            nmoment = 0
+            nhb_moment = 0
+
         np_dict: Dict[str, Any] = {"section": section}
         np_dict["ncomp"] = ncomp
         chunk_length = 160
@@ -160,6 +167,17 @@ class CRSResults(SCMResults):
                 else:
                     np_dict[prop] = tmp.split("\x00")
                     continue
+            if prop == "sigma_moment":
+                tmp = np.array(tmp)
+                tmp.shape = (ncomp, nmoment)
+                np_dict[prop] = tmp
+                continue
+            if prop == "sigma_hb_acc_moment" or prop == "sigma_hb_don_moment":
+                tmp = np.array(tmp)
+                tmp.shape = (ncomp, nhb_moment)
+                np_dict[prop] = tmp
+                continue
+
             if not isinstance(tmp, list):
                 np_dict[prop] = tmp
             else:

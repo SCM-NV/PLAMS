@@ -282,7 +282,13 @@ class CRSInputBuilder:
         return tuple(sorted(self._expert_keys))
 
     def set_expert_options(self: _CRSInputBuilderT, **kwargs: Any) -> _CRSInputBuilderT:
-        """Set technical top-level CRS options."""
+        """Set technical top-level CRS options.
+
+        Use expert_options() to list supported names.
+
+        Example:
+            builder.set_expert_options(pdh_correction=True)
+        """
         for key, value in kwargs.items():
             self._set_expert_option(key, value)
         return self
