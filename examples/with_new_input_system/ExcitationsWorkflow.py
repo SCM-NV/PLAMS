@@ -31,7 +31,7 @@ def has_good_excitations(results, min_energy, max_energy, oscillator_str_thresho
 
 # Calculation settings:
 # =====================
-from scm.input_classes import ADF, AMS, DFTB
+from scm.inputs import ADF, AMS, DFTB
 
 
 # Settings for geometry optimization with the AMS driver:

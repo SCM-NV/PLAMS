@@ -1,6 +1,6 @@
 #!/usr/bin/env amspython
 from scm.conformers import ConformersJob, ConformersResults
-from scm.input_classes import DFTB, Conformers
+from scm.inputs import DFTB, Conformers
 from scm.plams import *
 
 # This example shows how to use the AMS's Conformers tool via PLAMS
@@ -35,7 +35,7 @@ sett = Settings()
 
 sett.input = Conformers()
 sett.input.Task = "Optimize"
-sett.input.InputConformersSet = job.results.rkfpath()
+sett.input.InputConformersSet = [job.results.rkfpath()]
 
 # You can specify the engine to be used (and the engine options) like you would
 # for an AMSJob. See the AMSJob documentation for more details.

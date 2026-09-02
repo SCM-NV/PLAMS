@@ -29,11 +29,11 @@ from scm.plams.tools.kftools import KFFile
 from scm.plams.tools.units import Units
 
 try:
-    from scm.pisa.block import DriverBlock
+    from scm.inputs import EngineInputModel, InputModel
 
-    _has_scm_pisa = True
+    _has_scm_inputs = True
 except ImportError:
-    _has_scm_pisa = False
+    _has_scm_inputs = False
 
 if TYPE_CHECKING:
     from scm.plams.tools.kftools import TRead
@@ -334,13 +334,17 @@ class SCMJob(SingleJob):
         if use_molecule:
             self._serialize_mol()
 
-        if _has_scm_pisa and isinstance(self.settings.input, DriverBlock):
+        if (
+            _has_scm_inputs
+            and isinstance(self.settings.input, InputModel)
+            and not isinstance(self.settings.input, EngineInputModel)
+        ):
             # Generate initial input text
-            input_class: DriverBlock = self.settings.input
-            inp = input_class.get_input_string()
+            input_model: InputModel = self.settings.input
+            inp = input_model.to_input()
 
             # Add any systems using the input molecules
-            has_input_systems = hasattr(input_class, "System") and input_class.System.value_changed
+            has_input_systems = bool(getattr(input_model, "Systems", None))
             if not has_input_systems:
                 if use_molecule:
                     for system in self.settings.system:

@@ -13,11 +13,15 @@ Preparing input
 
 .. tip::
 
-    Starting with AMS2024, you can also use `PISA <../../pisa/index.html>`_
-    (Python Input System for AMS) to specify the input to AMS.
+    Instead of the generic |Settings| object described on this page, you can also
+    prepare AMS input with the typed ``scm.inputs`` models (for example ``AMS``,
+    ``DFTB`` and ``ADF``). These provide a program-specific, validated and
+    editor-friendly API and can be assigned directly to ``settings.input``. See the
+    "AMS input models" Python example in the AMS documentation to get started.
 
-    However, almost all PLAMS examples still use the input description described
-    on this page.
+    ``scm.inputs`` supersedes the experimental PISA-generated ``scm.input_classes``
+    package, which is no longer available in AMS2027. Most PLAMS examples still use
+    the generic input description shown on this page.
 
 
 .. note::
