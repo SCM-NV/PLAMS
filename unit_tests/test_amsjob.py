@@ -17,6 +17,25 @@ from scm.plams.mol.molecule import Atom, Molecule
 from test_helpers import skip_if_no_scm_inputs, skip_if_no_scm_base
 
 
+class TestAMSJobInputSerialization:
+    def test_plumed_input_uses_normal_end(self):
+        settings = Settings()
+        settings.input.ams.MolecularDynamics.Plumed.Input._1 = "PRINT ARG=x FILE=COLVAR"
+
+        generated = AMSJob(settings=settings).get_input()
+
+        assert re.search(r"Plumed\n\s+Input\n\s+PRINT ARG=x FILE=COLVAR\n\s+End\n\s+End", generated)
+        assert "endinput" not in generated.lower()
+
+    def test_engine_input_still_uses_endinput(self):
+        settings = Settings()
+        settings.input.External.Input._1 = "some external-engine input"
+
+        generated = AMSJob(settings=settings).get_input()
+
+        assert re.search(r"Engine External\n\s+Input\n\s+some external-engine input\n\s+endinput", generated)
+
+
 class TestAMSJob:
     """
     Test suite for AMSJob using plain Settings input (not scm.inputs or a ChemicalSystem).
