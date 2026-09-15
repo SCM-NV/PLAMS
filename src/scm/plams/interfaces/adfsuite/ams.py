@@ -2400,7 +2400,7 @@ class AMSResults(Results):
         from scm.plams.tools.units import Units
         from scm.plams.trajectories.analysis import autocorrelation
 
-        time_step: int = self.get_time_step()
+        time_step: float = self.get_time_step()
         start_step, end_step, every, max_dt = self._get_integer_start_end_every_max(
             start_fs, end_fs, every_fs, max_dt_fs
         )
