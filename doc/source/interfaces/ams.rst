@@ -368,6 +368,7 @@ AMSResults API
 
 .. autoclass:: AMSResults
     :exclude-members: __init__
+    :member-order: alphabetical
     :no-private-members:
 
 
