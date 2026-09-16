@@ -1312,7 +1312,7 @@ class AMSResults(Results):
                     [p_components[3], p_components[4], p_components[5]],
                 ]
             )
-        elif p_components.ndim == 2 and p_components.shape[0] == 3 and p_components.shape[1] == 3:
+        elif p_components.shape == (3, 3):  # type: ignore[comparison-overlap]
             polarizability_matrix = p_components
         else:
             raise ValueError(
