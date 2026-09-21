@@ -576,6 +576,14 @@ class AMSResults(Results):
         """
         return cast(int, self.readrkf(history_section, "nEntries"))
 
+    def get_number_of_engine_evaluations(self) -> int:
+        """Return the number of engine evaluations recorded in ``ams.rkf``.
+
+        :return: value of ``nEngineEvaluations`` in the ``EngineResults`` section
+        :raises KeyError: if the calculation did not write this variable
+        """
+        return cast(int, self.readrkf("EngineResults", "nEngineEvaluations"))
+
     def get_history_property(self, varname: str, history_section: str = "History") -> Optional[List]:
         """Return all saved values of a history variable.
 
