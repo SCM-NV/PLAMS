@@ -427,8 +427,8 @@ class CRSInputBuilder:
             raise ValueError(f"{key} {value_name} list must not be empty")
 
         try:
-            for field in fields:
-                converter(field)
+            for item in fields:
+                converter(item)
         except ValueError as exc:
             raise TypeError(f"{key} string must contain only {value_name} values") from exc
 
