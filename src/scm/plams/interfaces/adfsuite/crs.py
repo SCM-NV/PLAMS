@@ -47,12 +47,29 @@ class CRSResults(SCMResults):
         try:  # Return the cached value if possible
             return self._section  # type: ignore[has-type]
         except AttributeError:
-            try:
-                self._section = self.job.settings.input.property._h.upper()
-            except AttributeError:
-                self._section = self.job.settings.input.t.upper()
+            pass
 
-            return self._section
+        input_data = self.job.settings.input
+
+        if hasattr(input_data, "PROPERTY"):
+            header = input_data.PROPERTY.header
+            if header is None:
+                raise ValueError("CRS PROPERTY block has no header")
+            self._section = header.upper()
+        else:
+            try:
+                self._section = input_data.property._h.upper()
+            except AttributeError:
+                self._section = input_data.t.upper()
+
+        return self._section
+        # except AttributeError:
+        #     try:
+        #         self._section = self.job.settings.input.property._h.upper()
+        #     except AttributeError:
+        #         self._section = self.job.settings.input.t.upper()
+
+        #     return self._section
 
     def get_energy(self, energy_type: str = "deltag", compound_idx: int = 0, unit: str = "kcal/mol") -> float:
         """Returns the solute solvation energy from an Activity Coefficients calculation."""
