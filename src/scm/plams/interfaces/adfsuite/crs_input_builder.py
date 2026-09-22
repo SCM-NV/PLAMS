@@ -2,11 +2,30 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
-from typing import Any, Callable, ClassVar, Dict, List, Literal, Mapping, Optional, Sequence, Set, Tuple, Type, TypeVar, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    ClassVar,
+    Dict,
+    List,
+    Literal,
+    Mapping,
+    Optional,
+    Sequence,
+    Set,
+    Tuple,
+    Type,
+    TypeVar,
+    Union,
+)
 
 from scm.plams.core.functions import log
 from scm.plams.core.settings import Settings
 from scm.plams.interfaces.adfsuite.crs_definitions import CRS_METHODS, get_block_keys, get_crs_input_data
+
+if TYPE_CHECKING:
+    from scm.inputs import CRS
 
 
 __all__ = [
@@ -66,19 +85,6 @@ _SIGMA_MOMENT_KEYS = (
     "sigmamomenthbcutoffbase",
     "sigmamomenthbcutoffstep"
 )
-# Technical top-level CRS inputs exposed through set_expert_options() for all properties.
-# The keys and value types are validated from crs.json; only the expert-option
-# grouping is kept here for now and may move to crs.json metadata later.
-_EXPERT_INPUT_KEYS = (
-    "usepolycombiforpolymer",
-    "pdh_correction",
-    "ignore_coskfatoms",
-    "output_energy_components",
-    "reuse_sigma_profile",
-    "update_sigma_profile",
-)
-
-
 @dataclass(frozen=True)
 class _InputRoute:
     """Route from a builder key to a PLAMS Settings location."""
@@ -139,8 +145,6 @@ class CRSInputBuilder:
         "_job_cls",
         "_values",
         "_accepted_keys",
-        "_expert_keys",
-        "_expert_values",
         "_mode_config",
         "_mode",
         "_active_mode_input_keys",
@@ -182,8 +186,6 @@ class CRSInputBuilder:
         self._job_cls = job_cls
         self._values: Dict[str, Any] = {}
         self._accepted_keys = self._build_accepted_keys()
-        self._expert_keys = self._build_expert_keys()
-        self._expert_values: Dict[str, Any] = {}
         self._mode_config = self._MODE_CONFIG
         self._mode: Optional[str] = None
         self._active_mode_input_keys: Set[str] = set()
@@ -213,20 +215,6 @@ class CRSInputBuilder:
 
         return accepted
 
-    @classmethod
-    def _build_expert_keys(cls) -> Dict[str, _InputRoute]:
-        data = get_crs_input_data()
-        property_keys = get_block_keys(data, "property")
-        expert_keys: Dict[str, _InputRoute] = {}
-
-        for key in _EXPERT_INPUT_KEYS:
-            route = cls._input_route_from_schema(key, data, property_keys)
-            if route.scope != "top_level":
-                raise ValueError(f"CRS expert option {key!r} must be a top-level input key")
-            expert_keys[key] = route
-
-        return expert_keys
-
     @staticmethod
     def _input_route_from_schema(
         key: str,
@@ -244,11 +232,9 @@ class CRSInputBuilder:
     def __dir__(self) -> List[str]:
         entries = {
             "describe",
-            "expert_options",
             "get",
             "method",
             "set",
-            "set_expert_options",
             "to_job",
             "to_settings",
             "to_inputs",
@@ -278,28 +264,11 @@ class CRSInputBuilder:
             self._set_input_value(key, value)
         return self
 
-    def expert_options(self) -> Tuple[str, ...]:
-        """Return supported expert option names."""
-        return tuple(sorted(self._expert_keys))
-
-    def set_expert_options(self: _CRSInputBuilderT, **kwargs: Any) -> _CRSInputBuilderT:
-        """Set technical top-level CRS options.
-
-        Use expert_options() to list supported names.
-
-        Example:
-            builder.set_expert_options(pdh_correction=True)
-        """
-        for key, value in kwargs.items():
-            self._set_expert_option(key, value)
-        return self
-
     def describe(
         self,
         *,
         include_values: bool = False,
         include_compound_details: bool = False,
-        include_expert_options: bool = False,
     ) -> Tuple[str, ...]:
         """Return concise descriptions of supported inputs and compound roles."""
         lines = [f"{self.property_type}: {self._DESCRIPTION}", f"method [top_level]: {self.method}"]
@@ -319,18 +288,6 @@ class CRSInputBuilder:
                 lines.append(self._format_key_description(key, "compound", compound_key_metadata[key]))
         elif compound_keys:
             lines.append(f"compound_keys [compound]: {', '.join(compound_keys)}")
-
-        if include_expert_options:
-            for key, route in sorted(self._expert_keys.items()):
-                lines.append(
-                    self._format_key_description(
-                        key,
-                        "expert",
-                        route.metadata,
-                        include_values=include_values,
-                        values=self._expert_values,
-                    )
-                )
 
         return tuple(lines)
 
@@ -353,9 +310,6 @@ class CRSInputBuilder:
             elif route.scope == "property":
                 settings.input.property[key] = self._values[key]
 
-        for key in sorted(self._expert_values):
-            settings.input[key] = self._expert_values[key]
-
         if include_compounds:
             compounds = self._compound_blocks()
             if compounds:
@@ -363,14 +317,34 @@ class CRSInputBuilder:
 
         return settings
 
-    def to_inputs(self) -> Any:
-        """Build a typed ``scm.inputs.CRS`` model from this builder."""
+    def to_inputs(self) -> "CRS":
+        """Build an independent typed :class:`scm.inputs.CRS` model from this builder."""
         from scm.inputs import CRS
-        from scm.plams.core.settings import settings_to_input
 
-        settings = self.to_settings()
-        text_input = settings_to_input(settings.input, subblock_end="end")
-        return CRS.from_input(text_input)
+        self._validate_required_inputs()
+        self._validate_compound_role_counts()
+        self._validate_required_compound_keys()
+
+        property_values: Dict[str, Any] = {"header": self.property_type}
+        crs_values: Dict[str, Any] = {"METHOD": self.method}
+        for key, route in sorted(self._accepted_keys.items()):
+            if key not in self._values:
+                continue
+            value = _typed_builder_value(self._values[key], route.metadata)
+            input_name = route.metadata["input_name"]
+            if route.scope == "top_level":
+                crs_values[input_name] = value
+            elif route.scope == "property":
+                property_values[input_name] = value
+
+        crs_values["PROPERTY"] = CRS.PROPERTYBlock(**property_values)
+        compounds = self._compound_blocks()
+        if compounds:
+            crs_values["COMPOUND"] = [
+                _settings_to_input_model(CRS.COMPOUNDBlock, compound, f"COMPOUND[{index}]")
+                for index, compound in enumerate(compounds)
+            ]
+        return CRS(**crs_values)
 
     def to_job(self, name: Optional[str] = None, **kwargs: Any) -> Any:
         """Build a CRSJob from this builder."""
@@ -384,11 +358,6 @@ class CRSInputBuilder:
         self._validate_input_key(key)
         value = self._normalize_value_by_metadata(key, value, self._accepted_keys[key].metadata)
         self._values[key] = value
-
-    def _set_expert_option(self, key: str, value: Any) -> None:
-        self._validate_expert_key(key)
-        route = self._expert_keys[key]
-        self._expert_values[key] = self._normalize_value_by_metadata(key, value, route.metadata)
 
     def _normalize_value_by_metadata(self, key: str, value: Any, metadata: Mapping[str, Any]) -> Any:
         input_type = metadata.get("type")
@@ -474,11 +443,6 @@ class CRSInputBuilder:
         if key not in self._accepted_keys:
             allowed = ", ".join(sorted(self._accepted_keys))
             raise AttributeError(f"{key!r} is not valid for {self.property_type}. Allowed input keys: {allowed}")
-
-    def _validate_expert_key(self, key: str) -> None:
-        if key not in self._expert_keys:
-            allowed = ", ".join(sorted(self._expert_keys))
-            raise ValueError(f"{key!r} is not a CRS expert input key. Supported expert options: {allowed}")
 
     def _set_mode_or_default(self, mode: Optional[str]) -> None:
         selected_mode = self._mode_config.default if mode is None else mode
@@ -637,6 +601,73 @@ class CRSInputBuilder:
             value_source = self._values if values is None else values
             line += f" value: {value_source.get(key)!r}"
         return line
+
+
+def _typed_builder_value(value: Any, metadata: Mapping[str, Any]) -> Any:
+    """Convert the builder's normalized list representation to typed-model values."""
+    input_type = metadata.get("type")
+    if input_type not in {"float_list", "integer_list"}:
+        return value
+    converter = float if input_type == "float_list" else int
+    if isinstance(value, str):
+        return [converter(item) for item in value.split()]
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+        return list(value)
+    return [value]
+
+
+def _settings_to_input_model(model_type: Type[Any], settings: Settings, path: str) -> Any:
+    """Build one typed input block directly from a structured Settings block."""
+    from scm.inputs._core.base import input_model_annotation, list_item_annotation, strip_optional
+
+    field_names = {name.casefold(): name for name in model_type.model_fields}
+    values: Dict[str, Any] = {}
+    if "_h" in settings:
+        values["header"] = os.fspath(settings["_h"])
+
+    for key, value in settings.items():
+        if key == "_h":
+            continue
+        if not isinstance(key, str) or key.startswith("_"):
+            raise ValueError(f"{path}: unsupported structural entry {key!r}")
+        field_name = field_names.get(key.casefold())
+        if field_name is None or field_name == "header":
+            raise ValueError(f"{path}: {key!r} is not a valid {model_type.__qualname__} input field")
+        if value is False or value is None:
+            continue
+
+        annotation = model_type.model_fields[field_name].annotation
+        item_annotation = list_item_annotation(annotation)
+        block_type = input_model_annotation(annotation)
+        field_path = f"{path}.{field_name}"
+        if block_type is not None:
+            if item_annotation is not None:
+                occurrences = value if isinstance(value, list) else [value]
+                if not all(isinstance(item, Settings) for item in occurrences):
+                    raise TypeError(f"{field_path} must contain Settings block occurrences")
+                values[field_name] = [
+                    _settings_to_input_model(block_type, item, f"{field_path}[{index}]")
+                    for index, item in enumerate(occurrences)
+                ]
+            else:
+                if not isinstance(value, Settings):
+                    raise TypeError(f"{field_path} must be a Settings block")
+                values[field_name] = _settings_to_input_model(block_type, value, field_path)
+            continue
+
+        if item_annotation is not None:
+            if isinstance(value, str):
+                values[field_name] = value.split()
+            elif isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+                values[field_name] = list(value)
+            else:
+                values[field_name] = [value]
+        elif strip_optional(annotation) is bool and value == "":
+            values[field_name] = True
+        else:
+            values[field_name] = value
+
+    return model_type(**values)
 
 
 class _SolventRoleMixin:
