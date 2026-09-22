@@ -81,6 +81,41 @@ The supported methods can be inspected from Python:
     CRSJob.methods()
 
 
+Additional CRS input options
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Use :meth:`CRSInputBuilder.to_inputs` to convert the builder state to a typed
+:class:`scm.inputs.CRS` model. You can then set CRS input options that are not
+exposed directly by the property-specific builder.
+
+For example, the following code changes an LLE convergence tolerance and enables
+debug output:
+
+.. code-block:: python
+
+    from scm.plams import CRSJob
+
+    builder = CRSJob.input_builder("LLE", temperature=298.15)
+    builder.add_compound_from_adfcrs_database("Water.coskf", frac1=0.33)
+    builder.add_compound_from_adfcrs_database("Ethanol.coskf", frac1=0.33)
+    builder.add_compound_from_adfcrs_database("Benzene.coskf", frac1=0.34)
+
+    crs = builder.to_inputs()
+    crs.TECHNICAL.LLE.eps_g = 1.0e-5
+    crs.TECHNICAL.LLE.debug = True
+
+    job = CRSJob(settings=crs)
+    results = job.run()
+
+The object returned by ``to_inputs()`` is an independent
+:class:`scm.inputs.CRS` model. Changes to this object do not update the builder.
+Create the job from the modified model, as shown above, instead of calling
+``builder.to_job()``.
+
+For a general introduction to typed input models, see
+:ref:`ams_input_models`.
+
+
 Settings with multiple compounds
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
