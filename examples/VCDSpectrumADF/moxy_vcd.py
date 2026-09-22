@@ -1,5 +1,5 @@
 from scm.plams import AMSJob, Molecule
-from scm.input_classes import drivers, engines
+from scm.inputs import ADF, AMS
 
 # import matplotlib.pyplot as plt
 
@@ -23,10 +23,10 @@ def main():
     methyloxirane = Molecule("R-methyloxirane.xyz")
 
     # Define engine
-    driver = drivers.AMS()
+    driver = AMS()
     driver.Task = "SinglePoint"
-    driver.Properties.VCD = "Yes"
-    driver.Engine = engines.ADF()
+    driver.Properties.VCD = True
+    driver.Engine = ADF()
 
     # Define settings
     driver.Engine.Basis.Core = "None"

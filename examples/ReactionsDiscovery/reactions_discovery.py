@@ -5,7 +5,7 @@
 
 from typing import List
 import scm.plams as plams
-from scm.input_classes import engines
+from scm.inputs import ReactionsDiscovery, ReaxFF
 from scm.reactions_discovery import ReactionsDiscoveryJob
 from rdkit import Chem
 from rdkit.Chem import Draw
@@ -55,18 +55,18 @@ md.NumSimulations = 4
 build = md.BuildSystem
 build.NumAtoms = 250
 build.Density = 0.9
-build.Molecule[0].SMILES = "O"  # Water
-build.Molecule[0].MoleFraction = 1
-build.Molecule[1].SMILES = "NCCO"  # MEA
-build.Molecule[1].MoleFraction = 2
-build.Molecule[2].SMILES = "O=C=O"  # Carbondioxide
-build.Molecule[2].MoleFraction = 3
-draw_smiles([build.Molecule[i].SMILES.val for i in range(len(build.Molecule))])
+Molecule = ReactionsDiscovery.MolecularDynamicsBlock.BuildSystemBlock.MoleculeBlock
+build.Molecule = [
+    Molecule(SMILES="O", MoleFraction=1),  # Water
+    Molecule(SMILES="NCCO", MoleFraction=2),  # MEA
+    Molecule(SMILES="O=C=O", MoleFraction=3),  # Carbondioxide
+]
+draw_smiles([molecule.SMILES for molecule in build.Molecule])
 
 
 # ## Setting up reactive molecular dynamics
 
-md.Enabled = "Yes"
+md.Enabled = True
 md.Type = "NanoReactor"
 reactor = md.NanoReactor
 reactor.NumCycles = 10
@@ -77,17 +77,17 @@ reactor.MinVolumeFraction = 0.6
 # ## Setting up network extraction and ranking
 
 network = driver.NetworkExtraction
-network.Enabled = "Yes"
-network.UseCharges = "Yes"
+network.Enabled = True
+network.UseCharges = True
 ranking = driver.ProductRanking
-ranking.Enabled = "Yes"
+ranking.Enabled = True
 
 
 # ## Selecting the AMS engine to use
 
-engine = engines.ReaxFF()
+engine = ReaxFF()
 engine.ForceField = "Glycine.ff"
-engine.TaperBO = "Yes"  # This is a really important setting for reaction analysis with ReaxFF potentials
+engine.TaperBO = True  # This is a really important setting for reaction analysis with ReaxFF potentials
 driver.Engine = engine
 
 

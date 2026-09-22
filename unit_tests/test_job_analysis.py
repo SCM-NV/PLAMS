@@ -13,7 +13,7 @@ from scm.plams.core.enums import JobStatus
 from scm.plams.tools.job_analysis import JobAnalysis
 from scm.plams.core.settings import Settings, JobManagerSettings
 from test_basejob import DummySingleJob
-from test_helpers import temp_file_path, skip_if_no_scm_pisa, skip_if_no_scm_base
+from test_helpers import temp_file_path, skip_if_no_scm_inputs, skip_if_no_scm_base
 
 
 class TestJobAnalysis:
@@ -1510,14 +1510,15 @@ dummyjob.010,,,False
         shutil.rmtree(jm.workdir)
 
 
-class TestJobAnalysisWithPisa(TestJobAnalysis):
+class TestJobAnalysisWithScmInputs(TestJobAnalysis):
 
     @pytest.fixture(scope="class")
     def dummy_single_jobs(self):
-        skip_if_no_scm_pisa()
+        skip_if_no_scm_inputs()
+        skip_if_no_scm_base()
 
-        from scm.input_classes.drivers import AMS
-        from scm.input_classes.engines import DFTB, ADF
+        from scm.inputs import AMS, ADF, DFTB
+        from scm.base import ChemicalSystem
 
         # Generate dummy jobs for a selection of molecules and input settings
         smiles = ["CC", "C", "O", "CO", "CCC", "CCCC", "CCCO", "CCCCCC", "CCCOC", "Sys"]
@@ -1525,7 +1526,7 @@ class TestJobAnalysisWithPisa(TestJobAnalysis):
         for i, s in enumerate(smiles):
             sett = AMS()
             sett.Task = "GeometryOptimization" if i % 2 else "SinglePoint"
-            sett.Properties.NormalModes = "Yes" if i % 3 else "No"
+            sett.Properties.NormalModes = bool(i % 3)
             if i < 5:
                 sett.Engine = ADF()
                 sett.Engine.Basis.Type = "TZP"
@@ -1534,10 +1535,10 @@ class TestJobAnalysisWithPisa(TestJobAnalysis):
             else:
                 sett.Engine = DFTB()
             if s == "Sys":
-                sett.System.Atoms = [
-                    "Ar 0.0000000000       0.0000000000       0.0000000000",
-                    "Ar 1.6050000000       0.9266471820       2.6050000000",
-                ]
+                system = ChemicalSystem()
+                system.add_atom("Ar", coords=[0.0, 0.0, 0.0])
+                system.add_atom("Ar", coords=[1.605, 0.9266471820, 2.605])
+                sett.System = system
                 mol = None
             else:
                 mol = from_smiles(s)
@@ -1585,22 +1586,23 @@ class TestJobAnalysisWithPisa(TestJobAnalysis):
 
         ja = ja.remove_settings_fields().add_settings_input_fields(include_system_block=True)
 
-        # N.B. small discrepancy in system block atoms column name
+        # N.B. small discrepancy in system block atoms column name. The "Sys" system is a
+        # ChemicalSystem, so its atom lines are serialized in the ChemicalSystem's compact form.
         assert (
             ja.to_table()
             == """\
-| Name         | OK   | Check | ErrorMsg | Formula | Smiles | InputAdfBasisType | InputAmsTask         | InputAmsPropertiesNormalmodes | InputAdfXcGga | InputAmsSystem0Atoms_10                               | InputAmsSystem0Atoms_11                               |
-|--------------|------|-------|----------|---------|--------|-------------------|----------------------|-------------------------------|---------------|-------------------------------------------------------|-------------------------------------------------------|
-| dummyjob     | True | True  | None     | C2H6    | CC     | TZP               | SinglePoint          | False                         | None          | None                                                  | None                                                  |
-| dummyjob.002 | True | True  | None     | CH4     | C      | TZP               | GeometryOptimization | True                          | pbe           | None                                                  | None                                                  |
-| dummyjob.003 | True | True  | None     | H2O     | O      | TZP               | SinglePoint          | True                          | None          | None                                                  | None                                                  |
-| dummyjob.004 | True | True  | None     | CH4O    | CO     | TZP               | GeometryOptimization | False                         | pbe           | None                                                  | None                                                  |
-| dummyjob.005 | True | True  | None     | C3H8    | CCC    | TZP               | SinglePoint          | True                          | None          | None                                                  | None                                                  |
-| dummyjob.006 | True | True  | None     | C4H10   | CCCC   | None              | GeometryOptimization | True                          | None          | None                                                  | None                                                  |
-| dummyjob.007 | True | True  | None     | C3H8O   | CCCO   | None              | SinglePoint          | False                         | None          | None                                                  | None                                                  |
-| dummyjob.008 | True | True  | None     | C6H14   | CCCCCC | None              | GeometryOptimization | True                          | None          | None                                                  | None                                                  |
-| dummyjob.009 | True | True  | None     | C4H10O  | CCCOC  | None              | SinglePoint          | True                          | None          | None                                                  | None                                                  |
-| dummyjob.010 | True | True  | None     | None    | None   | None              | GeometryOptimization | False                         | None          | Ar 0.0000000000       0.0000000000       0.0000000000 | Ar 1.6050000000       0.9266471820       2.6050000000 |"""
+| Name         | OK   | Check | ErrorMsg | Formula | Smiles | InputAdfBasisType | InputAmsTask         | InputAmsPropertiesNormalmodes | InputAdfXcGga | InputAmsSystem0Atoms_10 | InputAmsSystem0Atoms_11    |
+|--------------|------|-------|----------|---------|--------|-------------------|----------------------|-------------------------------|---------------|-------------------------|----------------------------|
+| dummyjob     | True | True  | None     | C2H6    | CC     | TZP               | SinglePoint          | False                         | None          | None                    | None                       |
+| dummyjob.002 | True | True  | None     | CH4     | C      | TZP               | GeometryOptimization | True                          | pbe           | None                    | None                       |
+| dummyjob.003 | True | True  | None     | H2O     | O      | TZP               | SinglePoint          | True                          | None          | None                    | None                       |
+| dummyjob.004 | True | True  | None     | CH4O    | CO     | TZP               | GeometryOptimization | False                         | pbe           | None                    | None                       |
+| dummyjob.005 | True | True  | None     | C3H8    | CCC    | TZP               | SinglePoint          | True                          | None          | None                    | None                       |
+| dummyjob.006 | True | True  | None     | C4H10   | CCCC   | None              | GeometryOptimization | True                          | None          | None                    | None                       |
+| dummyjob.007 | True | True  | None     | C3H8O   | CCCO   | None              | SinglePoint          | False                         | None          | None                    | None                       |
+| dummyjob.008 | True | True  | None     | C6H14   | CCCCCC | None              | GeometryOptimization | True                          | None          | None                    | None                       |
+| dummyjob.009 | True | True  | None     | C4H10O  | CCCOC  | None              | SinglePoint          | True                          | None          | None                    | None                       |
+| dummyjob.010 | True | True  | None     | None    | None   | None              | GeometryOptimization | False                         | None          | Ar 0 0 0                | Ar 1.605 0.926647182 2.605 |"""
         )
 
         key = ja.get_settings_field_key(("input", "ams", "task"))

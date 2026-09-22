@@ -16,11 +16,11 @@ from scm.plams.core.functions import log, requires_optional_package
 __all__ = ["AMSAnalysisJob", "AMSAnalysisResults", "convert_to_unicode"]
 
 try:
-    from scm.pisa.block import DriverBlock
+    from scm.inputs import EngineInputModel, InputModel
 
-    _has_scm_pisa = True
+    _has_scm_inputs = True
 except ImportError:
-    _has_scm_pisa = False
+    _has_scm_inputs = False
 
 
 class AMSAnalysisPlot:
@@ -264,10 +264,8 @@ class AMSAnalysisResults(SCMResults):
         """
         Get the AMSAnalysisPlot object for a specific section of the plot KFFile
         """
-        if isinstance(self.job.settings.input, Settings):
-            task = self.job.settings.input.Task
-        else:
-            task = self.job.settings.input.Task.val
+        # For both Settings and scm.inputs models, input.Task is a plain string (or None).
+        task = self.job.settings.input.Task
         if section == "":
             section = task
 
@@ -377,7 +375,11 @@ class AMSAnalysisJob(SCMJob):
 
         systems = AMSJob._serialize_molecule(self)  # type: ignore[arg-type]
         if len(systems) > 0:
-            if _has_scm_pisa and isinstance(self.settings.input, DriverBlock):
+            if (
+                _has_scm_inputs
+                and isinstance(self.settings.input, InputModel)
+                and not isinstance(self.settings.input, EngineInputModel)
+            ):
                 self.settings.system = systems
             else:
                 self.settings.input.system = systems

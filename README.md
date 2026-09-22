@@ -30,14 +30,14 @@ Then, follow one of the examples to help create your script e.g.
 ```python
     # water_opt.py
     from scm.plams import from_smiles, AMSJob
-    from scm.input_classes import drivers, engines
+    from scm.inputs import AMS, ForceField
 
     water = from_smiles("O")
 
-    driver = drivers.AMS()
+    driver = AMS()
     driver.Task = "GeometryOptimization"
-    driver.Properties.NormalModes = "Yes"
-    driver.Engine = engines.ForceField()
+    driver.Properties.NormalModes = True
+    driver.Engine = ForceField()
     driver.Engine.Type = "UFF"
 
     job = AMSJob(molecule=water, settings=driver, name="water_opt")

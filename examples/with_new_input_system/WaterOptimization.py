@@ -36,12 +36,12 @@ except NameError:
 #
 # The calculation settings are stored in a ``Settings`` object, which is a type of nested dictionary.
 
-from scm.input_classes import AMS, DFTB
+from scm.inputs import AMS, DFTB
 
 settings = Settings()
 settings.input = AMS()
 settings.input.Task = "GeometryOptimization"
-settings.input.Properties.NormalModes = "Yes"
+settings.input.Properties.NormalModes = True
 settings.input.Engine = DFTB()
 settings.input.Engine.Model = "GFN1-xTB"
 # settings.input.ForceField.Type = 'UFF' # set this instead of DFTB if you do not have a DFTB license. You will then not be able to extract the HOMO and LUMO energies.

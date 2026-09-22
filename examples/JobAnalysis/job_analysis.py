@@ -9,8 +9,7 @@
 
 from scm.plams import from_smiles, AMSJob, PlamsError, Settings, Molecule, Atom
 from scm.base import ChemicalSystem
-from scm.input_classes.drivers import AMS
-from scm.input_classes.engines import DFTB
+from scm.inputs import AMS, DFTB
 from scm.utils.conversions import plams_molecule_to_chemsys
 
 
@@ -20,7 +19,7 @@ def example_job_dftb(smiles, task, use_chemsys=False):
     if use_chemsys:
         mol = plams_molecule_to_chemsys(mol)
 
-    # Set up calculation settings using PISA
+    # Set up calculation settings using scm.inputs
     sett = Settings()
     sett.runscript.nproc = 1
     driver = AMS()

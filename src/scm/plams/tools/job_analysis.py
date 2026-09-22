@@ -27,12 +27,11 @@ except ImportError:
     _has_scm_base = False
 
 try:
-    from scm.pisa.block import DriverBlock
-    from scm.pisa.input_def import DRIVER_BLOCK_FILES, ENGINE_BLOCK_FILES
+    from scm.inputs import EngineInputModel, InputModel
 
-    _has_scm_pisa = True
+    _has_scm_inputs = True
 except ImportError:
-    _has_scm_pisa = False
+    _has_scm_inputs = False
 
 if TYPE_CHECKING:
     from pandas import DataFrame
@@ -157,7 +156,7 @@ class JobAnalysis:
             return JobAnalysis._mol_gyration_radius_extractor(chemsys_to_plams_molecule(mol))
         return None
 
-    _reserved_names = ["_jobs", "_fields", "StandardField", "_standard_fields", "_pisa_programs", "_Field"]
+    _reserved_names = ["_jobs", "_fields", "StandardField", "_standard_fields", "_inputs_programs", "_Field"]
 
     def __init__(
         self,
@@ -189,9 +188,10 @@ class JobAnalysis:
         self._jobs: Dict[str, Job] = {}
         self._fields: Dict[str, JobAnalysis._Field] = {}
 
-        if _has_scm_pisa:
-            self._pisa_programs = {value: key for key, value in ENGINE_BLOCK_FILES.items()}
-            self._pisa_programs.update({value: key for key, value in DRIVER_BLOCK_FILES.items()})
+        if _has_scm_inputs:
+            from scm.inputs import input_model_registry
+
+            self._inputs_programs = {class_name: program for program, class_name in input_model_registry().items()}
 
         if jobs:
             for j in jobs:
@@ -1694,18 +1694,22 @@ class JobAnalysis:
 
     def _get_job_settings(self, job: Job) -> Settings:
         """
-        Get job settings converting any PISA input block to a standard settings object.
+        Get job settings converting any scm.inputs model to a standard settings object.
         """
-        # Convert any PISA settings blocks to standard
+        # Convert any scm.inputs input models to standard settings
         settings = Settings()
         if job.settings is not None:
             if isinstance(job.settings, Settings):
                 settings = job.settings.copy()
-            if _has_scm_pisa:
-                if hasattr(job.settings, "input") and isinstance(job.settings.input, DriverBlock):
+            if _has_scm_inputs:
+                if (
+                    hasattr(job.settings, "input")
+                    and isinstance(job.settings.input, InputModel)
+                    and not isinstance(job.settings.input, EngineInputModel)
+                ):
                     # Note use own input parser facade here to use caching
-                    program = self._pisa_programs[job.settings.input.name].name.split(".")[0]
-                    settings.input = input_to_settings(job.settings.input.get_input_string(), program=program)
+                    program = self._inputs_programs.get(type(job.settings.input).__name__, "ams")
+                    settings.input = input_to_settings(job.settings.input.to_input(), program=program)
         return settings
 
     def add_settings_input_fields(self, include_system_block: bool = False, flatten_list: bool = True) -> "JobAnalysis":

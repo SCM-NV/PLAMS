@@ -129,14 +129,14 @@ def skip_if_no_ams_installation():
         pytest.skip("Skipping test as cannot find AMS installation. '$AMSBIN' environment variable is not set.")
 
 
-def skip_if_no_scm_pisa():
+def skip_if_no_scm_inputs():
     """
-    Check whether SCM PISA is available, and skip the test with a warning if it is not available.
+    Check whether SCM inputs is available, and skip the test with a warning if it is not available.
     """
     try:
-        import scm.pisa  # noqa F401
+        import scm.inputs  # noqa F401
     except ImportError:
-        pytest.skip("Skipping test as cannot find scm.pisa package.")
+        pytest.skip("Skipping test as cannot find scm.inputs package.")
 
 
 def skip_if_no_scm_base():

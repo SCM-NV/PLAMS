@@ -1,7 +1,6 @@
-import copy
 from collections import OrderedDict, defaultdict
 from collections.abc import Iterable
-from typing import List
+from typing import List, get_args
 
 import numpy as np
 from scm.plams.core.basejob import MultiJob
@@ -83,7 +82,7 @@ class AMSConvenientAnalysisJob(AMSAnalysisJob):
         Convert the main settings object for this Task to a list of settings objects
         """
         if isinstance(settings, Settings):
-            # This is not a PISA object
+            # This is not an scm.inputs model
             if AMSConvenientAnalysisJob._has_settings_entry(settings, entry):
                 # If this is not a list-type object, make it into one
                 if isinstance(settings[entry], dict) or not (isinstance(settings[entry], Iterable)):
@@ -91,41 +90,35 @@ class AMSConvenientAnalysisJob(AMSAnalysisJob):
             else:
                 settings[entry] = [Settings() for i in range(nentries)]
         else:
-            # Workaround for a PISA bug, where the object can have updated values but length 0
+            # scm.inputs model: the repeated block is an ordinary list; ensure it has entries
             block = getattr(settings, entry)
             if len(block) == 0:
-                if block.value_changed:
-                    s = copy.deepcopy(block)
-                    block[0] = s
-                else:
-                    # I need there to be a single entry
-                    for i in range(nentries):
-                        s = block[i]
+                item_type = get_args(type(settings).model_fields[entry].annotation)[0]
+                for _ in range(nentries):
+                    block.append(item_type())
 
     @staticmethod
     def _has_settings_entry(settings, entry):
         """
-        Check if this Settings or PISA object contains this entry already
+        Check if this Settings or scm.inputs model contains this entry already
         """
         if isinstance(settings, Settings):
             return entry in settings
         else:
-            return getattr(settings, entry).value_changed
+            return settings.is_present(entry)
 
     @staticmethod
     def _add_nonunique_settings_entries(settings, key, entries):
         """
         For non-default entries, multiple entries can be supplied
 
-        * ``settings`` -- Settings or PISA object to which the entries should be added
+        * ``settings`` -- Settings or scm.inputs model to which the entries should be added
         * ``entries`` -- Iterator for multiple settings entries
         """
-        if not isinstance(settings, Settings):
-            for i, entry in enumerate(entries):
-                subsettings = getattr(settings, key)
-                subsettings[i] = entry
-        else:
+        if isinstance(settings, Settings):
             settings[key] = entries
+        else:
+            setattr(settings, key, list(entries))
 
     def _parent_prerun(self):
         """

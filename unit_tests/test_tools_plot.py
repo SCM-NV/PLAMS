@@ -30,7 +30,7 @@ from scm.plams.tools.plot import (
     plot_work_function,
     plot_energy_landscape,
 )
-from test_helpers import skip_if_no_scm_pisa
+from test_helpers import skip_if_no_scm_inputs
 
 # Use non-interactive backend for ci env
 # Results are available for inspection in the result_images directory
@@ -480,16 +480,16 @@ def test_plot_msd(run_calculations, rkf_tools_plot, xyz_folder):
 
 
 @image_comparison(
-    baseline_images=["plot_msd_pisa"],
+    baseline_images=["plot_msd_scm_inputs"],
     remove_text=True,
     extensions=["png"],
     style="mpl20",
     tol=10,
 )
-def test_plot_msd_with_pisa(run_calculations, rkf_tools_plot, xyz_folder):
-    skip_if_no_scm_pisa()
+def test_plot_msd_with_scm_inputs(run_calculations, rkf_tools_plot, xyz_folder):
+    skip_if_no_scm_inputs()
 
-    from scm.input_classes import Analysis
+    from scm.inputs import Analysis
 
     plt.close("all")
 
@@ -505,9 +505,11 @@ def test_plot_msd_with_pisa(run_calculations, rkf_tools_plot, xyz_folder):
     s.input.ams.MolecularDynamics.NSteps = 200
 
     sets = Analysis()
-    sets.MeanSquareDisplacement.UseAllValues = "Yes"
-    sets.MeanSquareDisplacement.Property = "Coords"
-    sets.MeanSquareDisplacement.Atoms.Element = "O"
+    msd = Analysis.MeanSquareDisplacementBlock()
+    msd.UseAllValues = True
+    msd.Property = "Coords"
+    msd.Atoms.Element = ["O"]
+    sets.MeanSquareDisplacement = [msd]
     s_msd = Settings()
     s_msd.input = sets
 
@@ -518,8 +520,8 @@ def test_plot_msd_with_pisa(run_calculations, rkf_tools_plot, xyz_folder):
         job.run()
         msd_job = AMSMSDJob(job, settings=s_msd)
         msd_job.run()
-        msd_pisa_job = AMSMSDJob(job, settings=sets)
-        msd_pisa_job.run()
+        msd_scm_inputs_job = AMSMSDJob(job, settings=sets)
+        msd_scm_inputs_job.run()
     else:
         # Cannot load the AMSMSDJob directly, so simulate running the job by loading the kf into the results
         job = AMSJob.load_external(rkf_tools_plot / "md/ams.rkf", settings=s)
@@ -532,20 +534,20 @@ def test_plot_msd_with_pisa(run_calculations, rkf_tools_plot, xyz_folder):
         results.collect()
         msd_job.results = results
 
-        msd_pisa_job = AMSMSDJob(job, name="msd", settings=sets)
-        msd_pisa_job.prerun()
-        msd_pisa_job.path = Path(rkf_tools_plot / "md/msd")
-        results = AMSMSDResults(msd_pisa_job)
+        msd_scm_inputs_job = AMSMSDJob(job, name="msd", settings=sets)
+        msd_scm_inputs_job.prerun()
+        msd_scm_inputs_job.path = Path(rkf_tools_plot / "md/msd")
+        results = AMSMSDResults(msd_scm_inputs_job)
         results.finished.set()
         results.done.set()
         results.collect()
-        msd_pisa_job.results = results
+        msd_scm_inputs_job.results = results
 
     fig = plt.figure()
     ax1 = fig.add_subplot(211)
     ax2 = fig.add_subplot(212)
     plot_msd(msd_job, ax=ax1)
-    plot_msd(msd_pisa_job, ax=ax2)
+    plot_msd(msd_scm_inputs_job, ax=ax2)
 
 
 # ----------------------------------------------------------

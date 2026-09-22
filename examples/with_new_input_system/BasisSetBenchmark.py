@@ -2,8 +2,9 @@
 import copy
 import multiprocessing
 
-from scm.input_classes import ADF, AMS
+from scm.inputs import ADF, AMS
 from scm.plams import config, JobRunner, from_smiles, Settings, AMSJob
+from scm.utils.conversions import plams_molecule_to_chemsys
 
 # Run jobs as many jobs as possible in parallel:
 config.default_jobrunner = JobRunner(parallel=True, maxjobs=multiprocessing.cpu_count())
@@ -14,14 +15,18 @@ mol_smiles = {"Methane": "C", "Ethane": "C-C", "Ethylene": "C=C", "Acetylene": "
 molecules = {}
 for name, smiles in mol_smiles.items():
     # Compute 10 conformers, optimize with UFF and pick the lowest in energy.
-    molecules[name] = from_smiles(smiles, nconfs=10, forcefield="uff")[0]
+    molecule = from_smiles(smiles, nconfs=10, forcefield="uff")[0]
+    # The System block's Symmetrize option is not part of the typed input model:
+    # symmetry cleanup of the geometry is now a ChemicalSystem operation.
+    system = plams_molecule_to_chemsys(molecule)
+    system.symmetrize()
+    molecules[name] = system
     print(name, molecules[name])
 
 # Initialize the common settings:
 common_settings = Settings()
 common_settings.input = AMS()
 common_settings.input.Task = "SinglePoint"
-common_settings.input.System.Symmetrize = "Yes"
 common_settings.input.Engine = ADF()
 common_settings.input.Engine.Basis.Core = "None"
 
