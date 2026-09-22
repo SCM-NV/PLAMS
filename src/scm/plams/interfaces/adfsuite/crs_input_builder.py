@@ -26,6 +26,7 @@ from scm.plams.core.settings import Settings
 from scm.plams.interfaces.adfsuite.crs_definitions import CRS_METHODS, get_block_keys, get_crs_input_data
 
 if TYPE_CHECKING:
+    from scm.plams import CRSJob
     from scm.inputs import CRS
 
 
@@ -348,7 +349,7 @@ class CRSInputBuilder:
             ]
         return CRS(**crs_values)
 
-    def to_job(self, name: Optional[str] = None, **kwargs: Any) -> Any:
+    def to_job(self, name: Optional[str] = None, **kwargs: Any) -> CRSJob:
         """Build a CRSJob from this builder."""
         if self._job_cls is None:
             raise ValueError("to_job() requires a job class; use CRSJob.input_builder()")
