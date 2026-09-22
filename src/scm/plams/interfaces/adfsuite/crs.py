@@ -51,18 +51,20 @@ class CRSResults(SCMResults):
 
         input_data = self.job.settings.input
 
-        if hasattr(input_data, "PROPERTY"):
-            header = input_data.PROPERTY.header
-            if header is None:
-                raise ValueError("CRS PROPERTY block has no header")
-            self._section = header.upper()
-        else:
-            try:
-                self._section = input_data.property._h.upper()
-            except AttributeError:
-                self._section = input_data.t.upper()
+        from scm.inputs import CRS
 
+        if isinstance(input_data, CRS):
+            header = input_data.PROPERTY.header
+        else:
+            property_settings = input_data.get("property")
+            header = property_settings.get("_h") if property_settings is not None else input_data.get("t")
+
+        if not isinstance(header, str) or not header:
+            raise ValueError("Could not determine the CRS property section from the job input")
+
+        self._section = header.upper()
         return self._section
+
         # except AttributeError:
         #     try:
         #         self._section = self.job.settings.input.property._h.upper()
