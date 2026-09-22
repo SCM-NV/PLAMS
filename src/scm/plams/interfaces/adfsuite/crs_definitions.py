@@ -44,8 +44,8 @@ def get_crs_input_def_path() -> Path:
     environment.
     """
     return _find_file(
-        relative_parts=("data", "input_def", "crs.json"),
-        description="data/input_def/crs.json",
+        relative_parts=("bin", "input_def", "crs.json"),
+        description="bin/input_def/crs.json",
     )
 
 

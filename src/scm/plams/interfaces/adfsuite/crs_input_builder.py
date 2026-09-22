@@ -251,6 +251,7 @@ class CRSInputBuilder:
             "set_expert_options",
             "to_job",
             "to_settings",
+            "to_inputs",
         }
         entries.update(self._accepted_keys)
         if self._mode_config.options:
@@ -361,6 +362,15 @@ class CRSInputBuilder:
                 settings.input.compound = compounds
 
         return settings
+
+    def to_inputs(self) -> Any:
+        """Build a typed ``scm.inputs.CRS`` model from this builder."""
+        from scm.inputs import CRS
+        from scm.plams.core.settings import settings_to_input
+
+        settings = self.to_settings()
+        text_input = settings_to_input(settings.input, subblock_end="end")
+        return CRS.from_input(text_input)
 
     def to_job(self, name: Optional[str] = None, **kwargs: Any) -> Any:
         """Build a CRSJob from this builder."""

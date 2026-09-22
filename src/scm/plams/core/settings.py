@@ -11,6 +11,7 @@ from typing import (
     Type,
     Hashable,
     Any,
+    Callable,
     Optional,
     Dict,
     Generator,
@@ -28,6 +29,7 @@ from scm.plams.core.threading_utils import LazyWrapper
 
 __all__ = [
     "Settings",
+    "settings_to_input",
     "SafeRunSettings",
     "LogSettings",
     "RunScriptSettings",
@@ -43,6 +45,60 @@ if TYPE_CHECKING:
     from datetime import datetime
 
 TSelf = TypeVar("TSelf", bound="Settings")
+
+
+def settings_to_input(
+    settings: "Settings",
+    *,
+    subblock_end: str = "end",
+    top: Iterable[str] = (),
+    special: Optional[Mapping[Type[Any], Callable[[Any], str]]] = None,
+) -> str:
+    """Serialize a Settings tree to AMS input text."""
+    converters = special or {}
+
+    def convert(value: Any) -> Any:
+        for value_type, converter in converters.items():
+            if isinstance(value, value_type):
+                return converter(value)
+        return value
+
+    def serialize(key: str, value: Any, indent: int) -> str:
+        if isinstance(value, Settings):
+            result = " " * indent + key
+            if "_h" in value:
+                result += " " + str(convert(value["_h"]))
+            result += "\n"
+            index = 1
+            while ("_" + str(index)) in value:
+                result += serialize("", value["_" + str(index)], indent + 2)
+                index += 1
+            for child_key in value:
+                if isinstance(child_key, str) and not child_key.startswith("_"):
+                    result += serialize(child_key, value[child_key], indent + 2)
+            block_end = "end" if indent == 0 else subblock_end
+            return result + " " * indent + block_end + "\n"
+        if isinstance(value, list):
+            return "".join(serialize(key, item, indent) for item in value)
+        if value is False or value is None:
+            return ""
+        if value == "" or value is True:
+            return " " * indent + key + "\n"
+        text = str(convert(value))
+        separator = "" if key == "" or text.startswith("=") else " "
+        return " " * indent + key + separator + text + "\n"
+
+    result = ""
+    top_keys = tuple(top)
+    top_names = {key.lower() for key in top_keys}
+    for key in top_keys:
+        actual_key = settings.find_case(key)
+        if actual_key in settings:
+            result += serialize(actual_key, settings[actual_key], 0) + "\n"
+    for key in settings:
+        if not isinstance(key, str) or key.lower() not in top_names:
+            result += serialize(key, settings[key], 0) + "\n"
+    return result
 
 
 class Settings(dict):
