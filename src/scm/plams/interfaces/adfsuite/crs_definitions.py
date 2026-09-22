@@ -32,9 +32,7 @@ CRS_METHODS = (
     "COSMOSACDHB-MESP",
 )
 
-_CRS_METHOD_PARAMETER_BLOCKS = frozenset(
-    ("CRSParameters", "SACParameters", "Dispersion", "Epsilon")
-)
+_CRS_METHOD_PARAMETER_BLOCKS = frozenset(("CRSParameters", "SACParameters", "Dispersion", "Epsilon"))
 
 
 def get_crs_input_def_path() -> Path:
@@ -76,9 +74,7 @@ def get_crs_method_parameters_metadata() -> CRSMethodParameterMetadata:
         data = json.load(handle)
 
     if not isinstance(data, dict):
-        raise ValueError(
-            f"CRS method parameter file {get_crs_method_parameters_path()} must contain a JSON object"
-        )
+        raise ValueError(f"CRS method parameter file {get_crs_method_parameters_path()} must contain a JSON object")
 
     return _extract_crs_method_parameters_metadata(data, get_crs_method_parameters_path())
 
@@ -219,9 +215,7 @@ def _block_metadata(name: str, block_def: Mapping[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _extract_crs_method_parameters_metadata(
-    data: Mapping[str, Any], json_path: Path
-) -> CRSMethodParameterMetadata:
+def _extract_crs_method_parameters_metadata(data: Mapping[str, Any], json_path: Path) -> CRSMethodParameterMetadata:
     if data.get("schema_version") != 1:
         raise ValueError(f"Unsupported CRS method parameter schema_version in {json_path}")
 
@@ -261,9 +255,7 @@ def _extract_crs_method_parameters_metadata(
     return result
 
 
-def _validate_parameter_blocks(
-    parameter_blocks: Mapping[str, Any], parameter_set: str, json_path: Path
-) -> None:
+def _validate_parameter_blocks(parameter_blocks: Mapping[str, Any], parameter_set: str, json_path: Path) -> None:
     for block_name, block in parameter_blocks.items():
         if block_name not in _CRS_METHOD_PARAMETER_BLOCKS:
             allowed = ", ".join(sorted(_CRS_METHOD_PARAMETER_BLOCKS))

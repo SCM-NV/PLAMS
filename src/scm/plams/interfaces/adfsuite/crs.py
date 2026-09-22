@@ -577,7 +577,6 @@ class CRSJob(SCMJob):
 
         return normalize_property_type(property_type)
 
-
     @staticmethod
     @overload
     def input_builder(
@@ -780,7 +779,6 @@ class CRSJob(SCMJob):
         from scm.plams.interfaces.adfsuite.crs_input_builder import input_builder
 
         return input_builder(property_type, method=method, mode=mode, job_cls=CRSJob, **kwargs)
-
 
     @staticmethod
     def adfcrs_database_path() -> str:

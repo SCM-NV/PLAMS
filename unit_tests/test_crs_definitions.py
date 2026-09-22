@@ -22,4 +22,3 @@ def test_crs_input_definition_metadata_helpers_support_nested_blocks():
 
     assert compound_keys["frac1"]["type"] == "float"
     assert set(required_keys) == {"name", "count"}
-

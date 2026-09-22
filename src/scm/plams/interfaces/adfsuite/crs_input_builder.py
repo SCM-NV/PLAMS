@@ -83,8 +83,10 @@ _SIGMA_MOMENT_KEYS = (
     "sigmamomenthblevel",
     "sigmamomenthbcutoff",
     "sigmamomenthbcutoffbase",
-    "sigmamomenthbcutoffstep"
+    "sigmamomenthbcutoffstep",
 )
+
+
 @dataclass(frozen=True)
 class _InputRoute:
     """Route from a builder key to a PLAMS Settings location."""
@@ -169,7 +171,6 @@ class CRSInputBuilder:
     # These keys can affect CRS calculations; role config defines supported roles, count limits, and required keys.
     _CALCULATION_COMPOUND_KEYS: ClassVar[Tuple[str, ...]] = ()
     _COMPOUND_ROLE_CONFIG: ClassVar[Mapping[str, _CompoundRoleConfig]] = {}
-
 
     def __init__(
         self,
@@ -888,6 +889,7 @@ class _SolubilityModeMixin:
 
 class _VLESweepMixin:
     """Inputs for VLE-style sweep properties."""
+
     __slots__ = ()
 
     @property
@@ -1228,9 +1230,13 @@ class COMPOSITIONLINEInputBuilder(
     )
     _SINGLE_VALUE_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature", "pressure")
     _CALCULATION_COMPOUND_KEYS: ClassVar[Tuple[str, ...]] = (
-        "frac1",
-        "frac2",
-    ) + _VAPOR_PRESSURE_KEYS + ("flashpoint",)
+        (
+            "frac1",
+            "frac2",
+        )
+        + _VAPOR_PRESSURE_KEYS
+        + ("flashpoint",)
+    )
     _COMPOUND_ROLE_CONFIG: ClassVar[Mapping[str, _CompoundRoleConfig]] = {
         "solvent": _CompoundRoleConfig(),
     }
