@@ -112,8 +112,8 @@ The object returned by ``to_inputs()`` is an independent
 Create the job from the modified model, as shown above, instead of calling
 ``builder.to_job()``.
 
-For a general introduction to typed input models, see
-:ref:`ams_input_models`.
+For a general introduction to typed input models, see the
+"AMS input models" Python example in the AMS documentation.
 
 
 Settings with multiple compounds
