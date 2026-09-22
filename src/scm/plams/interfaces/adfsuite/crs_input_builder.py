@@ -21,7 +21,7 @@ from typing import (
     cast,
 )
 
-from scm.plams.core.functions import log
+from scm.plams.core.functions import log, requires_optional_package
 from scm.plams.core.settings import Settings
 from scm.plams.interfaces.adfsuite.crs_definitions import CRS_METHODS, get_block_keys, get_crs_input_data
 
@@ -320,6 +320,7 @@ class CRSInputBuilder:
 
         return settings
 
+    @requires_optional_package("scm.inputs")
     def to_inputs(self) -> "CRS":
         """Build an independent typed :class:`scm.inputs.CRS` model from this builder."""
         from scm.inputs import CRS
@@ -936,7 +937,7 @@ class ACTIVITYCOEFInputBuilder(
     _SINGLE_VALUE_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature",)
     _CALCULATION_COMPOUND_KEYS: ClassVar[Tuple[str, ...]] = ("frac1", "density") + _VAPOR_PRESSURE_KEYS
     _COMPOUND_ROLE_CONFIG: ClassVar[Mapping[str, _CompoundRoleConfig]] = {
-        "solvent": _CompoundRoleConfig(required_keys=("frac1",)),
+        "solvent": _CompoundRoleConfig(min_count=1, required_keys=("frac1",)),
         "solute": _CompoundRoleConfig(),
     }
 
@@ -998,8 +999,8 @@ class SOLUBILITYInputBuilder(
     _SINGLE_VALUE_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("pressure",)
     _CALCULATION_COMPOUND_KEYS: ClassVar[Tuple[str, ...]] = ("frac1", "density") + _FUSION_KEYS + _VAPOR_PRESSURE_KEYS
     _COMPOUND_ROLE_CONFIG: ClassVar[Mapping[str, _CompoundRoleConfig]] = {
-        "solvent": _CompoundRoleConfig(required_keys=("frac1",)),
-        "solute": _CompoundRoleConfig(),
+        "solvent": _CompoundRoleConfig(min_count=1, required_keys=("frac1",)),
+        "solute": _CompoundRoleConfig(min_count=1),
     }
     _MODE_CONFIG: ClassVar[_ModeConfig] = _SOLUBILITY_MODE_CONFIG
 
@@ -1066,7 +1067,7 @@ class VAPORPRESSUREInputBuilder(
     _SINGLE_VALUE_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature",)
     _CALCULATION_COMPOUND_KEYS: ClassVar[Tuple[str, ...]] = ("frac1",) + _VAPOR_PRESSURE_KEYS
     _COMPOUND_ROLE_CONFIG: ClassVar[Mapping[str, _CompoundRoleConfig]] = {
-        "compound": _CompoundRoleConfig(required_keys=("frac1",)),
+        "compound": _CompoundRoleConfig(min_count=1, required_keys=("frac1",)),
     }
 
 
@@ -1084,7 +1085,7 @@ class PUREVAPORPRESSUREInputBuilder(
     _REQUIRED_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature",)
     _CALCULATION_COMPOUND_KEYS: ClassVar[Tuple[str, ...]] = _VAPOR_PRESSURE_KEYS
     _COMPOUND_ROLE_CONFIG: ClassVar[Mapping[str, _CompoundRoleConfig]] = {
-        "compound": _CompoundRoleConfig(),
+        "compound": _CompoundRoleConfig(min_count=1),
     }
 
 
@@ -1103,7 +1104,7 @@ class BOILINGPOINTInputBuilder(
     _REQUIRED_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("pressure",)
     _CALCULATION_COMPOUND_KEYS: ClassVar[Tuple[str, ...]] = ("frac1",) + _VAPOR_PRESSURE_KEYS
     _COMPOUND_ROLE_CONFIG: ClassVar[Mapping[str, _CompoundRoleConfig]] = {
-        "compound": _CompoundRoleConfig(),
+        "compound": _CompoundRoleConfig(min_count=1, required_keys=("frac1",)),
     }
 
 
@@ -1121,7 +1122,7 @@ class PUREBOILINGPOINTInputBuilder(
     _REQUIRED_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("pressure",)
     _CALCULATION_COMPOUND_KEYS: ClassVar[Tuple[str, ...]] = _VAPOR_PRESSURE_KEYS
     _COMPOUND_ROLE_CONFIG: ClassVar[Mapping[str, _CompoundRoleConfig]] = {
-        "compound": _CompoundRoleConfig(),
+        "compound": _CompoundRoleConfig(min_count=1),
     }
 
 
@@ -1138,7 +1139,7 @@ class FLASHPOINTInputBuilder(
     _EXPOSED_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("massfraction",)
     _CALCULATION_COMPOUND_KEYS: ClassVar[Tuple[str, ...]] = ("frac1", "flashpoint") + _VAPOR_PRESSURE_KEYS
     _COMPOUND_ROLE_CONFIG: ClassVar[Mapping[str, _CompoundRoleConfig]] = {
-        "compound": _CompoundRoleConfig(required_keys=("frac1",)),
+        "compound": _CompoundRoleConfig(min_count=1, required_keys=("frac1",)),
     }
 
 
@@ -1228,7 +1229,7 @@ class COMPOSITIONLINEInputBuilder(
         + ("flashpoint",)
     )
     _COMPOUND_ROLE_CONFIG: ClassVar[Mapping[str, _CompoundRoleConfig]] = {
-        "solvent": _CompoundRoleConfig(),
+        "solvent": _CompoundRoleConfig(min_count=2, required_keys=("frac1", "frac2",)),
     }
     _MODE_CONFIG: ClassVar[_ModeConfig] = _VLE_SWEEP_MODE_CONFIG
 
@@ -1249,7 +1250,7 @@ class LLEInputBuilder(
     _SINGLE_VALUE_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature",)
     _CALCULATION_COMPOUND_KEYS: ClassVar[Tuple[str, ...]] = ("frac1",)
     _COMPOUND_ROLE_CONFIG: ClassVar[Mapping[str, _CompoundRoleConfig]] = {
-        "compound": _CompoundRoleConfig(required_keys=("frac1",)),
+        "compound": _CompoundRoleConfig(min_count=2, required_keys=("frac1",)),
     }
 
 
@@ -1269,7 +1270,7 @@ class STABILITYInputBuilder(
     _SINGLE_VALUE_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature",)
     _CALCULATION_COMPOUND_KEYS: ClassVar[Tuple[str, ...]] = ("frac1",)
     _COMPOUND_ROLE_CONFIG: ClassVar[Mapping[str, _CompoundRoleConfig]] = {
-        "compound": _CompoundRoleConfig(required_keys=("frac1",)),
+        "compound": _CompoundRoleConfig(min_count=2, required_keys=("frac1",)),
     }
 
 
@@ -1288,7 +1289,7 @@ class SIGMAPROFILEInputBuilder(
     _EXPOSED_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("massfraction", *_SIGMA_KEYS, *_SIGMA_MOMENT_KEYS)
     _CALCULATION_COMPOUND_KEYS: ClassVar[Tuple[str, ...]] = ("frac1",)
     _COMPOUND_ROLE_CONFIG: ClassVar[Mapping[str, _CompoundRoleConfig]] = {
-        "compound": _CompoundRoleConfig(required_keys=("frac1",)),
+        "compound": _CompoundRoleConfig(min_count=1, required_keys=("frac1",)),
     }
 
 
@@ -1305,7 +1306,7 @@ class PURESIGMAPROFILEInputBuilder(
     _DESCRIPTION: ClassVar[str] = "Sigma profile for pure compounds."
     _EXPOSED_INPUT_KEYS: ClassVar[Tuple[str, ...]] = (*_SIGMA_KEYS, *_SIGMA_MOMENT_KEYS)
     _COMPOUND_ROLE_CONFIG: ClassVar[Mapping[str, _CompoundRoleConfig]] = {
-        "compound": _CompoundRoleConfig(),
+        "compound": _CompoundRoleConfig(min_count=1),
     }
 
 
@@ -1327,7 +1328,7 @@ class SIGMAPOTENTIALInputBuilder(
     _SINGLE_VALUE_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature",)
     _CALCULATION_COMPOUND_KEYS: ClassVar[Tuple[str, ...]] = ("frac1",)
     _COMPOUND_ROLE_CONFIG: ClassVar[Mapping[str, _CompoundRoleConfig]] = {
-        "compound": _CompoundRoleConfig(required_keys=("frac1",)),
+        "compound": _CompoundRoleConfig(min_count=1, required_keys=("frac1",)),
     }
 
 
@@ -1347,7 +1348,7 @@ class PURESIGMAPOTENTIALInputBuilder(
     _REQUIRED_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature",)
     _SINGLE_VALUE_INPUT_KEYS: ClassVar[Tuple[str, ...]] = ("temperature",)
     _COMPOUND_ROLE_CONFIG: ClassVar[Mapping[str, _CompoundRoleConfig]] = {
-        "compound": _CompoundRoleConfig(),
+        "compound": _CompoundRoleConfig(min_count=1),
     }
 
 

@@ -44,6 +44,7 @@ class CRSResults(SCMResults):
     _rename_map = {"CRSKF": "$JN.crskf"}
 
     @property
+    @requires_optional_package("scm.inputs")
     def section(self) -> str:
         try:  # Return the cached value if possible
             return self._section  # type: ignore[has-type]
@@ -65,14 +66,6 @@ class CRSResults(SCMResults):
 
         self._section = header.upper()
         return self._section
-
-        # except AttributeError:
-        #     try:
-        #         self._section = self.job.settings.input.property._h.upper()
-        #     except AttributeError:
-        #         self._section = self.job.settings.input.t.upper()
-
-        #     return self._section
 
     def get_energy(self, energy_type: str = "deltag", compound_idx: int = 0, unit: str = "kcal/mol") -> float:
         """Returns the solute solvation energy from an Activity Coefficients calculation."""
