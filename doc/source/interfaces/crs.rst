@@ -8,30 +8,42 @@ both respectively being subclasses of |SCMJob| and |SCMResults|.
 
 .. note:: There is also `a tutorial showing full code examples <../../COSMO-RS/PLAMS_COSMO-RS_scripting.html>`__ available in the COSMO-RS documentation. There are several templates available that can easily be customized for other problem types, workflows, etc.
 
-Settings
-~~~~~~~~
-
-A COSMO-RS job is configured through the PLAMS |Settings| object. For most
-workflows, use :meth:`CRSJob.input_builder` to create these settings. The input
-builder provides a property-specific interface and converts the builder state to
-|Settings| with ``to_settings()`` or directly to a :class:`CRSJob` with
-``to_job()``.
-
-For advanced workflows, you can also construct or modify |Settings| manually.
-
-
 Input builders
-^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~
 
 The recommended way to prepare COSMO-RS input from PLAMS is
 :meth:`CRSJob.input_builder`. This method returns a property-specific input
 builder. The builder exposes the input keys, compound roles, and calculation
 modes supported by the selected property type.
 
-For example, the following COSMO-RS input performs a pure sigma-profile
-calculation:
+For most workflows, create a builder and call ``to_job()`` to create a
+:class:`CRSJob` directly. You can also convert the builder to a |Settings|
+object or to a typed :class:`scm.inputs.CRS` model when you need to inspect or
+modify the generated input.
+
+Basic example
+^^^^^^^^^^^^^
+
+The following example creates and runs a pure sigma-profile calculation
+with :meth:`CRSJob.input_builder`:
+
+.. code-block:: python
+
+    from scm.plams import CRSJob
+
+    builder = CRSJob.input_builder("PURESIGMAPROFILE", method="COSMO-RS")
+    builder.nprofile = 50
+    builder.sigmamax = 0.025
+    builder.add_compound_from_adfcrs_database("Water.coskf")
+
+    job = builder.to_job()
+    results = job.run()
+
+This builder generates the following COSMO-RS input:
 
 .. code-block:: none
+
+    method COSMO-RS
 
     compound /path/to/file.coskf
         frac1 1.0
@@ -42,19 +54,37 @@ calculation:
         sigmamax 0.025
     end
 
-The same input can be prepared with :meth:`CRSJob.input_builder`:
+
+Supported methods
+^^^^^^^^^^^^^^^^^
+
+The supported COSMO-RS methods can be inspected with:
 
 .. code-block:: python
 
-    from scm.plams import CRSJob
+    print(CRSJob.methods())
 
-    builder = CRSJob.input_builder("PURESIGMAPROFILE")
-    builder.nprofile = 50
-    builder.sigmamax = 0.025
-    builder.add_compound_from_adfcrs_database("Water.coskf")
 
-    job = builder.to_job()
-    results = job.run()
+Calculation modes
+^^^^^^^^^^^^^^^^^
+
+Some property types support calculation modes. For example, solubility can be
+set up for a gas-phase solute using ``mode="gas"``:
+
+.. code-block:: python
+
+    builder = CRSJob.input_builder(
+        "SOLUBILITY",
+        mode="gas",
+        temperature=298.15,
+        pressure=1.01325
+    )
+    builder.add_solvent_from_adfcrs_database("Water.coskf", frac1=1.0)
+    builder.add_solute_from_adfcrs_database("Benzene.coskf")
+
+
+Inspecting builder input
+^^^^^^^^^^^^^^^^^^^^^^^^
 
 Use ``builder.describe()`` to inspect the input keys accepted by a builder:
 
@@ -63,30 +93,39 @@ Use ``builder.describe()`` to inspect the input keys accepted by a builder:
     for line in builder.describe(include_values=True):
         print(line)
 
-Some property types support calculation modes. For example, solubility can be
-set up for a gas-phase solute using ``mode="gas"``:
+
+Creating and running a job
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Use ``to_job()`` when no additional settings are required before running the
+job:
 
 .. code-block:: python
 
-    builder = CRSJob.input_builder("SOLUBILITY", mode="gas", temperature=298.15)
-    builder.add_solvent_from_adfcrs_database("Water.coskf", frac1=1.0)
-    builder.add_solute_from_adfcrs_database("Benzene.coskf")
+    job = builder.to_job()
+    results = job.run()
+
+
+Converting to Settings
+^^^^^^^^^^^^^^^^^^^^^^^
+
+Use ``to_settings()`` when you want to inspect or modify the generated PLAMS
+|Settings| object before creating the job:
+
+.. code-block:: python
 
     settings = builder.to_settings()
-
-The supported methods can be inspected from Python:
-
-.. code-block:: python
-
-    CRSJob.methods()
+    job = CRSJob(settings=settings)
+    results = job.run()
 
 
-Additional CRS input options
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Converting to typed CRS inputs
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Use :meth:`CRSInputBuilder.to_inputs` to convert the builder state to a typed
-:class:`scm.inputs.CRS` model. You can then set CRS input options that are not
-exposed directly by the property-specific builder.
+Use :meth:`CRSInputBuilder.to_inputs` for advanced workflows. It converts the
+builder state to a typed :class:`scm.inputs.CRS` model, which gives you access
+to CRS input options that are not exposed directly by the property-specific
+builder.
 
 For example, the following code changes an LLE convergence tolerance and enables
 debug output:
@@ -116,8 +155,8 @@ For a general introduction to typed input models, see the
 "AMS input models" Python example in the AMS documentation.
 
 
-Settings with multiple compounds
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Working with multiple compounds
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Many COSMO-RS property types require more than one compound. With
 :meth:`CRSJob.input_builder`, compounds are added with the role-specific methods
@@ -150,9 +189,6 @@ For solvent and solute roles, use ``add_solvent()`` and ``add_solute()``:
         meltingpoint=278.7,
         hfusion=2.37,
     )
-
-    settings = builder.to_settings()
-
 
 ADF and CRSJob
 ~~~~~~~~~~~~~~
