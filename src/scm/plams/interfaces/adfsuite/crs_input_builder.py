@@ -18,6 +18,7 @@ from typing import (
     Type,
     TypeVar,
     Union,
+    cast,
 )
 
 from scm.plams.core.functions import log
@@ -197,7 +198,7 @@ class CRSInputBuilder:
         self.set(**kwargs)
 
     @property
-    def method(self) -> str:
+    def method(self) -> CRSMethodName:
         """COSMO-RS/SAC method name."""
         return self._method
 
@@ -254,7 +255,7 @@ class CRSInputBuilder:
         if key == "method":
             return self.method
         if key == "mode":
-            return self.mode
+            return self._mode
         self._validate_input_key(key)
         return self._values.get(key, default)
 
@@ -671,7 +672,7 @@ def _settings_to_input_model(model_type: Type[Any], settings: Settings, path: st
     return model_type(**values)
 
 
-class _SolventRoleMixin:
+class _SolventRoleMixin(CRSInputBuilder):
     __slots__ = ()
 
     def add_solvent(self: _CRSInputBuilderT, compound: Union[Settings, _PathLike], **kwargs: Any) -> _CRSInputBuilderT:
@@ -683,7 +684,7 @@ class _SolventRoleMixin:
         return self._add_compound_role_from_adfcrs_database("solvent", name, **kwargs)
 
 
-class _SoluteRoleMixin:
+class _SoluteRoleMixin(CRSInputBuilder):
     __slots__ = ()
 
     def add_solute(self: _CRSInputBuilderT, compound: Union[Settings, _PathLike], **kwargs: Any) -> _CRSInputBuilderT:
@@ -695,7 +696,7 @@ class _SoluteRoleMixin:
         return self._add_compound_role_from_adfcrs_database("solute", name, **kwargs)
 
 
-class _CompoundRoleMixin:
+class _CompoundRoleMixin(CRSInputBuilder):
     __slots__ = ()
 
     def add_compound(self: _CRSInputBuilderT, compound: Union[Settings, _PathLike], **kwargs: Any) -> _CRSInputBuilderT:
@@ -707,7 +708,7 @@ class _CompoundRoleMixin:
         return self._add_compound_role_from_adfcrs_database("compound", name, **kwargs)
 
 
-class _TemperatureMixin:
+class _TemperatureMixin(CRSInputBuilder):
     __slots__ = ()
 
     @property
@@ -720,7 +721,7 @@ class _TemperatureMixin:
         self._set_input_value("temperature", value)
 
 
-class _TemperatureListMixin:
+class _TemperatureListMixin(CRSInputBuilder):
     __slots__ = ()
 
     @property
@@ -733,7 +734,7 @@ class _TemperatureListMixin:
         self._set_input_value("temperature", value)
 
 
-class _PressureMixin:
+class _PressureMixin(CRSInputBuilder):
     __slots__ = ()
 
     @property
@@ -746,7 +747,7 @@ class _PressureMixin:
         self._set_input_value("pressure", value)
 
 
-class _PressureListMixin:
+class _PressureListMixin(CRSInputBuilder):
     __slots__ = ()
 
     @property
@@ -759,7 +760,7 @@ class _PressureListMixin:
         self._set_input_value("pressure", value)
 
 
-class _MassFractionMixin:
+class _MassFractionMixin(CRSInputBuilder):
     __slots__ = ()
 
     @property
@@ -772,7 +773,7 @@ class _MassFractionMixin:
         self._set_input_value("massfraction", value)
 
 
-class _DensitySolventMixin:
+class _DensitySolventMixin(CRSInputBuilder):
     __slots__ = ()
 
     @property
@@ -785,7 +786,7 @@ class _DensitySolventMixin:
         self._set_input_value("densitysolvent", value)
 
 
-class _SigmaMomentMixin:
+class _SigmaMomentMixin(CRSInputBuilder):
     __slots__ = ()
 
     @property
@@ -834,7 +835,7 @@ class _SigmaMomentMixin:
         self._set_input_value("sigmamomenthbcutoffstep", value)
 
 
-class _SigmaPotentialMixin:
+class _SigmaPotentialMixin(CRSInputBuilder):
     __slots__ = ()
 
     @property
@@ -847,7 +848,7 @@ class _SigmaPotentialMixin:
         self._set_input_value("estpotential", value)
 
 
-class _SigmaMixin:
+class _SigmaMixin(CRSInputBuilder):
     __slots__ = ()
 
     @property
@@ -869,13 +870,13 @@ class _SigmaMixin:
         self._set_input_value("sigmamax", value)
 
 
-class _SolubilityModeMixin:
+class _SolubilityModeMixin(CRSInputBuilder):
     __slots__ = ()
 
     @property
     def mode(self) -> Optional[_SolubilityMode]:
         """Solubility mode: solid, liquid, or gas."""
-        return self._mode
+        return cast(Optional[_SolubilityMode], self._mode)
 
     @mode.setter
     def mode(self, mode: _SolubilityMode) -> None:
@@ -887,7 +888,7 @@ class _SolubilityModeMixin:
         return tuple(self._mode_config.options)
 
 
-class _VLESweepMixin:
+class _VLESweepMixin(CRSInputBuilder):
     """Inputs for VLE-style sweep properties."""
 
     __slots__ = ()
@@ -895,7 +896,7 @@ class _VLESweepMixin:
     @property
     def mode(self) -> Optional[_VLESweepMode]:
         """VLE sweep mode: isotherm, isobar, or flashpoint."""
-        return self._mode
+        return cast(Optional[_VLESweepMode], self._mode)
 
     @mode.setter
     def mode(self, mode: _VLESweepMode) -> None:
@@ -922,7 +923,6 @@ class ACTIVITYCOEFInputBuilder(
     _DensitySolventMixin,
     _SolventRoleMixin,
     _SoluteRoleMixin,
-    CRSInputBuilder,
 ):
     """Builder for ACTIVITYCOEF CRS input settings."""
 
@@ -945,7 +945,6 @@ class LOGPInputBuilder(
     _MassFractionMixin,
     _SolventRoleMixin,
     _SoluteRoleMixin,
-    CRSInputBuilder,
 ):
     """Builder for LOGP CRS input settings."""
 
@@ -980,7 +979,6 @@ class SOLUBILITYInputBuilder(
     _SolubilityModeMixin,
     _SolventRoleMixin,
     _SoluteRoleMixin,
-    CRSInputBuilder,
 ):
     """Builder for SOLUBILITY CRS input settings."""
 
@@ -1022,7 +1020,6 @@ class PURESOLUBILITYInputBuilder(
     _SolubilityModeMixin,
     _SolventRoleMixin,
     _SoluteRoleMixin,
-    CRSInputBuilder,
 ):
     """Builder for PURESOLUBILITY CRS input settings."""
 
@@ -1056,7 +1053,6 @@ class VAPORPRESSUREInputBuilder(
     _TemperatureMixin,
     _MassFractionMixin,
     _CompoundRoleMixin,
-    CRSInputBuilder,
 ):
     """Builder for VAPORPRESSURE CRS input settings."""
 
@@ -1076,7 +1072,6 @@ class VAPORPRESSUREInputBuilder(
 class PUREVAPORPRESSUREInputBuilder(
     _TemperatureListMixin,
     _CompoundRoleMixin,
-    CRSInputBuilder,
 ):
     """Builder for PUREVAPORPRESSURE CRS input settings."""
 
@@ -1096,7 +1091,6 @@ class BOILINGPOINTInputBuilder(
     _PressureListMixin,
     _MassFractionMixin,
     _CompoundRoleMixin,
-    CRSInputBuilder,
 ):
     """Builder for BOILINGPOINT CRS input settings."""
 
@@ -1115,7 +1109,6 @@ class BOILINGPOINTInputBuilder(
 class PUREBOILINGPOINTInputBuilder(
     _PressureListMixin,
     _CompoundRoleMixin,
-    CRSInputBuilder,
 ):
     """Builder for PUREBOILINGPOINT CRS input settings."""
 
@@ -1134,7 +1127,6 @@ class PUREBOILINGPOINTInputBuilder(
 class FLASHPOINTInputBuilder(
     _MassFractionMixin,
     _CompoundRoleMixin,
-    CRSInputBuilder,
 ):
     """Builder for FLASHPOINT CRS input settings."""
 
@@ -1155,7 +1147,6 @@ class BINMIXCOEFInputBuilder(
     _MassFractionMixin,
     _VLESweepMixin,
     _CompoundRoleMixin,
-    CRSInputBuilder,
 ):
     """Builder for BINMIXCOEF CRS input settings."""
 
@@ -1186,7 +1177,6 @@ class TERNARYMIXInputBuilder(
     _MassFractionMixin,
     _VLESweepMixin,
     _CompoundRoleMixin,
-    CRSInputBuilder,
 ):
     """Builder for TERNARYMIX CRS input settings."""
 
@@ -1214,7 +1204,6 @@ class COMPOSITIONLINEInputBuilder(
     _MassFractionMixin,
     _VLESweepMixin,
     _SolventRoleMixin,
-    CRSInputBuilder,
 ):
     """Builder for COMPOSITIONLINE CRS input settings."""
 
@@ -1247,7 +1236,6 @@ class LLEInputBuilder(
     _TemperatureMixin,
     _MassFractionMixin,
     _CompoundRoleMixin,
-    CRSInputBuilder,
 ):
     """Builder for LLE CRS input settings."""
 
@@ -1268,7 +1256,6 @@ class STABILITYInputBuilder(
     _TemperatureMixin,
     _MassFractionMixin,
     _CompoundRoleMixin,
-    CRSInputBuilder,
 ):
     """Builder for STABILITY CRS input settings."""
 
@@ -1290,7 +1277,6 @@ class SIGMAPROFILEInputBuilder(
     _SigmaMixin,
     _SigmaMomentMixin,
     _CompoundRoleMixin,
-    CRSInputBuilder,
 ):
     """Builder for SIGMAPROFILE CRS input settings."""
 
@@ -1309,7 +1295,6 @@ class PURESIGMAPROFILEInputBuilder(
     _SigmaMixin,
     _SigmaMomentMixin,
     _CompoundRoleMixin,
-    CRSInputBuilder,
 ):
     """Builder for PURESIGMAPROFILE CRS input settings."""
 
@@ -1329,7 +1314,6 @@ class SIGMAPOTENTIALInputBuilder(
     _SigmaMixin,
     _SigmaPotentialMixin,
     _CompoundRoleMixin,
-    CRSInputBuilder,
 ):
     """Builder for SIGMAPOTENTIAL CRS input settings."""
 
@@ -1351,7 +1335,6 @@ class PURESIGMAPOTENTIALInputBuilder(
     _SigmaMixin,
     _SigmaPotentialMixin,
     _CompoundRoleMixin,
-    CRSInputBuilder,
 ):
     """Builder for PURESIGMAPOTENTIAL CRS input settings."""
 
@@ -1403,18 +1386,18 @@ def input_builder(
     return builder_class(method=method, mode=mode, job_cls=job_cls, **kwargs)
 
 
-def methods() -> Tuple[str, ...]:
+def methods() -> Tuple[CRSMethodName, ...]:
     """Return supported CRS method names."""
-    return CRS_METHODS
+    return cast(Tuple[CRSMethodName, ...], CRS_METHODS)
 
 
-def normalize_method(method: CRSMethodName) -> str:
+def normalize_method(method: CRSMethodName) -> CRSMethodName:
     """Normalize and validate a CRS method name."""
     normalized = _METHOD_ALIASES.get(method.upper(), method.upper())
     if normalized not in CRS_METHODS:
         allowed = ", ".join(CRS_METHODS)
         raise ValueError(f"Unsupported CRS method {method!r}. Supported methods: {allowed}")
-    return normalized
+    return cast(CRSMethodName, normalized)
 
 
 def normalize_property_type(property_type: str) -> str:

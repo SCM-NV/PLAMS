@@ -17,6 +17,7 @@ if TYPE_CHECKING:
         BINMIXCOEFInputBuilder,
         BOILINGPOINTInputBuilder,
         COMPOSITIONLINEInputBuilder,
+        CRSMethodName,
         FLASHPOINTInputBuilder,
         LLEInputBuilder,
         LOGPInputBuilder,
@@ -187,14 +188,14 @@ class CRSResults(SCMResults):
                     np_dict[prop] = tmp.split("\x00")
                     continue
             if prop == "sigma_moment":
-                tmp = np.array(tmp)
-                tmp.shape = (ncomp, nmoment)
-                np_dict[prop] = tmp
+                array = np.asarray(tmp)
+                array.shape = (ncomp, nmoment)
+                np_dict[prop] = array
                 continue
             if prop == "sigma_hb_acc_moment" or prop == "sigma_hb_don_moment":
-                tmp = np.array(tmp)
-                tmp.shape = (ncomp, nhb_moment)
-                np_dict[prop] = tmp
+                array = np.asarray(tmp)
+                array.shape = (ncomp, nhb_moment)
+                np_dict[prop] = array
                 continue
 
             if not isinstance(tmp, list):
@@ -557,14 +558,14 @@ class CRSJob(SCMJob):
         self.settings.ignore_molecule = True
 
     @staticmethod
-    def methods() -> Tuple[str, ...]:
+    def methods() -> Tuple["CRSMethodName", ...]:
         """Return supported CRS method names."""
         from scm.plams.interfaces.adfsuite.crs_input_builder import methods
 
         return methods()
 
     @staticmethod
-    def _normalize_method(method: str) -> str:
+    def _normalize_method(method: "CRSMethodName") -> "CRSMethodName":
         """Normalize and validate a CRS method name."""
         from scm.plams.interfaces.adfsuite.crs_input_builder import normalize_method
 
@@ -582,7 +583,7 @@ class CRSJob(SCMJob):
     def input_builder(
         property_type: "Literal['ACTIVITYCOEF']",
         *,
-        method: str = "COSMO-RS",
+        method: "CRSMethodName" = "COSMO-RS",
         mode: Optional[str] = None,
         **kwargs: Any,
     ) -> "ACTIVITYCOEFInputBuilder": ...
@@ -592,7 +593,7 @@ class CRSJob(SCMJob):
     def input_builder(
         property_type: "Literal['LOGP']",
         *,
-        method: str = "COSMO-RS",
+        method: "CRSMethodName" = "COSMO-RS",
         mode: Optional[str] = None,
         **kwargs: Any,
     ) -> "LOGPInputBuilder": ...
@@ -602,7 +603,7 @@ class CRSJob(SCMJob):
     def input_builder(
         property_type: "Literal['SOLUBILITY']",
         *,
-        method: str = "COSMO-RS",
+        method: "CRSMethodName" = "COSMO-RS",
         mode: Optional[str] = None,
         **kwargs: Any,
     ) -> "SOLUBILITYInputBuilder": ...
@@ -612,7 +613,7 @@ class CRSJob(SCMJob):
     def input_builder(
         property_type: "Literal['PURESOLUBILITY']",
         *,
-        method: str = "COSMO-RS",
+        method: "CRSMethodName" = "COSMO-RS",
         mode: Optional[str] = None,
         **kwargs: Any,
     ) -> "PURESOLUBILITYInputBuilder": ...
@@ -622,7 +623,7 @@ class CRSJob(SCMJob):
     def input_builder(
         property_type: "Literal['VAPORPRESSURE']",
         *,
-        method: str = "COSMO-RS",
+        method: "CRSMethodName" = "COSMO-RS",
         mode: Optional[str] = None,
         **kwargs: Any,
     ) -> "VAPORPRESSUREInputBuilder": ...
@@ -632,7 +633,7 @@ class CRSJob(SCMJob):
     def input_builder(
         property_type: "Literal['PUREVAPORPRESSURE']",
         *,
-        method: str = "COSMO-RS",
+        method: "CRSMethodName" = "COSMO-RS",
         mode: Optional[str] = None,
         **kwargs: Any,
     ) -> "PUREVAPORPRESSUREInputBuilder": ...
@@ -642,7 +643,7 @@ class CRSJob(SCMJob):
     def input_builder(
         property_type: "Literal['BOILINGPOINT']",
         *,
-        method: str = "COSMO-RS",
+        method: "CRSMethodName" = "COSMO-RS",
         mode: Optional[str] = None,
         **kwargs: Any,
     ) -> "BOILINGPOINTInputBuilder": ...
@@ -652,7 +653,7 @@ class CRSJob(SCMJob):
     def input_builder(
         property_type: "Literal['PUREBOILINGPOINT']",
         *,
-        method: str = "COSMO-RS",
+        method: "CRSMethodName" = "COSMO-RS",
         mode: Optional[str] = None,
         **kwargs: Any,
     ) -> "PUREBOILINGPOINTInputBuilder": ...
@@ -662,7 +663,7 @@ class CRSJob(SCMJob):
     def input_builder(
         property_type: "Literal['FLASHPOINT']",
         *,
-        method: str = "COSMO-RS",
+        method: "CRSMethodName" = "COSMO-RS",
         mode: Optional[str] = None,
         **kwargs: Any,
     ) -> "FLASHPOINTInputBuilder": ...
@@ -672,7 +673,7 @@ class CRSJob(SCMJob):
     def input_builder(
         property_type: "Literal['BINMIXCOEF']",
         *,
-        method: str = "COSMO-RS",
+        method: "CRSMethodName" = "COSMO-RS",
         mode: Optional[str] = None,
         **kwargs: Any,
     ) -> "BINMIXCOEFInputBuilder": ...
@@ -682,7 +683,7 @@ class CRSJob(SCMJob):
     def input_builder(
         property_type: "Literal['TERNARYMIX']",
         *,
-        method: str = "COSMO-RS",
+        method: "CRSMethodName" = "COSMO-RS",
         mode: Optional[str] = None,
         **kwargs: Any,
     ) -> "TERNARYMIXInputBuilder": ...
@@ -692,7 +693,7 @@ class CRSJob(SCMJob):
     def input_builder(
         property_type: "Literal['COMPOSITIONLINE']",
         *,
-        method: str = "COSMO-RS",
+        method: "CRSMethodName" = "COSMO-RS",
         mode: Optional[str] = None,
         **kwargs: Any,
     ) -> "COMPOSITIONLINEInputBuilder": ...
@@ -702,7 +703,7 @@ class CRSJob(SCMJob):
     def input_builder(
         property_type: "Literal['LLE']",
         *,
-        method: str = "COSMO-RS",
+        method: "CRSMethodName" = "COSMO-RS",
         mode: Optional[str] = None,
         **kwargs: Any,
     ) -> "LLEInputBuilder": ...
@@ -712,7 +713,7 @@ class CRSJob(SCMJob):
     def input_builder(
         property_type: "Literal['STABILITY']",
         *,
-        method: str = "COSMO-RS",
+        method: "CRSMethodName" = "COSMO-RS",
         mode: Optional[str] = None,
         **kwargs: Any,
     ) -> "STABILITYInputBuilder": ...
@@ -722,7 +723,7 @@ class CRSJob(SCMJob):
     def input_builder(
         property_type: "Literal['SIGMAPROFILE']",
         *,
-        method: str = "COSMO-RS",
+        method: "CRSMethodName" = "COSMO-RS",
         mode: Optional[str] = None,
         **kwargs: Any,
     ) -> "SIGMAPROFILEInputBuilder": ...
@@ -732,7 +733,7 @@ class CRSJob(SCMJob):
     def input_builder(
         property_type: "Literal['PURESIGMAPROFILE']",
         *,
-        method: str = "COSMO-RS",
+        method: "CRSMethodName" = "COSMO-RS",
         mode: Optional[str] = None,
         **kwargs: Any,
     ) -> "PURESIGMAPROFILEInputBuilder": ...
@@ -742,7 +743,7 @@ class CRSJob(SCMJob):
     def input_builder(
         property_type: "Literal['SIGMAPOTENTIAL']",
         *,
-        method: str = "COSMO-RS",
+        method: "CRSMethodName" = "COSMO-RS",
         mode: Optional[str] = None,
         **kwargs: Any,
     ) -> "SIGMAPOTENTIALInputBuilder": ...
@@ -752,7 +753,7 @@ class CRSJob(SCMJob):
     def input_builder(
         property_type: "Literal['PURESIGMAPOTENTIAL']",
         *,
-        method: str = "COSMO-RS",
+        method: "CRSMethodName" = "COSMO-RS",
         mode: Optional[str] = None,
         **kwargs: Any,
     ) -> "PURESIGMAPOTENTIALInputBuilder": ...
@@ -762,7 +763,7 @@ class CRSJob(SCMJob):
     def input_builder(
         property_type: str,
         *,
-        method: str = "COSMO-RS",
+        method: "CRSMethodName" = "COSMO-RS",
         mode: Optional[str] = None,
         **kwargs: Any,
     ) -> Any: ...
@@ -771,7 +772,7 @@ class CRSJob(SCMJob):
     def input_builder(
         property_type: str,
         *,
-        method: str = "COSMO-RS",
+        method: "CRSMethodName" = "COSMO-RS",
         mode: Optional[str] = None,
         **kwargs: Any,
     ) -> Any:
