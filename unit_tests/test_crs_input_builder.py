@@ -3,27 +3,11 @@ from typing import Any, Type
 import pytest
 
 from scm.plams import CRSJob, Settings
-
-import json
-from pathlib import Path
-
-from scm.plams.interfaces.adfsuite import crs_input_builder
-from scm.plams.interfaces.adfsuite.crs_definitions import (
-    _extract_crs_input_block_metadata,
-)
-
+from test_helpers import skip_if_no_scm_inputs
 
 @pytest.fixture(autouse=True)
-def minimal_crs_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
-    path = Path(__file__).parent / "fixtures" / "crs_minimal.json"
-    with path.open(encoding="utf-8") as handle:
-        metadata = _extract_crs_input_block_metadata(json.load(handle))
-
-    monkeypatch.setattr(
-        crs_input_builder,
-        "get_crs_input_data",
-        lambda: metadata,
-    )
+def require_scm_inputs() -> None:
+    skip_if_no_scm_inputs()
 
 
 def test_to_settings() -> None:
@@ -72,8 +56,6 @@ def test_solubility_requirements(stage: int, missing: str) -> None:
 @pytest.mark.parametrize("output_method", ["to_settings", "to_inputs"])
 @pytest.mark.parametrize("has_compound", [False, True])
 def test_exclude_compounds(output_method: str, has_compound: bool) -> None:
-    if output_method == "to_inputs":
-        pytest.importorskip("scm.inputs")
     builder = CRSJob.input_builder("SOLUBILITY", temperature=298.15)
     if has_compound:
         builder.add_solvent("water.coskf")  # Missing frac1 must also be ignored.
@@ -85,7 +67,6 @@ def test_exclude_compounds(output_method: str, has_compound: bool) -> None:
 
 
 def test_to_inputs_conversion() -> None:
-    pytest.importorskip("scm.inputs")
     compound = Settings()
     form = [Settings(), Settings()]
     form[0]._h = "conformer0.coskf"
@@ -115,8 +96,6 @@ def test_to_job() -> None:
 
 
 def test_modified_typed_inputs_in_job() -> None:
-    pytest.importorskip("scm.inputs")
-
     builder = CRSJob.input_builder("LLE", temperature=298.15)
     builder.add_compound("Water.coskf", frac1=0.33)
     builder.add_compound("Ethanol.coskf", frac1=0.33)
@@ -132,6 +111,6 @@ def test_modified_typed_inputs_in_job() -> None:
 
     assert ["technical"] in lines
     assert ["lle"] in lines
-    assert ["debug"] in lines
+    assert ["debug", "true"] in lines
     eps_g = next(fields[1] for fields in lines if fields and fields[0] == "eps_g")
     assert float(eps_g) == pytest.approx(1.0e-5)

@@ -8,8 +8,10 @@ import numpy as np
 from scm.plams.interfaces.adfsuite.scmjob import SCMJob, SCMResults
 from scm.plams.tools.units import Units
 from scm.plams.core.functions import log, requires_optional_package
+from scm.plams.core.settings import Settings
 
 if TYPE_CHECKING:
+    from scm.inputs import CRS
     import pandas as pd
     from matplotlib.figure import Figure
     from scm.plams.interfaces.adfsuite.crs_input_builder import (
@@ -556,6 +558,35 @@ class CRSJob(SCMJob):
         from scm.plams.interfaces.adfsuite.crs_input_builder import methods
 
         return methods()
+
+    @staticmethod
+    def get_parameter_set_options() -> Dict[str, Tuple[str, ...]]:
+        """Return available preset names grouped by method."""
+        from scm.plams.interfaces.adfsuite.crs_method_parameters import get_parameter_set_options
+
+        return get_parameter_set_options()
+
+    @staticmethod
+    def apply_parameter_set_to_settings(settings: Settings, parameter_set: str) -> Settings:
+        """Apply a parameter preset in place and return the same job Settings.
+
+        ``parameter_set`` must be one of the preset names returned by
+        :meth:`CRSJob.get_parameter_set_options`.
+        """
+        from scm.plams.interfaces.adfsuite.crs_method_parameters import apply_parameter_set_to_settings
+
+        return apply_parameter_set_to_settings(settings, parameter_set)
+
+    @staticmethod
+    def apply_parameter_set_to_inputs(crs: "CRS", parameter_set: str) -> "CRS":
+        """Apply a parameter preset in place and return the same typed CRS model.
+
+        ``parameter_set`` must be one of the preset names returned by
+        :meth:`CRSJob.get_parameter_set_options`.
+        """
+        from scm.plams.interfaces.adfsuite.crs_method_parameters import apply_parameter_set_to_inputs
+
+        return apply_parameter_set_to_inputs(crs, parameter_set)
 
     @staticmethod
     def _normalize_method(method: "CRSMethodName") -> "CRSMethodName":

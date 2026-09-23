@@ -112,7 +112,7 @@ class _ModeOptionConfig:
 
     input_values: Mapping[str, Any] = field(default_factory=dict)
     required_input_keys: Tuple[str, ...] = ()
-
+    required_compound_keys: Mapping[str, Tuple[str, ...]] = field(default_factory=dict)
 
 @dataclass(frozen=True)
 class _ModeConfig:
@@ -125,7 +125,9 @@ class _ModeConfig:
 _SOLUBILITY_MODE_CONFIG = _ModeConfig(
     default="solid",
     options={
-        "solid": _ModeOptionConfig(),
+        "solid": _ModeOptionConfig(
+            required_compound_keys={"solute": ("meltingpoint", "hfusion")}
+        ),
         "liquid": _ModeOptionConfig(),
         "gas": _ModeOptionConfig(input_values={"isobar": True}),
     },
@@ -291,6 +293,23 @@ class CRSInputBuilder:
                 lines.append(self._format_key_description(key, "compound", compound_key_metadata[key]))
         elif compound_keys:
             lines.append(f"compound_keys [compound]: {', '.join(compound_keys)}")
+
+        required_keys = list(self._REQUIRED_INPUT_KEYS)
+        if self._mode is not None:
+            required_keys.extend(self._mode_config.options[self._mode].required_input_keys)
+
+        required_keys_by_scope: Dict[str, List[str]] = {}
+
+        for key in required_keys:
+            route = self._accepted_keys.get(key)
+            scope = route.scope if route is not None else "top_level"
+            required_keys_by_scope.setdefault(scope, []).append(key)
+
+        for scope, keys in required_keys_by_scope.items():
+            lines.append(f"required_keys [{scope}]: {', '.join(keys)}")
+
+        for role, required_keys in self._required_compound_keys_by_role().items():
+            lines.append(f"required_keys [compound: {role}]: {', '.join(required_keys)}")
 
         return tuple(lines)
 
@@ -531,15 +550,21 @@ class CRSInputBuilder:
         return settings
 
     def _set_compound_overrides(self, compound: Settings, overrides: Mapping[str, Any]) -> None:
+        compound_keys = get_block_keys(get_crs_input_data(), "compound")
+
         for key, value in overrides.items():
             if value is None:
                 continue
+
+            if key not in compound_keys:
+                raise ValueError(f"{key!r} is not a COMPOUND input key in crs.json")
+
             if not self._accepts_compound_key(key):
                 log(
-                    f"Ignoring compound key {key!r} for {self.property_type}: it does not affect this calculation.",
+                    f"Compound key {key!r} for {self.property_type} "
+                    "does not affect this calculation; preserving it in the input.",
                     3,
                 )
-                continue
             compound[key] = value
 
     def _accepts_compound_key(self, key: str) -> bool:
@@ -587,8 +612,7 @@ class CRSInputBuilder:
         return tuple(cls._COMPOUND_ROLE_CONFIG)
 
     def _validate_required_compound_keys(self) -> None:
-        for role, config in self._COMPOUND_ROLE_CONFIG.items():
-            required_keys = config.required_keys
+        for role, required_keys in self._required_compound_keys_by_role().items():
             if not required_keys:
                 continue
             for index, compound in enumerate(self._compounds_by_role.get(role, ()), start=1):
@@ -597,6 +621,18 @@ class CRSInputBuilder:
                     raise ValueError(
                         f"{self.property_type} {role} #{index} missing required key(s): {', '.join(missing)}"
                     )
+
+    def _required_compound_keys_by_role(self) -> Dict[str, Tuple[str, ...]]:
+        required = {
+            role: config.required_keys
+            for role, config in self._COMPOUND_ROLE_CONFIG.items()
+            if config.required_keys
+        }
+        if self._mode is not None:
+            mode_required = self._mode_config.options[self._mode].required_compound_keys
+            for role, keys in mode_required.items():
+                required[role] = tuple(dict.fromkeys((*required.get(role, ()), *keys)))
+        return required
 
     def _format_key_description(
         self,
@@ -1015,18 +1051,6 @@ class SOLUBILITYInputBuilder(
     }
     _MODE_CONFIG: ClassVar[_ModeConfig] = _SOLUBILITY_MODE_CONFIG
 
-    def _validate_required_compound_keys(self) -> None:
-        super()._validate_required_compound_keys()
-        if self.mode != "solid":
-            return
-
-        for index, compound in enumerate(self._compounds_by_role.get("solute", ()), start=1):
-            if not (_has_compound_key(compound, "meltingpoint") and _has_compound_key(compound, "hfusion")):
-                raise ValueError(
-                    f"{self.property_type} solute #{index} requires meltingpoint and hfusion for mode='solid'"
-                )
-
-
 class PURESOLUBILITYInputBuilder(
     _TemperatureListMixin,
     _PressureMixin,
@@ -1049,18 +1073,6 @@ class PURESOLUBILITYInputBuilder(
         "solute": _CompoundRoleConfig(min_count=1, max_count=1),
     }
     _MODE_CONFIG: ClassVar[_ModeConfig] = _SOLUBILITY_MODE_CONFIG
-
-    def _validate_required_compound_keys(self) -> None:
-        super()._validate_required_compound_keys()
-        if self.mode != "solid":
-            return
-
-        for index, compound in enumerate(self._compounds_by_role.get("solute", ()), start=1):
-            if not (_has_compound_key(compound, "meltingpoint") and _has_compound_key(compound, "hfusion")):
-                raise ValueError(
-                    f"{self.property_type} solute #{index} requires meltingpoint and hfusion for mode='solid'"
-                )
-
 
 class VAPORPRESSUREInputBuilder(
     _TemperatureMixin,
