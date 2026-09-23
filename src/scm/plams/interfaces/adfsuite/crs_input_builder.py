@@ -295,7 +295,11 @@ class CRSInputBuilder:
         return tuple(lines)
 
     def to_settings(self, *, include_compounds: bool = True) -> Settings:
-        """Build PLAMS Settings for this CRS input."""
+        """Build PLAMS Settings for this CRS input.
+
+        Args:
+            include_compounds: Whether to validate and include compound data.
+        """
         self._validate_required_inputs()
         if include_compounds:
             self._validate_compound_role_counts()
@@ -321,13 +325,18 @@ class CRSInputBuilder:
         return settings
 
     @requires_optional_package("scm.inputs")
-    def to_inputs(self) -> "CRS":
-        """Build an independent typed :class:`scm.inputs.CRS` model from this builder."""
+    def to_inputs(self, *, include_compounds: bool = True) -> "CRS":
+        """Build an independent typed :class:`scm.inputs.CRS` model from this builder.
+
+        Args:
+            include_compounds: Whether to validate and include compound data.
+        """
         from scm.inputs import CRS
 
         self._validate_required_inputs()
-        self._validate_compound_role_counts()
-        self._validate_required_compound_keys()
+        if include_compounds:
+            self._validate_compound_role_counts()
+            self._validate_required_compound_keys()
 
         property_values: Dict[str, Any] = {"header": self.property_type}
         crs_values: Dict[str, Any] = {"METHOD": self.method}
@@ -342,12 +351,13 @@ class CRSInputBuilder:
                 property_values[input_name] = value
 
         crs_values["PROPERTY"] = CRS.PROPERTYBlock(**property_values)
-        compounds = self._compound_blocks()
-        if compounds:
-            crs_values["COMPOUND"] = [
-                _settings_to_input_model(CRS.COMPOUNDBlock, compound, f"COMPOUND[{index}]")
-                for index, compound in enumerate(compounds)
-            ]
+        if include_compounds:
+            compounds = self._compound_blocks()
+            if compounds:
+                crs_values["COMPOUND"] = [
+                    _settings_to_input_model(CRS.COMPOUNDBlock, compound, f"COMPOUND[{index}]")
+                    for index, compound in enumerate(compounds)
+                ]
         return CRS(**crs_values)
 
     def to_job(self, name: Optional[str] = None, **kwargs: Any) -> CRSJob:
@@ -637,6 +647,7 @@ def _settings_to_input_model(model_type: Type[Any], settings: Settings, path: st
         field_name = field_names.get(key.casefold())
         if field_name is None or field_name == "header":
             raise ValueError(f"{path}: {key!r} is not a valid {model_type.__qualname__} input field")
+        # Omit disabled or unset values. Polymer, drophbond, compkffile, cosmofile, and sigmafile default to False.
         if value is False or value is None:
             continue
 
@@ -1229,7 +1240,13 @@ class COMPOSITIONLINEInputBuilder(
         + ("flashpoint",)
     )
     _COMPOUND_ROLE_CONFIG: ClassVar[Mapping[str, _CompoundRoleConfig]] = {
-        "solvent": _CompoundRoleConfig(min_count=2, required_keys=("frac1", "frac2",)),
+        "solvent": _CompoundRoleConfig(
+            min_count=2,
+            required_keys=(
+                "frac1",
+                "frac2",
+            ),
+        ),
     }
     _MODE_CONFIG: ClassVar[_ModeConfig] = _VLE_SWEEP_MODE_CONFIG
 
