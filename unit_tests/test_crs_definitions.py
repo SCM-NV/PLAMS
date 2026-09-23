@@ -42,9 +42,7 @@ def test_method_parameter_metadata() -> None:
     parameter_blocks = {"CRSParameters": {"chb": 1.5}, "Dispersion": {"enabled": False}}
     data = {
         "schema_version": 1,
-        "presets": [
-            {"parameter_set": " Example ", "method": " COSMO-RS ", "parameter_blocks": parameter_blocks}
-        ],
+        "presets": [{"parameter_set": " Example ", "method": " COSMO-RS ", "parameter_blocks": parameter_blocks}],
     }
 
     result = _extract_crs_method_parameters_metadata(data, Path("method_parameters.json"))
@@ -65,8 +63,7 @@ def test_invalid_method_parameter_metadata(case: str, match: str) -> None:
         data["schema_version"] = 2
     else:
         data["presets"] = [
-            {"parameter_set": name, "method": "COSMO-RS", "parameter_blocks": {}}
-            for name in ("Example", " example ")
+            {"parameter_set": name, "method": "COSMO-RS", "parameter_blocks": {}} for name in ("Example", " example ")
         ]
 
     with pytest.raises(ValueError, match=match):

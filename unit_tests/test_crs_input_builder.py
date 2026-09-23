@@ -12,6 +12,7 @@ from scm.plams.interfaces.adfsuite.crs_definitions import (
     _extract_crs_input_block_metadata,
 )
 
+
 @pytest.fixture(autouse=True)
 def minimal_crs_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
     path = Path(__file__).parent / "fixtures" / "crs_minimal.json"
@@ -23,6 +24,7 @@ def minimal_crs_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
         "get_crs_input_data",
         lambda: metadata,
     )
+
 
 def test_to_settings() -> None:
     builder = CRSJob.input_builder("PURESIGMAPROFILE", nprofile=60, sigmamax=0.03)
@@ -98,6 +100,7 @@ def test_to_inputs_conversion() -> None:
     assert len(crs.COMPOUND) == 1
     assert [item.header for item in crs.COMPOUND[0].FORM] == ["conformer0.coskf", "conformer1.coskf"]
 
+
 def test_to_job() -> None:
     builder = CRSJob.input_builder("PURESIGMAPROFILE", nprofile=60)
     builder.add_compound("water.coskf")
@@ -109,6 +112,7 @@ def test_to_job() -> None:
     assert "property puresigmaprofile" in text
     assert "nprofile 60" in text
     assert "compound water.coskf" in text
+
 
 def test_modified_typed_inputs_in_job() -> None:
     pytest.importorskip("scm.inputs")
