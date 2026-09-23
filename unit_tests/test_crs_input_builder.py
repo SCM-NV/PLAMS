@@ -4,6 +4,25 @@ import pytest
 
 from scm.plams import CRSJob, Settings
 
+import json
+from pathlib import Path
+
+from scm.plams.interfaces.adfsuite import crs_input_builder
+from scm.plams.interfaces.adfsuite.crs_definitions import (
+    _extract_crs_input_block_metadata,
+)
+
+@pytest.fixture(autouse=True)
+def minimal_crs_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
+    path = Path(__file__).parent / "fixtures" / "crs_minimal.json"
+    with path.open(encoding="utf-8") as handle:
+        metadata = _extract_crs_input_block_metadata(json.load(handle))
+
+    monkeypatch.setattr(
+        crs_input_builder,
+        "get_crs_input_data",
+        lambda: metadata,
+    )
 
 def test_to_settings() -> None:
     builder = CRSJob.input_builder("PURESIGMAPROFILE", nprofile=60, sigmamax=0.03)
