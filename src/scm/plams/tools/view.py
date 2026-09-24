@@ -37,6 +37,7 @@ from scm.plams.interfaces.adfsuite.ams import AMSJob
 from scm.plams.mol.molecule import Molecule
 from scm.plams.core.private import run_with_timeout
 from scm.plams.tools.units import Units
+from scm.plams.tools.kftools import KFFile
 
 try:
     from scm.base import ChemicalSystem
@@ -48,7 +49,7 @@ except ImportError:
 if TYPE_CHECKING:
     from PIL import Image as PilImage
 
-__all__ = ["ViewConfig", "view", "view_orbital"]
+__all__ = ["ViewConfig", "view", "view_orbital", "view_atomic_property"]
 
 ViewDirections = Literal[
     "along_x",
@@ -119,6 +120,8 @@ class ViewConfig:
     :param atom_label_type: property used for atom labels, defaults to ``Element``
     :param atom_label_color: hexadecimal color code for atom labels, defaults to ``#000000`` i.e. black
     :param atom_label_size: scale atom labels by the given factor, to make them larger or smaller, defaults to ``1.0``
+    :param show_colorbar: display a color legend for atom coloring, defaults to ``False``
+    :param colorbar_range: optional numeric range for atom coloring, defaults to ``None``
     :param guess_bonds: guess bonds before viewing, defaults to ``False``
     :param show_regions: display translucent spheres on atoms according to their regions, defaults to ``False``
     :param show_unit_cell_edges: display unit cell for periodic systems using semi-transparent edges, defaults to ``True``
@@ -152,6 +155,10 @@ class ViewConfig:
     atom_label_type: Literal["Element", "AtomType", "Name"] = "Element"
     atom_label_color: str = "#000000"
     atom_label_size: float = 1.0
+    atomic_property: Optional[str] = None
+    atomic_property_type: Literal["color", "radius"] = "color"
+    show_colorbar: bool = False
+    colorbar_range: Optional[Tuple[float, float]] = None
     guess_bonds: bool = False
     show_regions: bool = False
 
@@ -231,6 +238,29 @@ class ViewConfig:
             )
         if not isinstance(self.atom_label_size, (int, float)):
             raise ValueError(f"atom_label_size must be a numeric value, but was '{self.atom_label_size}'")
+        if self.atomic_property is not None and not isinstance(self.atomic_property, str):
+            raise ValueError(f"atomic_property must be a string, but was '{self.atomic_property}'")
+        if not isinstance(self.atomic_property_type, str) or self.atomic_property_type not in ["color", "radius"]:
+            raise ValueError(
+                f"atomic_property_type must be one of: 'color', 'radius'; but was '{self.atomic_property_type}'"
+            )
+        if not isinstance(self.show_colorbar, bool):
+            raise ValueError(f"show_colorbar must be a boolean value, but was '{self.show_colorbar}'")
+        if self.colorbar_range is not None:
+            if (
+                not isinstance(self.colorbar_range, Sequence)
+                or len(self.colorbar_range) != 2
+                or not all(isinstance(v, (int, float)) for v in self.colorbar_range)
+            ):
+                raise ValueError(
+                    f"colorbar_range must be a sequence of two numeric values, but was '{self.colorbar_range}'"
+                )
+            if self.colorbar_range[0] >= self.colorbar_range[1]:
+                raise ValueError(
+                    f"colorbar_range minimum must be smaller than maximum, but was '{self.colorbar_range}'"
+                )
+            if self.atomic_property_type != "color":
+                raise ValueError("colorbar_range is only supported when atomic_property_type is 'color'")
         if not isinstance(self.show_regions, bool):
             raise ValueError(f"show_regions must be a boolean value, but was '{self.show_regions}'")
 
@@ -390,14 +420,21 @@ def view(
                 "System must be one of: Molecule, ChemicalSystem, a completed AMSJob, or a path to an existing .rkf file"
             )
 
-    # restrictions for viewing orbitals
-    if config.orbital is not None:
+    # restrictions for viewing orbitals/properties
+    backend_name = config.backend
+
+    def check_system_and_backend(view_type: str) -> None:
         if not isinstance(system, Path):
             raise ValueError(
-                "System must be a completed AMSJob, or a path to an existing .rkf file when viewing orbitals"
+                f"System must be a completed AMSJob, or a path to an existing .rkf file when viewing {view_type}"
             )
         if isinstance(selected_backend, _AsePlotBackend):
-            raise ValueError(f"Backend '{config.backend}' is not supported for viewing orbitals.")
+            raise ValueError(f"Backend '{backend_name}' is not supported for viewing {view_type}.")
+
+    if config.orbital is not None:
+        check_system_and_backend("orbitals")
+    if config.atomic_property is not None:
+        check_system_and_backend("atomic properties")
 
     if config.guess_bonds:
         if isinstance(system, Path):
@@ -481,6 +518,263 @@ def view_orbital(
 
     return view(
         system,
+        config=config,
+        width=width,
+        height=height,
+        padding=padding,
+        direction=direction,
+        fixed_atom_size=fixed_atom_size,
+        show_atom_labels=show_atom_labels,
+        atom_label_type=atom_label_type,
+        guess_bonds=guess_bonds,
+        show_regions=show_regions,
+        show_unit_cell_edges=show_unit_cell_edges,
+        show_lattice_vectors=show_lattice_vectors,
+        picture_path=picture_path,
+        backend=backend,
+        open_window=open_window,
+    )
+
+
+_ADF_ATOMIC_PROPERTIES: Dict[str, Tuple[str, Tuple[str, ...]]] = {
+    "fukui+": ("Fukui+ (FMO)", ("Fukui Fplus",)),
+    "fukui+ (fmo)": ("Fukui+ (FMO)", ("Fukui Fplus",)),
+    "fukui-": ("Fukui- (FMO)", ("Fukui Fminus",)),
+    "fukui- (fmo)": ("Fukui- (FMO)", ("Fukui Fminus",)),
+    "dual": ("Dual (FMO)", ("Koopmans DD",)),
+    "dual (fmo)": ("Dual (FMO)", ("Koopmans DD",)),
+    "mulliken charge": ("Mulliken Charge", ("AtomCharge Mulliken",)),
+    "vdd (initial term)": ("VDD (initial term)", ("AtomCharge_initial Voronoi",)),
+    "vdd (scf term)": ("VDD (SCF term)", ("AtomCharge_SCF Voronoi",)),
+    "vdd charge": ("VDD Charge", ("AtomCharge_initial Voronoi", "AtomCharge_SCF Voronoi")),
+    "hirshfeld charge": ("Hirshfeld Charge", ("FragmentCharge Hirshfeld",)),
+    "cm5 charge": ("CM5 Charge", ("AtomCharge CM5",)),
+    "esp-resp charge": ("ESP-RESP Charge", ("ESP-RESP charges",)),
+    "esp-chelpg charge": ("ESP-CHELPG Charge", ("ESP-CHELPG charges",)),
+    "mdc-m charge": ("MDC-m Charge", ("MDC-m charges",)),
+    "mdc-d charge": ("MDC-d Charge", ("MDC-d charges",)),
+    "mdc-q charge": ("MDC-q Charge", ("MDC-q charges",)),
+    "mulliken spin": ("Mulliken Spin", ("AtomSpinDen Mulliken",)),
+    "electrostatic potential at nucleus": (
+        "Electrostatic Potential at Nucleus",
+        ("Electrostatic Pot.at Nuclei",),
+    ),
+    "electron density at nucleus": ("Electron Density at Nucleus", ("Electron Density at Nuclei",)),
+    "nmr shielding": ("NMR Shielding", ("NMR Shieldings InputOrder", "pNMR Shieldings InputOrder")),
+    "nbo natural charge": ("NBO Natural Charge", ("NBO natural charges",)),
+    "qtaim charge": ("QTAIM Charge", ("Bader atomic charges",)),
+    "qtaim spin density": ("QTAIM Spin Density", ("Bader atomic spin densities",)),
+    "qtaim laplacian": ("QTAIM Laplacian", ("Bader Laplacian",)),
+    "qtaim ts": ("QTAIM Ts", ("Bader Ts",)),
+    "qtaim tc": ("QTAIM Tc", ("Bader Tc",)),
+    "qtaim esc": ("QTAIM Esc", ("Bader Esc",)),
+    "qtaim eslc": ("QTAIM Eslc", ("Bader Eslc",)),
+    "qtaim evf": ("QTAIM EVF", ("Bader EVF",)),
+    "qtaim elf": ("QTAIM ELF", ("Bader ELF",)),
+    "electronegativity": ("Electronegativity", ("Electronegativity",)),
+    "electronegativity(omega)": ("Electronegativity(omega)", ("Electronegativity(omega)",)),
+}
+
+
+@requires_optional_package("PIL")
+def view_atomic_property(
+    system: Union[AMSJob, str, os.PathLike],
+    kind: Union[
+        Literal[
+            "charge",
+            "fukui+",
+            "fukui-",
+            "dual",
+            "electronegativity",
+            "mulliken charge",
+            "hirshfeld charge",
+            "cm5 charge",
+            "vdd charge",
+            "qtaim charge",
+            "nmr shielding",
+        ],
+        str,
+    ],
+    by: Literal["color", "radius"] = "color",
+    config: Optional[ViewConfig] = None,
+    *,
+    width: Optional[int] = None,
+    height: Optional[int] = None,
+    padding: Optional[float] = None,
+    direction: Optional[ViewDirections] = None,
+    fixed_atom_size: Optional[bool] = None,
+    show_atom_labels: Optional[bool] = None,
+    atom_label_type: Optional[Literal["Element", "AtomType", "Name"]] = None,
+    label_size: Optional[float] = None,
+    show_colorbar: Optional[bool] = None,
+    colorbar_range: Optional[Tuple[float, float]] = None,
+    guess_bonds: Optional[bool] = None,
+    show_regions: Optional[bool] = None,
+    show_unit_cell_edges: Optional[bool] = None,
+    show_lattice_vectors: Optional[bool] = None,
+    picture_path: Optional[Union[str, os.PathLike]] = None,
+    backend: Optional[Backends] = None,
+    open_window: Optional[bool] = None,
+) -> "PilImage.Image":
+    """
+    View an atomic property from a completed AMS calculation in a Jupyter notebook by generating an image using AMSview.
+    A completed AMSJob or rkf file must be supplied, in which case the selected property can be used to color atoms or scale atomic radii.
+
+    :param system: completed AMSJob or path to an existing .rkf file
+    :param kind: atomic property to visualize. Curated options are ``charge``, ``fukui+``, ``fukui-``, ``dual``,
+        ``electronegativity``, ``mulliken charge``, ``hirshfeld charge``, ``cm5 charge``, ``vdd charge``, and
+        ``qtaim charge``, and ``nmr shielding``. Other strings are interpreted as ``AMSResults%<kind>`` atom arrays
+        and passed to AMSview as ``Atomic: <kind> (<program>)``.
+    :param by: how to visualize the property, one of ``color`` or ``radius``
+    :param config: configuration for view
+    :param width: override for width of the image in pixels
+    :param height: override for height of the image in pixels
+    :param padding: override for padding around system in Angstrom
+    :param direction: override for direction to view system along
+    :param fixed_atom_size: override to use the same radius for all elements (except Hydrogen)
+    :param show_atom_labels: override to display text label on each atom
+    :param atom_label_type: override for property used for atom labels
+    :param label_size: override for atom label and color legend scale
+    :param show_colorbar: override to display the color legend
+    :param colorbar_range: override for color legend minimum and maximum
+    :param guess_bonds: override for guessing bonds before viewing
+    :param show_regions: override to display translucent spheres on atoms according to their regions
+    :param show_unit_cell_edges: override to display unit cell for periodic systems using semi-transparent edges
+    :param show_lattice_vectors: override to display the lattice vectors for periodic systems
+    :param picture_path: override for path for the location to save the generated image file
+    :param backend: override for program to use as a backend to generate images
+    :param open_window: override to open AMSview in a dedicated window
+    :return: image of the molecule generated using AMSView
+    """
+    rkf_path: Union[str, os.PathLike]
+    if isinstance(system, AMSJob):
+        rkf_path = system.results.rkfpath("engine")
+        view_system: Union[AMSJob, str, os.PathLike] = rkf_path
+    elif isinstance(system, (str, os.PathLike)):
+        rkf_path = system
+        view_system = system
+    else:
+        raise ValueError(
+            "System must be a completed AMSJob, or a path to an existing .rkf file when viewing atomic properties"
+        )
+
+    config = config or ViewConfig()
+    kf = KFFile(str(rkf_path))
+
+    try:
+        program = kf.read("General", "program")
+    except Exception:
+        program = None
+    if not isinstance(program, str):
+        raise ValueError(f"Could not read General%program from rkf file: {rkf_path}")
+    program = program.split()[0].lower()
+
+    try:
+        natoms = kf.read("Molecule", "nAtoms")
+    except Exception:
+        natoms = None
+    if not isinstance(natoms, int):
+        try:
+            atomic_numbers = kf.read("Molecule", "AtomicNumbers")
+        except Exception:
+            atomic_numbers = None
+        natoms = len(atomic_numbers) if isinstance(atomic_numbers, list) else None
+    if natoms is None:
+        raise ValueError(f"Could not determine the number of atoms from rkf file: {rkf_path}")
+
+    kind_lower = kind.lower().strip()
+
+    def is_adf_atomic_property_available(property_kind: str, variables: Tuple[str, ...]) -> bool:
+        if property_kind == "nmr shielding":
+            for variable in variables:
+                try:
+                    values = kf.read("Properties", variable)
+                except Exception:
+                    continue
+                if isinstance(values, list) and len(values) == natoms:
+                    return True
+            return False
+
+        if property_kind == "hirshfeld charge":
+            try:
+                nfrag = kf.read("Geometry", "nr of fragments")
+            except Exception:
+                nfrag = None
+            if nfrag != natoms:
+                return False
+
+        for variable in variables:
+            try:
+                values = kf.read("Properties", variable)
+            except Exception:
+                return False
+            if not isinstance(values, list) or len(values) != natoms:
+                return False
+        return True
+
+    if kind_lower == "charge":
+        try:
+            charges = kf.read("AMSResults", "Charges")
+        except Exception:
+            charges = None
+        if not isinstance(charges, list) or len(charges) != natoms:
+            raise ValueError(f"Atomic charges are not available in rkf file: {rkf_path}")
+
+        try:
+            atomtype_dim = kf.read("AMSResults", "AtomTyping.atomIndexToType@dim")
+        except Exception:
+            atomtype_dim = None
+
+        # Convert the curated PLAMS property name to the exact atom-property label AMSview registers from this RKF.
+        if program in ["forcefield", "atomtyping"] and atomtype_dim == natoms:
+            config.atomic_property = "ForceField.Charge"
+        else:
+            config.atomic_property = f"Atomic: Charges ({program})"
+    elif program == "mlpotential" and kind_lower in ["fukui+", "fukui-", "dual"]:
+        if kind_lower == "fukui+":
+            section_variable = "Fukui Fplus"
+            property_name = "Fukui+"
+        elif kind_lower == "fukui-":
+            section_variable = "Fukui Fminus"
+            property_name = "Fukui-"
+        else:
+            section_variable = "Koopmans DD"
+            property_name = "Dual"
+
+        try:
+            values = kf.read("Properties", section_variable)
+        except Exception:
+            values = None
+        if not isinstance(values, list) or len(values) != natoms:
+            raise ValueError(f"Atomic property '{kind}' is not available in rkf file: {rkf_path}")
+
+        config.atomic_property = f"{property_name} (MLPotential)"
+    elif program == "adf" and kind_lower in _ADF_ATOMIC_PROPERTIES:
+        property_name, variables = _ADF_ATOMIC_PROPERTIES[kind_lower]
+        if not is_adf_atomic_property_available(kind_lower, variables):
+            raise ValueError(f"Atomic property '{kind}' is not available in rkf file: {rkf_path}")
+        config.atomic_property = property_name
+    else:
+        try:
+            values = kf.read("AMSResults", kind)
+        except Exception:
+            values = None
+        if not isinstance(values, list) or len(values) != natoms:
+            raise ValueError(
+                f"Atomic property '{kind}' is not available as an AMSResults atom array in rkf file: {rkf_path}"
+            )
+
+        config.atomic_property = f"Atomic: {kind} ({program})"
+
+    if label_size is not None:
+        config.atom_label_size = label_size
+    config.atomic_property_type = by
+    config.show_colorbar = by == "color" if show_colorbar is None else show_colorbar
+    if colorbar_range is not None:
+        config.colorbar_range = colorbar_range
+
+    return view(
+        view_system,
         config=config,
         width=width,
         height=height,
@@ -710,6 +1004,17 @@ class _AmsViewBackend(_ViewBackend):
                 "-labelsize",
                 str(config.atom_label_size),
             ]
+        elif config.atomic_property and config.atom_label_size != ViewConfig.atom_label_size:
+            command += ["-labelsize", str(config.atom_label_size)]
+        if config.atomic_property:
+            if config.atomic_property_type == "color":
+                command += ["-colorby", config.atomic_property]
+                if config.colorbar_range is not None:
+                    command += ["-colorbyrange", f"{config.colorbar_range[0]} {config.colorbar_range[1]}"]
+            elif config.atomic_property_type == "radius":
+                command += ["-radiusby", config.atomic_property]
+            if not config.show_colorbar:
+                command += ["-nocolorbars"]
         if config.show_unit_cell_faces:
             command += ["-showunitcell", "faces"]
         elif config.show_unit_cell_edges:
