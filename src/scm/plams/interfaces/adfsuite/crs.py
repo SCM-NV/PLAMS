@@ -1,18 +1,40 @@
-import inspect
 import os
 import subprocess
 from itertools import cycle
-from typing import Optional, List, Dict, TYPE_CHECKING, Set, Union, Any, Tuple, cast
+from typing import Optional, List, Dict, TYPE_CHECKING, Set, Union, Any, Tuple, cast, overload, Literal
 
 import numpy as np
 
 from scm.plams.interfaces.adfsuite.scmjob import SCMJob, SCMResults
 from scm.plams.tools.units import Units
-from scm.plams.core.functions import log
+from scm.plams.core.functions import log, requires_optional_package
+from scm.plams.core.settings import Settings
 
 if TYPE_CHECKING:
+    from scm.inputs import CRS
     import pandas as pd
     from matplotlib.figure import Figure
+    from scm.plams.interfaces.adfsuite.crs_input_builder import (
+        ACTIVITYCOEFInputBuilder,
+        BINMIXCOEFInputBuilder,
+        BOILINGPOINTInputBuilder,
+        COMPOSITIONLINEInputBuilder,
+        CRSMethodName,
+        FLASHPOINTInputBuilder,
+        LLEInputBuilder,
+        LOGPInputBuilder,
+        PUREBOILINGPOINTInputBuilder,
+        PURESIGMAPOTENTIALInputBuilder,
+        PURESIGMAPROFILEInputBuilder,
+        PURESOLUBILITYInputBuilder,
+        PUREVAPORPRESSUREInputBuilder,
+        SIGMAPOTENTIALInputBuilder,
+        SIGMAPROFILEInputBuilder,
+        SOLUBILITYInputBuilder,
+        STABILITYInputBuilder,
+        TERNARYMIXInputBuilder,
+        VAPORPRESSUREInputBuilder,
+    )
 
 __all__ = ["CRSResults", "CRSJob"]
 
@@ -24,16 +46,28 @@ class CRSResults(SCMResults):
     _rename_map = {"CRSKF": "$JN.crskf"}
 
     @property
+    @requires_optional_package("scm.inputs")
     def section(self) -> str:
         try:  # Return the cached value if possible
             return self._section  # type: ignore[has-type]
         except AttributeError:
-            try:
-                self._section = self.job.settings.input.property._h.upper()
-            except AttributeError:
-                self._section = self.job.settings.input.t.upper()
+            pass
 
-            return self._section
+        input_data = self.job.settings.input
+
+        from scm.inputs import CRS
+
+        if isinstance(input_data, CRS):
+            header = input_data.PROPERTY.header
+        else:
+            property_settings = input_data.get("property")
+            header = property_settings.get("_h") if property_settings is not None else input_data.get("t")
+
+        if not isinstance(header, str) or not header:
+            raise ValueError("Could not determine the CRS property section from the job input")
+
+        self._section = header.upper()
+        return self._section
 
     def get_energy(self, energy_type: str = "deltag", compound_idx: int = 0, unit: str = "kcal/mol") -> float:
         """Returns the solute solvation energy from an Activity Coefficients calculation."""
@@ -120,6 +154,13 @@ class CRSResults(SCMResults):
         except:
             nstruct = ncomp
 
+        try:
+            nmoment = cast(int, self.readkf(section, "nmoment"))
+            nhb_moment = cast(int, self.readkf(section, "nhb_moment"))
+        except:
+            nmoment = 0
+            nhb_moment = 0
+
         np_dict: Dict[str, Any] = {"section": section}
         np_dict["ncomp"] = ncomp
         chunk_length = 160
@@ -141,6 +182,17 @@ class CRSResults(SCMResults):
                 else:
                     np_dict[prop] = tmp.split("\x00")
                     continue
+            if prop == "sigma_moment":
+                array = np.asarray(tmp)
+                array.shape = (ncomp, nmoment)
+                np_dict[prop] = array
+                continue
+            if prop == "sigma_hb_acc_moment" or prop == "sigma_hb_don_moment":
+                array = np.asarray(tmp)
+                array.shape = (ncomp, nhb_moment)
+                np_dict[prop] = array
+                continue
+
             if not isinstance(tmp, list):
                 np_dict[prop] = tmp
             else:
@@ -282,16 +334,11 @@ class CRSResults(SCMResults):
             dict_Asson = None  # type: ignore[assignment]
 
         if as_df:
-            try:
-                import pandas as pd
-
-                return pd.DataFrame(dict_species), pd.DataFrame(dict_Asson)
-            except ImportError:
-                method = inspect.stack()[2][3]
-                raise ImportError("{}: as_df=True requires the 'pandas' package".format(method))
+            return self._plain_dict_to_df(dict_species), self._plain_dict_to_df(dict_Asson)
         else:
             return dict_species, dict_Asson
 
+    @requires_optional_package("matplotlib")
     def plot(
         self,
         *arrays: "np.ndarray",
@@ -348,22 +395,17 @@ class CRSResults(SCMResults):
         except ImportError:
             terminal = "script"
 
-        # Check if matplotlib is installed
-        try:
-            import matplotlib
+        import matplotlib
 
-            if plot_fig:
-                if terminal == "jupyter" and ipython is not None:
-                    ipython.run_line_magic("matplotlib", "inline")
-                else:
-                    matplotlib.use("TkAgg")
-            elif not plot_fig:
-                matplotlib.use("Agg")
+        if plot_fig:
+            if terminal == "jupyter" and ipython is not None:
+                ipython.run_line_magic("matplotlib", "inline")
+            else:
+                matplotlib.use("TkAgg")
+        else:
+            matplotlib.use("Agg")
 
-            import matplotlib.pyplot as plt
-        except ImportError:
-            method = self.__class__.__name__ + ".plot"
-            raise ImportError("{}: this method requires the 'matplotlib' package".format(method))
+        import matplotlib.pyplot as plt
 
         self.get_results()
 
@@ -476,18 +518,26 @@ class CRSResults(SCMResults):
         return ret
 
     @staticmethod
+    @requires_optional_package("pandas")
     def _dict_to_df(array_dict: dict, section: str, x_axis: str) -> "pd.DataFrame":
         """Attempt to convert a dictionary into a DataFrame."""
-        try:
-            import pandas as pd
-        except ImportError:
-            method = inspect.stack()[2][3]
-            raise ImportError("{}: as_df=True requires the 'pandas' package".format(method))
+        import pandas as pd
 
         index = pd.Index(array_dict.pop(x_axis), name=x_axis)
         df = pd.DataFrame(array_dict, index=index)
         df.columns.name = section.lower()
         return df
+
+    @staticmethod
+    @requires_optional_package("pandas")
+    def _plain_dict_to_df(data: Optional[Dict[str, Any]]) -> Optional["pd.DataFrame"]:
+        """Convert a plain dictionary of columns into a DataFrame."""
+        if data is None:
+            return None
+
+        import pandas as pd
+
+        return pd.DataFrame(data)
 
 
 class CRSJob(SCMJob):
@@ -503,17 +553,286 @@ class CRSJob(SCMJob):
         self.settings.ignore_molecule = True
 
     @staticmethod
-    def database() -> str:
+    def methods() -> Tuple["CRSMethodName", ...]:
+        """Return supported CRS method names."""
+        from scm.plams.interfaces.adfsuite.crs_input_builder import methods
+
+        return methods()
+
+    @staticmethod
+    def get_parameter_set_options() -> Dict[str, Tuple[str, ...]]:
+        """Return available preset names grouped by method."""
+        from scm.plams.interfaces.adfsuite.crs_method_parameters import get_parameter_set_options
+
+        return get_parameter_set_options()
+
+    @staticmethod
+    def apply_parameter_set_to_settings(settings: Settings, parameter_set: str) -> Settings:
+        """Apply a parameter preset in place and return the same job Settings.
+
+        ``parameter_set`` must be one of the preset names returned by
+        :meth:`CRSJob.get_parameter_set_options`.
+        """
+        from scm.plams.interfaces.adfsuite.crs_method_parameters import apply_parameter_set_to_settings
+
+        return apply_parameter_set_to_settings(settings, parameter_set)
+
+    @staticmethod
+    def apply_parameter_set_to_inputs(crs: "CRS", parameter_set: str) -> "CRS":
+        """Apply a parameter preset in place and return the same typed CRS model.
+
+        ``parameter_set`` must be one of the preset names returned by
+        :meth:`CRSJob.get_parameter_set_options`.
+        """
+        from scm.plams.interfaces.adfsuite.crs_method_parameters import apply_parameter_set_to_inputs
+
+        return apply_parameter_set_to_inputs(crs, parameter_set)
+
+    @staticmethod
+    def _normalize_method(method: "CRSMethodName") -> "CRSMethodName":
+        """Normalize and validate a CRS method name."""
+        from scm.plams.interfaces.adfsuite.crs_input_builder import normalize_method
+
+        return normalize_method(method)
+
+    @staticmethod
+    def _normalize_property_type(property_type: str) -> str:
+        """Normalize and validate a supported input-builder property type."""
+        from scm.plams.interfaces.adfsuite.crs_input_builder import normalize_property_type
+
+        return normalize_property_type(property_type)
+
+    @staticmethod
+    @overload
+    def input_builder(
+        property_type: "Literal['ACTIVITYCOEF']",
+        *,
+        method: "CRSMethodName" = "COSMO-RS",
+        mode: Optional[str] = None,
+        **kwargs: Any,
+    ) -> "ACTIVITYCOEFInputBuilder": ...
+
+    @staticmethod
+    @overload
+    def input_builder(
+        property_type: "Literal['LOGP']",
+        *,
+        method: "CRSMethodName" = "COSMO-RS",
+        mode: Optional[str] = None,
+        **kwargs: Any,
+    ) -> "LOGPInputBuilder": ...
+
+    @staticmethod
+    @overload
+    def input_builder(
+        property_type: "Literal['SOLUBILITY']",
+        *,
+        method: "CRSMethodName" = "COSMO-RS",
+        mode: Optional[str] = None,
+        **kwargs: Any,
+    ) -> "SOLUBILITYInputBuilder": ...
+
+    @staticmethod
+    @overload
+    def input_builder(
+        property_type: "Literal['PURESOLUBILITY']",
+        *,
+        method: "CRSMethodName" = "COSMO-RS",
+        mode: Optional[str] = None,
+        **kwargs: Any,
+    ) -> "PURESOLUBILITYInputBuilder": ...
+
+    @staticmethod
+    @overload
+    def input_builder(
+        property_type: "Literal['VAPORPRESSURE']",
+        *,
+        method: "CRSMethodName" = "COSMO-RS",
+        mode: Optional[str] = None,
+        **kwargs: Any,
+    ) -> "VAPORPRESSUREInputBuilder": ...
+
+    @staticmethod
+    @overload
+    def input_builder(
+        property_type: "Literal['PUREVAPORPRESSURE']",
+        *,
+        method: "CRSMethodName" = "COSMO-RS",
+        mode: Optional[str] = None,
+        **kwargs: Any,
+    ) -> "PUREVAPORPRESSUREInputBuilder": ...
+
+    @staticmethod
+    @overload
+    def input_builder(
+        property_type: "Literal['BOILINGPOINT']",
+        *,
+        method: "CRSMethodName" = "COSMO-RS",
+        mode: Optional[str] = None,
+        **kwargs: Any,
+    ) -> "BOILINGPOINTInputBuilder": ...
+
+    @staticmethod
+    @overload
+    def input_builder(
+        property_type: "Literal['PUREBOILINGPOINT']",
+        *,
+        method: "CRSMethodName" = "COSMO-RS",
+        mode: Optional[str] = None,
+        **kwargs: Any,
+    ) -> "PUREBOILINGPOINTInputBuilder": ...
+
+    @staticmethod
+    @overload
+    def input_builder(
+        property_type: "Literal['FLASHPOINT']",
+        *,
+        method: "CRSMethodName" = "COSMO-RS",
+        mode: Optional[str] = None,
+        **kwargs: Any,
+    ) -> "FLASHPOINTInputBuilder": ...
+
+    @staticmethod
+    @overload
+    def input_builder(
+        property_type: "Literal['BINMIXCOEF']",
+        *,
+        method: "CRSMethodName" = "COSMO-RS",
+        mode: Optional[str] = None,
+        **kwargs: Any,
+    ) -> "BINMIXCOEFInputBuilder": ...
+
+    @staticmethod
+    @overload
+    def input_builder(
+        property_type: "Literal['TERNARYMIX']",
+        *,
+        method: "CRSMethodName" = "COSMO-RS",
+        mode: Optional[str] = None,
+        **kwargs: Any,
+    ) -> "TERNARYMIXInputBuilder": ...
+
+    @staticmethod
+    @overload
+    def input_builder(
+        property_type: "Literal['COMPOSITIONLINE']",
+        *,
+        method: "CRSMethodName" = "COSMO-RS",
+        mode: Optional[str] = None,
+        **kwargs: Any,
+    ) -> "COMPOSITIONLINEInputBuilder": ...
+
+    @staticmethod
+    @overload
+    def input_builder(
+        property_type: "Literal['LLE']",
+        *,
+        method: "CRSMethodName" = "COSMO-RS",
+        mode: Optional[str] = None,
+        **kwargs: Any,
+    ) -> "LLEInputBuilder": ...
+
+    @staticmethod
+    @overload
+    def input_builder(
+        property_type: "Literal['STABILITY']",
+        *,
+        method: "CRSMethodName" = "COSMO-RS",
+        mode: Optional[str] = None,
+        **kwargs: Any,
+    ) -> "STABILITYInputBuilder": ...
+
+    @staticmethod
+    @overload
+    def input_builder(
+        property_type: "Literal['SIGMAPROFILE']",
+        *,
+        method: "CRSMethodName" = "COSMO-RS",
+        mode: Optional[str] = None,
+        **kwargs: Any,
+    ) -> "SIGMAPROFILEInputBuilder": ...
+
+    @staticmethod
+    @overload
+    def input_builder(
+        property_type: "Literal['PURESIGMAPROFILE']",
+        *,
+        method: "CRSMethodName" = "COSMO-RS",
+        mode: Optional[str] = None,
+        **kwargs: Any,
+    ) -> "PURESIGMAPROFILEInputBuilder": ...
+
+    @staticmethod
+    @overload
+    def input_builder(
+        property_type: "Literal['SIGMAPOTENTIAL']",
+        *,
+        method: "CRSMethodName" = "COSMO-RS",
+        mode: Optional[str] = None,
+        **kwargs: Any,
+    ) -> "SIGMAPOTENTIALInputBuilder": ...
+
+    @staticmethod
+    @overload
+    def input_builder(
+        property_type: "Literal['PURESIGMAPOTENTIAL']",
+        *,
+        method: "CRSMethodName" = "COSMO-RS",
+        mode: Optional[str] = None,
+        **kwargs: Any,
+    ) -> "PURESIGMAPOTENTIALInputBuilder": ...
+
+    @staticmethod
+    @overload
+    def input_builder(
+        property_type: str,
+        *,
+        method: "CRSMethodName" = "COSMO-RS",
+        mode: Optional[str] = None,
+        **kwargs: Any,
+    ) -> Any: ...
+
+    @staticmethod
+    def input_builder(
+        property_type: str,
+        *,
+        method: "CRSMethodName" = "COSMO-RS",
+        mode: Optional[str] = None,
+        **kwargs: Any,
+    ) -> Any:
+        """Return a property-specific CRS input builder."""
+        from scm.plams.interfaces.adfsuite.crs_input_builder import input_builder
+
+        return input_builder(property_type, method=method, mode=mode, job_cls=CRSJob, **kwargs)
+
+    @staticmethod
+    def adfcrs_database_path() -> str:
+        """Return the path to the bundled ADFCRS-2018 COSKF database directory."""
         database_path = os.path.join(os.environ["SCM_PKG_ADFCRSDIR"], "ADFCRS-2018")
         if not os.path.isdir(database_path):
             raise FileNotFoundError("The ADFCRS-2018 database does not seem to be installed")
         return database_path
 
     @staticmethod
-    def coskf_from_database(name: str) -> str:
+    def coskf_from_adfcrs_database(name: str) -> str:
+        """Return the path to a COSKF file in the bundled ADFCRS-2018 database."""
         if not name.endswith(".coskf"):
             name += ".coskf"
-        return os.path.join(CRSJob.database(), name)
+
+        path = os.path.join(CRSJob.adfcrs_database_path(), name)
+        if not os.path.isfile(path):
+            raise FileNotFoundError(f"COSKF file {name!r} was not found in the ADFCRS-2018 database")
+        return path
+
+    @staticmethod
+    def database() -> str:
+        """Legacy alias for adfcrs_database_path()."""
+        return CRSJob.adfcrs_database_path()
+
+    @staticmethod
+    def coskf_from_database(name: str) -> str:
+        """Legacy alias for coskf_from_adfcrs_database()."""
+        return CRSJob.coskf_from_adfcrs_database(name)
 
     @staticmethod
     def cos_to_coskf(filename: str) -> str:
