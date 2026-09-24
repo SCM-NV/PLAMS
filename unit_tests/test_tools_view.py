@@ -13,6 +13,7 @@ from scm.plams.interfaces.molecule.rdkit import from_smiles
 from scm.plams.tools.view import (
     view,
     view_orbital,
+    view_atomic_property,
     ViewConfig,
     _AMSViewManager,
     _AmsViewBackend,
@@ -162,6 +163,49 @@ class TestView:
         assert mock_view.call_args.kwargs["width"] == 320
         assert mock_view.call_args.kwargs["backend"] == "amsview"
 
+    def test_view_atomic_property_forwards_to_view(self, water_opt):
+        def get_charges_kf_mock(program="ams"):
+            def read(section, variable):
+                values = {
+                    ("General", "program"): program,
+                    ("Molecule", "nAtoms"): 3,
+                    ("AMSResults", "Charges"): [-0.1, 0.05, 0.05],
+                    ("AMSResults", "AtomTyping.atomIndexToType@dim"): None,
+                }
+                value = values.get((section, variable))
+                if value is None:
+                    raise KeyError((section, variable))
+                return value
+
+            kf = MagicMock()
+            kf.read.side_effect = read
+            return kf
+
+        kf = get_charges_kf_mock()
+
+        with patch("scm.plams.tools.view.view", return_value=MagicMock()) as mock_view, patch(
+            "scm.plams.tools.view.KFFile", return_value=kf
+        ) as mock_kf:
+            result = view_atomic_property(
+                water_opt,
+                kind="charge",
+                by="radius",
+                width=320,
+                backend="amsview",
+            )
+
+        assert result is mock_view.return_value
+        mock_kf.assert_called_once_with(str(water_opt))
+        assert mock_view.call_args.args[0] == water_opt
+        config = mock_view.call_args.kwargs["config"]
+        assert config.atomic_property == "Atomic: Charges (ams)"
+        assert config.atomic_property_type == "radius"
+        assert not config.show_colorbar
+        assert config.atom_label_size == 1.0
+        assert config.padding == 0.0
+        assert mock_view.call_args.kwargs["width"] == 320
+        assert mock_view.call_args.kwargs["backend"] == "amsview"
+
 
 class TestAmsViewBackend:
 
@@ -218,6 +262,31 @@ class TestAmsViewBackend:
                 ViewConfig(orbital=("homo", -1), render_type="volume", opacity=100, grid="fine"),
                 "foo.rkf -transparent -antialias -scmgeometry 800x400 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 1.000000 -fixedatomsize -hideregions -showunitcell 0.05 -HOMO -1 -volume -opacity 100 -grid Fine -save bar.png -batch",
             ),
+            (
+                ViewConfig(atomic_property="Atomic: Charges (mlpotential)", atomic_property_type="color"),
+                "foo.rkf -transparent -antialias -scmgeometry 800x400 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 1.000000 -fixedatomsize -hideregions -colorby Atomic: Charges (mlpotential) -nocolorbars -showunitcell 0.05 -save bar.png -batch",
+            ),
+            (
+                ViewConfig(
+                    atomic_property="Atomic: Charges (mlpotential)",
+                    atomic_property_type="color",
+                    show_colorbar=True,
+                    colorbar_range=(-0.5, 0.5),
+                ),
+                "foo.rkf -transparent -antialias -scmgeometry 800x400 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 1.000000 -fixedatomsize -hideregions -colorby Atomic: Charges (mlpotential) -colorbyrange -0.5 0.5 -showunitcell 0.05 -save bar.png -batch",
+            ),
+            (
+                ViewConfig(atomic_property="Atomic: Charges (mlpotential)", atomic_property_type="radius"),
+                "foo.rkf -transparent -antialias -scmgeometry 800x400 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 1.000000 -fixedatomsize -hideregions -radiusby Atomic: Charges (mlpotential) -nocolorbars -showunitcell 0.05 -save bar.png -batch",
+            ),
+            (
+                ViewConfig(
+                    atomic_property="Atomic: Charges (mlpotential)",
+                    atomic_property_type="color",
+                    atom_label_size=2.0,
+                ),
+                "foo.rkf -transparent -antialias -scmgeometry 800x400 -dpi 300 -padding 0.000000 -showlatticevectors 0 -viewplane 0.000000 0.000000 1.000000 -fixedatomsize -hideregions -labelsize 2.0 -colorby Atomic: Charges (mlpotential) -nocolorbars -showunitcell 0.05 -save bar.png -batch",
+            ),
         ],
         ids=[
             "default",
@@ -229,11 +298,15 @@ class TestAmsViewBackend:
             "orbital_homo_iso",
             "orbital_lumo+1_wireframe",
             "orbital_homo-1_volume",
+            "property_color",
+            "property_color_range",
+            "property_radius",
+            "property_label_size",
         ],
     )
     def test_get_command(self, view_config, expected, water, water_opt):
-        system = water if not view_config.orbital else water_opt
-        input_path = "foo.in" if not view_config.orbital else "foo.rkf"
+        system = water if not (view_config.orbital or view_config.atomic_property) else water_opt
+        input_path = "foo.in" if not (view_config.orbital or view_config.atomic_property) else "foo.rkf"
 
         command = self.backend.get_command(system, view_config, input_path=input_path, img_path="bar.png")
 
