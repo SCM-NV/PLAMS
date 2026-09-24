@@ -5,6 +5,7 @@ import pytest
 from scm.plams import CRSJob, Settings
 from test_helpers import skip_if_no_scm_inputs
 
+
 @pytest.fixture(autouse=True)
 def require_scm_inputs() -> None:
     skip_if_no_scm_inputs()

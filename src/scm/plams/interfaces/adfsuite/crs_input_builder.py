@@ -88,6 +88,22 @@ _SIGMA_MOMENT_KEYS = (
     "sigmamomenthbcutoffstep",
 )
 
+# Property-specific input hints from CRS property metadata.
+_PROPERTY_TYPE_HINT_KEYS: Dict[str, Tuple[str, ...]] = {
+    "ACTIVITYCOEF": ("densitysolvent", "density"),
+    "LOGP": ("volumequotient",),
+    "SOLUBILITY": ("densitysolvent", "density", *_FUSION_KEYS, *_VAPOR_PRESSURE_KEYS),
+    "PURESOLUBILITY": ("density", *_FUSION_KEYS, *_VAPOR_PRESSURE_KEYS),
+    "VAPORPRESSURE": ("temperature", *_VAPOR_PRESSURE_KEYS),
+    "PUREVAPORPRESSURE": ("temperature", *_VAPOR_PRESSURE_KEYS),
+    "BOILINGPOINT": ("pressure", *_VAPOR_PRESSURE_KEYS),
+    "PUREBOILINGPOINT": ("pressure", *_VAPOR_PRESSURE_KEYS),
+    "FLASHPOINT": ("flashpoint", *_VAPOR_PRESSURE_KEYS),
+    "BINMIXCOEF": ("flashpoint", *_VAPOR_PRESSURE_KEYS),
+    "TERNARYMIX": ("flashpoint", *_VAPOR_PRESSURE_KEYS),
+    "COMPOSITIONLINE": ("flashpoint", *_VAPOR_PRESSURE_KEYS),
+}
+
 
 @dataclass(frozen=True)
 class _InputRoute:
@@ -114,6 +130,7 @@ class _ModeOptionConfig:
     required_input_keys: Tuple[str, ...] = ()
     required_compound_keys: Mapping[str, Tuple[str, ...]] = field(default_factory=dict)
 
+
 @dataclass(frozen=True)
 class _ModeConfig:
     """Mode-controlled input-key configuration."""
@@ -125,9 +142,7 @@ class _ModeConfig:
 _SOLUBILITY_MODE_CONFIG = _ModeConfig(
     default="solid",
     options={
-        "solid": _ModeOptionConfig(
-            required_compound_keys={"solute": ("meltingpoint", "hfusion")}
-        ),
+        "solid": _ModeOptionConfig(required_compound_keys={"solute": ("meltingpoint", "hfusion")}),
         "liquid": _ModeOptionConfig(),
         "gas": _ModeOptionConfig(input_values={"isobar": True}),
     },
@@ -311,7 +326,24 @@ class CRSInputBuilder:
         for role, required_keys in self._required_compound_keys_by_role().items():
             lines.append(f"required_keys [compound: {role}]: {', '.join(required_keys)}")
 
+        lines.extend(self._property_type_input_hint_descriptions())
+
         return tuple(lines)
+
+    def _property_type_input_hint_descriptions(self) -> Tuple[str, ...]:
+        """Return property-specific input hints grouped by their shared text."""
+        hint_keys = _PROPERTY_TYPE_HINT_KEYS.get(self.property_type, ())
+        key_metadata: Dict[str, Mapping[str, Any]] = {key: route.metadata for key, route in self._accepted_keys.items()}
+        compound_keys = get_block_keys(get_crs_input_data(), "compound")
+        key_metadata.update(compound_keys)
+
+        grouped: Dict[str, List[str]] = {}
+        for key in hint_keys:
+            hint = key_metadata.get(key, {}).get("hint", "")
+            if hint:
+                grouped.setdefault(hint, []).append(key)
+
+        return tuple(f"hint [{', '.join(keys)}]: {hint}" for hint, keys in grouped.items())
 
     def to_settings(self, *, include_compounds: bool = True) -> Settings:
         """Build PLAMS Settings for this CRS input.
@@ -624,9 +656,7 @@ class CRSInputBuilder:
 
     def _required_compound_keys_by_role(self) -> Dict[str, Tuple[str, ...]]:
         required = {
-            role: config.required_keys
-            for role, config in self._COMPOUND_ROLE_CONFIG.items()
-            if config.required_keys
+            role: config.required_keys for role, config in self._COMPOUND_ROLE_CONFIG.items() if config.required_keys
         }
         if self._mode is not None:
             mode_required = self._mode_config.options[self._mode].required_compound_keys
@@ -1051,6 +1081,7 @@ class SOLUBILITYInputBuilder(
     }
     _MODE_CONFIG: ClassVar[_ModeConfig] = _SOLUBILITY_MODE_CONFIG
 
+
 class PURESOLUBILITYInputBuilder(
     _TemperatureListMixin,
     _PressureMixin,
@@ -1073,6 +1104,7 @@ class PURESOLUBILITYInputBuilder(
         "solute": _CompoundRoleConfig(min_count=1, max_count=1),
     }
     _MODE_CONFIG: ClassVar[_ModeConfig] = _SOLUBILITY_MODE_CONFIG
+
 
 class VAPORPRESSUREInputBuilder(
     _TemperatureMixin,

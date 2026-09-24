@@ -89,10 +89,10 @@ compounds.
 
     builder = CRSJob.input_builder("SOLUBILITY")
     builder.method = "COSMO-RS"
-    builder.mode = "gas"
-    builder.temperature = 298.15
+    builder.mode = "solid"
+    builder.temperature = 250
     builder.add_solvent_from_adfcrs_database("Water.coskf", frac1=1.0)
-    builder.add_solute_from_adfcrs_database("Benzene.coskf")
+    builder.add_solute_from_adfcrs_database("Benzene.coskf", meltingpoint=278.7, hfusion=2.37)
 
 
 Inspecting and setting builder input
@@ -115,11 +115,15 @@ The output is similar to:
     densitysolvent [property] float [kg/L]: Density of the solvent. value: None
     massfraction [top_level] bool: Use mass fractions; by default, fractions are interpreted as molar fractions. value: None
     pressure [top_level] float_list [bar]: Pressure value: None
-    temperature [top_level] float_list [Kelvin]: Temperature value: 298.15
+    temperature [top_level] float_list [Kelvin]: Temperature value: 250
     mode: solid, liquid, gas
     compound_keys [compound]: frac1, density, meltingpoint, hfusion, cpfusion, pvap, tvap, vp_equation, vp_params
     required_keys [top_level]: temperature
     required_keys [compound: solvent]: frac1
+    required_keys [compound: solute]: meltingpoint, hfusion
+    hint [densitysolvent, density]: Used for molar-volume estimates, volume-based solubility, and Henry's-law results; falls back to COSMO volume estimates.
+    hint [meltingpoint, hfusion, cpfusion]: Used for solid-solute fusion corrections; the heat capacity is optional.
+    hint [pvap, tvap, vp_equation, vp_params]: Used for gas-phase pseudochemical potential corrections in VLE, flash, and Henry's-law calculations.
 
 The labels indicate where inputs belong and which values are required:
 
@@ -129,6 +133,7 @@ The labels indicate where inputs belong and which values are required:
 * ``compound_keys [compound]`` lists the compound keys that affect the result for the selected property type.
 * ``required_keys`` lists mandatory keys for the current property, mode, and
   compound role. Other listed keys are optional.
+* ``hint`` gives additional guidance for selected inputs, such as when they are used or how to choose their values.
 
 Use ``include_values=True`` to also show the current builder values.
 A value of ``None`` indicates that the input has not been set on the builder.
@@ -136,15 +141,16 @@ A value of ``None`` indicates that the input has not been set on the builder.
 Use ``builder.describe(include_compound_details=True)`` to also show the
 types, units, and descriptions of compound keys.
 
-Set values directly on the builder. For example, specify the required
-temperature, set the optional solvent density, and select gas-phase solubility:
+Set values directly on the builder. For gas-phase solubility, set the
+temperature, specify the solute partial pressure in bar, optionally provide the
+solvent density in kg/L, and select gas mode:
 
 .. code-block:: python
 
-    builder = CRSJob.input_builder("SOLUBILITY")
-    builder.temperature = 298.15
-    builder.densitysolvent = 1.0
     builder.mode = "gas"
+    builder.temperature = 298.15
+    builder.pressure = 1.01325
+    builder.densitysolvent = 1.0
 
 Changing the mode may change the required keys. Call ``builder.describe()``
 again to inspect the updated requirements.
@@ -206,14 +212,9 @@ For solvent and solute roles, use ``add_solvent()`` and ``add_solute()`` or
 
 .. code-block:: python
 
-    builder = CRSJob.input_builder("SOLUBILITY", temperature=298.15)
-    builder.mode = "solid"
+    builder = CRSJob.input_builder("ACTIVITYCOEF", temperature=298.15)
     builder.add_solvent_from_adfcrs_database("Water.coskf", frac1=1.0)
-    builder.add_solute_from_adfcrs_database(
-        "Benzene.coskf",
-        meltingpoint=278.7,
-        hfusion=2.37,
-    )
+    builder.add_solute_from_adfcrs_database("Benzene.coskf")
     crs = builder.to_inputs()
 
 
