@@ -316,15 +316,15 @@ class CRSInputBuilder:
         required_keys_by_scope: Dict[str, List[str]] = {}
 
         for key in required_keys:
-            route = self._accepted_keys.get(key)
-            scope = route.scope if route is not None else "top_level"
+            input_route = self._accepted_keys.get(key)
+            scope = input_route.scope if input_route is not None else "top_level"
             required_keys_by_scope.setdefault(scope, []).append(key)
 
         for scope, keys in required_keys_by_scope.items():
             lines.append(f"required_keys [{scope}]: {', '.join(keys)}")
 
-        for role, required_keys in self._required_compound_keys_by_role().items():
-            lines.append(f"required_keys [compound: {role}]: {', '.join(required_keys)}")
+        for role, compound_required_keys in self._required_compound_keys_by_role().items():
+            lines.append(f"required_keys [compound: {role}]: {', '.join(compound_required_keys)}")
 
         lines.extend(self._property_type_input_hint_descriptions())
 
