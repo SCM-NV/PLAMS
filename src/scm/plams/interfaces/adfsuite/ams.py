@@ -1776,7 +1776,7 @@ class AMSResults(Results):
         return self._process_engine_results(forcefield_params_from_kf, engine)
 
     def get_exit_condition_message(self) -> str:
-        """Return the driver exit-condition message.
+        """Return the driver exit-condition message if at least one ExitCondition was specified in the input. Note: ExitCondition is an expert input option that is not used for most calculations. The exit condition message is different from the termination status.
 
         :return: stored message, or an empty string if none is available
         """
