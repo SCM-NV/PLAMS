@@ -267,6 +267,9 @@ rst_epilog = """
 .. |JobAnalysis| replace:: :class:`~scm.plams.tools.job_analysis.JobAnalysis`
 .. |view| replace:: :func:`~scm.plams.tools.view.view`
 .. |ViewConfig| replace:: :class:`~scm.plams.tools.view.ViewConfig`
+.. |movie| replace:: :func:`~scm.plams.tools.movie.movie`
+.. |display_movie| replace:: :func:`~scm.plams.tools.movie.display_movie`
+.. |plot_image_grid| replace:: :func:`~scm.plams.tools.plot.plot_image_grid`
 
 .. |AMSJob| replace:: :class:`~scm.plams.interfaces.adfsuite.ams.AMSJob`
 .. |AMSResults| replace:: :class:`~scm.plams.interfaces.adfsuite.ams.AMSResults`

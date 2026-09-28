@@ -15,6 +15,7 @@ The key features of PLAMS are:
 - **Automatic File and Folder Organization**: PLAMS automatically handles file organization, preventing overwrites and ensuring clean data flows
 - **Controllable Re-runs and Restarts**: Efficiently manage job executions by preventing redundant runs and easily restarting from crash points if needed
 - **Output processing**: Extract, post-process, and analyze results, ensuring that only relevant data is used for further calculations or workflows
+- **Visualization**: Create molecular images, image grids, GIF/WebP animations, and MP4 movies for notebooks, documentation, and reports
 - **Compatibility with Chemistry Tools**: Includes built-in interfaces for popular programs and packages such as ASE, RDKit, Dirac, ORCA, CP2K, DFTB+ and Crystal and more
 
 Quick Start

@@ -17,6 +17,7 @@ This changelog is effective from the 2025 releases.
 * Function `view_orbital` to visualize orbitals of completed AMS jobs 
 * Function `view_atomic_property` to visualize atomic properties (e.g. charges) of completed AMS jobs 
 * `AMSResults.get_molecule_count_history` to extract molecular-formula populations from reactive MD trajectories, and `plot_molecule_counts` in `scm.plams.tools.plot` to visualize them
+* Functions `movie` and `display_movie` to create and display GIF, animated WebP, and MP4 movies from image frames
 
 ### Changed
 * `Molecule.readmol2` can now read non-integer bond orders
@@ -140,4 +141,3 @@ This changelog is effective from the 2025 releases.
 ### Removed
 * Legacy `BANDJob`, `DFTBJob`, `UFFJob`, `MOPACJob`, `ReaxFFJob`, `CSHessianADFJob` and `ADFJob` have been removed
 * Exception classes `AMSPipeDecodeError`, `AMSPipeError`, `AMSPipeInvalidArgumentError`, `AMSPipeLogicError`, `AMSPipeRuntimeError`, `AMSPipeUnknownArgumentError`, `AMSPipeUnknownMethodError`, `AMSPipeUnknownVersionError`, were moved from scm.plams to scm.amspipe.
-
