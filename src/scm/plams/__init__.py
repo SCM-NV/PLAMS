@@ -59,7 +59,10 @@ from scm.plams.interfaces.adfsuite.forcefieldparams import (
     ForceFieldPatch,
     forcefield_params_from_kf,
 )
-from scm.plams.interfaces.adfsuite.inputparser import get_system_blocks_as_molecules_from_input, input_to_settings
+from scm.plams.interfaces.adfsuite.inputparser import (
+    get_system_blocks_as_molecules_from_input,
+    input_to_settings,
+)
 from scm.plams.interfaces.adfsuite.quickjobs import (
     preoptimize,
     refine_density,
@@ -161,6 +164,7 @@ from scm.plams.tools.plot import (
     plot_msd,
     plot_work_function,
 )
+from scm.plams.tools.movie import movie, display_movie
 from scm.plams.tools.view import view, view_orbital, view_atomic_property, ViewConfig
 from scm.plams.tools.reaction import ReactionEquation
 from scm.plams.tools.reaction_energies import (
@@ -334,6 +338,8 @@ __all__ = [
     "plot_correlation",
     "plot_msd",
     "plot_work_function",
+    "movie",
+    "display_movie",
     "view",
     "view_orbital",
     "view_atomic_property",
