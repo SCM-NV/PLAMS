@@ -135,7 +135,7 @@ def display_movie(
                 attributes.append(f'height="{height}"')
             display(HTML(f"<img {' '.join(attributes)}>"))
     elif suffix == ".mp4":
-        display(Video(filename=str(movie_path), embed=embed, width=width, height=height))
+        display(Video(str(movie_path), embed=embed, width=width, height=height))
     else:
         raise ValueError(f"Unsupported movie format '{movie_path.suffix}'. Supported formats are: .gif, .webp, .mp4")
 
