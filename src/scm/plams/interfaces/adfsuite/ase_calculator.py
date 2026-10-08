@@ -1,6 +1,4 @@
-"""Implementation of the AMSPipeCalculator class.
-
-"""
+"""Implementation of the AMSPipeCalculator class."""
 
 from copy import deepcopy
 from typing import Dict, Optional, TYPE_CHECKING, Any, TypeVar, List, Union, Type, Tuple
@@ -14,6 +12,13 @@ from scm.plams.interfaces.adfsuite.amsworker import AMSWorker
 from scm.plams.interfaces.molecule.ase import fromASE, toASE
 
 __all__ = ["AMSCalculator", "BasePropertyExtractor"]
+
+try:
+    from scm.inputs import EngineInputModel, InputModel
+
+    _has_scm_inputs = True
+except ImportError:
+    _has_scm_inputs = False
 
 try:
     from ase.calculators.calculator import Calculator, all_changes
@@ -195,12 +200,31 @@ class AMSCalculator(Calculator):
         extractors: List[BasePropertyExtractor] = [],
     ):
 
+        def settings_with_input_model(settings: Settings, input_model: "InputModel") -> Settings:
+            from scm.plams.interfaces.adfsuite.inputparser import input_to_settings
+
+            converted = settings.copy()
+            input_model = deepcopy(input_model)
+            converted.input = input_to_settings(input_model.to_input(), program=AMSJob._command)
+            return converted
+
         if settings is None:
             settings = Settings()
-        elif not isinstance(settings, Settings):
-            settings = Settings.from_dict(settings)
-        else:
+        elif isinstance(settings, Settings):
             settings = settings.copy()
+        elif _has_scm_inputs and isinstance(settings, InputModel) and not isinstance(settings, EngineInputModel):
+            input_model = settings
+            settings = Settings()
+            settings = settings_with_input_model(settings, input_model)
+        else:
+            settings = Settings.from_dict(settings)
+
+        if (
+            _has_scm_inputs
+            and isinstance(settings.input, InputModel)
+            and not isinstance(settings.input, EngineInputModel)
+        ):
+            settings = settings_with_input_model(settings, settings.input)
 
         self.settings: Settings = settings.copy()
         self.amsworker: bool = amsworker
@@ -208,7 +232,11 @@ class AMSCalculator(Calculator):
         self._name: str = name
         self.restart: bool = restart
         self.molecule: Optional["Molecule"] = molecule
-        self.extractors: List[BasePropertyExtractor] = [EnergyExtractor(), ForceExtractor(), StressExtractor()]
+        self.extractors: List[BasePropertyExtractor] = [
+            EnergyExtractor(),
+            ForceExtractor(),
+            StressExtractor(),
+        ]
         self.extractors += [e for e in extractors if e not in self.extractors]
         self.extractors += [e for e in (settings.pop("Extractors", None) or []) if e not in self.extractors]
 

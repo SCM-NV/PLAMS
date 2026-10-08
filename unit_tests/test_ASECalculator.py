@@ -2,7 +2,11 @@ from scm.plams.interfaces.molecule.rdkit import from_smiles
 from scm.plams.interfaces.molecule.ase import toASE
 from scm.plams.core.settings import Settings
 from scm.plams.interfaces.adfsuite.ase_calculator import AMSCalculator
-from test_helpers import skip_if_no_ams_installation
+from test_helpers import (
+    skip_if_no_ams_installation,
+    skip_if_no_scm_base,
+    skip_if_no_scm_inputs,
+)
 
 
 def test_properties():
@@ -14,6 +18,23 @@ def test_properties():
     assert "forces" not in job.implemented_properties
     job.ensure_property("forces")
     assert "forces" in job.implemented_properties
+
+
+def test_properties_with_scm_inputs():
+    skip_if_no_scm_inputs()
+    skip_if_no_scm_base()
+    from scm.inputs import AMS, ForceField
+
+    s = Settings()
+    s.input = AMS(Task="SinglePoint")
+    s.input.Properties.Gradients = True
+    s.input.Engine = ForceField(Type="UFF")
+    s.runscript.nproc = 1
+
+    job = AMSCalculator(s, name="PropertiesFromScmInputs", amsworker=True)
+    assert "forces" in job.implemented_properties
+    assert "Task" not in job.worker_settings.input.ams
+    assert "Properties" not in job.worker_settings.input.ams
 
 
 def test_ase_deepcopy_worker():
