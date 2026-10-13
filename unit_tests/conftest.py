@@ -1,7 +1,25 @@
-import pytest
-from unittest.mock import patch, MagicMock
-from pathlib import Path
+import os
 import sys
+import tempfile
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+
+# Keep Matplotlib's font cache private to this test process.
+# A stale/broken cache must not affect later test runs.
+_original_mplconfigdir = os.environ.get("MPLCONFIGDIR")
+_matplotlib_config_dir = tempfile.TemporaryDirectory(prefix="plams-matplotlib-")
+os.environ["MPLCONFIGDIR"] = _matplotlib_config_dir.name
+
+
+def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
+    _matplotlib_config_dir.cleanup()
+    if _original_mplconfigdir is None:
+        os.environ.pop("MPLCONFIGDIR", None)
+    else:
+        os.environ["MPLCONFIGDIR"] = _original_mplconfigdir
 
 
 UNIT_TESTS_DIR = Path(__file__).resolve().parent
