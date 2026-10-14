@@ -1,5 +1,6 @@
 import os
 import re
+import shlex
 from collections import Counter
 
 from typing import (
@@ -2678,8 +2679,8 @@ class AMSResults(Results):
 
         Integer indexing uses one-based state identifiers; iteration follows landscape order.
 
-        :param results: AMS results containing an ``EnergyLandscape`` section, or ``None`` to create
-            an empty landscape
+        :param results: AMS results containing an ``EnergyLandscape`` section or a compact
+            ``EnergyLandscape.xyz`` file, or ``None`` to create an empty landscape
         """
 
         class State:
@@ -2758,7 +2759,12 @@ class AMSResults(Results):
                     if self.productsID is not None:
                         lines += [f"     Products:  {self.products}"]
 
-                    if self.reactantsID is not None and self.productsID is not None:
+                    if (
+                        self.reactantsID is not None
+                        and self.productsID is not None
+                        and self.prefactorsFromReactant is not None
+                        and self.prefactorsFromProduct is not None
+                    ):
                         eV = Units.convert(1.0, "eV", "hartree")
                         lines += [
                             f"     Prefactors: {self.prefactorsFromReactant:.3E}:{self.prefactorsFromProduct:.3E} s^-1"
@@ -2766,7 +2772,7 @@ class AMSResults(Results):
                         dEforward = (self.energy - self._landscape._states[self.reactantsID - 1].energy) / eV
                         dEbackward = (self.energy - self._landscape._states[self.productsID - 1].energy) / eV
                         lines += [f"     Barriers: {dEforward:.3f}:{dEbackward:.3f} eV"]
-                    elif self.productsID is not None:
+                    elif self.productsID is not None and self.prefactorsFromReactant is not None:
                         lines += [f"     Prefactors: {self.prefactorsFromReactant:.3E}:?"]
                 else:
                     lines = [
@@ -2877,6 +2883,10 @@ class AMSResults(Results):
                 return
 
             if "EnergyLandscape" not in results.get_rkf_skeleton():
+                for xyz_path in self._compact_xyz_paths(results):
+                    if os.path.isfile(xyz_path):
+                        self._read_compact_xyz(xyz_path)
+                        return
                 return
 
             sec = results.read_rkf_section("EnergyLandscape")
@@ -2968,6 +2978,116 @@ class AMSResults(Results):
                         self, iEnergy, iComposition, iConnections, iAdsorptionPrefactors, iDesorptionPrefactors
                     )
                 )
+
+        @classmethod
+        def from_xyz(cls, filename: str) -> "AMSResults.EnergyLandscape":
+            """Load a compact ``EnergyLandscape.xyz`` file.
+
+            The file format is written by ``PESExploration%SaveEnergyLandscape``
+            with ``WriteXYZ Yes``. It stores state geometries, energies, lattice
+            vectors, and transition-state connectivity, but not engine results or
+            rate prefactors.
+            """
+            landscape = cls(None)
+            landscape._read_compact_xyz(filename)
+            return landscape
+
+        @staticmethod
+        def _compact_xyz_paths(results: "AMSResults") -> List[str]:
+            """Return possible locations of a compact landscape for *results*."""
+            job_path = str(results.job.get_path())
+            return [
+                os.path.join(job_path, "EnergyLandscape.xyz"),
+                os.path.join(job_path, f"{results.name}.results", "EnergyLandscape.xyz"),
+            ]
+
+        def _read_compact_xyz(self, filename: str) -> None:
+            """Populate this landscape from the compact XYZ representation."""
+            states_and_links: List[Tuple["AMSResults.EnergyLandscape.State", Optional[str], Optional[str]]] = []
+            labels: Dict[str, int] = {}
+
+            def metadata(comment: str, frame: int) -> Dict[str, str]:
+                try:
+                    words = shlex.split(comment)
+                except ValueError as exc:
+                    raise ResultsError(f"Invalid metadata in compact energy-landscape XYZ frame {frame}: {exc}") from exc
+                values: Dict[str, str] = {}
+                for word in words:
+                    key, separator, value = word.partition("=")
+                    if not separator or not key or not value:
+                        raise ResultsError(f"Invalid metadata item {word!r} in compact energy-landscape XYZ frame {frame}")
+                    values[key] = value
+                return values
+
+            try:
+                xyz_file = open(filename, encoding="utf-8")
+            except OSError as exc:
+                raise ResultsError(f"Cannot read compact energy-landscape XYZ file: {filename}") from exc
+
+            with xyz_file:
+                frame = 0
+                while True:
+                    position = xyz_file.tell()
+                    header = xyz_file.readline()
+                    if not header:
+                        break
+                    if not header.strip():
+                        continue
+                    frame += 1
+                    try:
+                        natoms = int(header.strip())
+                    except ValueError as exc:
+                        raise ResultsError(f"Invalid atom count in compact energy-landscape XYZ frame {frame}") from exc
+                    xyz_file.seek(position)
+                    molecule = Molecule()
+                    try:
+                        molecule.readxyz(xyz_file)
+                    except FileError as exc:
+                        raise ResultsError(f"Invalid compact energy-landscape XYZ frame {frame}") from exc
+                    if len(molecule) != natoms:
+                        raise ResultsError(f"Invalid atom count in compact energy-landscape XYZ frame {frame}")
+                    if "comment" not in molecule.properties:
+                        raise ResultsError(f"Missing comment line in compact energy-landscape XYZ frame {frame}")
+                    values = metadata(molecule.properties.comment, frame)
+                    required = {"label", "energy", "ts"}
+                    missing = required.difference(values)
+                    if missing:
+                        raise ResultsError(
+                            f"Compact energy-landscape XYZ frame {frame} is missing: {', '.join(sorted(missing))}"
+                        )
+                    try:
+                        energy = float(values["energy"])
+                    except ValueError as exc:
+                        raise ResultsError(f"Invalid energy in compact energy-landscape XYZ frame {frame}") from exc
+                    if values["ts"] not in ("Yes", "No"):
+                        raise ResultsError(f"Invalid ts value in compact energy-landscape XYZ frame {frame}: {values['ts']!r}")
+                    label = values["label"]
+                    if label in labels:
+                        raise ResultsError(f"Duplicate state label in compact energy-landscape XYZ: {label!r}")
+
+                    is_ts = values["ts"] == "Yes"
+                    state = AMSResults.EnergyLandscape.State(self, None, energy, molecule, 1, is_ts)
+                    labels[label] = len(self._states) + 1
+                    self._states.append(state)
+                    states_and_links.append((state, values.get("reactant"), values.get("product")))
+
+            if not self._states:
+                raise ResultsError(f"Compact energy-landscape XYZ file contains no states: {filename}")
+            for state, reactant_label, product_label in states_and_links:
+                if not state.isTS:
+                    continue
+                if reactant_label is not None:
+                    if reactant_label not in labels:
+                        raise ResultsError(f"Transition state {state.id} refers to an unknown reactant")
+                    state.reactantsID = labels[reactant_label]
+                    if self._states[state.reactantsID - 1].isTS:
+                        raise ResultsError(f"Transition state {state.id} has a transition state as reactant")
+                if product_label is not None:
+                    if product_label not in labels:
+                        raise ResultsError(f"Transition state {state.id} refers to an unknown product")
+                    state.productsID = labels[product_label]
+                    if self._states[state.productsID - 1].isTS:
+                        raise ResultsError(f"Transition state {state.id} has a transition state as product")
 
         @property
         def minima(self) -> List["AMSResults.EnergyLandscape.State"]:
@@ -3131,6 +3251,10 @@ class AMSResults(Results):
 
         The returned object is of the type ``AMSResults.EnergyLandscape`` and offers convenient access to the states' energies, geometries as well as the information on which transition states connect which minima.
         State and fragment energies are in hartree, while molecular coordinates are in angstrom.
+        When the RKF ``EnergyLandscape`` section is unavailable, a compact
+        ``EnergyLandscape.xyz`` file in the results directory is loaded instead.
+        Compact landscapes do not include engine results, prefactors, fragments,
+        or fragmented states.
 
         .. code-block:: python
 
@@ -4245,8 +4369,6 @@ class AMSJob(SingleJob):
                 return True
             except ValueError:
                 return False
-
-        import shlex
 
         tokens = shlex.split(suffix)
 

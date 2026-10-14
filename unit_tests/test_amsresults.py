@@ -5,7 +5,7 @@ from ase import Atoms as AseAtoms
 
 from scm.plams.interfaces.adfsuite.ams import AMSJob, AMSResults
 from scm.plams.tools.kftools import KFFile
-from scm.plams.core.errors import FileError, MissingOptionalPackageError
+from scm.plams.core.errors import FileError, MissingOptionalPackageError, ResultsError
 from scm.plams.mol.molecule import Molecule
 from test_helpers import skip_if_no_ams_installation
 
@@ -809,3 +809,78 @@ class TestPropaneNitrileOptimizationAMSResults:
             == propane_nitrile_opt_results.get_atom_types("forcefield")
             == ["C_1", "C_3", "C_3", "N_1", "H_", "H_", "H_", "H_", "H_"]
         )
+
+
+class TestCompactEnergyLandscape:
+    @staticmethod
+    def _write_landscape(path):
+        path.write_text(
+            '''2
+energy=-1.0 label="minimum-a" ts="No"
+H 0.0 0.0 0.0
+H 0.0 0.0 0.7
+VEC1 4.0 0.0 0.0
+2
+energy=-0.8 label="minimum-b" ts="No"
+H 0.0 0.0 0.1
+H 0.0 0.0 0.8
+VEC1 4.0 0.0 0.0
+2
+energy=-0.5 label="ts-a-b" ts="Yes" reactant="minimum-a" product="minimum-b"
+H 0.0 0.0 0.05
+H 0.0 0.0 0.75
+VEC1 4.0 0.0 0.0
+'''
+        )
+
+    def test_from_xyz_preserves_states_lattice_and_connectivity(self, tmp_path):
+        xyz_path = tmp_path / "EnergyLandscape.xyz"
+        self._write_landscape(xyz_path)
+
+        landscape = AMSResults.EnergyLandscape.from_xyz(str(xyz_path))
+
+        assert len(landscape) == 3
+        assert [state.energy for state in landscape] == [-1.0, -0.8, -0.5]
+        assert len(landscape.minima) == 2
+        assert len(landscape.transition_states) == 1
+        assert [atom.symbol for atom in landscape[1].molecule] == ["H", "H"]
+        assert landscape[1].molecule.lattice == [[4.0, 0.0, 0.0]]
+        assert landscape[3].reactants is landscape[1]
+        assert landscape[3].products is landscape[2]
+        assert landscape[3].engfile is None
+        assert "Prefactors" not in str(landscape[3])
+
+    def test_get_energy_landscape_falls_back_to_compact_xyz(self, tmp_path):
+        self._write_landscape(tmp_path / "EnergyLandscape.xyz")
+        job = MagicMock(spec=AMSJob)
+        job.name = "compact"
+        job.status = "successful"
+        job.get_path = Mock(return_value=tmp_path)
+        results = AMSResults(job=job)
+        results.get_rkf_skeleton = Mock(return_value={})
+
+        landscape = results.get_energy_landscape()
+
+        assert len(landscape) == 3
+        assert landscape[3].reactantsID == 1
+        assert landscape[3].productsID == 2
+
+    def test_from_xyz_allows_unconnected_transition_states(self, tmp_path):
+        xyz_path = tmp_path / "EnergyLandscape.xyz"
+        xyz_path.write_text('1\nenergy=0.0 label="unconnected-ts" ts="Yes"\nH 0 0 0\n')
+
+        landscape = AMSResults.EnergyLandscape.from_xyz(str(xyz_path))
+
+        assert len(landscape) == 1
+        assert landscape[1].isTS
+        assert landscape[1].reactants is None
+        assert landscape[1].products is None
+
+    def test_from_xyz_rejects_unknown_transition_state_endpoint(self, tmp_path):
+        xyz_path = tmp_path / "EnergyLandscape.xyz"
+        xyz_path.write_text(
+            '1\nenergy=0.0 label="ts" ts="Yes" reactant="missing" product="missing"\nH 0 0 0\n'
+        )
+
+        with pytest.raises(ResultsError, match="unknown reactant"):
+            AMSResults.EnergyLandscape.from_xyz(str(xyz_path))
