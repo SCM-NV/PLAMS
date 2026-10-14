@@ -3714,16 +3714,21 @@ class Molecule:
             rmsd = np.linalg.norm(x - y) * np.sqrt(1 / len(x))
             return (rmsd, R) if rotmat is True else rmsd
 
-        assert len(mol1) == len(mol2), "Can only calculate the RMSD of same-sized molecules"
+        if len(mol1) != len(mol2):
+            raise MoleculeError("Can only calculate the RMSD of same-sized molecules")
         if check:
             nums1 = np.array([i.atnum for i in mol1])
             nums2 = np.array([i.atnum for i in mol2])
-            assert (
-                nums1 == nums2
-            ).all(), "\nAtoms are not the same (or not in the same order). Use `check==False` if you do not care about this.\n"
+            if not (nums1 == nums2).all():
+                raise MoleculeError(
+                    "\nAtoms are not the same (or not in the same order). Use `check==False` if you do not care about this.\n"
+                )
         if ignore_hydrogen is True:
             coords1 = [at.coords for at in mol1 if at.symbol != "H"]
             coords2 = [at.coords for at in mol2 if at.symbol != "H"]
+        else:
+            coords1 = [at.coords for at in mol1]
+            coords2 = [at.coords for at in mol2]
         return kabsch(np.array(coords1), np.array(coords2), rotmat=return_rotmat)
 
     def align2mol(self: TSelf, molecule_ref: TSelf, ignore_hydrogen: bool = False, watch: bool = False) -> None:
