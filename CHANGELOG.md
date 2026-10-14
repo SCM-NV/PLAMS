@@ -28,6 +28,7 @@ This changelog is effective from the 2025 releases.
 
 ### Fixed
 * Xvfb backend for `view` function with 0 display value
+* `Molecule.rmsd` works with the default `ignore_hydrogen=False` and raises `MoleculeError` for mismatched molecule sizes or atom types
 
 ## 2026.104
 

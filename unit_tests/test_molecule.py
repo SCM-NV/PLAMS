@@ -1204,3 +1204,32 @@ def test_separate():
     for i in range(1, 1000):
         mol.add_bond(mol[i], mol[i + 1])
     mol.separate()
+
+
+def test_rmsd_includes_hydrogen_by_default() -> None:
+    water = Molecule()
+    water.add_atom(Atom(symbol="O", coords=(0.0, 0.0, 0.0)))
+    water.add_atom(Atom(symbol="H", coords=(1.0, 0.0, 0.0)))
+    water.add_atom(Atom(symbol="H", coords=(0.0, 1.0, 0.0)))
+    moved = water.copy()
+    moved[2].translate((1.0, 0.0, 0.0))
+
+    assert Molecule.rmsd(water, water) == pytest.approx(0.0)
+    assert Molecule.rmsd(water, moved) > 0.0
+    assert Molecule.rmsd(water, moved, ignore_hydrogen=True) == pytest.approx(0.0)
+
+
+def test_rmsd_invalid_molecules_raise_molecule_error() -> None:
+    water = Molecule()
+    water.add_atom(Atom(symbol="O", coords=(0.0, 0.0, 0.0)))
+    water.add_atom(Atom(symbol="H", coords=(1.0, 0.0, 0.0)))
+    water.add_atom(Atom(symbol="H", coords=(0.0, 1.0, 0.0)))
+    smaller = water.copy()
+    smaller.delete_atom(smaller[2])
+    with pytest.raises(MoleculeError, match="same-sized molecules"):
+        Molecule.rmsd(water, smaller)
+
+    different_elements = water.copy()
+    different_elements[2].symbol = "C"
+    with pytest.raises(MoleculeError, match="Atoms are not the same"):
+        Molecule.rmsd(water, different_elements)
