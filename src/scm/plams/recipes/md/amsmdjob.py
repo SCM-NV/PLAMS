@@ -1,13 +1,39 @@
+from scm.plams.core.basejob import Job
 from scm.plams.core.functions import add_to_instance
 from scm.plams.core.settings import Settings
 from scm.plams.interfaces.adfsuite.ams import AMSJob, AMSResults
 import numpy as np
 from scm.plams.tools.kftools import KFFile
 from scm.plams.tools.units import Units
-from typing import Union
+from typing import Any, Union
 import scm.plams as plams
 
+try:
+    from scm.inputs import AMS as AMSInputModel, InputModel
+
+    _has_scm_inputs = True
+except ImportError:
+    _has_scm_inputs = False
+
 __all__ = ["AMSMDJob", "AMSNVEJob", "AMSNVTJob", "AMSNPTJob"]
+
+
+def _to_plams_settings(settings: Any) -> Any:
+    """Convert an AMS input model to the Settings form used by MD recipes."""
+    if not _has_scm_inputs:
+        return settings
+    source_settings = settings.settings if isinstance(settings, Job) else settings
+    input_model = source_settings.get("input") if isinstance(source_settings, Settings) else source_settings
+    if not isinstance(input_model, AMSInputModel):
+        if isinstance(input_model, InputModel):
+            raise TypeError("AMSMDJob settings must be PLAMS Settings or scm.inputs.AMS")
+        return settings
+
+    from scm.plams.interfaces.adfsuite.inputparser import input_to_settings
+
+    converted = source_settings.copy() if isinstance(source_settings, Settings) else Settings()
+    converted.input = input_to_settings(input_model.to_input(), program=AMSJob._command)
+    return converted
 
 
 class AMSMDJob(AMSJob):
@@ -19,8 +45,8 @@ class AMSMDJob(AMSJob):
     name: str
         The name of the job
 
-    settings: Settings
-        Settings for the job. You should normally not populate neither settings.input.ams.MolecularDynamics nor settings.input.ams.Task
+    settings: Settings or Job or scm.inputs.AMS
+        Settings for the job. An ``scm.inputs.AMS`` model may also be passed directly or as ``settings.input``.
 
     velocities: float or AMSJob or str (path/to/ams.rkf) or 2-tuple (path/to/ams.rkf, frame-number)
         If float, it is taken as the temperature. If AMSJob or str, the velocities are taken from the EndVelocities section of the corresponding ams.rkf file. If 2-tuple, the first item must be a path to an ams.rkf, and the second item an integer specifying the frame number - the velocities are then read from History%Velocities(framenumber).
@@ -166,6 +192,8 @@ class AMSMDJob(AMSJob):
             molecule = molecule.results.get_main_molecule()
         if isinstance(molecule, AMSResults):
             molecule = molecule.get_main_molecule()
+        if "settings" in kwargs:
+            kwargs["settings"] = _to_plams_settings(kwargs["settings"])
         AMSJob.__init__(self, molecule=molecule, **kwargs)
 
         self.settings.input.ams.Task = "MolecularDynamics"
@@ -322,9 +350,9 @@ class AMSMDJob(AMSJob):
             velocities = None
             molecule = None
 
-        extra_settings = other_job.settings.copy()
+        extra_settings = _to_plams_settings(other_job.settings.copy())
         if settings:
-            extra_settings.update(settings)
+            extra_settings.update(_to_plams_settings(settings))
 
         if "InitialVelocities" in extra_settings.input.ams.MolecularDynamics:
             del extra_settings.input.ams.MolecularDynamics.InitialVelocities
