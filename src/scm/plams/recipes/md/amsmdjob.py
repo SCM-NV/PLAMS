@@ -480,6 +480,14 @@ class AMSNVTJob(AMSMDJob):
 
 
 class AMSNPTResults(AMSResults):
+    def _get_equilibrated_step(self, equilibration_fraction: float) -> int:
+        densities = self.get_history_property("Density", "MDHistory")
+        analyze_from = int(len(densities) * equilibration_fraction)
+        # Take the structure closest to the average density after equilibration.
+        avg_density = np.mean(densities[analyze_from:])  # amu/bohr^3
+        delta = np.abs(np.array(densities[analyze_from:]) - avg_density)
+        return int(np.argmin(delta)) + analyze_from + 1
+
     def get_equilibrated_molecule(self, equilibration_fraction=0.667, return_index=False):
         """
 
@@ -489,20 +497,27 @@ class AMSNPTResults(AMSResults):
         trajectory.
 
         """
-        densities = self.job.results.get_history_property("Density", "MDHistory")
-        analyze_from = int(len(densities) * equilibration_fraction)
-        # take structure closest to the target density
-        avg_density = np.mean(densities[analyze_from:])  # amu/bohr^3
-        delta = np.array(densities[analyze_from:]) - avg_density
-        delta = np.abs(delta)
-        min_index = np.argmin(delta)
-        min_index += analyze_from
-        mol = self.job.results.get_history_molecule(min_index + 1)
+        step = self._get_equilibrated_step(equilibration_fraction)
+        molecule = self.get_history_molecule(step)
 
         if return_index:
-            return mol, min_index + 1
+            return molecule, step
 
-        return mol
+        return molecule
+
+    def get_equilibrated_system(self, equilibration_fraction: float = 0.667, return_index: bool = False) -> Any:
+        """Return the post-equilibration frame closest to the average density as a ``ChemicalSystem``.
+
+        :param equilibration_fraction: fraction of the beginning of the trajectory to discard
+        :param return_index: also return the selected one-based history index
+        """
+        step = self._get_equilibrated_step(equilibration_fraction)
+        system = self.get_history_system(step)
+
+        if return_index:
+            return system, step
+
+        return system
 
 
 class AMSNPTJob(AMSMDJob):

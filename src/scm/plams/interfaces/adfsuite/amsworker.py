@@ -41,6 +41,13 @@ from scm.plams.tools.units import Units
 from scm.plams.core.threading_utils import ContextAwareThread
 from scm.plams.mol.molecule import Molecule
 
+try:
+    from scm.inputs import EngineInputModel, InputModel
+
+    _has_scm_inputs = True
+except ImportError:
+    _has_scm_inputs = False
+
 if TYPE_CHECKING:
     from ase import Atoms as ASEAtoms
     from scm.amspipe import AMSPipeError
@@ -534,9 +541,30 @@ class AMSWorker:
         self.restart_cache: Set[str] = set()
         self.restart_cache_deleted: Set[str] = set()
 
+        # Make a copy of the Settings instance so we do not modify the outside world.
+        settings = settings.copy()
+        has_typed_input = (
+            _has_scm_inputs
+            and isinstance(settings.input, InputModel)
+            and not isinstance(settings.input, EngineInputModel)
+        )
+        if has_typed_input:
+            # Settings.copy() does not deep-copy an embedded scm.inputs model.
+            settings.input = settings.input.model_copy(deep=True)
+
         # Check if the settings we have are actually suitable for a PipeWorker.
         # They should not contain certain keywords and blocks.
-        if "ams" in settings.input:
+        if has_typed_input:
+            forbidden_fields = {
+                "Task": "Settings for AMSWorker should not contain a Task",
+                "Systems": "Settings for AMSWorker should not contain a System block",
+                "Properties": "Settings for AMSWorker should not contain the Properties block",
+                "GeometryOptimization": "Settings for AMSWorker should not contain the GeometryOptimization block",
+            }
+            for field, message in forbidden_fields.items():
+                if settings.input.is_present(field):
+                    raise JobError(message)
+        elif "ams" in settings.input:
             if "Task" in settings.input.ams:
                 raise JobError("Settings for AMSWorker should not contain a Task")
             if "System" in settings.input.ams:
@@ -546,9 +574,12 @@ class AMSWorker:
             if "GeometryOptimization" in settings.input.ams:
                 raise JobError("Settings for AMSWorker should not contain the GeometryOptimization block")
 
-        # Make a copy of the Settings instance so we do not modify the outside world and fix the task to be "Pipe".
-        self.settings = settings.copy()
-        self.settings.input.ams.task = "pipe"
+        # Fix the task to be "Pipe" using the appropriate input representation.
+        self.settings = settings
+        if has_typed_input:
+            self.settings.input.Task = "Pipe"
+        else:
+            self.settings.input.ams.task = "pipe"
 
         # Create the directory in which we will run the worker.
         self.wd_root = workerdir_root

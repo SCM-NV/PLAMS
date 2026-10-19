@@ -18,6 +18,7 @@ This changelog is effective from the 2025 releases.
 * Function `view_atomic_property` to visualize atomic properties (e.g. charges) of completed AMS jobs 
 * `AMSResults.get_molecule_count_history` to extract molecular-formula populations from reactive MD trajectories, and `plot_molecule_counts` in `scm.plams.tools.plot` to visualize them
 * Functions `movie` and `display_movie` to create and display GIF, animated WebP, and MP4 movies from image frames
+* `AMSResults.get_history_system`, `AMSNPTResults.get_equilibrated_system`, and `EquilibrateDensityResults.get_equilibrated_system` to retrieve trajectory structures as `ChemicalSystem` objects
 
 ### Changed
 * `Molecule.readmol2` can now read non-integer bond orders
@@ -25,6 +26,8 @@ This changelog is effective from the 2025 releases.
 * `view` function uses stdin mode for AMSview, reducing overhead for image creation
 * `vasp_output_to_ams` now reads the MD time step from `POTIM` in the OUTCAR and labels molecular-dynamics runs (`IBRION = 0`) as such, instead of using a fixed default time step
 * `view` function supports AMSJob and rkf as inputs
+* `AMSWorker` accepts typed `scm.inputs.AMS` models in `settings.input`, and AMS molecular-dynamics recipe jobs accept them directly or through `settings.input`
+* `preoptimize`, `shakemd`, `refine_density`, and `refine_lattice` accept `ChemicalSystem` inputs and preserve the input structure type in their results
 
 ### Fixed
 * Xvfb backend for `view` function with 0 display value

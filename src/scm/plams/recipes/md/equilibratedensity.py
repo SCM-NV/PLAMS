@@ -1,4 +1,5 @@
 from collections import OrderedDict
+from typing import Any
 
 from scm.plams.core.basejob import MultiJob
 from scm.plams.core.functions import add_to_instance
@@ -15,6 +16,12 @@ class EquilibrateDensityResults(Results):
 
     def get_equilibrated_molecule(self, equilibration_fraction=0.667, return_index=False):
         return self.job.children["npt"].results.get_equilibrated_molecule(
+            equilibration_fraction=equilibration_fraction, return_index=return_index
+        )
+
+    def get_equilibrated_system(self, equilibration_fraction: float = 0.667, return_index: bool = False) -> Any:
+        """Return the equilibrated density structure as a ``ChemicalSystem``."""
+        return self.job.children["npt"].results.get_equilibrated_system(
             equilibration_fraction=equilibration_fraction, return_index=return_index
         )
 

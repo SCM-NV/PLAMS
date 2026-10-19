@@ -9,7 +9,65 @@ from scm.plams.interfaces.adfsuite.amsworker import AMSWorker, AMSWorkerResults
 from scm.plams.mol.molecule import Molecule
 from scm.plams.tools.units import Units
 from scm.plams.interfaces.molecule.ase import fromASE
-from test_helpers import skip_if_no_scm_base
+from test_helpers import skip_if_no_scm_base, skip_if_no_scm_inputs
+
+
+def test_init_with_scm_inputs(tmp_path, monkeypatch) -> None:
+    skip_if_no_scm_inputs()
+    from scm.inputs import AMS, LennardJones
+    from scm.plams.core.settings import Settings
+
+    settings = Settings()
+    settings.input = AMS(Engine=LennardJones(Eps=3.785e-4, RMin=3.81637, Cutoff=8.0))
+    settings.runscript.nproc = 1
+    monkeypatch.setattr(AMSWorker, "_start_subprocess", MagicMock())
+
+    worker = AMSWorker(settings, workerdir_root=str(tmp_path), always_keep_workerdir=True)
+
+    assert isinstance(worker.settings.input, AMS)
+    assert worker.settings.input.Task == "Pipe"
+    assert worker.settings.input.Engine.Eps == 3.785e-4
+    assert worker.settings.input.Engine.RMin == 3.81637
+    assert worker.settings.input.Engine.Cutoff == 8.0
+    assert worker.settings.runscript.nproc == 1
+    assert settings.input.Task is None
+
+
+@pytest.mark.parametrize(
+    "field,expected_message",
+    [
+        ("Task", "should not contain a Task"),
+        ("Systems", "should not contain a System block"),
+        ("Properties", "should not contain the Properties block"),
+        ("GeometryOptimization", "should not contain the GeometryOptimization block"),
+    ],
+)
+def test_init_rejects_forbidden_scm_inputs(field, expected_message, tmp_path, monkeypatch) -> None:
+    skip_if_no_scm_inputs()
+    from scm.inputs import AMS, DFTB
+    from scm.plams.core.settings import Settings
+
+    settings = Settings()
+    settings.input = AMS(Engine=DFTB())
+    if field == "Task":
+        settings.input.Task = "SinglePoint"
+    elif field == "Systems":
+        skip_if_no_scm_base()
+        from scm.base import ChemicalSystem
+
+        system = ChemicalSystem()
+        system.add_atom("H", (0.0, 0.0, 0.0))
+        settings.input.System = system
+    elif field == "Properties":
+        settings.input.Properties.Gradients = True
+    elif field == "GeometryOptimization":
+        settings.input.GeometryOptimization.MaxIterations = 10
+    monkeypatch.setattr(AMSWorker, "_start_subprocess", MagicMock())
+
+    with pytest.raises(JobError, match=expected_message):
+        AMSWorker(settings, workerdir_root=str(tmp_path), always_keep_workerdir=True)
+
+    assert settings.input.Task == ("SinglePoint" if field == "Task" else None)
 
 
 class PrepareSystemTestBase(ABC):

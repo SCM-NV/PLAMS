@@ -1,11 +1,14 @@
 from pathlib import Path
 from typing import Type
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from scm.plams import AMSJob, AMSMDJob, AMSNPTJob, AMSNVEJob, AMSNVTJob, Atom, Molecule, Settings
+from scm.plams.core.enums import JobStatus
 from scm.plams.recipes.md.movingrestraints import AMSMovingRestraintBondSwitchJob, AMSMovingRestraintRMSDJob
+from scm.plams.recipes.md.amsmdjob import AMSNPTResults
+from scm.plams.recipes.md.equilibratedensity import EquilibrateDensityResults
 from scm.plams.recipes.md.scandensity import AMSMDScanDensityJob
 
 
@@ -109,6 +112,37 @@ def test_converted_md_job_restart_from_typed_ams_job() -> None:
     assert isinstance(restarted.settings.input, Settings)
     assert restarted.settings.input.ams.MolecularDynamics.NSteps == 12
     assert isinstance(previous.settings.input, inputs.AMS)
+
+
+def test_npt_equilibrated_molecule_and_system_select_same_history_step() -> None:
+    job = MagicMock()
+    job.status = JobStatus.SUCCESSFUL
+    results = AMSNPTResults(job=job)
+    results.get_history_property = MagicMock(return_value=[100.0, 4.0, 8.0, 6.0])
+    results.get_history_molecule = MagicMock(return_value="molecule")
+    results.get_history_system = MagicMock(return_value="system")
+
+    molecule, molecule_step = results.get_equilibrated_molecule(equilibration_fraction=0.25, return_index=True)
+    system, system_step = results.get_equilibrated_system(equilibration_fraction=0.25, return_index=True)
+
+    assert (molecule, molecule_step) == ("molecule", 4)
+    assert (system, system_step) == ("system", 4)
+    results.get_history_molecule.assert_called_once_with(4)
+    results.get_history_system.assert_called_once_with(4)
+
+
+def test_equilibrate_density_results_forwards_get_equilibrated_system() -> None:
+    npt_results = MagicMock()
+    npt_results.get_equilibrated_system.return_value = ("system", 12)
+    job = MagicMock()
+    job.status = JobStatus.SUCCESSFUL
+    job.children = {"npt": MagicMock(results=npt_results)}
+    results = EquilibrateDensityResults(job=job)
+
+    output = results.get_equilibrated_system(equilibration_fraction=0.75, return_index=True)
+
+    assert output == ("system", 12)
+    npt_results.get_equilibrated_system.assert_called_once_with(equilibration_fraction=0.75, return_index=True)
 
 
 @pytest.mark.parametrize("typed", [False, True])
