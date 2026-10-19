@@ -43,7 +43,7 @@ except ImportError:
     _has_scm_inputs = False
 
 try:
-    from scm.base import ChemicalSystem
+    from scm.base import Bond as ChemicalSystemBond, ChemicalSystem
 
     _has_scm_chemsys = True
 except ImportError:
@@ -516,6 +516,78 @@ class AMSResults(Results):
                 b.properties.suffix = " ".join([f"{cellShifts[ndim*i+j]}" for j in range(min(len(mol.lattice), ndim))])
 
         return mol
+
+    @requires_optional_package("scm.base")
+    def get_history_system(self, step: int) -> Optional["ChemicalSystem"]:
+        """Return the chemical system at a trajectory step from the ``History`` section of ``ams.rkf``.
+
+        All data used by this method is taken from ``ams.rkf``; the ``molecule`` attribute of the corresponding job is
+        ignored. This is the ``ChemicalSystem`` counterpart of :meth:`get_history_molecule` and uses the same one-based
+        history indexing. Coordinates and lattice vectors in the returned system are in angstrom. Bonds are read from
+        the selected history frame when available.
+
+        This method requires the optional ``scm.base`` package. If it is unavailable, calling this method raises
+        :class:`~scm.plams.core.errors.MissingOptionalPackageError`.
+
+        :param step: one-based history step number
+        :return: chemical system at the requested step, or ``None`` if ``ams.rkf`` is unavailable
+        :raises KeyError: if the requested step is outside the stored history
+        :raises ResultsError: if the stored coordinates and molecular system have different sizes
+        """
+        if "ams" not in self.rkfs:
+            return None
+
+        main = self.rkfs["ams"]
+        if not self.is_valid_stepnumber(main, step):
+            return None
+
+        flat_coords = main.read_reals("History", f"Coords({step})")
+        coords = np.asarray(flat_coords).reshape(-1, 3)
+        if ("History", f"SystemVersion({step})") in main:
+            system_version = self.get_system_version(main, step)
+            system = self.get_system(f"ChemicalSystem({system_version})")
+            system_source = f"ChemicalSystem({system_version})"
+        else:
+            system = self.get_main_system()
+            system_source = "Molecule"
+
+        if len(system) != len(coords):
+            raise ResultsError(
+                f'Coordinates taken from "History%Coords({step})" have incompatible length with system from '
+                f"{system_source} section"
+            )
+        system.coords = Units.convert(coords, "bohr", "angstrom")
+
+        if ("History", f"LatticeVectors({step})") in main:
+            lattice = main.read_reals("History", f"LatticeVectors({step})")
+            system.lattice.vectors = np.asarray(Units.convert(lattice, "bohr", "angstrom")).reshape(-1, 3)
+
+        # Bonds from the reference system may be outdated, so only retain bonds stored for this history frame.
+        system.bonds.clear_bonds()
+        bond_variables = [f"Bonds.Index({step})", f"Bonds.Atoms({step})", f"Bonds.Orders({step})"]
+        if all(("History", variable) in main for variable in bond_variables):
+            index = main.read_ints("History", f"Bonds.Index({step})")
+            atoms = main.read_ints("History", f"Bonds.Atoms({step})")
+            orders = main.read_reals("History", f"Bonds.Orders({step})")
+            if not isinstance(orders, list):
+                orders = [orders]
+
+            cell_shifts = None
+            if ("History", f"Bonds.CellShifts({step})") in main:
+                cell_shifts = main.read_ints("History", f"Bonds.CellShifts({step})")
+            ndim = len(system.lattice.vectors)
+            bond_index = 0
+            for atom_index in range(len(index) - 1):
+                for sparse_index in range(index[atom_index], index[atom_index + 1]):
+                    lattice_displacements = np.zeros(3, dtype=np.int32)
+                    if cell_shifts is not None:
+                        shift_start = ndim * bond_index
+                        lattice_displacements[:ndim] = cell_shifts[shift_start : shift_start + ndim]
+                    bond = ChemicalSystemBond(orders[sparse_index - 1], lattice_displacements)
+                    system.bonds.add_bond(atom_index, atoms[sparse_index - 1] - 1, bond)
+                    bond_index += 1
+
+        return system
 
     def is_valid_stepnumber(self, main: KFFile, step: int) -> bool:
         """Check whether a one-based step number is present in an RKF history.

@@ -6,12 +6,79 @@ from scm.plams.core.errors import PlamsError
 from scm.plams.interfaces.adfsuite.ams import AMSJob
 from scm.plams.interfaces.adfsuite.amsworker import AMSWorker
 from scm.plams.mol.molecule import Molecule
-from typing import Optional, Union, Sequence, overload, List
+from typing import Any, Optional, Union, Sequence, overload, List, TYPE_CHECKING
+from typing_extensions import TypeGuard
+
+if TYPE_CHECKING:
+    from scm.base import ChemicalSystem
+
+    _has_scm_chemsys: bool
+else:
+    try:
+        from scm.base import ChemicalSystem
+
+        _has_scm_chemsys = True
+    except ImportError:
+        _has_scm_chemsys = False
 
 __all__ = ["preoptimize", "refine_density", "refine_lattice", "shakemd"]
 
 
+def _is_chemical_system(molecule: Union[Molecule, "ChemicalSystem"]) -> TypeGuard["ChemicalSystem"]:
+    return _has_scm_chemsys and isinstance(molecule, ChemicalSystem)
+
+
+def _get_main_structure(
+    results: Any, molecule: Union[Molecule, "ChemicalSystem"]
+) -> Optional[Union[Molecule, "ChemicalSystem"]]:
+    if _is_chemical_system(molecule):
+        return results.get_main_system()
+    return results.get_main_molecule()
+
+
+def _get_density(molecule: Union[Molecule, "ChemicalSystem"]) -> float:
+    if _is_chemical_system(molecule):
+        return molecule.density("kg/m3")
+    return molecule.get_density()
+
+
+def _set_density(molecule: Union[Molecule, "ChemicalSystem"], density: float) -> None:
+    if _is_chemical_system(molecule):
+        molecule.set_density(density, unit="kg/m3")
+    else:
+        molecule.set_density(density)
+
+
+def _get_lattice_vectors(molecule: Union[Molecule, "ChemicalSystem"]) -> Any:
+    if _is_chemical_system(molecule):
+        return molecule.lattice.vectors
+    return molecule.lattice
+
+
+def _with_updated_geometry(
+    molecule: Union[Molecule, "ChemicalSystem"], result_molecule: Molecule
+) -> Union[Molecule, "ChemicalSystem"]:
+    if not _is_chemical_system(molecule):
+        return result_molecule
+
+    # PES scan frames are exposed as Molecules, so update a copy to retain the
+    # ChemicalSystem metadata that is not represented by a Molecule.
+    result = molecule.copy()
+    result.coords = result_molecule.as_array()
+    if result_molecule.lattice:
+        result.lattice.vectors = result_molecule.lattice
+    return result
+
+
 # ToDo: remove type ignore once mypy_path is enabled
+@overload
+def preoptimize(
+    molecule: Sequence[Union[Molecule, "ChemicalSystem"]],
+    model: str = "UFF",
+    settings: Optional[Settings] = None,
+    nproc: int = 1,
+    maxiterations: int = 100,
+) -> List[Union[Molecule, "ChemicalSystem"]]: ...
 @overload
 def preoptimize(
     molecule: Molecule,
@@ -22,24 +89,25 @@ def preoptimize(
 ) -> Molecule: ...
 @overload
 def preoptimize(
-    molecule: Sequence[Molecule],
+    molecule: "ChemicalSystem",
     model: str = "UFF",
     settings: Optional[Settings] = None,
     nproc: int = 1,
     maxiterations: int = 100,
-) -> List[Molecule]: ...
+) -> "ChemicalSystem": ...
 def preoptimize(
-    molecule: Union[Molecule, Sequence[Molecule]],
+    molecule: Union[Molecule, "ChemicalSystem", Sequence[Union[Molecule, "ChemicalSystem"]]],
     model: str = "UFF",
     settings: Optional[Settings] = None,
     nproc: int = 1,
     maxiterations: int = 100,
-) -> Union[Molecule, List[Molecule]]:
+) -> Union[Molecule, "ChemicalSystem", List[Union[Molecule, "ChemicalSystem"]]]:
     """
-    Returns an optimized Molecule (or list of optimized molecules)
+    Returns an optimized structure, or a list of optimized structures. Each
+    result has the same type as its corresponding input.
 
-    molecule: Molecule or list of Molecules
-        Molecule to optimize
+    molecule: Molecule, ChemicalSystem, or sequence of either
+        Structure or structures to optimize
     model: str
         Shorthand for some model, e.g. 'UFF'
     settings: Settings
@@ -51,14 +119,15 @@ def preoptimize(
     """
     my_settings = _get_quick_settings(model, settings, nproc)
 
-    input_molecules = [molecule] if (single_molecule := isinstance(molecule, Molecule)) else molecule
-    output_molecules: List[Molecule] = []
+    single_molecule = isinstance(molecule, Molecule) or _is_chemical_system(molecule)
+    input_molecules = [molecule] if single_molecule else molecule
+    output_molecules: List[Union[Molecule, "ChemicalSystem"]] = []
     with AMSWorker(my_settings) as worker:
         for i, mol in enumerate(input_molecules):
             results = worker.GeometryOptimization(
                 name=f"preoptimization_{i}", molecule=mol, maxiterations=maxiterations, pretendconverged=True
             )
-            result_molecule = results.get_main_molecule()
+            result_molecule = _get_main_structure(results, mol)
             if result_molecule is None:
                 raise PlamsError(f"Preoptimization failed for molecule with index {i}.")
             output_molecules.append(result_molecule)
@@ -69,6 +138,7 @@ def preoptimize(
         return output_molecules
 
 
+@overload
 def shakemd(
     molecule: Molecule,
     density: Optional[float] = None,  # kg/m^3
@@ -76,15 +146,37 @@ def shakemd(
     model: str = "UFF",
     settings: Optional[Settings] = None,
     nproc: int = 1,
-) -> Molecule:
+) -> Molecule: ...
+
+
+@overload
+def shakemd(
+    molecule: "ChemicalSystem",
+    density: Optional[float] = None,
+    nsteps: int = 4000,
+    model: str = "UFF",
+    settings: Optional[Settings] = None,
+    nproc: int = 1,
+) -> "ChemicalSystem": ...
+
+
+def shakemd(
+    molecule: Union[Molecule, "ChemicalSystem"],
+    density: Optional[float] = None,  # kg/m^3
+    nsteps: int = 4000,
+    model: str = "UFF",
+    settings: Optional[Settings] = None,
+    nproc: int = 1,
+) -> Union[Molecule, "ChemicalSystem"]:
     """
     Performs SHAKE MD simulation with all bonds fixed. If ``density`` is specified, a lattice deformation will also be applied.
 
     The temperature is 100 K and the time step 0.5 fs.
 
-    Returns: a Molecule corresponding to the final MD step.
+    Returns a structure corresponding to the final MD step, with the same type
+    as ``molecule``.
 
-    molecule: Molecule
+    molecule: Molecule or ChemicalSystem
         The initial structure
     density: float, optional
         If specified, the molecule must have a 3D lattice. Target density in kg/m^3   (1000x the density in g/cm^3)
@@ -107,8 +199,8 @@ def shakemd(
     s.input.ams.MolecularDynamics.Shake.All = "bonds * *"
     if density is not None:
         temp_mol = molecule.copy()
-        temp_mol.set_density(density)
-        l = temp_mol.lattice
+        _set_density(temp_mol, density)
+        l = _get_lattice_vectors(temp_mol)
         target_lattice_str = f"""
             {l[0][0]} {l[0][1]} {l[0][2]}
             {l[1][0]} {l[1][1]} {l[1][2]}
@@ -121,7 +213,7 @@ def shakemd(
     job = AMSJob(settings=s, molecule=molecule, name="shakemd")
     job.run()
 
-    out = job.results.get_main_molecule()
+    out = _get_main_structure(job.results, molecule)
 
     delete_job(job)
 
@@ -131,6 +223,7 @@ def shakemd(
     return out
 
 
+@overload
 def refine_density(
     molecule: Molecule,
     density: float,
@@ -139,7 +232,30 @@ def refine_density(
     settings: Optional[Settings] = None,
     nproc: int = 1,
     maxiterations: int = 100,
-) -> Molecule:
+) -> Molecule: ...
+
+
+@overload
+def refine_density(
+    molecule: "ChemicalSystem",
+    density: float,
+    step_size: int = 50,
+    model: str = "UFF",
+    settings: Optional[Settings] = None,
+    nproc: int = 1,
+    maxiterations: int = 100,
+) -> "ChemicalSystem": ...
+
+
+def refine_density(
+    molecule: Union[Molecule, "ChemicalSystem"],
+    density: float,
+    step_size: int = 50,
+    model: str = "UFF",
+    settings: Optional[Settings] = None,
+    nproc: int = 1,
+    maxiterations: int = 100,
+) -> Union[Molecule, "ChemicalSystem"]:
     """
 
     Performs a series of geometry optimizations with densities approaching
@@ -152,10 +268,11 @@ def refine_density(
     structure with a lower density, and this function can be used to
     increase the density to the desired value.
 
-    Returns: a Molecule with the requested density.
+    Returns a structure with the requested density, with the same type as
+    ``molecule``.
 
-    molecule: Molecule
-        The molecule must have a 3D lattice
+    molecule: Molecule or ChemicalSystem
+        The structure must have a 3D lattice
     density: float
         Target density in kg/m^3   (1000x the density in g/cm^3)
     step_size: float
@@ -170,10 +287,10 @@ def refine_density(
 
     """
 
-    assert len(molecule.lattice) == 3
+    assert len(_get_lattice_vectors(molecule)) == 3
     tolerance = 1e-3
     my_settings = _get_quick_settings(model, settings, nproc)
-    current_density = molecule.get_density()  # kg/m^3
+    current_density = _get_density(molecule)  # kg/m^3
     output_molecule = molecule.copy()
     counter = 0
     with AMSWorker(my_settings) as worker:
@@ -186,7 +303,7 @@ def refine_density(
             else:
                 new_density = density
 
-            output_molecule.set_density(new_density)
+            _set_density(output_molecule, new_density)
 
             results = worker.GeometryOptimization(
                 name=f"preoptimization_{counter}",
@@ -195,15 +312,16 @@ def refine_density(
                 pretendconverged=True,
             )
 
-            result_molecule = results.get_main_molecule()
+            result_molecule = _get_main_structure(results, output_molecule)
             if result_molecule is None:
                 raise PlamsError(f"Density refinement failed for density '{new_density}'.")
             output_molecule = result_molecule
-            current_density = output_molecule.get_density()  # kg/m^3
+            current_density = _get_density(output_molecule)  # kg/m^3
 
     return output_molecule
 
 
+@overload
 def refine_lattice(
     molecule: Molecule,
     lattice: List[List[float]],
@@ -213,10 +331,35 @@ def refine_lattice(
     settings: Optional[Settings] = None,
     nproc: int = 1,
     maxiterations: int = 10,
-) -> Optional[Molecule]:
+) -> Optional[Molecule]: ...
+
+
+@overload
+def refine_lattice(
+    molecule: "ChemicalSystem",
+    lattice: List[List[float]],
+    n_points: Optional[int] = None,
+    max_strain: float = 0.15,
+    model: str = "UFF",
+    settings: Optional[Settings] = None,
+    nproc: int = 1,
+    maxiterations: int = 10,
+) -> Optional["ChemicalSystem"]: ...
+
+
+def refine_lattice(
+    molecule: Union[Molecule, "ChemicalSystem"],
+    lattice: List[List[float]],
+    n_points: Optional[int] = None,
+    max_strain: float = 0.15,
+    model: str = "UFF",
+    settings: Optional[Settings] = None,
+    nproc: int = 1,
+    maxiterations: int = 10,
+) -> Optional[Union[Molecule, "ChemicalSystem"]]:
     """
 
-    Returns a ``Molecule`` for which the lattice of the ``molecule`` is
+    Returns a structure for which the lattice of the ``molecule`` is
     transformed to ``lattice``, by performing short geometry optimizations
     (each for at most ``maxiterations``) on gradually distorted lattices
     (linearly interpolating from the original lattice to the new lattice
@@ -229,11 +372,11 @@ def refine_lattice(
     If init() has been called before calling this function, the job will be run in
     the current PLAMS working directory and will be deleted when the job finishes.
 
-    Returns: a Molecule with the requested lattice. If the refinement
-    fails, ``None`` is returned.
+    The returned structure has the same type as ``molecule``. If the
+    refinement fails, ``None`` is returned.
 
-    molecule: Molecule
-        The initial molecule
+    molecule: Molecule or ChemicalSystem
+        The initial structure
     lattice: list of list of float
         List with 1, 2, or 3 elements. Each element is a list of float with 3 elements each. For example, ``lattice=[[10, 0, 0],[-5, 5, 0],[0, 0, 12]]``.
     n_points: None or int >=2
@@ -250,11 +393,12 @@ def refine_lattice(
         maximum number of iterations for the geometry optimizations.
 
     """
+    molecule_lattice = _get_lattice_vectors(molecule)
     assert len(lattice) == len(
-        molecule.lattice
-    ), f"Different number of lattice vectors: len(molecule.lattice) = {len(molecule.lattice)}, len(lattice) = {len(lattice)}"
+        molecule_lattice
+    ), f"Different number of lattice vectors: len(molecule.lattice) = {len(molecule_lattice)}, len(lattice) = {len(lattice)}"
     assert all(len(x) == 3 for x in lattice), f"Lattice vectors must have three components. Lattice: {lattice}"
-    assert all(len(x) == 3 for x in molecule.lattice), f"Lattice vectors must have three components. Lattice: {lattice}"
+    assert all(len(x) == 3 for x in molecule_lattice), f"Lattice vectors must have three components. Lattice: {lattice}"
     assert (
         len(lattice) >= 1 and len(lattice) <= 3
     ), f"{len(lattice)} lattice vectors given but must be between 1 and 3. Lattice: {lattice}"
@@ -263,7 +407,7 @@ def refine_lattice(
         return "\n".join(" ".join(str(j) for j in i) for i in latt)
 
     if n_points is None:
-        lat1 = np.array(molecule.lattice)
+        lat1 = np.array(molecule_lattice)
         lat2 = np.array(lattice)
         strain = np.linalg.norm(lat2, axis=1) / np.linalg.norm(lat1, axis=1)
         n_points = np.ceil(np.max(np.abs(strain - 1) / max_strain))
@@ -275,7 +419,7 @@ def refine_lattice(
 
     s = _get_quick_settings(model, settings, nproc)
     s.input.ams.task = "PESScan"
-    s.input.ams.PESScan.ScanCoordinate.FromLattice._1 = lattice2str(molecule.lattice)
+    s.input.ams.PESScan.ScanCoordinate.FromLattice._1 = lattice2str(molecule_lattice)
     s.input.ams.PESScan.ScanCoordinate.ToLattice._1 = lattice2str(lattice)
     s.input.ams.PESScan.ScanCoordinate.NPoints = n_points
     s.input.ams.GeometryOptimization.MaxIterations = maxiterations
@@ -287,7 +431,7 @@ def refine_lattice(
     final_molecule = None
     if job.ok():
         results = job.results.get_pesscan_results(molecules=True)
-        final_molecule = results["Molecules"][-1]
+        final_molecule = _with_updated_geometry(molecule, results["Molecules"][-1])
 
     delete_job(job)
 

@@ -4,10 +4,11 @@ import pytest
 from ase import Atoms as AseAtoms
 
 from scm.plams.interfaces.adfsuite.ams import AMSJob, AMSResults
+from scm.plams.core.enums import JobStatus
 from scm.plams.tools.kftools import KFFile
 from scm.plams.core.errors import FileError, MissingOptionalPackageError
 from scm.plams.mol.molecule import Molecule
-from test_helpers import skip_if_no_ams_installation
+from test_helpers import skip_if_no_ams_installation, skip_if_no_scm_base
 
 # ToDo: Add tests for other job types e.g. MD, BAND etc. to test other result functions
 
@@ -387,6 +388,42 @@ class TestWaterOptimizationAMSResults:
 
         # Then molecule as expected (post optimization)
         self.assert_water_molecule(molecule, expected_coords)
+
+    def test_get_history_system_has_coordinates_for_expected_step(self, water_opt_results):
+        skip_if_no_scm_base()
+        from scm.base import ChemicalSystem
+
+        water_opt_results.collect()
+
+        system = water_opt_results.get_history_system(2)
+
+        assert isinstance(system, ChemicalSystem)
+        assert system.formula() == "H2O"
+        assert np.allclose(
+            system.coords,
+            [
+                (0.04001658754120097, 0.04001658754120099, 0.0),
+                (1.0074239106376137, -0.04744049817881458, 0.0),
+                (-0.04744049817881458, 1.0074239106376137, 0.0),
+            ],
+        )
+
+    def test_get_history_system_matches_molecule_for_md_frame(self, rkf_folder):
+        skip_if_no_scm_base()
+        job = MagicMock(spec=AMSJob)
+        job.status = JobStatus.SUCCESSFUL
+        job.path = str(rkf_folder / "tools_plot" / "md")
+        job.get_path = Mock(return_value=rkf_folder / "tools_plot" / "md")
+        results = AMSResults(job=job)
+        results.collect()
+
+        molecule = results.get_history_molecule(2)
+        system = results.get_history_system(2)
+
+        assert len(system) == len(molecule)
+        assert len(system.bonds.bonds) == len(molecule.bonds)
+        assert np.allclose(system.coords, molecule.as_array())
+        assert np.allclose(system.lattice.vectors, molecule.lattice)
 
     def test_is_valid_stepnumber_true_only_within_history_range(self, water_opt_results):
         # Given water optimization results
