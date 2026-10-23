@@ -1,4 +1,6 @@
 import time
+import threading
+from typing import Callable, Optional
 import pytest
 
 from scm.plams.core.jobrunner import JobRunner
@@ -13,6 +15,7 @@ class LoggedJobRunner(JobRunner):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._call_log = {}
+        self._before_call: Optional[Callable[[], None]] = None
 
     def add_call_log_entry(self, entry):
         if entry.method in self._call_log:
@@ -34,6 +37,8 @@ class LoggedJobRunner(JobRunner):
 
     @log_call
     def call(self, runscript, workdir, out, err, runflags):
+        if self._before_call is not None:
+            self._before_call()
         return super().call.__wrapped__(self, runscript, workdir, out, err, runflags)
 
 
@@ -185,9 +190,27 @@ class TestJobRunner:
         limit = maxthreads if thread_limited else maxjobs
         limit = min(limit, 5)
 
+        ready = threading.Event()
+        timed_out = threading.Event()
+        started_lock = threading.Lock()
+        started = 0
+
+        def wait_for_parallel_jobs() -> None:
+            nonlocal started
+            with started_lock:
+                started += 1
+                if started >= limit:
+                    ready.set()
+            # Hold the first jobs inside the measured call until the expected
+            # concurrency is reached. Later jobs can proceed without waiting.
+            if not ready.wait(timeout=30):
+                timed_out.set()
+
+        jobrunner._before_call = wait_for_parallel_jobs
+
         # When run 5 jobs in parallel with limit
         for i in range(5):
-            job = DummySingleJob(wait=0.2)
+            job = DummySingleJob()
             jobs.append(job)
             jobrunner._run_job(job, config.default_jobmanager)
 
@@ -212,6 +235,9 @@ class TestJobRunner:
         for _, change in events:
             current_jobs += change
             max_parallel_jobs = max(max_parallel_jobs, current_jobs)
+
+        # Assert here so a timeout still lets jobs finish and results.wait return.
+        assert not timed_out.is_set(), "Jobs did not reach the expected concurrency within 30 seconds"
 
         # Then number of jobs running in parallel is within limit
         assert max_parallel_jobs == limit
