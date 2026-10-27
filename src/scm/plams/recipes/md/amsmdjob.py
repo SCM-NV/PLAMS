@@ -9,7 +9,7 @@ from typing import Any, Union
 import scm.plams as plams
 
 try:
-    from scm.inputs import AMS as AMSInputModel, InputModel
+    from scm.inputs import InputModel
 
     _has_scm_inputs = True
 except ImportError:
@@ -24,10 +24,14 @@ def _to_plams_settings(settings: Any) -> Any:
         return settings
     source_settings = settings.settings if isinstance(settings, Job) else settings
     input_model = source_settings.get("input") if isinstance(source_settings, Settings) else source_settings
-    if not isinstance(input_model, AMSInputModel):
-        if isinstance(input_model, InputModel):
-            raise TypeError("AMSMDJob settings must be PLAMS Settings or scm.inputs.AMS")
+    if not isinstance(input_model, InputModel):
         return settings
+
+    # Imported here, not at module level: loading the AMS input model more than doubles the import time of scm.plams
+    from scm.inputs import AMS as AMSInputModel
+
+    if not isinstance(input_model, AMSInputModel):
+        raise TypeError("AMSMDJob settings must be PLAMS Settings or scm.inputs.AMS")
 
     from scm.plams.interfaces.adfsuite.inputparser import input_to_settings
 
