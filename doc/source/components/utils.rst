@@ -113,6 +113,71 @@ Example::
         [3.0, 5.0, 7.0],
     )
 
+Reaction networks
+^^^^^^^^^^^^^^^^^
+
+:func:`~scm.plams.tools.plot.plot_reaction_network` plots minima as circles and
+transition states as squares, with directed ``reactant -> TS -> product``
+connections. Each transition state remains a separate node, including when
+several transition states connect the same minima. Arrowheads are placed at
+connector midpoints. The stored orientation is preserved; it does not imply
+irreversible kinetics.
+
+Small networks use connectivity-based placement and state IDs. Larger networks
+use a deterministic formula-grouped layout. Marker areas adapt to network size;
+visible labels set an additional minimum marker size. When the function creates
+a small-network figure, it also expands the canvas to maintain the requested
+gap between markers. Supplying an existing axes leaves its figure size intact.
+
+For example, read an existing energy landscape and save an energy-colored network::
+
+    from scm.plams import AMSJob, plot_reaction_network
+
+    job = AMSJob.load_external("example.results")
+    landscape = job.results.get_energy_landscape()
+    ax = plot_reaction_network(landscape, color_by="energy", cmap="jet")
+    ax.figure.savefig("reaction_network.png", dpi=180)
+
+The default ``color_by="formula"`` groups nonsurface fragments by formula and
+marks adsorbed fragments with ``*``. Isomers with identical fragment formulas
+share a color; their nodes are not collapsed. Use ``surface_only=True`` with a
+named ``surface_region`` to retain only connected, fully surface-bound states.
+Bond guessing does not modify the original molecules. It uses ``scm.base`` when
+available and native PLAMS for nonperiodic molecules otherwise; periodic
+molecules require ``scm.base``.
+
+Energy coloring uses a shared scale for minima and transition states, relative
+to the lowest plotted state. Input energies and ``energy_reference`` are in
+hartree; ``unit`` controls the colorbar and ``energy_limits`` units. To compare
+colors across networks, pass the same ``energy_limits``. Changing color mode
+does not change the layout; explicit ``positions`` can also be reused.
+
+The function needs the optional Matplotlib and NetworkX packages. Computing the
+tree layout also needs SciPy. Saving is controlled by the caller, and the
+returned axes may be further customized. This diagram shows connectivity;
+:func:`~scm.plams.tools.plot.plot_energy_landscape` provides an energy-level view.
+
+Landscapes can also be read directly from exported files without running AMS::
+
+    from scm.plams import AMSResults, plot_reaction_network
+
+    medium = AMSResults.EnergyLandscape.from_xyz("EnergyLandscape_HCNO.xyz")
+    ax = plot_reaction_network(medium, color_by="energy", cmap="jet")
+
+    topology = AMSResults.EnergyLandscape.from_ams_inp("EnergyLandscape_HCNO.inp")
+    ax = plot_reaction_network(topology)  # Formula colors do not require energies.
+
+    large = AMSResults.EnergyLandscape.from_xyz("EnergyLandscape_MetOH_Cu111.xyz")
+    ax = plot_reaction_network(large, surface_only=True, color_by="energy")
+
+The AMS INP export normally contains no state energies. Its reader retains
+missing energies as ``NaN``; an optional ``energies`` mapping, keyed by System
+label and expressed in hartree, supplies values for energy-dependent analysis.
+The compact XYZ reader preserves energies, counts, atom regions, lattice vectors,
+directional prefactors when present, and named transition-state connections.
+An omitted ``ts`` flag denotes a minimum. Both readers resolve links after all
+states are loaded, so forward references and arbitrary state labels are supported.
+
 .. automodule:: scm.plams.tools.plot
 
 .. _PostprocessResults:

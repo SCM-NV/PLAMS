@@ -1,4 +1,5 @@
 from unittest.mock import MagicMock, Mock
+from pathlib import Path
 import numpy as np
 import pytest
 from ase import Atoms as AseAtoms
@@ -815,7 +816,7 @@ class TestCompactEnergyLandscape:
     @staticmethod
     def _write_landscape(path):
         path.write_text(
-            '''2
+            """2
 energy=-1.0 label="minimum-a" ts="No"
 H 0.0 0.0 0.0
 H 0.0 0.0 0.7
@@ -830,7 +831,7 @@ energy=-0.5 label="ts-a-b" ts="Yes" reactant="minimum-a" product="minimum-b"
 H 0.0 0.0 0.05
 H 0.0 0.0 0.75
 VEC1 4.0 0.0 0.0
-'''
+"""
         )
 
     def test_from_xyz_preserves_states_lattice_and_connectivity(self, tmp_path):
@@ -878,9 +879,95 @@ VEC1 4.0 0.0 0.0
 
     def test_from_xyz_rejects_unknown_transition_state_endpoint(self, tmp_path):
         xyz_path = tmp_path / "EnergyLandscape.xyz"
-        xyz_path.write_text(
-            '1\nenergy=0.0 label="ts" ts="Yes" reactant="missing" product="missing"\nH 0 0 0\n'
-        )
+        xyz_path.write_text('1\nenergy=0.0 label="ts" ts="Yes" reactant="missing" product="missing"\nH 0 0 0\n')
 
         with pytest.raises(ResultsError, match="unknown reactant"):
             AMSResults.EnergyLandscape.from_xyz(str(xyz_path))
+
+
+class TestImportedEnergyLandscapes:
+    def test_from_ams_inp_fixture(self, inp_folder: Path) -> None:
+        landscape = AMSResults.EnergyLandscape.from_ams_inp(inp_folder / "EnergyLandscape_HCNO.inp")
+        assert (len(landscape), len(landscape.minima), len(landscape.transition_states)) == (37, 13, 24)
+        assert all(np.isnan(state.energy) for state in landscape)
+        assert len(landscape[1].molecule) == 4
+        assert len(landscape[1].molecule.bonds) == 4
+        assert landscape[5].reactants is landscape[1]
+        assert landscape[5].products is landscape[2]
+        assert landscape[5].molecule.properties.name == "state5"
+        assert landscape[5].engfile is None
+
+    def test_from_ams_inp_named_forward_links_and_energies(self, tmp_path: Path) -> None:
+        path = tmp_path / "named.inp"
+        path.write_text(
+            "System saddle ts=Yes reactant=left product=right count=3 "
+            "prefactorsFromReactant=1e12 prefactorsFromProduct=2e12\n"
+            " Atoms\n H 0 0 0 region=adsorbate\n End\n"
+            " Lattice\n 4 0 0\n End\nEnd\n"
+            "System left\n Atoms\n H 0 0 0\n End\nEnd\n"
+            "System right\n Atoms\n H 0 0 1\n End\nEnd\n",
+            encoding="utf-8",
+        )
+        energies = {"left": -1.0, "right": -0.8, "saddle": -0.5}
+        landscape = AMSResults.EnergyLandscape.from_ams_inp(path, energies=energies)
+        assert [state.energy for state in landscape] == [-0.5, -1.0, -0.8]
+        assert landscape[1].reactantsID == 2 and landscape[1].productsID == 3
+        assert landscape[1].count == 3
+        assert landscape[1].prefactorsFromReactant == 1e12
+        assert landscape[1].prefactorsFromProduct == 2e12
+        assert landscape[1].molecule.lattice == [[4.0, 0.0, 0.0]]
+        assert "adsorbate" in landscape[1].molecule[1].properties.region
+        with pytest.raises(ResultsError, match="unknown state labels"):
+            AMSResults.EnergyLandscape.from_ams_inp(path, energies={"typo": -1.0})
+
+    @pytest.mark.parametrize(
+        "header, message",
+        [
+            ("saddle ts=Yes reactant=missing", "unknown reactant"),
+            ("left ts=No product=left", "Minimum has transition-state links"),
+            ("left energy=nan", "Nonfinite energy"),
+            ("left ts=maybe", "Invalid ts"),
+        ],
+    )
+    def test_from_ams_inp_invalid_metadata(self, tmp_path: Path, header: str, message: str) -> None:
+        path = tmp_path / "invalid.inp"
+        path.write_text(f"System {header}\n Atoms\n H 0 0 0\n End\nEnd\n", encoding="utf-8")
+        with pytest.raises(ResultsError, match=message):
+            AMSResults.EnergyLandscape.from_ams_inp(path)
+
+    def test_from_ams_inp_duplicate_labels(self, tmp_path: Path) -> None:
+        path = tmp_path / "duplicates.inp"
+        path.write_text(
+            "System repeated\n Atoms\n H 0 0 0\n End\nEnd\n" "System repeated ts=Yes\n Atoms\n H 0 0 1\n End\nEnd\n",
+            encoding="utf-8",
+        )
+        with pytest.raises(ResultsError, match="Duplicate state label"):
+            AMSResults.EnergyLandscape.from_ams_inp(path)
+
+    def test_xyz_export_metadata_and_omitted_minimum_flag(self, tmp_path: Path) -> None:
+        path = tmp_path / "metadata.xyz"
+        path.write_text(
+            '1\nlabel="minimum" energy=-1 count=4 referenceRegionLabel="surface"\n'
+            "H 0 0 0 region=surface\nVEC1 4 0 0\n"
+            '1\nlabel="saddle" energy=-0.5 ts=Yes reactant="minimum" count=2 '
+            "prefactorsFromReactant=1e12 prefactorsFromProduct=2e12\nH 0 0 1 region=adsorbate\n",
+            encoding="utf-8",
+        )
+        landscape = AMSResults.EnergyLandscape.from_xyz(path)
+        assert len(landscape.minima) == 1 and len(landscape.transition_states) == 1
+        assert landscape[1].count == 4 and landscape[2].count == 2
+        assert landscape[1].molecule.properties.referenceRegionLabel == "surface"
+        assert "surface" in landscape[1].molecule[1].properties.region
+        assert landscape[1].molecule.lattice == [[4.0, 0.0, 0.0]]
+        assert landscape[2].reactants is landscape[1]
+        assert landscape[2].products is None
+        assert landscape[2].prefactorsFromReactant == 1e12
+        assert landscape[2].prefactorsFromProduct == 2e12
+
+    @pytest.mark.parametrize("metadata", ["count=-1", "count=1.5", "prefactorsFromReactant=-1", "energy=nan"])
+    def test_xyz_rejects_invalid_scalar_metadata(self, tmp_path: Path, metadata: str) -> None:
+        path = tmp_path / "invalid.xyz"
+        base = 'label="minimum"' if metadata.startswith("energy=") else 'label="minimum" energy=-1'
+        path.write_text(f"1\n{base} {metadata}\nH 0 0 0\n", encoding="utf-8")
+        with pytest.raises(ResultsError):
+            AMSResults.EnergyLandscape.from_xyz(path)

@@ -9,6 +9,7 @@ from typing import (
     Literal,
     cast,
     Sequence,
+    Mapping,
 )
 import numpy as np
 
@@ -40,6 +41,7 @@ __all__ = [
     "plot_phonons_dos",
     "plot_phonons_thermodynamic_properties",
     "plot_energy_landscape",
+    "plot_reaction_network",
     "plot_molecule",
     "plot_image_grid",
     "plot_correlation",
@@ -1268,3 +1270,171 @@ def plot_energy_landscape(
     ax.tick_params(axis="x", length=0)
 
     return ax
+
+
+@requires_optional_package("matplotlib")
+@requires_optional_package("networkx")
+def plot_reaction_network(
+    energy_landscape: "AMSResults.EnergyLandscape",
+    ax: Optional["plt.Axes"] = None,
+    *,
+    positions: Optional[Mapping[int, Sequence[float]]] = None,
+    layout: Literal["auto", "connectivity", "tree"] = "auto",
+    color_by: Literal["formula", "energy"] = "formula",
+    cmap: str = "jet",
+    unit: str = "eV",
+    energy_reference: Optional[float] = None,
+    energy_limits: Optional[Tuple[float, float]] = None,
+    surface_region: Optional[str] = "surface",
+    surface_only: bool = False,
+    guess_bonds_dmax: float = 1.35,
+    size_scale: float = 1.0,
+    label_states: Optional[bool] = None,
+    label_padding: float = 2.0,
+    node_spacing: float = 14.0,
+    within_class_spacing: float = 0.014,
+    between_class_spacing: float = 1.8,
+    seed: int = 11,
+    layout_iterations: int = 500,
+    edge_gray: float = 0.11666666666666667,
+    edge_alpha: float = 0.7066666666666667,
+    title: str = "Reaction network",
+) -> "plt.Axes":
+    """Plot stationary points and directed connections from an AMS energy landscape.
+
+    Minima are circles and transition states (TS) are squares. Every stationary
+    point is retained, including separate TS nodes connecting the same minima.
+    Each TS contributes ``reactant -> TS -> product`` edges for its known links.
+    Arrowheads are slender darts at connector midpoints. The stored orientation
+    is retained; it does not imply that the reverse reaction is impossible.
+
+    Formula grouping uses the connected fragments outside ``surface_region``.
+    A fragment touching the surface is marked with ``*``. Isomers with the same
+    fragment formulas share a class; nodes are never collapsed into one state.
+    Energies and forward/backward prefactors are not modified. Coordinates in
+    this diagram have no energetic meaning; use :func:`plot_energy_landscape`
+    for an energy-level representation.
+
+    Parameters
+    ----------
+    energy_landscape
+        Stationary points returned by :meth:`AMSResults.get_energy_landscape`.
+        State energies are in hartree. ``select_states`` and ``accessible_states``
+        may be used before plotting; retained original IDs are used as labels.
+    ax
+        Axes to reuse. If omitted, a figure is created with adaptive dimensions.
+        A supplied axes keeps its figure dimensions. The caller controls saving.
+    positions
+        Optional mapping from current, one-based ``state.id`` to finite 2D
+        coordinates. Reuse these coordinates to recolor a network without
+        recomputing the layout. Extra entries for filtered states are ignored.
+    layout
+        ``"auto"`` uses connectivity-based placement for at most 40 states and
+        a formula-grouped tree-like layout for larger networks. ``"connectivity"``
+        layers directed acyclic graphs; graphs with directed cycles use a spring
+        layout. ``"tree"`` spreads formula classes around a spring-layout
+        backbone. All modes preserve cycles and every directed connection.
+    color_by
+        ``"formula"`` colors minima by formula class and TS nodes gray.
+        ``"energy"`` colors both node types on one shared energy scale and
+        adds a colorbar without changing node positions, sizes, or edge paths.
+    cmap
+        Matplotlib colormap for energy coloring; the default is ``"jet"``.
+    unit
+        Unit of the relative energies used by energy coloring and its colorbar.
+    energy_reference
+        Optional reference energy in hartree. The lowest plotted state is used
+        by default. This is independent of ``unit``.
+    energy_limits
+        Optional ``(minimum, maximum)`` relative energies in ``unit``. Use fixed
+        limits for comparable palettes across plots. Otherwise, each network
+        uses its full energy range. Equal energies receive one common color.
+    surface_region
+        Name of the molecular region defining surface atoms, or ``None`` to
+        classify all atoms as nonsurface. The surface itself is excluded from
+        fragment formulas.
+    surface_only
+        If true, keep minima whose nonsurface fragments all touch the surface,
+        and TS nodes whose two endpoints satisfy this criterion. Isolated nodes
+        are then removed. This requires a nonempty ``surface_region`` name.
+    guess_bonds_dmax
+        Positive bond-guessing distance factor. Bond guessing is performed on
+        copies and does not modify the landscape's molecules.
+    size_scale
+        Multiplier for adaptive marker area, rather than diameter. Visible
+        labels impose an additional minimum area so text fits inside markers.
+    label_states
+        Whether to show plain state IDs. The default shows IDs for at most
+        40 nodes. The circle/square shapes identify the stationary-point type.
+    label_padding
+        Non-negative clearance around label text, in points.
+    node_spacing
+        Target gap between marker boundaries, in points, for automatically
+        created figures containing at most 40 nodes. The figure expands when
+        needed. Resizing cannot separate coincident supplied coordinates.
+    within_class_spacing
+        Positive target spacing of minima within a class in tree-layout units.
+    between_class_spacing
+        Positive multiplier of class-center coordinates in the tree layout.
+    seed
+        Seed for the detailed spring layout and cyclic connectivity layout.
+    layout_iterations
+        Positive number of detailed spring-layout iterations in tree mode.
+    edge_gray
+        Grayscale value from 0 (black) to 1 (white).
+    edge_alpha
+        Edge opacity from 0 to 1.
+    title
+        Title placed above the network.
+
+    Returns
+    -------
+    matplotlib.axes.Axes
+        Axes containing the network. Colorbars use inset axes and do not
+        reduce the main drawing area.
+
+    Notes
+    -----
+    Matplotlib and NetworkX are optional requirements. Computing the tree layout
+    also requires SciPy; supplying ``positions`` avoids this requirement.
+    Bond guessing uses ``scm.base`` when available. Without it, nonperiodic
+    molecules use native PLAMS bond guessing; periodic molecules require
+    ``scm.base``. The two bond-guessing implementations can classify borderline
+    geometries differently.
+
+    Examples
+    --------
+    Read an existing result and save the energy-colored reaction network::
+
+        from scm.plams import AMSJob, plot_reaction_network
+
+        job = AMSJob.load_external("example.results")
+        landscape = job.results.get_energy_landscape()
+        ax = plot_reaction_network(landscape, color_by="energy", cmap="jet")
+        ax.figure.savefig("reaction_network.png", dpi=180)
+    """
+    from scm.plams.tools.plot_reaction_network_utils import _build_reaction_graph, _plot_reaction_graph
+
+    graph = _build_reaction_graph(energy_landscape, surface_region, surface_only, guess_bonds_dmax)
+    return _plot_reaction_graph(
+        graph,
+        positions=positions,
+        ax=ax,
+        layout=layout,
+        seed=seed,
+        layout_iterations=layout_iterations,
+        within_class_spacing=within_class_spacing,
+        between_class_spacing=between_class_spacing,
+        color_by=color_by,
+        cmap=cmap,
+        energy_unit=unit,
+        energy_reference=energy_reference,
+        energy_limits=energy_limits,
+        size_scale=size_scale,
+        label_states=label_states,
+        label_padding=label_padding,
+        node_spacing=node_spacing,
+        edge_gray=edge_gray,
+        edge_alpha=edge_alpha,
+        title=title,
+    )
