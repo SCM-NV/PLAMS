@@ -7,7 +7,21 @@ is called. No molecules, landscapes or user-supplied positions are modified.
 from collections import defaultdict
 import hashlib
 import math
-from typing import Any, Dict, List, Literal, Mapping, Optional, Sequence, Set, Tuple, TYPE_CHECKING
+from typing import (
+    Any,
+    DefaultDict,
+    Dict,
+    List,
+    Literal,
+    Mapping,
+    Optional,
+    Sequence,
+    Set,
+    Tuple,
+    Union,
+    TYPE_CHECKING,
+    cast,
+)
 
 import networkx as nx
 import numpy as np
@@ -64,13 +78,15 @@ def _coarse_info(
 ) -> Dict[str, Any]:
     """Classify connected nonsurface fragments by formula and surface attachment."""
     molecule = state.molecule
+    surface: Set[int]
+    neighbors: Dict[int, Set[int]]
     if not molecule.atoms:
         surface, neighbors = set(), {}
     else:
         surface, neighbors = _bond_adjacency(molecule, surface_region, dmax)
     nonsurface = [i for i in range(len(molecule)) if i not in surface]
     visited: Set[int] = set()
-    fragments = []
+    fragments: List[Dict[str, Any]] = []
     for start in nonsurface:
         if start in visited:
             continue
@@ -85,7 +101,7 @@ def _coarse_info(
             component.append(current)
             touches_surface = touches_surface or bool(neighbors[current] & surface)
             stack.extend(neighbors[current] - surface - visited)
-        symbols = defaultdict(int)
+        symbols: DefaultDict[str, int] = defaultdict(int)
         for i in component:
             symbols[molecule.atoms[i].symbol] += 1
         order = (
@@ -150,8 +166,8 @@ def _build_reaction_graph(
         for endpoint in (state.reactantsID, state.productsID):
             if endpoint is not None and endpoint not in coarse:
                 raise ValueError(f"Transition state {node} refers to an absent minimum {endpoint}")
-        left = coarse.get(state.reactantsID, {})
-        right = coarse.get(state.productsID, {})
+        left = coarse.get(state.reactantsID, {}) if state.reactantsID is not None else {}
+        right = coarse.get(state.productsID, {}) if state.productsID is not None else {}
         graph.nodes[node].update(
             reactant_coarse_label=left.get("label"),
             product_coarse_label=right.get("label"),
@@ -257,7 +273,7 @@ def _build_detailed_layout_graph(graph: nx.DiGraph, minimum_nodes_by_label: Mapp
 
 
 def _compute_initial_positions(
-    graph: nx.DiGraph, coarse_positions: Mapping[str, Sequence[float]], minimum_nodes_by_label: Mapping[str, List[int]]
+    graph: nx.DiGraph, coarse_positions: Mapping[str, np.ndarray], minimum_nodes_by_label: Mapping[str, List[int]]
 ) -> Dict[int, Position]:
     initial_positions = {}
 
@@ -490,7 +506,7 @@ def _connectivity_layout(graph: nx.DiGraph, seed: int = 11) -> Dict[int, Tuple[f
         return {}
     if not nx.is_directed_acyclic_graph(graph):
         return {n: tuple(p) for n, p in nx.spring_layout(graph, seed=seed, iterations=200).items()}
-    positions = {}
+    positions: Dict[int, Position] = {}
     for level, nodes in enumerate(nx.topological_generations(graph)):
         nodes = sorted(nodes)
         nodes.sort(
@@ -511,12 +527,13 @@ def _midpoint_arrow(
     """
     from matplotlib.path import Path
 
-    vertices = path.vertices
+    vertices = np.asarray(path.vertices, dtype=float)
+    codes = np.asarray(path.codes) if path.codes is not None else None
     start, end = vertices[0], vertices[-1]
-    if len(vertices) == 3 and path.codes[1] == Path.CURVE3:
+    if len(vertices) == 3 and codes is not None and codes[1] == Path.CURVE3:
         midpoint = (start + 2 * vertices[1] + end) / 4
         tangent = end - start
-    elif len(vertices) == 4 and path.codes[1] == Path.CURVE4:
+    elif len(vertices) == 4 and codes is not None and codes[1] == Path.CURVE4:
         midpoint = (start + 3 * vertices[1] + 3 * vertices[2] + end) / 8
         tangent = -start - vertices[1] + vertices[2] + end
     else:
@@ -586,6 +603,7 @@ def _plot_reaction_graph(
     label colors adapt to the palette for contrast.
     """
     import matplotlib.pyplot as plt
+    from matplotlib.figure import Figure
     from matplotlib.lines import Line2D
     from matplotlib.patches import Patch
     from matplotlib.patches import FancyArrowPatch
@@ -618,11 +636,12 @@ def _plot_reaction_graph(
     if positions is not None:
         if not set(graph).issubset(positions):
             raise ValueError("positions must include every plotted state ID")
-        positions = {n: np.asarray(positions[n], dtype=float) for n in graph}
-        if any(xy.shape != (2,) or not np.isfinite(xy).all() for xy in positions.values()):
+        position_arrays = {n: np.asarray(positions[n], dtype=float) for n in graph}
+        if any(xy.shape != (2,) or not np.isfinite(xy).all() for xy in position_arrays.values()):
             raise ValueError("positions must contain finite 2D coordinates")
+        positions = {n: (float(xy[0]), float(xy[1])) for n, xy in position_arrays.items()}
     energy_mappable = None
-    energy_colors = {}
+    energy_colors: Dict[int, np.ndarray] = {}
     if color_by == "energy":
         from scm.plams.tools.units import Units
 
@@ -643,7 +662,7 @@ def _plot_reaction_graph(
             if not all(math.isfinite(e) for e in (low, high)) or low >= high:
                 raise ValueError("energy_limits must contain two finite increasing values")
         energy_mappable = ScalarMappable(norm=Normalize(low, high), cmap=plt.get_cmap(cmap))
-        energy_colors = {n: energy_mappable.to_rgba(e) for n, e in relative.items()}
+        energy_colors = {n: energy_mappable.to_rgba(np.asarray([e], dtype=float))[0] for n, e in relative.items()}
     count = len(graph)
     min_area, ts_area = _adaptive_node_areas(count, size_scale)
     small = count <= 40
@@ -706,13 +725,17 @@ def _plot_reaction_graph(
                     supports.append(radius * direction.sum() if graph.nodes[node]["kind"] == "ts" else radius)
                 expansion = max(expansion, (sum(supports) + node_spacing) / distance)
         if expansion > 1:
-            ax.figure.set_size_inches(ax.figure.get_size_inches() * expansion, forward=True)
+            figure = ax.figure
+            assert isinstance(figure, Figure)
+            width, height = figure.get_size_inches()
+            figure.set_size_inches(float(width * expansion), float(height * expansion), forward=True)
     for source, target in graph.edges():
         ax.add_patch(
             FancyArrowPatch(
-                positions[source],
-                positions[target],
-                arrowstyle=_midpoint_arrow,
+                (float(positions[source][0]), float(positions[source][1])),
+                (float(positions[target][0]), float(positions[target][1])),
+                # Matplotlib accepts callables, but its stubs only list ArrowStyle.
+                arrowstyle=cast("matplotlib.patches.ArrowStyle", _midpoint_arrow),
                 shrinkA=0,
                 shrinkB=0,
                 mutation_scale=15 if small else 4,
@@ -746,7 +769,7 @@ def _plot_reaction_graph(
         node_color=(
             [energy_colors[n] for n in ts]
             if color_by == "energy"
-            else [tuple(0.7 * np.array([0.6] * 3) + 0.3 * np.array(ax.get_facecolor()[:3]))] * len(ts)
+            else [0.7 * np.array([0.6] * 3) + 0.3 * np.array(ax.get_facecolor()[:3])] * len(ts)
         ),
         node_shape="s",
         edgecolors="white",
@@ -754,7 +777,7 @@ def _plot_reaction_graph(
     )
     if label_states:
         for labels, font_size, default_color in ((minimum_labels, 10, "white"), (ts_labels, 8, "0.15")):
-            label_groups = {}
+            label_groups: Dict[str, Dict[int, str]] = {}
             for node, text in labels.items():
                 color = default_color
                 if color_by == "energy":
@@ -770,17 +793,18 @@ def _plot_reaction_graph(
     ax.set_axis_off()
     ax.set_title(title, loc="left", fontsize=13 if small else 16, pad=20 if small else 18)
     if color_by == "energy":
-        handles = [
+        assert energy_mappable is not None
+        handles: List[Union[Line2D, Patch]] = [
             Line2D([], [], marker="o", linestyle="", color="0.5", markersize=8, label="Minima"),
             Line2D([], [], marker="s", linestyle="", color="0.5", markersize=7, label="Transition states"),
         ]
         if small:
             ax.legend(handles=handles, loc="center", bbox_to_anchor=(0.22, -0.15), ncol=2, frameon=False, fontsize=9)
-            colorbar_ax = ax.inset_axes([0.55, -0.20, 0.4, 0.04])
+            colorbar_ax = ax.inset_axes((0.55, -0.20, 0.4, 0.04))
             colorbar = ax.figure.colorbar(energy_mappable, cax=colorbar_ax, orientation="horizontal")
         else:
             ax.legend(handles=handles, loc="upper left", bbox_to_anchor=(1.01, 1), frameon=False, fontsize=9)
-            colorbar_ax = ax.inset_axes([1.04, 0.18, 0.03, 0.6])
+            colorbar_ax = ax.inset_axes((1.04, 0.18, 0.03, 0.6))
             colorbar = ax.figure.colorbar(energy_mappable, cax=colorbar_ax)
         colorbar.set_label(f"Relative energy ({energy_unit})", fontsize=9)
         colorbar.ax.tick_params(labelsize=8)

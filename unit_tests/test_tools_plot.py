@@ -31,7 +31,7 @@ from scm.plams.tools.plot import (
     plot_energy_landscape,
     plot_reaction_network,
 )
-from test_helpers import skip_if_no_scm_inputs
+from test_helpers import skip_if_no_scm_base, skip_if_no_scm_inputs
 
 # Use non-interactive backend for ci env
 # Results are available for inspection in the result_images directory
@@ -822,6 +822,7 @@ def test_plot_energy_landscape_functions(run_calculations, rkf_tools_plot, xyz_f
 )
 def test_plot_reaction_network_functions(run_calculations: bool, rkf_tools_plot: Path, xyz_folder: Path) -> None:
     """Plot a small calculated landscape and medium/large compact-XYZ landscapes."""
+    skip_if_no_scm_base()
     plt.close("all")
 
     # PLAMS_RUN_CALCULATIONS=1 exercises the real calculation; ordinary unit

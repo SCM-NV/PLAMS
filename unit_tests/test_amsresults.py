@@ -887,6 +887,7 @@ VEC1 4.0 0.0 0.0
 
 class TestImportedEnergyLandscapes:
     def test_from_ams_inp_fixture(self, inp_folder: Path) -> None:
+        pytest.importorskip("scm.amspipe")
         landscape = AMSResults.EnergyLandscape.from_ams_inp(inp_folder / "EnergyLandscape_HCNO.inp")
         assert (len(landscape), len(landscape.minima), len(landscape.transition_states)) == (37, 13, 24)
         assert all(np.isnan(state.energy) for state in landscape)
@@ -898,6 +899,7 @@ class TestImportedEnergyLandscapes:
         assert landscape[5].engfile is None
 
     def test_from_ams_inp_named_forward_links_and_energies(self, tmp_path: Path) -> None:
+        pytest.importorskip("scm.amspipe")
         path = tmp_path / "named.inp"
         path.write_text(
             "System saddle ts=Yes reactant=left product=right count=3 "
@@ -930,12 +932,14 @@ class TestImportedEnergyLandscapes:
         ],
     )
     def test_from_ams_inp_invalid_metadata(self, tmp_path: Path, header: str, message: str) -> None:
+        pytest.importorskip("scm.amspipe")
         path = tmp_path / "invalid.inp"
         path.write_text(f"System {header}\n Atoms\n H 0 0 0\n End\nEnd\n", encoding="utf-8")
         with pytest.raises(ResultsError, match=message):
             AMSResults.EnergyLandscape.from_ams_inp(path)
 
     def test_from_ams_inp_duplicate_labels(self, tmp_path: Path) -> None:
+        pytest.importorskip("scm.amspipe")
         path = tmp_path / "duplicates.inp"
         path.write_text(
             "System repeated\n Atoms\n H 0 0 0\n End\nEnd\n" "System repeated ts=Yes\n Atoms\n H 0 0 1\n End\nEnd\n",
