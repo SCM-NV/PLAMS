@@ -33,6 +33,7 @@ from scm.plams.tools.periodic_table import PT
 
 if TYPE_CHECKING:
     import matplotlib
+    from matplotlib.backend_bases import RendererBase
     from scm.plams.interfaces.adfsuite.ams import AMSResults
     from scm.plams.mol.molecule import Molecule
 
@@ -468,11 +469,20 @@ def _adaptive_node_areas(node_count: int, size_scale: float = 1.0) -> Tuple[floa
     return minimum, minimum * ratio
 
 
-def _label_fitted_area(label: str, base_area: float, shape: str, font_size: float, padding: float = 2.0) -> float:
+def _label_fitted_area(
+    label: str,
+    base_area: float,
+    shape: str,
+    font_size: float,
+    padding: float = 2.0,
+    renderer: Optional["RendererBase"] = None,
+) -> float:
     """Enlarge a marker to enclose its text with padding, in physical points.
 
-    Text metrics use the same bold font as the rendered labels. Squares must
-    contain the padded text rectangle; circles must contain its diagonal.
+    Text metrics use the same bold sans-serif font as the rendered labels.
+    Raster metrics account for pixel hinting when a renderer is available;
+    vector metrics remain a lower bound and support canvases without a renderer.
+    Squares must contain the padded text rectangle; circles must contain its diagonal.
     The label-fit minimum takes precedence over the density-based size cap.
     """
     from matplotlib.font_manager import FontProperties
@@ -486,9 +496,13 @@ def _label_fitted_area(label: str, base_area: float, shape: str, font_size: floa
         raise ValueError("Area and font size must be positive; padding must be non-negative")
     if not label:
         return base_area
-    width, height, _ = TextToPath().get_text_width_height_descent(
-        label, FontProperties(size=font_size, weight="bold"), ismath=False
-    )
+    font = FontProperties(family="sans-serif", size=font_size, weight="bold")
+    width, height, _ = TextToPath().get_text_width_height_descent(label, font, ismath=False)
+    if renderer is not None:
+        rendered_width, rendered_height, _ = renderer.get_text_width_height_descent(label, font, ismath=False)
+        pixels_per_point = float(np.asarray(renderer.points_to_pixels(1.0)).item())
+        width = max(width, rendered_width / pixels_per_point)
+        height = max(height, rendered_height / pixels_per_point)
     width += 2 * padding + 0.5
     # Full line height also accommodates font ascenders/descenders and export backends.
     height = max(height, font_size) + 2 * padding + 0.5
@@ -691,12 +705,15 @@ def _plot_reaction_graph(
     colors = _make_coarse_label_colors(graph)
     minimum_labels = {n: str(graph.nodes[n].get("label", n)) for n in minima}
     ts_labels = {n: str(graph.nodes[n].get("label", n)) for n in ts}
+    get_renderer = getattr(ax.figure.canvas, "get_renderer", None)
+    renderer = get_renderer() if label_states and get_renderer is not None else None
     minimum_areas = [
-        _label_fitted_area(minimum_labels[n], min_area, "o", 10, label_padding) if label_states else min_area
+        _label_fitted_area(minimum_labels[n], min_area, "o", 10, label_padding, renderer) if label_states else min_area
         for n in minima
     ]
     ts_areas = [
-        _label_fitted_area(ts_labels[n], ts_area, "s", 8, label_padding) if label_states else ts_area for n in ts
+        _label_fitted_area(ts_labels[n], ts_area, "s", 8, label_padding, renderer) if label_states else ts_area
+        for n in ts
     ]
     area_by_node = dict(zip(minima + ts, minimum_areas + ts_areas))
     if positions:
@@ -788,7 +805,14 @@ def _plot_reaction_graph(
                 label_groups.setdefault(color, {})[node] = text
             for color, subset in label_groups.items():
                 nx.draw_networkx_labels(
-                    graph, positions, ax=ax, labels=subset, font_color=color, font_size=font_size, font_weight="bold"
+                    graph,
+                    positions,
+                    ax=ax,
+                    labels=subset,
+                    font_color=color,
+                    font_size=font_size,
+                    font_family="sans-serif",
+                    font_weight="bold",
                 )
     ax.set_axis_off()
     ax.set_title(title, loc="left", fontsize=13 if small else 16, pad=20 if small else 18)

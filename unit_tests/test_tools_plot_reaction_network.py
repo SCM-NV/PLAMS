@@ -146,14 +146,22 @@ def test_constant_energies_and_units(landscape: AMSResults.EnergyLandscape) -> N
     assert ax.child_axes[0].get_xlabel() == "Relative energy (kcal/mol)"
 
 
-def test_long_labels_fit(landscape: AMSResults.EnergyLandscape) -> None:
-    landscape[3].originalID = 123456789
-    ax = plot_reaction_network(landscape)
+@pytest.mark.parametrize("dpi", [72, 100, 200])
+@pytest.mark.parametrize("node", [1, 3])
+@pytest.mark.parametrize("font_family", ["sans-serif", "serif"])
+def test_long_labels_fit(landscape: AMSResults.EnergyLandscape, dpi: int, node: int, font_family: str) -> None:
+    landscape[node].originalID = 123456789
+    with plt.rc_context({"figure.dpi": dpi, "font.family": font_family}):
+        ax = plot_reaction_network(landscape)
     ax.figure.canvas.draw()
     text = next(t for t in ax.texts if t.get_text() == "123456789")
     bbox = text.get_window_extent(ax.figure.canvas.get_renderer())
-    side = np.sqrt(ax.collections[1].get_sizes()[0]) * ax.figure.dpi / 72
-    assert side >= max(bbox.width, bbox.height) + 3.6 * ax.figure.dpi / 72
+    diameter = np.sqrt(ax.collections[1 if node == 3 else 0].get_sizes()[0]) * ax.figure.dpi / 72
+    padding = 3.6 * ax.figure.dpi / 72
+    required = (
+        max(bbox.width, bbox.height) + padding if node == 3 else np.hypot(bbox.width + padding, bbox.height + padding)
+    )
+    assert diameter >= required
 
 
 def test_native_fallback_and_periodic_requirement(
