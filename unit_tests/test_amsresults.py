@@ -890,7 +890,11 @@ class TestImportedEnergyLandscapes:
         pytest.importorskip("scm.amspipe")
         landscape = AMSResults.EnergyLandscape.from_ams_inp(inp_folder / "EnergyLandscape_HCNO.inp")
         assert (len(landscape), len(landscape.minima), len(landscape.transition_states)) == (37, 13, 24)
-        assert all(np.isnan(state.energy) for state in landscape)
+        assert all(np.isfinite(state.energy) for state in landscape)
+        assert landscape[1].energy == pytest.approx(-10.545005565432115)
+        assert landscape[1].count == 4
+        assert landscape[5].energy == pytest.approx(-10.393285528967732)
+        assert landscape[5].count == 39
         assert len(landscape[1].molecule) == 4
         assert len(landscape[1].molecule.bonds) == 4
         assert landscape[5].reactants is landscape[1]
@@ -903,7 +907,7 @@ class TestImportedEnergyLandscapes:
         path = tmp_path / "named.inp"
         path.write_text(
             "System saddle ts=Yes reactant=left product=right count=3 "
-            "prefactorsFromReactant=1e12 prefactorsFromProduct=2e12\n"
+            "preFactReact=1e12 preFactProd=2e12\n"
             " Atoms\n H 0 0 0 region=adsorbate\n End\n"
             " Lattice\n 4 0 0\n End\nEnd\n"
             "System left\n Atoms\n H 0 0 0\n End\nEnd\n"
@@ -911,6 +915,8 @@ class TestImportedEnergyLandscapes:
             encoding="utf-8",
         )
         energies = {"left": -1.0, "right": -0.8, "saddle": -0.5}
+        without_energies = AMSResults.EnergyLandscape.from_ams_inp(path)
+        assert all(np.isnan(state.energy) for state in without_energies)
         landscape = AMSResults.EnergyLandscape.from_ams_inp(path, energies=energies)
         assert [state.energy for state in landscape] == [-0.5, -1.0, -0.8]
         assert landscape[1].reactantsID == 2 and landscape[1].productsID == 3
@@ -954,7 +960,7 @@ class TestImportedEnergyLandscapes:
             '1\nlabel="minimum" energy=-1 count=4 referenceRegionLabel="surface"\n'
             "H 0 0 0 region=surface\nVEC1 4 0 0\n"
             '1\nlabel="saddle" energy=-0.5 ts=Yes reactant="minimum" count=2 '
-            "prefactorsFromReactant=1e12 prefactorsFromProduct=2e12\nH 0 0 1 region=adsorbate\n",
+            "preFactReact=1e12 preFactProd=2e12\nH 0 0 1 region=adsorbate\n",
             encoding="utf-8",
         )
         landscape = AMSResults.EnergyLandscape.from_xyz(path)
@@ -968,7 +974,7 @@ class TestImportedEnergyLandscapes:
         assert landscape[2].prefactorsFromReactant == 1e12
         assert landscape[2].prefactorsFromProduct == 2e12
 
-    @pytest.mark.parametrize("metadata", ["count=-1", "count=1.5", "prefactorsFromReactant=-1", "energy=nan"])
+    @pytest.mark.parametrize("metadata", ["count=-1", "count=1.5", "preFactReact=-1", "energy=nan"])
     def test_xyz_rejects_invalid_scalar_metadata(self, tmp_path: Path, metadata: str) -> None:
         path = tmp_path / "invalid.xyz"
         base = 'label="minimum"' if metadata.startswith("energy=") else 'label="minimum" energy=-1'

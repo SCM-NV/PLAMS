@@ -820,8 +820,10 @@ def test_plot_energy_landscape_functions(run_calculations, rkf_tools_plot, xyz_f
     style="mpl20",
     tol=20,
 )
-def test_plot_reaction_network_functions(run_calculations: bool, rkf_tools_plot: Path, xyz_folder: Path) -> None:
-    """Plot a small calculated landscape and medium/large compact-XYZ landscapes."""
+def test_plot_reaction_network_functions(
+    run_calculations: bool, rkf_tools_plot: Path, inp_folder: Path, xyz_folder: Path
+) -> None:
+    """Plot small calculated, medium AMS-input, and large compact-XYZ landscapes."""
     skip_if_no_scm_base()
     plt.close("all")
 
@@ -859,9 +861,9 @@ def test_plot_reaction_network_functions(run_calculations: bool, rkf_tools_plot:
     small_ax = plot_reaction_network(small, title="Small: calculated landscape")
     assert len(small_ax.patches) == 6
 
-    medium = AMSResults.EnergyLandscape.from_xyz(xyz_folder / "EnergyLandscape_HCNO.xyz")
+    medium = AMSResults.EnergyLandscape.from_ams_inp(inp_folder / "EnergyLandscape_HCNO.inp")
     assert (len(medium.minima), len(medium.transition_states)) == (13, 24)
-    medium_ax = plot_reaction_network(medium, color_by="energy", cmap="jet", title="Medium: compact XYZ landscape")
+    medium_ax = plot_reaction_network(medium, color_by="energy", cmap="jet", title="Medium: AMS input landscape")
     assert len(medium_ax.patches) == 48
 
     large = AMSResults.EnergyLandscape.from_xyz(xyz_folder / "EnergyLandscape_MetOH_Cu111.xyz")

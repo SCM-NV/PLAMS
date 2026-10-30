@@ -2989,7 +2989,8 @@ class AMSResults(Results):
             """Load named AMS System blocks, including transition-state links.
 
             The ``EnergyLandscape.inp`` export contains geometries, lattice,
-            regions, bonds and TS connectivity, but normally no energies.
+            regions, bonds, TS connectivity, energies, counts and directional
+            prefactors. Older exports may omit these optional metadata fields.
             Missing energies are represented by ``float('nan')``; formula-colored
             reaction networks remain available, while energy-dependent analysis
             requires energies. Supply ``energies`` keyed by System label to
@@ -3101,8 +3102,8 @@ class AMSResults(Results):
             try:
                 energy = float(values["energy"]) if "energy" in values else float("nan")
                 count = int(values.get("count", "1"))
-                forward = float(values["prefactorsfromreactant"]) if "prefactorsfromreactant" in values else None
-                backward = float(values["prefactorsfromproduct"]) if "prefactorsfromproduct" in values else None
+                forward = float(values["prefactreact"]) if "prefactreact" in values else None
+                backward = float(values["prefactprod"]) if "prefactprod" in values else None
             except ValueError as exc:
                 raise ResultsError(f"Invalid energy, count or prefactor in {context}") from exc
             if "energy" in values and not np.isfinite(energy):

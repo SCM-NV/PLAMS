@@ -1,4 +1,4 @@
-System state1
+System state1 energy=-1.0545005565432115E+001 count=4
    Atoms
       H -0.7974571855501064 0.0162684596622954 -0.7760198378736827
       O 1.6530444538304145 0.8686875918495214 1.0969775096574814
@@ -13,7 +13,7 @@ System state1
    End
 End
 
-System state2
+System state2 energy=-1.0498623647896713E+001 count=3
    Atoms
       H 1.6537105830569805 0.7782983562112058 -0.0032460977767998916
       O 1.0041723713534711 0.12945766799022387 -0.30318442528513234
@@ -27,7 +27,7 @@ System state2
    End
 End
 
-System state3
+System state3 energy=-1.0424824479086981E+001 count=2
    Atoms
       H 1.474147058079211 1.1889998929263477 -0.6534592940371677
       O -0.8265371461240291 -0.5659336719630838 1.1069990490402912
@@ -42,7 +42,7 @@ System state3
    End
 End
 
-System state4
+System state4 energy=-1.0394955993722135E+001 count=4
    Atoms
       H 1.2320843738334393 0.3287581033310499 1.1595247817899947
       O -0.4121378416680934 1.0736798124657791 -0.07231970347382984
@@ -57,7 +57,7 @@ System state4
    End
 End
 
-System state5 ts=Yes reactant=state1 product=state2
+System state5 energy=-1.0393285528967732E+001 count=39 ts=Yes reactant=state1 product=state2
    Atoms
       H -0.29739695624579143 0.8635752700401997 0.19961845469685285
       O 0.8430292885729689 0.9594424446548243 1.0929068227964658
@@ -73,7 +73,7 @@ System state5 ts=Yes reactant=state1 product=state2
    End
 End
 
-System state6
+System state6 energy=-1.0380560003780831E+001 count=49
    Atoms
       H -0.5183055998024578 -0.20955761978669252 0.7350878686615422
       O 0.41560014864287576 1.137432550160126 -0.37720722469581563
@@ -88,7 +88,7 @@ System state6
    End
 End
 
-System state7
+System state7 energy=-1.0379112783653554E+001 count=2
    Atoms
       H 0.28695221888162137 0.3978226246385075 -1.1578520796940797
       O -0.2339973383765669 0.03868897736943452 -0.4217562413209006
@@ -102,7 +102,7 @@ System state7
    End
 End
 
-System state8 ts=Yes reactant=state1 product=state4
+System state8 energy=-1.0367294551588758E+001 count=100 ts=Yes reactant=state1 product=state4
    Atoms
       H 0.9402201244714888 0.364174952067474 1.213759530395349
       O 0.5872357364406026 1.1127678884283658 -0.697790723825748
@@ -117,7 +117,7 @@ System state8 ts=Yes reactant=state1 product=state4
    End
 End
 
-System state9 ts=Yes reactant=state1 product=state6
+System state9 energy=-1.0350356586992527E+001 count=38 ts=Yes reactant=state1 product=state6
    Atoms
       H -0.628133766580796 -0.07511585080361287 0.5800245721566694
       O 0.3712848266635794 1.248606003468448 -0.2620699257596503
@@ -132,7 +132,7 @@ System state9 ts=Yes reactant=state1 product=state6
    End
 End
 
-System state10
+System state10 energy=-1.0347647667366804E+001 count=2
    Atoms
       H -0.6295563251530605 0.7594334977808173 -0.6597827769233694
       O 0.7128444653845822 0.24260049538439302 0.5019535739211024
@@ -147,7 +147,7 @@ System state10
    End
 End
 
-System state11
+System state11 energy=-1.0343778875183233E+001 count=1
    Atoms
       H 0.2500318720654966 1.2313507198843543 -0.47593002205472656
       O -0.20388263029454973 0.45733436678036965 -0.09653470804167477
@@ -162,7 +162,7 @@ System state11
    End
 End
 
-System state12
+System state12 energy=-1.0333963426763486E+001 count=5
    Atoms
       H 1.166157002424632 1.4457245707958437 0.8619369403009738
       O 0.01643054888527296 -0.005319580537636845 0.04690824840235046
@@ -177,7 +177,7 @@ System state12
    End
 End
 
-System state13 ts=Yes reactant=state2 product=state6
+System state13 energy=-1.0331923698350082E+001 count=2 ts=Yes reactant=state2 product=state6
    Atoms
       H 0.6863621207041172 1.0188033848427178 0.6734302580233518
       O 1.1185095954783 0.38611721764775864 -0.0026468661010080365
@@ -193,7 +193,7 @@ System state13 ts=Yes reactant=state2 product=state6
    End
 End
 
-System state14 ts=Yes reactant=state2 product=state11
+System state14 energy=-1.0329968420550859E+001 count=111 ts=Yes reactant=state2 product=state11
    Atoms
       H 0.33880971940578075 0.9675941701001616 -0.6586032009483704
       O -0.2408938923393273 0.7437782890391068 0.0884790492447155
@@ -208,7 +208,7 @@ System state14 ts=Yes reactant=state2 product=state11
    End
 End
 
-System state15
+System state15 energy=-1.0314536334763014E+001 count=1
    Atoms
       H 0.23904865478696183 1.2010323256395083 -0.09765634208507147
       O -0.11705741882529395 0.3303696712036608 -0.4699969557671266
@@ -224,7 +224,7 @@ System state15
    End
 End
 
-System state16 ts=Yes reactant=state11 product=state15
+System state16 energy=-1.0314159885799084E+001 count=38 ts=Yes reactant=state11 product=state15
    Atoms
       H 0.09662662289250296 1.2322566584651549 -0.08857489776667085
       O -0.052362408498389794 0.3349165402096658 -0.4846326164073277
@@ -239,7 +239,7 @@ System state16 ts=Yes reactant=state11 product=state15
    End
 End
 
-System state17 ts=Yes reactant=state7 product=state15
+System state17 energy=-1.0313124535678561E+001 count=56 ts=Yes reactant=state7 product=state15
    Atoms
       H 0.16609914832968944 1.2336882813147596 -0.21615485329612874
       O -0.13023464642361654 0.33940218270262873 -0.4881294628871805
@@ -254,7 +254,7 @@ System state17 ts=Yes reactant=state7 product=state15
    End
 End
 
-System state18 ts=Yes reactant=state4 product=state6
+System state18 energy=-1.0312768411428992E+001 count=17 ts=Yes reactant=state4 product=state6
    Atoms
       H -0.1770616677398422 -0.01061396208767992 0.9979676859555853
       O 0.45609976603139357 1.144457365205072 -0.4890401480000106
@@ -270,7 +270,7 @@ System state18 ts=Yes reactant=state4 product=state6
    End
 End
 
-System state19 ts=Yes reactant=state7 product=state11
+System state19 energy=-1.0312080640176090E+001 count=76 ts=Yes reactant=state7 product=state11
    Atoms
       H 1.3589125898665377 0.8050551551222942 -0.39023479787582793
       O 0.4030299066152538 0.9168072863224379 -0.2702117544361159
@@ -285,7 +285,7 @@ System state19 ts=Yes reactant=state7 product=state11
    End
 End
 
-System state20 ts=Yes reactant=state4 product=state15
+System state20 energy=-1.0310240914466926E+001 count=89 ts=Yes reactant=state4 product=state15
    Atoms
       H 0.6861562377521987 1.1575938308857294 -0.03077304402156397
       O -0.3515898059905177 0.5017179294009796 -0.27388974640302477
@@ -301,7 +301,7 @@ System state20 ts=Yes reactant=state4 product=state15
    End
 End
 
-System state21 ts=Yes reactant=state3 product=state4
+System state21 energy=-1.0302822125742795E+001 count=23 ts=Yes reactant=state3 product=state4
    Atoms
       H -0.8950859034247902 1.0351842298788194 -0.3326732662522394
       O 1.0134058542391962 -0.7054345430157729 1.0518158434939138
@@ -316,7 +316,7 @@ System state21 ts=Yes reactant=state3 product=state4
    End
 End
 
-System state22
+System state22 energy=-1.0298691366716140E+001 count=1
    Atoms
       H 0.5341165319115337 0.22132516579915043 -0.7272543697181323
       O 0.06507417056120886 0.4269896219842804 1.1069204560247516
@@ -331,7 +331,7 @@ System state22
    End
 End
 
-System state23
+System state23 energy=-1.0296642485908260E+001 count=1
    Atoms
       H 1.0330042526853023 1.2752452384960609 0.6869989674035315
       O 0.2540479336755304 -0.5671375867233149 0.3717033420417188
@@ -346,7 +346,7 @@ System state23
    End
 End
 
-System state24 ts=Yes reactant=state10 product=state22
+System state24 energy=-1.0296287604999527E+001 count=34 ts=Yes reactant=state10 product=state22
    Atoms
       H 0.42392814068165524 0.2032703530779401 -0.8588774404312326
       O 0.09985472014204311 0.41789633370128193 1.0355764006516843
@@ -361,7 +361,7 @@ System state24 ts=Yes reactant=state10 product=state22
    End
 End
 
-System state25 ts=Yes reactant=state3 product=state6
+System state25 energy=-1.0294167304272866E+001 count=10 ts=Yes reactant=state3 product=state6
    Atoms
       H -0.06217019182150172 -0.6247031485565662 0.5272927590123067
       O -0.43569201988192713 1.0850127776762215 -0.35886238769511697
@@ -376,7 +376,7 @@ System state25 ts=Yes reactant=state3 product=state6
    End
 End
 
-System state26 ts=Yes reactant=state6 product=state10
+System state26 energy=-1.0288122970208761E+001 count=29 ts=Yes reactant=state6 product=state10
    Atoms
       H -0.7098370151206426 0.6963960683787304 -0.5816338914120041
       O 1.0505421663561332 0.4292448325378454 0.14793504877361058
@@ -391,7 +391,7 @@ System state26 ts=Yes reactant=state6 product=state10
    End
 End
 
-System state27 ts=Yes reactant=state3 product=state7
+System state27 energy=-1.0285323729476032E+001 count=20 ts=Yes reactant=state3 product=state7
    Atoms
       H 0.6637987635499478 0.557491016571846 -0.5238528649168517
       O -0.5533017193669112 -0.1375686608117018 -0.4535406058913349
@@ -407,7 +407,7 @@ System state27 ts=Yes reactant=state3 product=state7
    End
 End
 
-System state28 ts=Yes reactant=state4 product=state22
+System state28 energy=-1.0276541330291113E+001 count=18 ts=Yes reactant=state4 product=state22
    Atoms
       H 1.2617823345399242 0.37167691320329205 -0.5801217739912999
       O -0.10390801588656876 0.48704450519425224 1.0348539546220294
@@ -422,7 +422,7 @@ System state28 ts=Yes reactant=state4 product=state22
    End
 End
 
-System state29
+System state29 energy=-1.0273653064746631E+001 count=2
    Atoms
       H -0.7301977096142782 0.2959122921829553 0.3470313628456476
       O 1.3403943195163894 0.5419630429891252 -0.16204435567412145
@@ -435,7 +435,7 @@ System state29
    End
 End
 
-System state30 ts=Yes reactant=state1 product=state29
+System state30 energy=-1.0272598351777454E+001 count=5 ts=Yes reactant=state1 product=state29
    Atoms
       H -0.4142317355365447 1.2803178616681627 0.18164454943384914
       O 1.3762384519425022 -0.0679009160607788 -0.5808236879360655
@@ -448,7 +448,7 @@ System state30 ts=Yes reactant=state1 product=state29
    End
 End
 
-System state31 ts=Yes reactant=state10 product=state29
+System state31 energy=-1.0272067858527638E+001 count=85 ts=Yes reactant=state10 product=state29
    Atoms
       H -0.4686716724850147 0.7616325184173673 -1.0167749180755934
       O 1.2894823378296723 0.3798782453439512 0.6049650592287731
@@ -461,7 +461,7 @@ System state31 ts=Yes reactant=state10 product=state29
    End
 End
 
-System state32 ts=Yes reactant=state10 product=state29
+System state32 energy=-1.0272051528983518E+001 count=22 ts=Yes reactant=state10 product=state29
    Atoms
       H -1.1610034330216494 0.5839725637021465 0.037630449770422125
       O 1.25149003261887 0.5559210991566276 -0.19361276010691178
@@ -474,7 +474,7 @@ System state32 ts=Yes reactant=state10 product=state29
    End
 End
 
-System state33 ts=Yes reactant=state12 product=state22
+System state33 energy=-1.0247731838179773E+001 count=6 ts=Yes reactant=state12 product=state22
    Atoms
       H 1.3283551416498411 0.8541643643938579 -0.3576198272637481
       O -0.12024530566345351 0.0547764646207864 0.763367798444277
@@ -489,7 +489,7 @@ System state33 ts=Yes reactant=state12 product=state22
    End
 End
 
-System state34 ts=Yes reactant=state12 product=state23
+System state34 energy=-1.0236015652182829E+001 count=3 ts=Yes reactant=state12 product=state23
    Atoms
       H 1.2921214124380795 1.2561965966670985 0.7864647214559963
       O 0.18362045536922722 -0.3238162360210618 0.32685567263276516
@@ -504,7 +504,7 @@ System state34 ts=Yes reactant=state12 product=state23
    End
 End
 
-System state35 ts=Yes reactant=state10 product=state12
+System state35 energy=-1.0138961424864553E+001 count=11 ts=Yes reactant=state10 product=state12
    Atoms
       H 2.105436291015393 0.03852227962199403 1.8857664966817211
       O -0.2356954598223554 0.44042231479956595 -0.3507599015089766
@@ -518,7 +518,7 @@ System state35 ts=Yes reactant=state10 product=state12
    End
 End
 
-System state36 ts=Yes reactant=state10 product=state12
+System state36 energy=-1.0138924649300876E+001 count=18 ts=Yes reactant=state10 product=state12
    Atoms
       H -0.1127056834806046 2.719671696403643 -1.0483749800577395
       O 0.4983891154667634 -0.4617041230286378 0.6462456050470905
@@ -532,7 +532,7 @@ System state36 ts=Yes reactant=state10 product=state12
    End
 End
 
-System state37 ts=Yes reactant=state3 product=state12
+System state37 energy=-1.0109137099349502E+001 count=2 ts=Yes reactant=state3 product=state12
    Atoms
       H 2.4289018542153094 -0.0317205968876824 -0.7616878199253583
       O -1.5179774429218449 0.8167973502408855 0.8876737649529618

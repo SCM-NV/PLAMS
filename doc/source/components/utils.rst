@@ -161,18 +161,17 @@ Landscapes can also be read directly from exported files without running AMS::
 
     from scm.plams import AMSResults, plot_reaction_network
 
-    medium = AMSResults.EnergyLandscape.from_xyz("EnergyLandscape_HCNO.xyz")
+    medium = AMSResults.EnergyLandscape.from_ams_inp("EnergyLandscape_HCNO.inp")
     ax = plot_reaction_network(medium, color_by="energy", cmap="jet")
-
-    topology = AMSResults.EnergyLandscape.from_ams_inp("EnergyLandscape_HCNO.inp")
-    ax = plot_reaction_network(topology)  # Formula colors do not require energies.
 
     large = AMSResults.EnergyLandscape.from_xyz("EnergyLandscape_MetOH_Cu111.xyz")
     ax = plot_reaction_network(large, surface_only=True, color_by="energy")
 
-The AMS INP export normally contains no state energies. Its reader retains
-missing energies as ``NaN``; an optional ``energies`` mapping, keyed by System
-label and expressed in hartree, supplies values for energy-dependent analysis.
+The AMS INP reader accepts optional ``energy``, ``count``,
+``preFactReact`` and ``preFactProd`` System-header metadata.
+Energies are in hartree and directional prefactors in inverse seconds. Older files
+may omit energies; the reader retains these as ``NaN``. An optional ``energies``
+mapping, keyed by System label, supplies or overrides energies in hartree.
 The compact XYZ reader preserves energies, counts, atom regions, lattice vectors,
 directional prefactors when present, and named transition-state connections.
 An omitted ``ts`` flag denotes a minimum. Both readers resolve links after all
