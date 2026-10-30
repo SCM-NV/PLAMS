@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 from matplotlib.testing.decorators import image_comparison
 from scm.plams.core.functions import Settings
-from scm.plams.interfaces.adfsuite.ams import AMSJob
+from scm.plams.interfaces.adfsuite.ams import AMSJob, AMSResults
 from scm.plams.interfaces.molecule.rdkit import from_smiles
 from scm.plams.mol.atom import Atom
 from scm.plams.mol.molecule import Molecule
@@ -29,8 +29,9 @@ from scm.plams.tools.plot import (
     plot_msd,
     plot_work_function,
     plot_energy_landscape,
+    plot_reaction_network,
 )
-from test_helpers import skip_if_no_scm_inputs
+from test_helpers import skip_if_no_scm_base, skip_if_no_scm_inputs
 
 # Use non-interactive backend for ci env
 # Results are available for inspection in the result_images directory
@@ -56,7 +57,7 @@ def test_linear_fit_extrapolate_to_0():
 
 @pytest.fixture
 def run_calculations():
-    run_calculations = False  # Manual toggle whether to re-run AMS calculations
+    run_calculations = os.environ.get("PLAMS_RUN_CALCULATIONS", "0") == "1"
     return "AMSBIN" in os.environ and run_calculations
 
 
@@ -805,3 +806,76 @@ def test_plot_energy_landscape_functions(run_calculations, rkf_tools_plot, xyz_f
     )
 
     force_remove_text(ax)
+
+
+@image_comparison(
+    baseline_images=[
+        "plot_reaction_network_functions_small",
+        "plot_reaction_network_functions_medium",
+        "plot_reaction_network_functions_large",
+        "plot_reaction_network_functions_large_energy",
+    ],
+    remove_text=True,
+    extensions=["png"],
+    style="mpl20",
+    tol=20,
+)
+def test_plot_reaction_network_functions(
+    run_calculations: bool, rkf_tools_plot: Path, inp_folder: Path, xyz_folder: Path
+) -> None:
+    """Plot small calculated, medium AMS-input, and large compact-XYZ landscapes."""
+    skip_if_no_scm_base()
+    plt.close("all")
+
+    # PLAMS_RUN_CALCULATIONS=1 exercises the real calculation; ordinary unit
+    # runs read its cached RKF results, following the other plotting tests.
+    settings = Settings()
+    settings.input.ams.Task = "PESExploration"
+    settings.input.ams.PESExploration.Job = "ProcessSearch"
+    settings.input.ams.PESExploration.NumExpeditions = 0
+    settings.input.ams.PESExploration.NumExplorers = 0
+    settings.input.ams.PESExploration.Optimizer.ConvergedForce = 5e-5
+    settings.input.ams.PESExploration.Prefactor = "Rate=None"
+    settings.input.DFTB = Settings()
+    settings.input.ams.PESExploration.LoadEnergyLandscape.Path = str(xyz_folder / "EnergyLandscape_isooxazole.xyz")
+    settings.input.ams.System.Atoms._1 = """
+        C       2.76400000       0.93870000       0.02380000
+        C       1.34210000       0.87500000       0.06590000
+        C       0.97880000       2.18560000       0.06460000
+        N       3.21200000       2.17180000      -0.00040000
+        O       2.06650000       2.97550000       0.02570000
+        H       3.47740000       0.12390000       0.01050000
+        H       0.70810000       0.00180000       0.09240000
+        H       0.02740000       2.69790000       0.08770000
+    """
+    settings.runscript.nproc = 1
+    settings.runscript.preamble_lines = ["export OMP_NUM_THREADS=1"]
+    job = AMSJob(settings=settings, name="isooxazole")
+    if run_calculations:
+        job.run()
+        assert job.ok()
+    else:
+        job = AMSJob.load_external(rkf_tools_plot / "isooxazole")
+    small = job.results.get_energy_landscape()
+    assert (len(small.minima), len(small.transition_states)) == (4, 3)
+    small_ax = plot_reaction_network(small, title="Small: calculated landscape")
+    assert len(small_ax.patches) == 6
+
+    medium = AMSResults.EnergyLandscape.from_ams_inp(inp_folder / "EnergyLandscape_HCNO.inp")
+    assert (len(medium.minima), len(medium.transition_states)) == (13, 24)
+    medium_ax = plot_reaction_network(medium, color_by="energy", cmap="jet", title="Medium: AMS input landscape")
+    assert len(medium_ax.patches) == 48
+
+    large = AMSResults.EnergyLandscape.from_xyz(xyz_folder / "EnergyLandscape_MetOH_Cu111.xyz")
+    assert (len(large.minima), len(large.transition_states)) == (2364, 2878)
+    large_ax = plot_reaction_network(large, surface_only=True, color_by="formula", title="Large: compact XYZ landscape")
+    assert len(large_ax.patches) == 5622
+
+    large_energy_ax = plot_reaction_network(
+        large,
+        surface_only=True,
+        color_by="energy",
+        cmap="jet",
+        title="Large: compact XYZ landscape (energy colors)",
+    )
+    assert len(large_energy_ax.patches) == 5622
