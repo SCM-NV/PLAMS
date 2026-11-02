@@ -1,4 +1,5 @@
 from collections import OrderedDict
+from typing import Any, Sequence, Set
 
 from scm.plams.core.basejob import MultiJob
 from scm.plams.core.functions import add_to_instance
@@ -8,6 +9,8 @@ from scm.plams.interfaces.adfsuite.ams import AMSJob
 from scm.plams.mol.atom import Atom
 from scm.plams.mol.molecule import Molecule
 from scm.plams.tools.units import Units
+from scm.plams.recipes._settings import to_plams_settings
+from scm.plams.recipes._structures import Structure, is_chemical_system
 
 __all__ = ["CounterpoiseEnergyJob", "CounterpoiseEnergyResults"]
 
@@ -77,8 +80,8 @@ class CounterpoiseEnergyJob(MultiJob):
         **kwargs,
     ):
         """
-        AB is either a Molecule or a previously run AMSJob (from which the molecule will be extracted with .results.get_main_molecule())
-        If it is a Molecule, a job will be created with settings_state_AB (default task Geometry Optimization).
+        AB is a Molecule, ChemicalSystem, or a previously run AMSJob.
+        If it is a structure, a job will be created with settings_state_AB (default task Geometry Optimization).
         If it is an AMSJob, the structure and energy will be read from that job. settings_state_AB will be ignored.
 
         ids_state_A is a list of one-based atom indices making up the first molecule A.
@@ -87,8 +90,8 @@ class CounterpoiseEnergyJob(MultiJob):
         Set A and B to the energies (in Hartree) of the isolated fragments.
         Alternatively, set A and B to AMSJobs instances or Molecules of previously run geometry optimizations for the isolated molecules, which will then be taken as starting points for the geometry optimization. If they are None, the structure from the complex AB will be taken as a starting point for the geometry optimization.
 
-        settings_state_A: Setting object for molecule A. Defaults to the same as settings_state_AB. The Task will be applied only to the isolated molecule A, if such a job is run.
-        settings_state_B: Setting object for molecule B. Defaults to the same as settings_state_AB. The Task will be applied only to the isolated molecule B, if such job is run.
+        settings_state_A: PLAMS Settings or a complete scm.inputs.AMS model for A. Defaults to settings_state_AB.
+        settings_state_B: PLAMS Settings or a complete scm.inputs.AMS model for B. Defaults to settings_state_AB.
 
         The calculations involving ghost atoms are enforced to be single point calculations.
 
@@ -99,6 +102,11 @@ class CounterpoiseEnergyJob(MultiJob):
         self.A = A
         self.B = B
         self.AB = AB
+
+        recipe_name = type(self).__name__
+        settings_state_AB = to_plams_settings(settings_state_AB, recipe_name)
+        settings_state_A = to_plams_settings(settings_state_A, recipe_name)
+        settings_state_B = to_plams_settings(settings_state_B, recipe_name)
 
         # copy the settings so that we wont modify the ones provided as input by the user
         settings_state_AB = settings_state_AB.copy() if settings_state_AB else Settings()
@@ -120,7 +128,10 @@ class CounterpoiseEnergyJob(MultiJob):
             if not "charge" in s.input.ams.system:
                 s.input.ams.system.charge = 0
 
-        if isinstance(self.AB, Molecule):
+        use_chemical_system = is_chemical_system(self.AB) or (
+            isinstance(self.AB, AMSJob) and is_chemical_system(self.AB.molecule)
+        )
+        if isinstance(self.AB, Molecule) or is_chemical_system(self.AB):
             self.children["AB_geo_AB_basis_AB"] = AMSJob(
                 molecule=self.AB, settings=settings_state_AB, name="AB_geo_AB_basis_AB"
             )
@@ -129,7 +140,31 @@ class CounterpoiseEnergyJob(MultiJob):
         elif isinstance(AB, AMSJob):
             main_child = self.AB
         else:
-            raise ValueError("Unknown type for argument AB: {} (must be Molecule or AMSJob)".format(type(self.AB)))
+            raise ValueError(
+                "Unknown type for argument AB: {} (must be Molecule, ChemicalSystem, or AMSJob)".format(type(self.AB))
+            )
+
+        def get_main_structure() -> Any:
+            getter = main_child.results.get_main_system if use_chemical_system else main_child.results.get_main_molecule
+            return getter()
+
+        def set_ghost_atoms(structure: Structure, ghost_indices: Set[int]) -> None:
+            if is_chemical_system(structure):
+                for index, atom in enumerate(structure.atoms, start=1):
+                    atom.is_ghost = index in ghost_indices
+            else:
+                for index in range(1, len(structure) + 1):
+                    structure[index].properties.ghost = index in ghost_indices
+
+        def extract_atoms(structure: Structure, indices: Sequence[int]) -> Structure:
+            if is_chemical_system(structure):
+                return structure.extract_atoms([index - 1 for index in indices])
+            extracted = Molecule()
+            extracted.lattice = structure.lattice
+            for index in indices:
+                atom = structure[index]
+                extracted.add_atom(Atom(atnum=atom.atnum, coords=atom.coords))
+            return extracted
 
         name = "A_geo_AB_basis_AB"
         s = settings_state_A.copy()
@@ -138,10 +173,9 @@ class CounterpoiseEnergyJob(MultiJob):
 
         @add_to_instance(job)
         def prerun(self):  # noqa F811
-            mol = main_child.results.get_main_molecule()
-            for i in range(1, len(mol) + 1):
-                mol[i].properties.ghost = not i in ids_state_A
-            self.molecule = mol
+            structure = get_main_structure()
+            set_ghost_atoms(structure, set(range(1, len(structure) + 1)) - set(ids_state_A))
+            self.molecule = structure
 
         self.children[name] = job
 
@@ -152,13 +186,8 @@ class CounterpoiseEnergyJob(MultiJob):
 
         @add_to_instance(job)
         def prerun(self):  # noqa F811
-            mainmol = main_child.results.get_main_molecule()
-            mol = Molecule()
-            mol.lattice = mainmol.lattice
-            for i in range(1, len(mainmol) + 1):
-                if i in ids_state_A:
-                    mol.add_atom(Atom(atnum=mainmol[i].atnum, coords=mainmol[i].coords))
-            self.molecule = mol
+            structure = get_main_structure()
+            self.molecule = extract_atoms(structure, ids_state_A)
 
         self.children[name] = job
 
@@ -169,10 +198,9 @@ class CounterpoiseEnergyJob(MultiJob):
 
         @add_to_instance(job)
         def prerun(self):  # noqa F811
-            mol = main_child.results.get_main_molecule()
-            for i in range(1, len(mol) + 1):
-                mol[i].properties.ghost = i in ids_state_A
-            self.molecule = mol
+            structure = get_main_structure()
+            set_ghost_atoms(structure, set(ids_state_A))
+            self.molecule = structure
 
         self.children[name] = job
 
@@ -183,34 +211,29 @@ class CounterpoiseEnergyJob(MultiJob):
 
         @add_to_instance(job)
         def prerun(self):  # noqa F811
-            mainmol = main_child.results.get_main_molecule()
-            mol = Molecule()
-            mol.lattice = mainmol.lattice
-            for i in range(1, len(mainmol) + 1):
-                if i not in ids_state_A:
-                    mol.add_atom(Atom(atnum=mainmol[i].atnum, coords=mainmol[i].coords))
-            self.molecule = mol
+            structure = get_main_structure()
+            indices = [index for index in range(1, len(structure) + 1) if index not in ids_state_A]
+            self.molecule = extract_atoms(structure, indices)
 
         self.children[name] = job
 
         def add_isolated_child(X, name, settings):
             s = settings.copy()
             job = AMSJob(settings=s, name=name)
-            if isinstance(X, Molecule):
+            if isinstance(X, Molecule) or is_chemical_system(X):
                 job.molecule = X
             else:
 
                 @add_to_instance(job)
                 def prerun(self):  # noqa F811
-                    mainmol = main_child.results.get_main_molecule()
-                    mol = Molecule()
-                    mol.lattice = mainmol.lattice
-                    for i in range(1, len(mainmol) + 1):
-                        if (name.startswith("A") and i in ids_state_A) or (
-                            name.startswith("B") and i not in ids_state_A
-                        ):
-                            mol.add_atom(Atom(atnum=mainmol[i].atnum, coords=mainmol[i].coords))
-                    self.molecule = mol
+                    structure = get_main_structure()
+                    indices = [
+                        index
+                        for index in range(1, len(structure) + 1)
+                        if (name.startswith("A") and index in ids_state_A)
+                        or (name.startswith("B") and index not in ids_state_A)
+                    ]
+                    self.molecule = extract_atoms(structure, indices)
 
             self.children[name] = job
 

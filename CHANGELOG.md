@@ -32,6 +32,7 @@ This changelog is effective from the 2025 releases.
 * `ADFNBOJob` accepts complete `scm.inputs.AMS` models directly or through `Settings.input`
 * `ADFFragmentJob` accepts `ChemicalSystem` fragments and complete `scm.inputs.AMS` settings; its results expose `get_main_system` and `get_input_system`
 * `BANDFragmentJob` and `NOCVBandFragmentJob` accept `ChemicalSystem` fragments and complete `scm.inputs.AMS` settings
+* `CounterpoiseEnergyJob` accepts `ChemicalSystem` structures and complete `scm.inputs.AMS` settings, preserving the structure type when preparing fragments and ghost atoms
 
 ### Fixed
 * Xvfb backend for `view` function with 0 display value
