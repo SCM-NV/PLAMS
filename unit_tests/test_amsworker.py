@@ -33,6 +33,22 @@ def test_init_with_scm_inputs(tmp_path, monkeypatch) -> None:
     assert settings.input.Task is None
 
 
+@pytest.mark.parametrize("model_name", ["DFTB", "Conformers"])
+def test_init_rejects_non_ams_input_models(model_name, tmp_path, monkeypatch) -> None:
+    inputs = pytest.importorskip("scm.inputs")
+    from scm.plams.core.settings import Settings
+
+    settings = Settings()
+    settings.input = getattr(inputs, model_name)()
+    start = MagicMock()
+    monkeypatch.setattr(AMSWorker, "_start_subprocess", start)
+
+    with pytest.raises(JobError, match="scm.inputs.AMS"):
+        AMSWorker(settings, workerdir_root=str(tmp_path))
+
+    start.assert_not_called()
+
+
 @pytest.mark.parametrize(
     "field,expected_message",
     [

@@ -42,7 +42,7 @@ from scm.plams.core.threading_utils import ContextAwareThread
 from scm.plams.mol.molecule import Molecule
 
 try:
-    from scm.inputs import EngineInputModel, InputModel
+    from scm.inputs import InputModel
 
     _has_scm_inputs = True
 except ImportError:
@@ -543,12 +543,12 @@ class AMSWorker:
 
         # Make a copy of the Settings instance so we do not modify the outside world.
         settings = settings.copy()
-        has_typed_input = (
-            _has_scm_inputs
-            and isinstance(settings.input, InputModel)
-            and not isinstance(settings.input, EngineInputModel)
-        )
+        has_typed_input = _has_scm_inputs and isinstance(settings.input, InputModel)
         if has_typed_input:
+            from scm.inputs import AMS as AMSInputModel
+
+            if not isinstance(settings.input, AMSInputModel):
+                raise JobError("AMSWorker input must be PLAMS Settings or scm.inputs.AMS")
             # Settings.copy() does not deep-copy an embedded scm.inputs model.
             settings.input = settings.input.model_copy(deep=True)
 
