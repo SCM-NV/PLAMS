@@ -29,6 +29,7 @@ This changelog is effective from the 2025 releases.
 * `AMSWorker` accepts typed `scm.inputs.AMS` models in `settings.input`, and AMS molecular-dynamics recipe jobs accept them directly or through `settings.input`
 * `preoptimize`, `shakemd`, `refine_density`, and `refine_lattice` accept `ChemicalSystem` inputs and preserve the input structure type in their results
 * `packmol` returns a `ChemicalSystem` for a single `ChemicalSystem` or a list containing only `ChemicalSystem` objects; mixed inputs return a `Molecule`. `packmol_around` preserves the host structure type.
+* `ADFNBOJob` accepts complete `scm.inputs.AMS` models directly or through `Settings.input`
 
 ### Fixed
 * Xvfb backend for `view` function with 0 display value
