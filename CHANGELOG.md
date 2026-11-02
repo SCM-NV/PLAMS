@@ -31,9 +31,11 @@ This changelog is effective from the 2025 releases.
 * `packmol` returns a `ChemicalSystem` for a single `ChemicalSystem` or a list containing only `ChemicalSystem` objects; mixed inputs return a `Molecule`. `packmol_around` preserves the host structure type.
 * `ADFNBOJob` accepts complete `scm.inputs.AMS` models directly or through `Settings.input`
 * `ADFFragmentJob` accepts `ChemicalSystem` fragments and complete `scm.inputs.AMS` settings; its results expose `get_main_system` and `get_input_system`
+* `BANDFragmentJob` and `NOCVBandFragmentJob` accept `ChemicalSystem` fragments and complete `scm.inputs.AMS` settings
 
 ### Fixed
 * Xvfb backend for `view` function with 0 display value
+* BAND fragment jobs apply per-fragment settings and create the full-system job when a custom atom mapping is supplied
 * `Molecule.rmsd` works with the default `ignore_hydrogen=False` and raises `MoleculeError` for mismatched molecule sizes or atom types
 
 ## 2026.104
