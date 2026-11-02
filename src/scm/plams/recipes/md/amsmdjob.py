@@ -1,43 +1,18 @@
-from scm.plams.core.basejob import Job
 from scm.plams.core.functions import add_to_instance
 from scm.plams.core.settings import Settings
 from scm.plams.interfaces.adfsuite.ams import AMSJob, AMSResults
+from scm.plams.recipes._settings import to_plams_settings
 import numpy as np
 from scm.plams.tools.kftools import KFFile
 from scm.plams.tools.units import Units
 from typing import Any, Union
 import scm.plams as plams
 
-try:
-    from scm.inputs import InputModel
-
-    _has_scm_inputs = True
-except ImportError:
-    _has_scm_inputs = False
-
 __all__ = ["AMSMDJob", "AMSNVEJob", "AMSNVTJob", "AMSNPTJob"]
 
 
 def _to_plams_settings(settings: Any) -> Any:
-    """Convert an AMS input model to the Settings form used by MD recipes."""
-    if not _has_scm_inputs:
-        return settings
-    source_settings = settings.settings if isinstance(settings, Job) else settings
-    input_model = source_settings.get("input") if isinstance(source_settings, Settings) else source_settings
-    if not isinstance(input_model, InputModel):
-        return settings
-
-    # Imported here, not at module level: loading the AMS input model more than doubles the import time of scm.plams
-    from scm.inputs import AMS as AMSInputModel
-
-    if not isinstance(input_model, AMSInputModel):
-        raise TypeError("AMSMDJob settings must be PLAMS Settings or scm.inputs.AMS")
-
-    from scm.plams.interfaces.adfsuite.inputparser import input_to_settings
-
-    converted = source_settings.copy() if isinstance(source_settings, Settings) else Settings()
-    converted.input = input_to_settings(input_model.to_input(), program=AMSJob._command)
-    return converted
+    return to_plams_settings(settings, "AMSMDJob")
 
 
 class AMSMDJob(AMSJob):
