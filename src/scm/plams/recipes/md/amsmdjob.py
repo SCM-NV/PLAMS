@@ -1,5 +1,6 @@
 from scm.plams.core.functions import add_to_instance
 from scm.plams.core.settings import Settings
+from scm.plams.core.errors import ResultsError
 from scm.plams.interfaces.adfsuite.ams import AMSJob, AMSResults
 from scm.plams.recipes._settings import to_plams_settings
 import numpy as np
@@ -460,7 +461,11 @@ class AMSNVTJob(AMSMDJob):
 
 class AMSNPTResults(AMSResults):
     def _get_equilibrated_step(self, equilibration_fraction: float) -> int:
+        if not 0 <= equilibration_fraction < 1:
+            raise ValueError("equilibration_fraction must be at least 0 and less than 1")
         densities = self.get_history_property("Density", "MDHistory")
+        if not densities:
+            raise ResultsError("No density history is available to select an equilibrated structure")
         analyze_from = int(len(densities) * equilibration_fraction)
         # Take the structure closest to the average density after equilibration.
         avg_density = np.mean(densities[analyze_from:])  # amu/bohr^3
@@ -487,7 +492,9 @@ class AMSNPTResults(AMSResults):
     def get_equilibrated_system(self, equilibration_fraction: float = 0.667, return_index: bool = False) -> Any:
         """Return the post-equilibration frame closest to the average density as a ``ChemicalSystem``.
 
-        :param equilibration_fraction: fraction of the beginning of the trajectory to discard
+        Requires the optional ``scm.base`` package.
+
+        :param equilibration_fraction: fraction of the beginning of the trajectory to discard, from 0 up to but excluding 1
         :param return_index: also return the selected one-based history index
         """
         step = self._get_equilibrated_step(equilibration_fraction)
