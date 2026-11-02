@@ -6,7 +6,7 @@ from scm.plams.core.errors import PlamsError
 from scm.plams.interfaces.adfsuite.ams import AMSJob
 from scm.plams.interfaces.adfsuite.amsworker import AMSWorker
 from scm.plams.mol.molecule import Molecule
-from typing import Any, Optional, Union, Sequence, overload, List, TYPE_CHECKING
+from typing import Any, Optional, Union, Sequence, overload, List, TYPE_CHECKING, cast
 from typing_extensions import TypeGuard
 
 if TYPE_CHECKING:
@@ -24,7 +24,7 @@ else:
 __all__ = ["preoptimize", "refine_density", "refine_lattice", "shakemd"]
 
 
-def _is_chemical_system(molecule: Union[Molecule, "ChemicalSystem"]) -> TypeGuard["ChemicalSystem"]:
+def _is_chemical_system(molecule: object) -> TypeGuard["ChemicalSystem"]:
     return _has_scm_chemsys and isinstance(molecule, ChemicalSystem)
 
 
@@ -39,7 +39,7 @@ def _get_main_structure(
 def _get_density(molecule: Union[Molecule, "ChemicalSystem"]) -> float:
     if _is_chemical_system(molecule):
         return molecule.density("kg/m3")
-    return molecule.get_density()
+    return cast(Molecule, molecule).get_density()
 
 
 def _set_density(molecule: Union[Molecule, "ChemicalSystem"], density: float) -> None:
@@ -64,9 +64,11 @@ def _with_updated_geometry(
     # PES scan frames are exposed as Molecules, so update a copy to retain the
     # ChemicalSystem metadata that is not represented by a Molecule.
     result = molecule.copy()
-    result.coords = result_molecule.as_array()
+    result.coords = cast(Any, result_molecule.as_array())
     if result_molecule.lattice:
-        result.lattice.vectors = result_molecule.lattice
+        from scm.base import Lattice
+
+        result.lattice = Lattice(result_molecule.lattice)
     return result
 
 
@@ -120,7 +122,11 @@ def preoptimize(
     my_settings = _get_quick_settings(model, settings, nproc)
 
     single_molecule = isinstance(molecule, Molecule) or _is_chemical_system(molecule)
-    input_molecules = [molecule] if single_molecule else molecule
+    input_molecules = (
+        [cast(Union[Molecule, "ChemicalSystem"], molecule)]
+        if single_molecule
+        else cast(Sequence[Union[Molecule, "ChemicalSystem"]], molecule)
+    )
     output_molecules: List[Union[Molecule, "ChemicalSystem"]] = []
     with AMSWorker(my_settings) as worker:
         for i, mol in enumerate(input_molecules):
@@ -214,6 +220,8 @@ def shakemd(
     job.run()
 
     out = _get_main_structure(job.results, molecule)
+    if out is None:
+        raise PlamsError("SHAKE MD failed to produce a final structure.")
 
     delete_job(job)
 
