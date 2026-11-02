@@ -30,6 +30,7 @@ This changelog is effective from the 2025 releases.
 * `preoptimize`, `shakemd`, `refine_density`, and `refine_lattice` accept `ChemicalSystem` inputs and preserve the input structure type in their results
 * `packmol` returns a `ChemicalSystem` for a single `ChemicalSystem` or a list containing only `ChemicalSystem` objects; mixed inputs return a `Molecule`. `packmol_around` preserves the host structure type.
 * `ADFNBOJob` accepts complete `scm.inputs.AMS` models directly or through `Settings.input`
+* `ADFFragmentJob` accepts `ChemicalSystem` fragments and complete `scm.inputs.AMS` settings; its results expose `get_main_system` and `get_input_system`
 
 ### Fixed
 * Xvfb backend for `view` function with 0 display value
