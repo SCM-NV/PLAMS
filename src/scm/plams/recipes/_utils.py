@@ -3,6 +3,7 @@ from typing import Any, TYPE_CHECKING, Union
 from scm.plams.core.basejob import Job
 from scm.plams.core.settings import Settings
 from scm.plams.interfaces.adfsuite.ams import AMSJob
+from scm.plams.mol.atom import Atom
 from scm.plams.mol.molecule import Molecule
 
 if TYPE_CHECKING:
@@ -66,3 +67,8 @@ def get_structure_charge(structure: Structure) -> float:
     if isinstance(structure, Molecule):
         return structure.properties.get("charge", 0)
     return structure.charge
+
+
+def get_atomic_number(atom: Any) -> int:
+    """Return an atom's atomic number from either supported representation."""
+    return atom.atnum if isinstance(atom, Atom) else atom.element.Z
