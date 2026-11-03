@@ -1,6 +1,9 @@
 import os, shutil
 from collections import OrderedDict
-from typing import List, Optional, Union, Dict, Literal, Tuple
+from typing import List, Optional, Union, Dict, Literal, Tuple, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from scm.base import ChemicalSystem
 
 from scm.plams.interfaces.adfsuite.ams import AMSJob
 from scm.plams.interfaces.adfsuite.crs import CRSJob
@@ -13,6 +16,14 @@ from scm.plams.core.results import Results
 from scm.plams.core.settings import Settings
 from scm.plams.core.functions import add_to_instance, requires_optional_package
 from scm.plams.interfaces.adfsuite.quickjobs import model_to_settings
+from scm.plams.recipes._utils import (
+    RecipeSettings,
+    get_main_structure,
+    get_structure_charge,
+    is_chemical_system,
+    Structure,
+    to_plams_settings,
+)
 
 from scm.plams.tools.hbc_utilities import parse_mesp, write_HBC_to_COSKF, view_HBC
 import numpy as np
@@ -43,6 +54,15 @@ class ADFCOSMORSCompoundResults(Results):
         for job in self.job.children.values():
             return job.results.get_input_molecule()
 
+    def get_main_system(self) -> "ChemicalSystem":
+        """Return the optimized ChemicalSystem if scm.base is available."""
+        return self.job.children["solv"].results.get_main_system()
+
+    def get_input_system(self) -> Optional["ChemicalSystem"]:
+        """Return the input ChemicalSystem if scm.base is available."""
+        for job in self.job.children.values():
+            return job.results.get_input_system()
+
     def get_sigma_profile(self, subsection: str = "profil"):
         """
         Returns the sigma profile of the molecule. For more details see `CRSResults.get_sigma_profile`.
@@ -55,14 +75,14 @@ class ADFCOSMORSCompoundJob(MultiJob):
     A class for performing the equivalent of Task: COSMO-RS Compound in the AMS GUI
 
     Args:
-        molecule : a PLAMS |Molecule|
+        molecule : a PLAMS |Molecule| or ChemicalSystem
 
     Keyword Args:
         coskf_name  : A name for the generated .coskf file.  If nothing is specified, the name of the job will be used.
         coskf_dir  : The directory in which to place the generated .coskf file.  If nothing is specified, the file will be put in the plams directory corresponding to the job.
         preoptimization  : If None, do not preoptimize with a fast engine priori to the optimization with ADF. Otherwise, it can be one of 'UFF', 'GAFF', 'GFNFF', 'GFN1-xTB', 'ANI-2x', 'M3GNet-UP-2022'. Note that you need valid licenses for ForceField or DFTB or MLPotential to use these preoptimizers.
         singlepoint (bool) :  Run a singlepoint in gasphase and with solvation to generate the .coskf file on the given Molecule. (no geometry optimization). Cannot be combined with ``preoptimization``.
-        settings (Settings) : A |Settings| object.  settings.runscript.nproc, settings.input.adf.custom_options. If 'adf' is in settings.input it should be provided without the solvation block.
+        settings (Settings or scm.inputs.AMS) : Complete AMS input settings. If ADF is present, it should be provided without the solvation block.
         mol_info (dict) : an optional dictionary containing information will be written to the Compound Data section within the COSKF file.
         hbc_from_MESP (bool) : Defaults to False. Performs DENSF analysis to determine the hydrogen bond center (HBC) used in COSMOSAC-DHB-MESP.
         name : an optional name for the calculation directory
@@ -89,12 +109,12 @@ class ADFCOSMORSCompoundJob(MultiJob):
 
     def __init__(
         self,
-        molecule: Union[Molecule, None],
+        molecule: Optional[Structure],
         coskf_name: Optional[str] = None,
         coskf_dir: Optional[str] = None,
         preoptimization: Optional[str] = None,
         singlepoint: bool = False,
-        settings: Optional[Settings] = None,
+        settings: Optional[RecipeSettings] = None,
         mol_info: Optional[Dict[str, Union[float, int, str]]] = None,
         hbc_from_MESP: bool = False,
         **kwargs,
@@ -120,8 +140,11 @@ class ADFCOSMORSCompoundJob(MultiJob):
         if preoptimization and singlepoint:
             raise ValueError("Cannot combine preoptimization with singlepoint")
 
+        settings = to_plams_settings(settings, type(self).__name__)
+
         MultiJob.__init__(self, children=OrderedDict(), **kwargs)
         self.input_molecule = molecule
+        self._use_chemical_system = is_chemical_system(molecule)
 
         self.mol_info = dict()
         if mol_info is not None:
@@ -154,7 +177,9 @@ class ADFCOSMORSCompoundJob(MultiJob):
                 preoptimization_s.input.ams.Task = "GeometryOptimization"
                 preoptimization_s += model_to_settings(preoptimization)
                 preoptimization_job = AMSJob(
-                    settings=preoptimization_s, name="preoptimization", molecule=self.input_molecule
+                    settings=preoptimization_s,
+                    name="preoptimization",
+                    molecule=self.input_molecule,
                 )
                 self.children["preoptimization"] = preoptimization_job
 
@@ -164,7 +189,10 @@ class ADFCOSMORSCompoundJob(MultiJob):
         @add_to_instance(gas_job)
         def prerun(self):  # noqa: F811
             if not singlepoint and preoptimization:
-                self.molecule = self.parent.children["preoptimization"].results.get_main_molecule()
+                self.molecule = get_main_structure(
+                    self.parent.children["preoptimization"].results,
+                    self.parent._use_chemical_system,
+                )
             else:
                 self.molecule = self.parent.input_molecule
             self.parent.mol_info, self.parent.atomic_ion = ADFCOSMORSCompoundJob.get_compound_properties(
@@ -191,7 +219,9 @@ class ADFCOSMORSCompoundJob(MultiJob):
             gas_job.results.wait()
             self.settings.input.ams.EngineRestart = "../gas/adf.rkf"
             self.settings.input.ams.LoadSystem.File = "../gas/ams.rkf"
-            molecule_charge = gas_job.results.get_main_molecule().properties.get("charge", 0)
+            molecule_charge = get_structure_charge(
+                get_main_structure(gas_job.results, self.parent._use_chemical_system)
+            )
             self.settings.input.ams.LoadSystem._1 = f"# {self.parent.name}"
             self.settings.input.ams.LoadSystem._2 = f"# charge {molecule_charge}"
             self.settings += ADFCOSMORSCompoundJob.adf_settings(
@@ -235,17 +265,19 @@ class ADFCOSMORSCompoundJob(MultiJob):
 
     @staticmethod
     def get_compound_properties(
-        mol: Molecule, mol_info: Optional[Dict[str, Union[float, int, str]]] = None
+        mol: Structure, mol_info: Optional[Dict[str, Union[float, int, str]]] = None
     ) -> Tuple[Dict[str, Union[float, int, str]], bool]:
 
         if mol_info is None:
             mol_info = dict()
-        mol_info["Molar Mass"] = mol.get_mass()
-        mol_info["Formula"] = mol.get_formula()
+        mol_info["Molar Mass"] = mol.total_mass() if is_chemical_system(mol) else mol.get_mass()
+        mol_info["Formula"] = mol.formula() if is_chemical_system(mol) else mol.get_formula()
         try:
-            rings = mol.locate_rings()
-            flatten_atoms = [atom for subring in rings for atom in subring]
-            nring = len(set(flatten_atoms))
+            if is_chemical_system(mol):
+                nring = len({index for ring in mol.get_all_rings() for index in ring})
+            else:
+                rings = mol.locate_rings()
+                nring = len({atom for subring in rings for atom in subring})
             mol_info["Nring"] = int(nring)
         except:
             pass
@@ -422,7 +454,10 @@ class ADFCOSMORSCompoundJob(MultiJob):
 
     @staticmethod
     def adf_settings(
-        solvation: bool, settings=None, elements: Optional[List[str]] = None, atomic_ion: bool = False
+        solvation: bool,
+        settings=None,
+        elements: Optional[List[str]] = None,
+        atomic_ion: bool = False,
     ) -> Settings:
         """
         Returns ADF settings with or without solvation

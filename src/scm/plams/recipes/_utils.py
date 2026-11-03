@@ -59,3 +59,10 @@ def is_chemical_system(structure: object) -> bool:
 def get_main_structure(results: Any, use_chemical_system: bool) -> Any:
     """Read a result structure in the same representation as the recipe input."""
     return results.get_main_system() if use_chemical_system else results.get_main_molecule()
+
+
+def get_structure_charge(structure: Structure) -> float:
+    """Return the charge from either supported structure representation."""
+    if isinstance(structure, Molecule):
+        return structure.properties.get("charge", 0)
+    return structure.charge
