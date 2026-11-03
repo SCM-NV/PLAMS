@@ -5,6 +5,7 @@ from scm.plams.core.settings import Settings
 from scm.plams.interfaces.adfsuite.ams import AMSJob, AMSResults
 from scm.plams.interfaces.adfsuite.crs import CRSJob, CRSResults
 from scm.plams.mol.molecule import Molecule
+from scm.plams.recipes._utils import Structure, is_chemical_system, to_plams_settings
 from scm.plams.tools.kftools import KFFile
 
 __all__ = ["run_crs_ams"]
@@ -79,19 +80,19 @@ def run_crs_ams(settings_ams, settings_crs, solvents, solutes=None, return_amsre
             [[1.        ]
              [0.58399355]]
 
-    :type settings_ams: :class:`.Settings`
+    :type settings_ams: :class:`.Settings` or ``scm.inputs.AMS``
     :parameter settings_ams:
-        A Settings instance with settings for :class:`.AMSJob` (see Examples).
+        PLAMS settings or a complete typed AMS input model for :class:`.AMSJob` (see Examples).
 
     :type settings_crs: :class:`.Settings`
     :parameter settings_crs:
         A Settings instance with settings for :class:`.CRSJob` (see Examples).
 
-    :type solvents: |Molecule| or :class:`list` [|Molecule|]
-    :parameter solvents: A Molecule or list of one or more Molecules representing solvents.
+    :type solvents: |Molecule|, ChemicalSystem, or a list of either
+    :parameter solvents: One or more structures representing solvents.
 
-    :type solutes: |Molecule| or :class:`list` [|Molecule|], optional
-    :parameter solutes: An optional Molecule or list of one or more Molecules representing solutes.
+    :type solutes: |Molecule|, ChemicalSystem, or a list of either, optional
+    :parameter solutes: One or more optional structures representing solutes.
 
     :type return_amsresults: :class:`bool`
     :parameter return_amsresults: If ``True``, return both the solvent and solute AMS results in addition to the final COSMO-RS.
@@ -108,18 +109,17 @@ def run_crs_ams(settings_ams, settings_crs, solvents, solutes=None, return_amsre
     .. _`activity coefficient`: ../../COSMO-RS/Properties.html#activity-coefficients-solvent-and-solute
     """
 
-    solvents = [solvents] if isinstance(solvents, Molecule) else solvents
-    solutes = [solutes] if isinstance(solutes, Molecule) else solutes
+    settings_ams = to_plams_settings(settings_ams, "run_crs_ams")
+    solvents = [solvents] if isinstance(solvents, Molecule) or is_chemical_system(solvents) else solvents
+    solutes = [solutes] if isinstance(solutes, Molecule) or is_chemical_system(solutes) else solutes
+    if solutes is None:
+        solutes = []
 
     # soft update to defaults
     _settings_ams = update_adf_defaults(settings_ams)
     _settings_ams = add_solvation_block(_settings_ams)
     # Validate arguments
     _validate_settings_ams(_settings_ams)
-
-    # Decapitalize the "solvation" and "allpoints" keys
-    if "solvation" in _settings_ams.settings.input.adf:
-        _settings_ams.input.adf.solvation = _settings_ams.settings.input.adf.pop("solvation")
 
     # Create the COSMO surfaces for the solute
     solvent_list = [run_amsjob(mol, _settings_ams, **kwargs) for mol in solvents]
@@ -140,9 +140,11 @@ def run_crs_ams(settings_ams, settings_crs, solvents, solutes=None, return_amsre
         return crs, solvent_list, solute_list
 
 
-def run_amsjob(mol: Molecule, s: Settings, **kwargs) -> AMSResults:
+def run_amsjob(mol: Structure, s: Settings, **kwargs) -> AMSResults:
     """Run an :class:`.AMSJob` on *mol* using the settings provided in *s*."""
-    name = "AMSJob." + mol.properties.name if "name" in mol.properties else "AMSJob.mol"
+    name = "AMSJob.mol"
+    if isinstance(mol, Molecule) and "name" in mol.properties:
+        name = "AMSJob." + mol.properties.name
 
     # Do a geometry optimization in the gas phase
     _s = s.copy()
@@ -201,7 +203,7 @@ def set_header(s: Settings, *values: str) -> None:
     s.input.compound[0].frac1 = 1.0  # The first item in *values should be the solvent
 
 
-def add_solvation_block(ams_settings: Settings) -> None:
+def add_solvation_block(ams_settings: Settings) -> Settings:
     """Add the solvation block to *ams_settings*, returning a copy of the new settings.
 
     The solvation block (*ams_settings.input.solvation*) is soft updated
@@ -265,7 +267,7 @@ def add_solvation_block(ams_settings: Settings) -> None:
     return ret
 
 
-def update_adf_defaults(ams_settings: Settings) -> None:
+def update_adf_defaults(ams_settings: Settings) -> Settings:
     """Add the COSMO-RS compound defaults to *ams_settings*, returning a copy of the new settings.
 
     The engine block (*ams_settings.input.adf*) is soft updated

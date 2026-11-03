@@ -35,6 +35,7 @@ This changelog is effective from the 2025 releases.
 
 ### Fixed
 * Xvfb backend for `view` function with 0 display value
+* `run_crs_ams` handles omitted solutes and no longer reads solvation settings through an unintended nested `settings` block
 * BAND fragment jobs apply per-fragment settings and create the full-system job when a custom atom mapping is supplied
 * AMS workers report unsupported typed input models clearly, and MD result helpers validate the equilibration fraction and missing density history
 * `Molecule.rmsd` works with the default `ignore_hydrogen=False` and raises `MoleculeError` for mismatched molecule sizes or atom types
