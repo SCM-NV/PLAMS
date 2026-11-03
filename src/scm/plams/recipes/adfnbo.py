@@ -3,7 +3,7 @@ from typing import Any
 
 from scm.plams.core.functions import log
 from scm.plams.interfaces.adfsuite.ams import AMSJob
-from scm.plams.recipes._settings import to_plams_settings
+from scm.plams.recipes._utils import to_plams_settings
 
 __all__ = ["ADFNBOJob"]
 

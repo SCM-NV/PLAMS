@@ -9,8 +9,7 @@ from scm.plams.interfaces.adfsuite.ams import AMSJob
 from scm.plams.mol.atom import Atom
 from scm.plams.mol.molecule import Molecule
 from scm.plams.tools.units import Units
-from scm.plams.recipes._settings import to_plams_settings
-from scm.plams.recipes._structures import Structure, is_chemical_system
+from scm.plams.recipes._utils import Structure, is_chemical_system, to_plams_settings
 
 __all__ = ["CounterpoiseEnergyJob", "CounterpoiseEnergyResults"]
 

@@ -2,7 +2,7 @@ from scm.plams.core.functions import add_to_instance
 from scm.plams.core.settings import Settings
 from scm.plams.core.errors import ResultsError
 from scm.plams.interfaces.adfsuite.ams import AMSJob, AMSResults
-from scm.plams.recipes._settings import to_plams_settings
+from scm.plams.recipes._utils import to_plams_settings
 import numpy as np
 from scm.plams.tools.kftools import KFFile
 from scm.plams.tools.units import Units

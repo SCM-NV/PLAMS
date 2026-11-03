@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 
 from scm.plams import AMSJob, Settings
-from scm.plams.recipes._settings import to_plams_settings
+from scm.plams.recipes._utils import to_plams_settings
 
 
 @pytest.fixture
@@ -56,7 +56,7 @@ def test_settings_conversion_preserves_options_and_does_not_mutate_input(typed_i
 
 
 def test_legacy_settings_work_without_optional_inputs(monkeypatch) -> None:
-    monkeypatch.setattr("scm.plams.recipes._settings._has_scm_inputs", False)
+    monkeypatch.setattr("scm.plams.recipes._utils._has_scm_inputs", False)
     settings = Settings()
     settings.input.ADF.Basis.Type = "DZ"
 
@@ -84,3 +84,26 @@ def test_bare_ams_model_is_converted(typed_inputs) -> None:
 def test_bare_engine_model_is_rejected(typed_inputs) -> None:
     with pytest.raises(TypeError, match="scm.inputs.AMS"):
         to_plams_settings(typed_inputs.ADF(), "test")
+
+
+@pytest.mark.parametrize("names", [("",), ("reactant",), ("", "final")])
+def test_system_block_conversion_preserves_headers_and_charge(typed_inputs, names) -> None:
+    base = pytest.importorskip("scm.base")
+    model = typed_inputs.AMS()
+    for name in names:
+        system = base.ChemicalSystem()
+        system.charge = 1
+        model.Systems[name] = system
+
+    converted = to_plams_settings(model, "test")
+    systems = converted.input.ams.System
+
+    if names == ("",):
+        assert isinstance(systems, Settings)
+        assert float(systems.Charge) == 1
+    else:
+        assert isinstance(systems, list)
+        assert {system.get("_h", "") for system in systems} == set(names)
+    text = AMSJob(settings=converted).get_input()
+    assert text.count("Charge 1") == len(names)
+    assert set(model.Systems) == set(names)

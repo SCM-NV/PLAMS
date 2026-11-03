@@ -2,8 +2,7 @@ from scm.plams.core.basejob import MultiJob
 from scm.plams.core.results import Results
 from scm.plams.core.settings import Settings
 from scm.plams.interfaces.adfsuite.ams import AMSJob
-from scm.plams.recipes._settings import RecipeSettings, to_plams_settings
-from scm.plams.recipes._structures import Structure, is_chemical_system
+from scm.plams.recipes._utils import RecipeSettings, Structure, is_chemical_system, to_plams_settings
 from scm.plams.tools.units import Units
 from scm.plams.core.errors import FileError
 from scm.plams.mol.molecule import Molecule

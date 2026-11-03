@@ -18,7 +18,6 @@ This changelog is effective from the 2025 releases.
 * Function `view_atomic_property` to visualize atomic properties (e.g. charges) of completed AMS jobs 
 * `AMSResults.get_molecule_count_history` to extract molecular-formula populations from reactive MD trajectories, and `plot_molecule_counts` in `scm.plams.tools.plot` to visualize them
 * Functions `movie` and `display_movie` to create and display GIF, animated WebP, and MP4 movies from image frames
-* `AMSResults.get_history_system`, `AMSNPTResults.get_equilibrated_system`, and `EquilibrateDensityResults.get_equilibrated_system` to retrieve trajectory structures as `ChemicalSystem` objects
 
 ### Changed
 * `Molecule.readmol2` can now read non-integer bond orders
@@ -26,17 +25,18 @@ This changelog is effective from the 2025 releases.
 * `view` function uses stdin mode for AMSview, reducing overhead for image creation
 * `vasp_output_to_ams` now reads the MD time step from `POTIM` in the OUTCAR and labels molecular-dynamics runs (`IBRION = 0`) as such, instead of using a fixed default time step
 * `view` function supports AMSJob and rkf as inputs
-* `AMSWorker` accepts typed `scm.inputs.AMS` models in `settings.input`, and AMS molecular-dynamics recipe jobs accept them directly or through `settings.input`
-* `preoptimize`, `shakemd`, `refine_density`, and `refine_lattice` accept `ChemicalSystem` inputs and preserve the input structure type in their results
-* `packmol` returns a `ChemicalSystem` for a single `ChemicalSystem` or a list containing only `ChemicalSystem` objects; mixed inputs return a `Molecule`. `packmol_around` preserves the host structure type.
-* `ADFNBOJob` accepts complete `scm.inputs.AMS` models directly or through `Settings.input`
-* `ADFFragmentJob` accepts `ChemicalSystem` fragments and complete `scm.inputs.AMS` settings; its results expose `get_main_system` and `get_input_system`
-* `BANDFragmentJob` and `NOCVBandFragmentJob` accept `ChemicalSystem` fragments and complete `scm.inputs.AMS` settings
-* `CounterpoiseEnergyJob` accepts `ChemicalSystem` structures and complete `scm.inputs.AMS` settings, preserving the structure type when preparing fragments and ghost atoms
+* Expanded typed `scm.inputs.AMS` support across AMS workers, ASE calculators, MD jobs, and the
+  ADF NBO, ADF/BAND fragment, counterpoise, reorganization-energy, COSMO-RS, and redox recipes.
+* Expanded `ChemicalSystem` support in quick jobs, Packmol, and the fragment, counterpoise,
+  reorganization-energy, COSMO-RS, and redox recipes. Quick jobs and Packmol preserve the documented input
+  structure type (mixed Packmol inputs return a `Molecule`). System-returning results methods are available for
+  trajectory frames (`get_history_system`), equilibrated NPT structures (`get_equilibrated_system`),
+  and fragment calculations (`get_main_system` and `get_input_system`).
 
 ### Fixed
 * Xvfb backend for `view` function with 0 display value
 * BAND fragment jobs apply per-fragment settings and create the full-system job when a custom atom mapping is supplied
+* AMS workers report unsupported typed input models clearly, and MD result helpers validate the equilibration fraction and missing density history
 * `Molecule.rmsd` works with the default `ignore_hydrogen=False` and raises `MoleculeError` for mismatched molecule sizes or atom types
 
 ## 2026.104

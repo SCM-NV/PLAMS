@@ -3,11 +3,14 @@ from typing import Any, TYPE_CHECKING, Union
 from scm.plams.core.basejob import Job
 from scm.plams.core.settings import Settings
 from scm.plams.interfaces.adfsuite.ams import AMSJob
+from scm.plams.mol.molecule import Molecule
 
 if TYPE_CHECKING:
+    from scm.base import ChemicalSystem
     from scm.inputs import AMS as AMSInputModel
 
 RecipeSettings = Union[Settings, Job, "AMSInputModel"]
+Structure = Union[Molecule, "ChemicalSystem"]
 
 try:
     from scm.inputs import InputModel
@@ -37,4 +40,22 @@ def to_plams_settings(settings: Any, recipe_name: str) -> Any:
 
     converted = source_settings.copy() if isinstance(source_settings, Settings) else Settings()
     converted.input = input_to_settings(input_model.to_input(), program=AMSJob._command)
+    systems = converted.input.ams.get("System")
+    # Recipes access the single unnamed System as a Settings block, not a repeated entry.
+    if isinstance(systems, list) and len(systems) == 1 and not systems[0].get("_h", ""):
+        converted.input.ams.System = systems[0]
     return converted
+
+
+def is_chemical_system(structure: object) -> bool:
+    """Return whether *structure* is a ChemicalSystem when scm.base is available."""
+    try:
+        from scm.base import ChemicalSystem
+    except ImportError:
+        return False
+    return isinstance(structure, ChemicalSystem)
+
+
+def get_main_structure(results: Any, use_chemical_system: bool) -> Any:
+    """Read a result structure in the same representation as the recipe input."""
+    return results.get_main_system() if use_chemical_system else results.get_main_molecule()

@@ -2,7 +2,7 @@ from scm.plams.core.functions import log
 from scm.plams.interfaces.adfsuite.ams import AMSJob
 from scm.plams.core.settings import Settings
 from scm.plams.recipes.adffragment import ADFFragmentJob, ADFFragmentResults
-from scm.plams.recipes._settings import to_plams_settings
+from scm.plams.recipes._utils import to_plams_settings
 from scm.plams.tools.units import Units
 from scm.plams.core.errors import FileError
 from scm.plams.core.functions import add_to_instance
