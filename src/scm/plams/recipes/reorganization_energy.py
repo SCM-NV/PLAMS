@@ -62,6 +62,8 @@ class ReorganizationEnergyJob(MultiJob):
         settings_state_A: Settings or a complete scm.inputs.AMS model defining state A (e.g. charge and spin)
         settings_state_B: Settings or a complete scm.inputs.AMS model defining state B (e.g. charge and spin)
         kwargs: other options to be passed to the MultiJob constructor
+
+        State-specific settings override common settings; the recipe selects the tasks.
         """
         MultiJob.__init__(self, children=OrderedDict(), **kwargs)
 
@@ -82,13 +84,14 @@ class ReorganizationEnergyJob(MultiJob):
         # This is to prevent the charge in molecule.properties.charge (set by get_main_molecule())
         # to be used in case of neutral systems
         for s in [settings_state_A, settings_state_B]:
+            s.input.ams.pop("Task", None)
             if not "charge" in s.input.ams.system:
                 s.input.ams.system.charge = 0
 
-        self.children["go_A"] = AMSJob(molecule=molecule, settings=go_settings + settings_state_A, name="go_A")
-        self.children["go_B"] = AMSJob(molecule=molecule, settings=go_settings + settings_state_B, name="go_B")
-        self.children["sp_A_for_geo_B"] = AMSJob(settings=sp_settings + settings_state_A, name="sp_A_geo_B")
-        self.children["sp_B_for_geo_A"] = AMSJob(settings=sp_settings + settings_state_B, name="sp_B_geo_A")
+        self.children["go_A"] = AMSJob(molecule=molecule, settings=settings_state_A + go_settings, name="go_A")
+        self.children["go_B"] = AMSJob(molecule=molecule, settings=settings_state_B + go_settings, name="go_B")
+        self.children["sp_A_for_geo_B"] = AMSJob(settings=settings_state_A + sp_settings, name="sp_A_geo_B")
+        self.children["sp_B_for_geo_A"] = AMSJob(settings=settings_state_B + sp_settings, name="sp_B_geo_A")
         use_chemical_system = is_chemical_system(molecule)
         pass_molecule(self.children["go_A"], self.children["sp_B_for_geo_A"], use_chemical_system)
         pass_molecule(self.children["go_B"], self.children["sp_A_for_geo_B"], use_chemical_system)

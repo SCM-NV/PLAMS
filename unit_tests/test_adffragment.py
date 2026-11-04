@@ -1,10 +1,12 @@
 from unittest.mock import MagicMock
+from typing import Type
 
 import pytest
 
-from scm.plams import Atom, Molecule, Settings
+from scm.plams import AMSJob, Atom, Molecule, Settings
 from scm.plams.core.enums import JobStatus
 from scm.plams.recipes.adffragment import ADFFragmentJob, ADFFragmentResults
+from scm.plams.recipes.bandfragment import BANDFragmentJob
 
 
 @pytest.mark.parametrize("use_system", [False, True])
@@ -72,3 +74,54 @@ def test_fragment_results_forward_system_methods() -> None:
 
     assert results.get_main_system() == "main system"
     assert results.get_input_system() == "input system"
+
+
+@pytest.mark.parametrize("job_type", [ADFFragmentJob, BANDFragmentJob])
+@pytest.mark.parametrize("reverse", [False, True])
+def test_mixed_fragment_types_are_combined_as_systems(job_type: Type[ADFFragmentJob], reverse: bool) -> None:
+    base = pytest.importorskip("scm.base")
+    molecule = Molecule()
+    molecule.add_atom(Atom(symbol="He"))
+    system = base.ChemicalSystem.from_smiles("O")
+    fragments = [system, molecule] if reverse else [molecule, system]
+    original = [str(fragment) for fragment in fragments]
+
+    job = job_type(fragment1=fragments[0], fragment2=fragments[1])
+    job.prerun()
+    if job_type is BANDFragmentJob:
+        job.new_children()
+
+    assert isinstance(job.f1.molecule, base.ChemicalSystem)
+    assert isinstance(job.f2.molecule, base.ChemicalSystem)
+    assert isinstance(job.full.molecule, base.ChemicalSystem)
+    parsed = AMSJob.from_input(AMSJob(molecule=job.full.molecule).get_input()).molecule[""]
+    assert len(parsed) == 4
+    assert [atom.symbol for atom in parsed] == [atom.symbol for fragment in fragments for atom in fragment]
+    assert [str(fragment) for fragment in fragments] == original
+
+
+def test_adf_specific_settings_override_shared_settings() -> None:
+    fragment = Molecule()
+    fragment.add_atom(Atom(symbol="He"))
+    common = Settings()
+    common.input.ADF.Basis.Type = "TZP"
+    common.input.ADF.XC.GGA = "PBE"
+    specific = Settings()
+    specific.input.ADF.Basis.Type = "DZP"
+    job = ADFFragmentJob(
+        fragment1=fragment,
+        fragment2=fragment,
+        fragment1_opt=fragment,
+        fragment2_opt=fragment,
+        settings=common,
+        frag1_settings=specific,
+        frag2_settings=specific,
+        full_settings=specific,
+    )
+    job.prerun()
+
+    for child in (job.f1, job.f2, job.f1_opt, job.f2_opt, job.full):
+        assert child.settings.input.ADF.Basis.Type == "DZP"
+        assert child.settings.input.ADF.XC.GGA == "PBE"
+    assert common.input.ADF.Basis.Type == "TZP"
+    assert "Fragments" not in specific.input.ADF

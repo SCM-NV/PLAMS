@@ -56,3 +56,33 @@ def test_reorganization_energy_preserves_structure_types_and_state_charges(use_s
     else:
         assert "Task" not in common.input.ams
         assert "System" not in state_b.input.ams
+
+
+@pytest.mark.parametrize("typed", [False, True])
+def test_state_settings_override_common_settings_but_not_recipe_tasks(typed: bool) -> None:
+    structure = Molecule()
+    structure.add_atom(Atom(symbol="He"))
+    if typed:
+        inputs = pytest.importorskip("scm.inputs")
+        common = inputs.AMS(Engine=inputs.ADF(Basis={"Type": "TZP"}))
+        state_a = inputs.AMS(Task="SinglePoint", Engine=inputs.ADF(Basis={"Type": "DZP"}))
+        state_b = inputs.AMS(Task="GeometryOptimization", Engine=inputs.ADF(Basis={"Type": "TZ2P"}))
+        original = [s.to_input() for s in (common, state_a, state_b)]
+    else:
+        common = Settings()
+        common.input.ADF.Basis.Type = "TZP"
+        state_a = Settings()
+        state_a.input.ams.Task = "SinglePoint"
+        state_a.input.ADF.Basis.Type = "DZP"
+        state_b = Settings()
+        state_b.input.ams.Task = "GeometryOptimization"
+        state_b.input.ADF.Basis.Type = "TZ2P"
+        original = [s.copy() for s in (common, state_a, state_b)]
+
+    job = ReorganizationEnergyJob(structure, common, state_a, state_b)
+
+    for name, basis in (("go_A", "DZP"), ("go_B", "TZ2P"), ("sp_A_for_geo_B", "DZP"), ("sp_B_for_geo_A", "TZ2P")):
+        child = job.children[name]
+        assert child.settings.input.ADF.Basis.Type == basis
+        assert child.settings.input.ams.Task == ("GeometryOptimization" if name.startswith("go_") else "SinglePoint")
+    assert ([s.to_input() for s in (common, state_a, state_b)] if typed else [common, state_a, state_b]) == original
