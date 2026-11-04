@@ -6,6 +6,7 @@ import pytest
 
 from scm.plams import AMSJob, AMSMDJob, AMSNPTJob, AMSNVEJob, AMSNVTJob, Atom, Molecule, Settings
 from scm.plams.core.enums import JobStatus
+from scm.plams.core.errors import ResultsError
 from scm.plams.recipes.md.movingrestraints import AMSMovingRestraintBondSwitchJob, AMSMovingRestraintRMSDJob
 from scm.plams.recipes.md.amsmdjob import AMSNPTResults
 from scm.plams.recipes.md.equilibratedensity import EquilibrateDensityResults
@@ -129,6 +130,21 @@ def test_npt_equilibrated_molecule_and_system_select_same_history_step() -> None
     assert (system, system_step) == ("system", 4)
     results.get_history_molecule.assert_called_once_with(4)
     results.get_history_system.assert_called_once_with(4)
+
+
+@pytest.mark.parametrize("fraction", [-0.1, 1, 1.1, float("nan")])
+def test_npt_rejects_invalid_equilibration_fraction(fraction: float) -> None:
+    job = MagicMock(status=JobStatus.SUCCESSFUL)
+    results = AMSNPTResults(job=job)
+    with pytest.raises(ValueError, match="equilibration_fraction"):
+        results.get_equilibrated_molecule(equilibration_fraction=fraction)
+
+
+def test_npt_reports_missing_density_history() -> None:
+    results = AMSNPTResults(job=MagicMock(status=JobStatus.SUCCESSFUL))
+    results.get_history_property = MagicMock(return_value=[])
+    with pytest.raises(ResultsError, match="No density history"):
+        results.get_equilibrated_molecule()
 
 
 def test_equilibrate_density_results_forwards_get_equilibrated_system() -> None:

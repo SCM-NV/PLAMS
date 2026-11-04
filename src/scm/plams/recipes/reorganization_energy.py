@@ -4,15 +4,16 @@ from scm.plams.core.basejob import MultiJob
 from scm.plams.core.functions import add_to_instance
 from scm.plams.core.results import Results
 from scm.plams.interfaces.adfsuite.ams import AMSJob
+from scm.plams.recipes._utils import get_main_structure, is_chemical_system, to_plams_settings
 
 __all__ = ["ReorganizationEnergyJob", "ReorganizationEnergyResults"]
 
 
 # using this function to pass a molecule inside a MultiJob ensures proper parallel execution
-def pass_molecule(source, target):
+def pass_molecule(source: AMSJob, target: AMSJob, use_chemical_system: bool = False) -> None:
     @add_to_instance(target)
     def prerun(self):  # noqa F811
-        self.molecule = source.results.get_main_molecule()
+        self.molecule = get_main_structure(source.results, use_chemical_system)
 
 
 class ReorganizationEnergyResults(Results):
@@ -56,13 +57,17 @@ class ReorganizationEnergyJob(MultiJob):
 
     def __init__(self, molecule, common_settings, settings_state_A, settings_state_B, **kwargs):
         """
-        molecule: the molecule
-        common_settings: a setting object for an AMSJob containing the shared settings for all the calculations
-        settings_state_A: Setting object for an AMSJob containing exclusivelt the options defining the state A (e.g. charge and spin)
-        settings_state_B: Setting object for an AMSJob containing exclusivelt the options defining the state B (e.g. charge and spin)
+        molecule: the Molecule or ChemicalSystem
+        common_settings: Settings or a complete scm.inputs.AMS model shared by all calculations
+        settings_state_A: Settings or a complete scm.inputs.AMS model defining state A (e.g. charge and spin)
+        settings_state_B: Settings or a complete scm.inputs.AMS model defining state B (e.g. charge and spin)
         kwargs: other options to be passed to the MultiJob constructor
         """
         MultiJob.__init__(self, children=OrderedDict(), **kwargs)
+
+        common_settings = to_plams_settings(common_settings, type(self).__name__)
+        settings_state_A = to_plams_settings(settings_state_A, type(self).__name__)
+        settings_state_B = to_plams_settings(settings_state_B, type(self).__name__)
 
         go_settings = common_settings.copy()
         go_settings.input.ams.task = "GeometryOptimization"
@@ -84,5 +89,6 @@ class ReorganizationEnergyJob(MultiJob):
         self.children["go_B"] = AMSJob(molecule=molecule, settings=go_settings + settings_state_B, name="go_B")
         self.children["sp_A_for_geo_B"] = AMSJob(settings=sp_settings + settings_state_A, name="sp_A_geo_B")
         self.children["sp_B_for_geo_A"] = AMSJob(settings=sp_settings + settings_state_B, name="sp_B_geo_A")
-        pass_molecule(self.children["go_A"], self.children["sp_B_for_geo_A"])
-        pass_molecule(self.children["go_B"], self.children["sp_A_for_geo_B"])
+        use_chemical_system = is_chemical_system(molecule)
+        pass_molecule(self.children["go_A"], self.children["sp_B_for_geo_A"], use_chemical_system)
+        pass_molecule(self.children["go_B"], self.children["sp_A_for_geo_B"], use_chemical_system)

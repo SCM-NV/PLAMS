@@ -1,6 +1,7 @@
 import os
 import shutil
 from collections import OrderedDict
+from typing import Optional
 
 from scm.plams.core.basejob import MultiJob
 from scm.plams.core.functions import add_to_instance
@@ -8,8 +9,16 @@ from scm.plams.core.results import Results
 from scm.plams.core.settings import Settings
 from scm.plams.interfaces.adfsuite.ams import AMSJob
 from scm.plams.interfaces.adfsuite.crs import CRSJob, CRSResults
-from scm.plams.mol.molecule import Molecule
 from scm.plams.recipes.adfcosmorscompound import ADFCOSMORSCompoundJob
+from scm.plams.recipes._utils import (
+    RecipeSettings,
+    get_atomic_number,
+    get_main_structure,
+    get_structure_charge,
+    is_chemical_system,
+    Structure,
+    to_plams_settings,
+)
 from scm.plams.tools.units import Units
 
 """
@@ -41,7 +50,8 @@ from scm.plams.tools.units import Units
 
     If ``vibrations`` = True, then calculate and use Gibbs free energies at room temperature.
 
-    ``settings`` should be set to the engine settings, excluding spin polarization and implicit solvation.
+    ``settings`` may be legacy PLAMS settings or a complete ``scm.inputs.AMS`` model, excluding spin polarization
+    and implicit solvation.
 
     Requires an ADF license.
 
@@ -81,9 +91,9 @@ __all__ = [
 ]
 
 
-def _spinpol_settings(molecule, charge=0):
+def _spinpol_settings(molecule: Structure, charge: float = 0) -> Settings:
     sett = Settings()
-    num_electrons = sum(atom.atnum for atom in molecule) - charge
+    num_electrons = sum(get_atomic_number(atom) for atom in molecule) - charge
     spinpol = num_electrons % 2
     if spinpol == 0:
         unrestricted = "No"
@@ -98,20 +108,21 @@ def _spinpol_settings(molecule, charge=0):
 class AMSRedoxParentJob(MultiJob):
     def __init__(
         self,
-        molecule: Molecule,  # Molecule
-        name: str = None,
-        settings: Settings = None,
+        molecule: Structure,
+        name: Optional[str] = None,
+        settings: Optional[RecipeSettings] = None,
         oxidation: bool = True,
         reduction: bool = False,
     ):
 
-        MultiJob.__init__(self, children=OrderedDict(), name=name)
+        MultiJob.__init__(self, children=OrderedDict(), name=name if name is not None else "plamsjob")
 
         self.oxidation = oxidation
         self.reduction = reduction
         self.input_molecule = molecule
-        self.settings = settings or Settings()
-        self.orig_charge = molecule.properties.get("charge", 0)
+        self.settings = to_plams_settings(settings, type(self).__name__) or Settings()
+        self._use_chemical_system = is_chemical_system(molecule)
+        self.orig_charge = get_structure_charge(molecule)
         self.ox_charge = self.orig_charge + 1
         self.red_charge = self.orig_charge - 1
 
@@ -230,17 +241,22 @@ class AMSRedoxDirectJob(AMSRedoxParentJob):
 
     def __init__(
         self,
-        molecule: Molecule,  # Molecule
+        molecule: Structure,
         solvent: str,  # ADF pre-defined solvent
-        name: str = None,
-        settings: Settings = None,
+        name: Optional[str] = None,
+        settings: Optional[RecipeSettings] = None,
         oxidation: bool = True,
         reduction: bool = False,
         vibrations: bool = True,
     ):
 
         AMSRedoxParentJob.__init__(
-            self, name=name, settings=settings, molecule=molecule, oxidation=oxidation, reduction=reduction
+            self,
+            name=name,
+            settings=settings,
+            molecule=molecule,
+            oxidation=oxidation,
+            reduction=reduction,
         )
 
         self.solvent = solvent
@@ -266,7 +282,7 @@ class AMSRedoxDirectJob(AMSRedoxParentJob):
 
             @add_to_instance(job_ox)
             def prerun(self):  # noqa F811
-                self.molecule = job_0.results.get_main_molecule()
+                self.molecule = get_main_structure(job_0.results, self.parent._use_chemical_system)
 
             self.children["job_ox"] = job_ox
 
@@ -279,7 +295,7 @@ class AMSRedoxDirectJob(AMSRedoxParentJob):
 
             @add_to_instance(job_red)
             def prerun(self):  # noqa F811
-                self.molecule = job_0.results.get_main_molecule()
+                self.molecule = get_main_structure(job_0.results, self.parent._use_chemical_system)
 
             self.children["job_red"] = job_red
 
@@ -308,10 +324,10 @@ class AMSRedoxScreeningJob(AMSRedoxParentJob):
 
     def __init__(
         self,
-        molecule: Molecule,  # Molecule
+        molecule: Structure,
         solvent_coskf: str,  # path to solvent .coskf file
-        name: str = None,
-        settings: Settings = None,
+        name: Optional[str] = None,
+        settings: Optional[RecipeSettings] = None,
         oxidation: bool = True,
         reduction: bool = False,
         copy_coskf=False,
@@ -321,7 +337,12 @@ class AMSRedoxScreeningJob(AMSRedoxParentJob):
             Will copy the coskf files into the job's own directory before running.
         """
         AMSRedoxParentJob.__init__(
-            self, name=name, settings=settings, molecule=molecule, oxidation=oxidation, reduction=reduction
+            self,
+            name=name,
+            settings=settings,
+            molecule=molecule,
+            oxidation=oxidation,
+            reduction=reduction,
         )
 
         self.solvent_coskf = solvent_coskf
@@ -343,7 +364,7 @@ class AMSRedoxScreeningJob(AMSRedoxParentJob):
 
             @add_to_instance(dftb_go_ox)
             def prerun(self):  # noqa F811
-                self.molecule = dftb_go_0.results.get_main_molecule()
+                self.molecule = get_main_structure(dftb_go_0.results, self.parent._use_chemical_system)
 
             self.children["dftb_go_ox"] = dftb_go_ox
 
@@ -355,7 +376,7 @@ class AMSRedoxScreeningJob(AMSRedoxParentJob):
 
             @add_to_instance(dftb_go_red)
             def prerun(self):  # noqa F811
-                self.molecule = dftb_go_0.results.get_main_molecule()
+                self.molecule = get_main_structure(dftb_go_0.results, self.parent._use_chemical_system)
 
             self.children["dftb_go_red"] = dftb_go_red
 
@@ -367,8 +388,10 @@ class AMSRedoxScreeningJob(AMSRedoxParentJob):
 
         @add_to_instance(gencoskf_0)
         def prerun(self):  # noqa F811
-            self.input_molecule = dftb_go_0.results.get_main_molecule()  # will inherit the charge
-            assert isinstance(self.input_molecule, Molecule)
+            self.input_molecule = get_main_structure(
+                dftb_go_0.results, self.parent._use_chemical_system
+            )  # will inherit the charge
+            self._use_chemical_system = is_chemical_system(self.input_molecule)
             self.atomic_ion = len(self.input_molecule) == 1
 
         self.children["gencoskf_0"] = gencoskf_0
@@ -381,7 +404,8 @@ class AMSRedoxScreeningJob(AMSRedoxParentJob):
 
             @add_to_instance(gencoskf_ox)
             def prerun(self):  # noqa F811
-                self.input_molecule = dftb_go_ox.results.get_main_molecule()
+                self.input_molecule = get_main_structure(dftb_go_ox.results, self.parent._use_chemical_system)
+                self._use_chemical_system = is_chemical_system(self.input_molecule)
                 self.atomic_ion = len(self.input_molecule) == 1
 
             self.children["gencoskf_ox"] = gencoskf_ox
@@ -394,14 +418,18 @@ class AMSRedoxScreeningJob(AMSRedoxParentJob):
 
             @add_to_instance(gencoskf_red)
             def prerun(self):  # noqa F811
-                self.input_molecule = dftb_go_red.results.get_main_molecule()
+                self.input_molecule = get_main_structure(dftb_go_red.results, self.parent._use_chemical_system)
+                self._use_chemical_system = is_chemical_system(self.input_molecule)
                 self.atomic_ion = len(self.input_molecule) == 1
 
             self.children["gencoskf_red"] = gencoskf_red
 
         # activitycoef_0
         activitycoef_0 = CRSActivityCoefficientJob(
-            name="activitycoef_0", solvent_coskf=self.solvent_coskf, solute_coskf=None, copy_coskf=copy_coskf
+            name="activitycoef_0",
+            solvent_coskf=self.solvent_coskf,
+            solute_coskf=None,
+            copy_coskf=copy_coskf,
         )
 
         @add_to_instance(activitycoef_0)
@@ -413,7 +441,10 @@ class AMSRedoxScreeningJob(AMSRedoxParentJob):
 
         if oxidation:
             activitycoef_ox = CRSActivityCoefficientJob(
-                name="activitycoef_ox", solvent_coskf=self.solvent_coskf, solute_coskf=None, copy_coskf=copy_coskf
+                name="activitycoef_ox",
+                solvent_coskf=self.solvent_coskf,
+                solute_coskf=None,
+                copy_coskf=copy_coskf,
             )
 
             @add_to_instance(activitycoef_ox)
@@ -425,7 +456,10 @@ class AMSRedoxScreeningJob(AMSRedoxParentJob):
 
         if reduction:
             activitycoef_red = CRSActivityCoefficientJob(
-                name="activitycoef_red", solvent_coskf=self.solvent_coskf, solute_coskf=None, copy_coskf=copy_coskf
+                name="activitycoef_red",
+                solvent_coskf=self.solvent_coskf,
+                solute_coskf=None,
+                copy_coskf=copy_coskf,
             )
 
             @add_to_instance(activitycoef_red)
@@ -482,17 +516,22 @@ class AMSRedoxThermodynamicCycleJob(AMSRedoxParentJob):
 
     def __init__(
         self,
-        molecule: Molecule,  # Molecule
-        name: str = None,
+        molecule: Structure,
+        name: Optional[str] = None,
         solvent: str = "Water",
-        settings: Settings = None,
+        settings: Optional[RecipeSettings] = None,
         oxidation: bool = True,
         reduction: bool = False,
         vibrations: bool = False,
     ):
 
         AMSRedoxParentJob.__init__(
-            self, name=name, settings=settings, molecule=molecule, oxidation=oxidation, reduction=reduction
+            self,
+            name=name,
+            settings=settings,
+            molecule=molecule,
+            oxidation=oxidation,
+            reduction=reduction,
         )
 
         self.vibrations = vibrations
@@ -517,7 +556,7 @@ class AMSRedoxThermodynamicCycleJob(AMSRedoxParentJob):
 
         @add_to_instance(go_0_vacuum_sp_solvated)
         def prerun(self):  # noqa F811
-            self.molecule = go_0_vacuum.results.get_main_molecule()
+            self.molecule = get_main_structure(go_0_vacuum.results, self.parent._use_chemical_system)
 
         self.children["go_0_vacuum_sp_solvated"] = go_0_vacuum_sp_solvated
 
@@ -529,7 +568,7 @@ class AMSRedoxThermodynamicCycleJob(AMSRedoxParentJob):
 
         @add_to_instance(go_0_solvated)
         def prerun(self):  # noqa F811
-            self.molecule = go_0_vacuum.results.get_main_molecule()
+            self.molecule = get_main_structure(go_0_vacuum.results, self.parent._use_chemical_system)
 
         self.children["go_0_solvated"] = go_0_solvated
 
@@ -540,7 +579,7 @@ class AMSRedoxThermodynamicCycleJob(AMSRedoxParentJob):
 
         @add_to_instance(go_0_solvated_sp_vacuum)
         def prerun(self):  # noqa F811
-            self.molecule = go_0_solvated.results.get_main_molecule()
+            self.molecule = get_main_structure(go_0_solvated.results, self.parent._use_chemical_system)
 
         self.children["go_0_solvated_sp_vacuum"] = go_0_solvated_sp_vacuum
 
@@ -552,7 +591,7 @@ class AMSRedoxThermodynamicCycleJob(AMSRedoxParentJob):
 
             @add_to_instance(go_ox_vacuum)
             def prerun(self):  # noqa F811
-                self.molecule = go_0_vacuum.results.get_main_molecule()
+                self.molecule = get_main_structure(go_0_vacuum.results, self.parent._use_chemical_system)
 
             self.children["go_ox_vacuum"] = go_ox_vacuum
 
@@ -564,7 +603,7 @@ class AMSRedoxThermodynamicCycleJob(AMSRedoxParentJob):
 
             @add_to_instance(go_ox_vacuum_sp_solvated)
             def prerun(self):  # noqa F811
-                self.molecule = go_ox_vacuum.results.get_main_molecule()
+                self.molecule = get_main_structure(go_ox_vacuum.results, self.parent._use_chemical_system)
 
             self.children["go_ox_vacuum_sp_solvated"] = go_ox_vacuum_sp_solvated
 
@@ -576,7 +615,7 @@ class AMSRedoxThermodynamicCycleJob(AMSRedoxParentJob):
 
             @add_to_instance(go_ox_solvated)
             def prerun(self):  # noqa F811
-                self.molecule = go_ox_vacuum.results.get_main_molecule()
+                self.molecule = get_main_structure(go_ox_vacuum.results, self.parent._use_chemical_system)
 
             self.children["go_ox_solvated"] = go_ox_solvated
 
@@ -587,7 +626,7 @@ class AMSRedoxThermodynamicCycleJob(AMSRedoxParentJob):
 
             @add_to_instance(go_ox_solvated_sp_vacuum)
             def prerun(self):  # noqa F811
-                self.molecule = go_ox_solvated.results.get_main_molecule()
+                self.molecule = get_main_structure(go_ox_solvated.results, self.parent._use_chemical_system)
 
             self.children["go_ox_solvated_sp_vacuum"] = go_ox_solvated_sp_vacuum
 
@@ -599,7 +638,7 @@ class AMSRedoxThermodynamicCycleJob(AMSRedoxParentJob):
 
             @add_to_instance(go_red_vacuum)
             def prerun(self):  # noqa F811
-                self.molecule = go_0_vacuum.results.get_main_molecule()
+                self.molecule = get_main_structure(go_0_vacuum.results, self.parent._use_chemical_system)
 
             self.children["go_red_vacuum"] = go_red_vacuum
 
@@ -611,7 +650,7 @@ class AMSRedoxThermodynamicCycleJob(AMSRedoxParentJob):
 
             @add_to_instance(go_red_vacuum_sp_solvated)
             def prerun(self):  # noqa F811
-                self.molecule = go_red_vacuum.results.get_main_molecule()
+                self.molecule = get_main_structure(go_red_vacuum.results, self.parent._use_chemical_system)
 
             self.children["go_red_vacuum_sp_solvated"] = go_red_vacuum_sp_solvated
 
@@ -623,7 +662,7 @@ class AMSRedoxThermodynamicCycleJob(AMSRedoxParentJob):
 
             @add_to_instance(go_red_solvated)
             def prerun(self):  # noqa F811
-                self.molecule = go_red_vacuum.results.get_main_molecule()
+                self.molecule = get_main_structure(go_red_vacuum.results, self.parent._use_chemical_system)
 
             self.children["go_red_solvated"] = go_red_solvated
 
@@ -634,6 +673,6 @@ class AMSRedoxThermodynamicCycleJob(AMSRedoxParentJob):
 
             @add_to_instance(go_red_solvated_sp_vacuum)
             def prerun(self):  # noqa F811
-                self.molecule = go_red_solvated.results.get_main_molecule()
+                self.molecule = get_main_structure(go_red_solvated.results, self.parent._use_chemical_system)
 
             self.children["go_red_solvated_sp_vacuum"] = go_red_solvated_sp_vacuum

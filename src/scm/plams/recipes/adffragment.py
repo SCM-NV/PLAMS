@@ -2,6 +2,7 @@ from scm.plams.core.basejob import MultiJob
 from scm.plams.core.results import Results
 from scm.plams.core.settings import Settings
 from scm.plams.interfaces.adfsuite.ams import AMSJob
+from scm.plams.recipes._utils import RecipeSettings, Structure, is_chemical_system, to_plams_settings
 from scm.plams.tools.units import Units
 from scm.plams.core.errors import FileError
 from scm.plams.mol.molecule import Molecule
@@ -11,7 +12,10 @@ import numpy as np
 
 from os.path import join as opj
 from os.path import abspath, isdir, basename
-from typing import Dict, List, Tuple, Union, Optional
+from typing import Dict, List, Tuple, Union, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from scm.base import ChemicalSystem
 
 __all__ = ["ADFFragmentJob", "ADFFragmentResults"]
 
@@ -37,6 +41,14 @@ class ADFFragmentResults(Results):
     def get_input_molecule(self):
         """Redirect to |AMSResults| of the full calculation."""
         return self.job.full.results.get_input_molecule()
+
+    def get_main_system(self) -> "ChemicalSystem":
+        """Redirect to |AMSResults| of the full calculation."""
+        return self.job.full.results.get_main_system()
+
+    def get_input_system(self) -> "ChemicalSystem":
+        """Redirect to |AMSResults| of the full calculation."""
+        return self.job.full.results.get_input_system()
 
     def get_energy(self, unit="au"):
         """Redirect to |AMSResults| of the full calculation."""
@@ -188,13 +200,13 @@ class ADFFragmentJob(MultiJob):
 
     def __init__(
         self,
-        fragment1: Optional[Molecule] = None,
-        fragment2: Optional[Molecule] = None,
-        fragment1_opt: Optional[Molecule] = None,
-        fragment2_opt: Optional[Molecule] = None,
-        full_settings: Optional[Settings] = None,
-        frag1_settings: Optional[Settings] = None,
-        frag2_settings: Optional[Settings] = None,
+        fragment1: Optional[Structure] = None,
+        fragment2: Optional[Structure] = None,
+        fragment1_opt: Optional[Structure] = None,
+        fragment2_opt: Optional[Structure] = None,
+        full_settings: Optional[RecipeSettings] = None,
+        frag1_settings: Optional[RecipeSettings] = None,
+        frag2_settings: Optional[RecipeSettings] = None,
         **kwargs,
     ):
         """Create an ADFFragmentJob with the given fragments.
@@ -206,30 +218,32 @@ class ADFFragmentJob(MultiJob):
         Subclass of |MultiJob|.
 
         Args:
-            fragment1 (|Molecule|): The first fragment.
-            fragment2 (|Molecule|): The second fragment.
-            fragment1_opt (|Molecule|, optional): The optimized first fragment.
-            fragment2_opt (|Molecule|, optional): The optimized second fragment.
-            full_settings (Settings): The settings for the full calculation.
-            frag1_settings (Settings): Specific settings for the first fragment calculation.
-            frag2_settings (Settings): Specific settings for the second fragment calculation.
+            fragment1 (|Molecule| or ChemicalSystem): The first fragment.
+            fragment2 (|Molecule| or ChemicalSystem): The second fragment.
+            fragment1_opt (|Molecule| or ChemicalSystem, optional): The optimized first fragment.
+            fragment2_opt (|Molecule| or ChemicalSystem, optional): The optimized second fragment.
+            full_settings (Settings or scm.inputs.AMS): The settings for the full calculation.
+            frag1_settings (Settings or scm.inputs.AMS): Settings for the first fragment calculation.
+            frag2_settings (Settings or scm.inputs.AMS): Settings for the second fragment calculation.
             **kwargs: Further keyword arguments for |MultiJob|.
         """
+        if "settings" in kwargs:
+            kwargs["settings"] = to_plams_settings(kwargs["settings"], type(self).__name__)
         MultiJob.__init__(self, **kwargs)
-        self.fragment1 = fragment1.copy() if isinstance(fragment1, Molecule) else fragment1
-        self.frag1_settings = frag1_settings or Settings()
-        self.fragment2 = fragment2.copy() if isinstance(fragment2, Molecule) else fragment2
-        self.frag2_settings = frag2_settings or Settings()
-        self.full_settings = full_settings or Settings()
+        self.fragment1 = fragment1.copy() if fragment1 is not None else None
+        self.frag1_settings = to_plams_settings(frag1_settings, type(self).__name__) or Settings()
+        self.fragment2 = fragment2.copy() if fragment2 is not None else None
+        self.frag2_settings = to_plams_settings(frag2_settings, type(self).__name__) or Settings()
+        self.full_settings = to_plams_settings(full_settings, type(self).__name__) or Settings()
 
-        if isinstance(fragment1_opt, Molecule):
+        if isinstance(fragment1_opt, Molecule) or is_chemical_system(fragment1_opt):
             self.fragment1_opt = fragment1_opt.copy()
         elif fragment1_opt is not None:
-            raise TypeError("fragment1_opt should be a Molecule object or None")
-        if isinstance(fragment2_opt, Molecule):
+            raise TypeError("fragment1_opt should be a Molecule or ChemicalSystem object, or None")
+        if isinstance(fragment2_opt, Molecule) or is_chemical_system(fragment2_opt):
             self.fragment2_opt = fragment2_opt.copy()
         elif fragment2_opt is not None:
-            raise TypeError("fragment2_opt should be a Molecule object or None")
+            raise TypeError("fragment2_opt should be a Molecule or ChemicalSystem object, or None")
 
     def prerun(self):  # noqa F811
         """Prepare the fragments and the full calculation."""
@@ -244,10 +258,17 @@ class ADFFragmentJob(MultiJob):
             settings=self.settings + self.frag2_settings,
         )
 
-        for at in self.fragment1:
-            at.properties.suffix = "adf.f=subsystem1"
-        for at in self.fragment2:
-            at.properties.suffix = "adf.f=subsystem2"
+        for fragment, name in (
+            (self.fragment1, "subsystem1"),
+            (self.fragment2, "subsystem2"),
+        ):
+            if isinstance(fragment, Molecule):
+                for atom in fragment:
+                    atom.properties.suffix = f"adf.f={name}"
+            else:
+                fragment.enable_atom_attributes("adf")
+                for atom in fragment.atoms:
+                    atom.adf.f = name
 
         self.full = AMSJob(
             name="full",

@@ -1,43 +1,19 @@
-from scm.plams.core.basejob import Job
 from scm.plams.core.functions import add_to_instance
 from scm.plams.core.settings import Settings
+from scm.plams.core.errors import ResultsError
 from scm.plams.interfaces.adfsuite.ams import AMSJob, AMSResults
+from scm.plams.recipes._utils import to_plams_settings
 import numpy as np
 from scm.plams.tools.kftools import KFFile
 from scm.plams.tools.units import Units
 from typing import Any, Union
 import scm.plams as plams
 
-try:
-    from scm.inputs import InputModel
-
-    _has_scm_inputs = True
-except ImportError:
-    _has_scm_inputs = False
-
 __all__ = ["AMSMDJob", "AMSNVEJob", "AMSNVTJob", "AMSNPTJob"]
 
 
 def _to_plams_settings(settings: Any) -> Any:
-    """Convert an AMS input model to the Settings form used by MD recipes."""
-    if not _has_scm_inputs:
-        return settings
-    source_settings = settings.settings if isinstance(settings, Job) else settings
-    input_model = source_settings.get("input") if isinstance(source_settings, Settings) else source_settings
-    if not isinstance(input_model, InputModel):
-        return settings
-
-    # Imported here, not at module level: loading the AMS input model more than doubles the import time of scm.plams
-    from scm.inputs import AMS as AMSInputModel
-
-    if not isinstance(input_model, AMSInputModel):
-        raise TypeError("AMSMDJob settings must be PLAMS Settings or scm.inputs.AMS")
-
-    from scm.plams.interfaces.adfsuite.inputparser import input_to_settings
-
-    converted = source_settings.copy() if isinstance(source_settings, Settings) else Settings()
-    converted.input = input_to_settings(input_model.to_input(), program=AMSJob._command)
-    return converted
+    return to_plams_settings(settings, "AMSMDJob")
 
 
 class AMSMDJob(AMSJob):
@@ -485,7 +461,11 @@ class AMSNVTJob(AMSMDJob):
 
 class AMSNPTResults(AMSResults):
     def _get_equilibrated_step(self, equilibration_fraction: float) -> int:
+        if not 0 <= equilibration_fraction < 1:
+            raise ValueError("equilibration_fraction must be at least 0 and less than 1")
         densities = self.get_history_property("Density", "MDHistory")
+        if not densities:
+            raise ResultsError("No density history is available to select an equilibrated structure")
         analyze_from = int(len(densities) * equilibration_fraction)
         # Take the structure closest to the average density after equilibration.
         avg_density = np.mean(densities[analyze_from:])  # amu/bohr^3
@@ -512,7 +492,9 @@ class AMSNPTResults(AMSResults):
     def get_equilibrated_system(self, equilibration_fraction: float = 0.667, return_index: bool = False) -> Any:
         """Return the post-equilibration frame closest to the average density as a ``ChemicalSystem``.
 
-        :param equilibration_fraction: fraction of the beginning of the trajectory to discard
+        Requires the optional ``scm.base`` package.
+
+        :param equilibration_fraction: fraction of the beginning of the trajectory to discard, from 0 up to but excluding 1
         :param return_index: also return the selected one-based history index
         """
         step = self._get_equilibrated_step(equilibration_fraction)

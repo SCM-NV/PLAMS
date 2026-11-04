@@ -1,12 +1,19 @@
 import os
+from typing import Any
 
 from scm.plams.core.functions import log
 from scm.plams.interfaces.adfsuite.ams import AMSJob
+from scm.plams.recipes._utils import to_plams_settings
 
 __all__ = ["ADFNBOJob"]
 
 
 class ADFNBOJob(AMSJob):
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        if "settings" in kwargs:
+            kwargs["settings"] = to_plams_settings(kwargs["settings"], type(self).__name__)
+        super().__init__(*args, **kwargs)
 
     def prerun(self):  # noqa F811
         s = self.settings.input.ADF
@@ -34,7 +41,8 @@ class ADFNBOJob(AMSJob):
         else:
             adfnbo_input = ["write", "spherical", "fock"]
             log(
-                "WARNING: (thisjob).settings.adfnbo should be a list. Using default settings: write, fock, spherical", 1
+                "WARNING: (thisjob).settings.adfnbo should be a list. Using default settings: write, fock, spherical",
+                1,
             )
 
         self.settings.runscript.post = (

@@ -1,7 +1,20 @@
 import os
 import subprocess
 import tempfile
-from typing import Any, Dict, List, Literal, Optional, Tuple, Union, overload, Sequence, TYPE_CHECKING, TypeVar, cast
+from typing import (
+    Any,
+    Dict,
+    List,
+    Literal,
+    Optional,
+    Tuple,
+    Union,
+    overload,
+    Sequence,
+    TYPE_CHECKING,
+    TypeVar,
+    cast,
+)
 from collections import Counter
 
 import numpy as np
@@ -24,7 +37,7 @@ if TYPE_CHECKING:
 
 T = TypeVar("T")
 MoleculeLike = Union[Molecule, "ChemicalSystem"]
-MoleculesInput = Union[List[MoleculeLike], MoleculeLike]
+MoleculesInput = Union[List[MoleculeLike], List[Molecule], List["ChemicalSystem"], MoleculeLike]
 
 __all__ = [
     "packmol",
@@ -57,6 +70,23 @@ def _to_plams_molecule(molecule: MoleculeLike) -> Molecule:
         "molecules must contain only PLAMS Molecule or ChemicalSystem objects, "
         f"but received {type(molecule).__name__}"
     )
+
+
+def _is_chemical_system(molecule: Any) -> bool:
+    try:
+        from scm.base import ChemicalSystem
+    except ImportError:
+        return False
+    return isinstance(molecule, ChemicalSystem)
+
+
+def _to_chemical_system(molecule: MoleculeLike) -> "ChemicalSystem":
+    if _is_chemical_system(molecule):
+        return cast("ChemicalSystem", molecule).copy()
+
+    from scm.base import ChemicalSystem
+
+    return ChemicalSystem(AMSJob(molecule=molecule).get_input())
 
 
 class PackMolError(MoleculeError):
@@ -519,7 +549,7 @@ def packmol(
     seed: int = ...,
     executable: Optional[str] = ...,
     _return_only_details: Literal[False] = False,
-) -> Molecule: ...
+) -> MoleculeLike: ...
 @overload
 def packmol(
     molecules: MoleculesInput,
@@ -538,7 +568,7 @@ def packmol(
     seed: int = ...,
     executable: Optional[str] = ...,
     _return_only_details: Literal[False] = False,
-) -> Tuple[Molecule, Dict[str, Any]]: ...
+) -> Tuple[MoleculeLike, Dict[str, Any]]: ...
 @overload
 def packmol(
     molecules: MoleculesInput,
@@ -571,31 +601,12 @@ def packmol(
     keep_bonds: bool = ...,
     keep_atom_properties: bool = ...,
     region_names: Union[List[str], str, None] = ...,
-    return_details: Literal[False] = ...,
+    return_details: bool = ...,
     tolerance: float = ...,
     seed: int = ...,
     executable: Optional[str] = ...,
     _return_only_details: bool = False,
-) -> Molecule: ...
-@overload
-def packmol(
-    molecules: MoleculesInput,
-    mole_fractions: Optional[List[float]] = ...,
-    density: Optional[float] = ...,
-    n_atoms: Optional[int] = ...,
-    box_bounds: Optional[List[float]] = ...,
-    n_molecules: Optional[Union[List[Optional[int]], List[int], int]] = ...,
-    sphere: bool = ...,
-    fix_first: bool = ...,
-    keep_bonds: bool = ...,
-    keep_atom_properties: bool = ...,
-    region_names: Union[List[str], str, None] = ...,
-    return_details: Literal[True] = ...,
-    tolerance: float = ...,
-    seed: int = ...,
-    executable: Optional[str] = ...,
-    _return_only_details: bool = False,
-) -> Tuple[Molecule, Dict[str, Any]]: ...
+) -> Union[MoleculeLike, Tuple[MoleculeLike, Dict[str, Any]], Tuple[None, Dict[str, Any]]]: ...
 def packmol(
     molecules: MoleculesInput,
     mole_fractions: Optional[List[float]] = None,
@@ -613,7 +624,7 @@ def packmol(
     seed: int = -1,
     executable: Optional[str] = None,
     _return_only_details: bool = False,  # get values of n_molecules, n_atoms, and mole_fractions in the returned dictionary
-) -> Union[Molecule, Tuple[Molecule, Dict[str, Any]], Tuple[None, Dict[str, Any]]]:
+) -> Union[MoleculeLike, Tuple[MoleculeLike, Dict[str, Any]], Tuple[None, Dict[str, Any]]]:
     """
     Create a fluid of the given ``molecules``. The function will use the
     given input parameters and try to obtain good values for the others.
@@ -623,6 +634,8 @@ def packmol(
 
     molecules : |Molecule|, ChemicalSystem, or list
         The molecules to pack. A list may contain any mixture of PLAMS ``Molecule`` and ``ChemicalSystem`` objects.
+        If a single ``ChemicalSystem`` or a list containing only ``ChemicalSystem`` objects is passed, the packed
+        structure is returned as a ``ChemicalSystem``. Mixed lists return a PLAMS ``Molecule``.
 
     mole_fractions : list of float
         The mole fractions (in the same order as ``molecules``). Cannot be combined with ``n_molecules``. If not given, an equal (molar) mixture of all components will be created.
@@ -646,7 +659,7 @@ def packmol(
         Whether to keep the first molecule fixed. This can only be used with ``n_molecules=[1, ..., ...]``. Defaults to False.
 
     keep_bonds : bool
-        If True, the bonds from the constituent molecules will be kept in the returned Molecule
+        If True, the bonds from the constituent molecules will be kept in the returned structure.
 
     keep_atom_properties : bool
         If True, the atom.properties (e.g. force-field atom types) of the constituent molecules will be kept in
@@ -661,7 +674,7 @@ def packmol(
         a periodic box, half the tolerance will be excluded from each face of the box.
 
     return_details : bool
-        Return a 2-tuple (Molecule, dict) where the dict has keys like 'n_molecules', 'mole_fractions', 'density',
+        Return a 2-tuple (structure, dict) where the dict has keys like 'n_molecules', 'mole_fractions', 'density',
         etc. They contain the actual details of the returned molecule, which may differ slightly from
         the requested quantities.
 
@@ -700,11 +713,15 @@ def packmol(
                 density=0.8,
                 n_atoms=100)
 
-    Returns: a |Molecule| or tuple (Molecule, dict)
-        If return_details=False, return a Molecule. If return_details=True, return a tuple.
+    Returns: a |Molecule|, ChemicalSystem, or tuple (structure, dict)
+        The returned structure follows the input rule described for ``molecules``. If ``return_details=True``, return
+        it together with a details dictionary.
 
 
     """
+    input_molecules = tolist(molecules)
+    return_chemical_system = bool(input_molecules) and all(_is_chemical_system(mol) for mol in input_molecules)
+
     # Input arguments allow for lots of combinations.
     # Let's try to check that the specified combination makes sense ...
     if n_atoms is not None and box_bounds is not None and density is not None:
@@ -773,6 +790,7 @@ def packmol(
         # n_molecules guaranteed to be list, molecules guaranteed to be list
         assert isinstance(n_molecules, list)
         assert isinstance(molecules, list)
+        molecules = cast(List[Molecule], molecules)
         current_n_atoms = sum(len(mol) * coeff for mol, coeff in zip(molecules, n_molecules) if coeff is not None)
         none_idx = n_molecules.index(None)  # type: ignore[arg-type]
         n_molecules = n_molecules.copy()  # do not modify the list passed in by the user
@@ -794,7 +812,7 @@ def packmol(
     if _return_only_details:
         return_details = True
 
-    molecules = tolist(molecules)
+    molecules = cast(List[Molecule], tolist(molecules))
 
     if n_molecules:
         n_molecules = tolist(n_molecules)  # type: ignore[arg-type]
@@ -886,10 +904,18 @@ def packmol(
     if sphere and len(molecules) == 2 and n_molecules and n_molecules[0] == 1:  # type: ignore[index]
         # Special case used by packmol_microsolvation
         s1 = PackMolStructure(
-            molecules[0], cast(List[Literal[1]], n_molecules)[0], box_bounds=box_bounds, sphere=False, fixed=True
+            molecules[0],
+            cast(List[Literal[1]], n_molecules)[0],
+            box_bounds=box_bounds,
+            sphere=False,
+            fixed=True,
         )
         s2 = PackMolStructure(
-            molecules[1], cast(List[int], n_molecules)[1], box_bounds=box_bounds, sphere=True, fixed=False
+            molecules[1],
+            cast(List[int], n_molecules)[1],
+            box_bounds=box_bounds,
+            sphere=True,
+            fixed=False,
         )
         pm.add_structure(s1)
         pm.add_structure(s2)
@@ -897,7 +923,11 @@ def packmol(
         for i, (mol, n_mol) in enumerate(zip(molecules, cast(List[float], coeffs))):
             if fix_first and i == 0:
                 s1 = PackMolStructure(
-                    mol, n_molecules=cast(Literal[1], n_mol), box_bounds=box_bounds, sphere=False, fixed=True
+                    mol,
+                    n_molecules=cast(Literal[1], n_mol),
+                    box_bounds=box_bounds,
+                    sphere=False,
+                    fixed=True,
                 )
                 pm.add_structure(s1)
             else:
@@ -991,10 +1021,11 @@ def packmol(
     if tot_charge != 0:
         out.properties.charge = tot_charge
 
+    result: MoleculeLike = _to_chemical_system(out) if return_chemical_system else out
     if return_details:
-        return out, details
+        return result, details
 
-    return out
+    return result
 
 
 def get_packmol_solid_liquid_box_bounds(slab: Molecule) -> List[float]:
@@ -1084,7 +1115,8 @@ def _run_uff_md(
     thermostatted_region = "PACKMOL_thermostatted"
     md_ucs = ucs.copy()
     md_ucs.set_atoms_in_region(
-        [x for x in range(len(md_ucs)) if fixed_atoms is None or x not in fixed_atoms], thermostatted_region
+        [x for x in range(len(md_ucs)) if fixed_atoms is None or x not in fixed_atoms],
+        thermostatted_region,
     )
 
     s = Settings()
@@ -1140,7 +1172,7 @@ def _run_uff_md(
 @requires_optional_package("scm.base")
 def packmol_around(
     current: Union[Molecule, "ChemicalSystem"],
-    molecules: Union[List[Molecule], Molecule],
+    molecules: MoleculesInput,
     mole_fractions: Optional[List[float]] = None,
     density: Optional[float] = None,
     n_atoms: Optional[int] = None,
@@ -1152,11 +1184,11 @@ def packmol_around(
     tolerance: float = 2.0,
     seed: int = -1,
     executable: Optional[str] = None,
-) -> Union[Molecule, Tuple[Molecule, Dict[str, Any]]]:
+) -> Union[MoleculeLike, Tuple[MoleculeLike, Dict[str, Any]]]:
     """Pack around the current molecule.
 
-    ``current``: Molecule
-        Must have a 3D lattice
+    ``current``: Molecule or ChemicalSystem
+        Must have a 3D lattice. The returned structure has the same type as ``current``.
 
     ``density``: float
         Density in g/cm^3 of the *added* molecules (excluding ``current``).
@@ -1175,7 +1207,7 @@ def packmol_around(
 
     In general, the arguments refer to the *added* molecules. For all other arguments, see the ``packmol`` function.
 
-    In the returned ``Molecule``, the system will be mapped to ``[0..1]``. It has the same lattice has ``current``.
+    In the returned structure, the system will be mapped to ``[0..1]``. It has the same lattice as ``current``.
 
     .. important::
 
@@ -1189,10 +1221,9 @@ def packmol_around(
 
     """
     from scm.base import ChemicalSystem
-    from scm.utils.conversions import plams_molecule_to_chemsys, chemsys_to_plams_molecule
 
     if isinstance(current, Molecule):
-        original_ucs = plams_molecule_to_chemsys(current)
+        original_ucs = _to_chemical_system(current)
     else:
         original_ucs = current.copy()
     assert isinstance(original_ucs, ChemicalSystem)
@@ -1210,7 +1241,9 @@ def packmol_around(
 
     # step 2, get remaining volume
     def get_details_for_remaining_volume(
-        original_ucs: "ChemicalSystem", molecules: Union[List[Molecule], Molecule], **kwargs: Any
+        original_ucs: "ChemicalSystem",
+        molecules: MoleculesInput,
+        **kwargs: Any,
     ) -> Dict[str, Any]:
         current_estimated_volume = _guess_molecular_volume(original_ucs)
         remaining_volume = original_volume - current_estimated_volume
@@ -1230,7 +1263,7 @@ def packmol_around(
         details["current_atomic_volume"] = current_estimated_volume
         return details
 
-    molecules = tolist(molecules)
+    molecules = cast(List[MoleculeLike], tolist(molecules))
     details = get_details_for_remaining_volume(
         original_ucs,
         molecules,
@@ -1266,7 +1299,7 @@ def packmol_around(
         )
         n_molecules = [1] + new_details["n_molecules"]
 
-    my_molecules = [chemsys_to_plams_molecule(system_for_packing)] + tolist(molecules)  # type: ignore[arg-type]
+    my_molecules: List[MoleculeLike] = [_to_plams_molecule(system_for_packing), *molecules]
     if region_names is not None:
         region_names = tolist(region_names)
         if len(region_names) == len(my_molecules) - 1:
@@ -1287,7 +1320,8 @@ def packmol_around(
     )
 
     # remove the original substrate
-    my_packed = plams_molecule_to_chemsys(my_packed_mol)
+    assert my_packed_mol is not None
+    my_packed = _to_chemical_system(my_packed_mol)
     my_packed.remove_atoms(range(len(original_ucs)))
 
     ### start removing molecules outside the unit cell for non-orthorhombic cells
@@ -1328,8 +1362,9 @@ def packmol_around(
     else:
         ret_details["mole_fractions"] = (np.array(ret_details["n_molecules"]) / sum_molecules).tolist()
 
-    ret = original_ucs + my_packed
-    ret = chemsys_to_plams_molecule(ret)
+    ret: MoleculeLike = original_ucs + my_packed
+    if isinstance(current, Molecule):
+        ret = _to_plams_molecule(ret)
     if return_details:
         return ret, ret_details
     return ret
@@ -1387,6 +1422,7 @@ def packmol_on_slab(
     # Map all liquid molecules to [0..1]
     # NOTE: We need to be using the lattice of the slab for this!
     #       The lattice of the liquid is different ...
+    liquid = _to_plams_molecule(liquid)
     liquid.lattice = slab.lattice
     # If the slab has cell-shifts for the bonds, the liquid also needs to have
     # them. If would not have cell-shifts, they would not be updated in the
@@ -1474,6 +1510,7 @@ def packmol_microsolvation(
         executable=executable,
     )
 
+    plams_solvated = _to_plams_molecule(plams_solvated)
     solute_indices = [i for i, at in enumerate(plams_solvated, 1) if i <= len(solute)]
     newmolecule = plams_solvated.get_complete_molecules_within_threshold(solute_indices, threshold=threshold)
 
@@ -1530,7 +1567,10 @@ def packmol_around_md(
     In the returned ``Molecule``, the system will be mapped to ``[0..1]``. It has the same lattice has ``current``.
     """
     from scm.base import ChemicalSystem, Lattice
-    from scm.utils.conversions import plams_molecule_to_chemsys, chemsys_to_plams_molecule
+    from scm.utils.conversions import (
+        plams_molecule_to_chemsys,
+        chemsys_to_plams_molecule,
+    )
 
     loglevel = 7
 

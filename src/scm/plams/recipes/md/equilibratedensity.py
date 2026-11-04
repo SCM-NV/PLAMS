@@ -20,7 +20,13 @@ class EquilibrateDensityResults(Results):
         )
 
     def get_equilibrated_system(self, equilibration_fraction: float = 0.667, return_index: bool = False) -> Any:
-        """Return the equilibrated density structure as a ``ChemicalSystem``."""
+        """Return the NPT frame closest to the average density after equilibration as a ``ChemicalSystem``.
+
+        Requires the optional ``scm.base`` package.
+
+        :param equilibration_fraction: fraction of the beginning of the trajectory to discard, from 0 up to but excluding 1
+        :param return_index: also return the selected one-based history index
+        """
         return self.job.children["npt"].results.get_equilibrated_system(
             equilibration_fraction=equilibration_fraction, return_index=return_index
         )

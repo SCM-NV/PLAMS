@@ -1,12 +1,14 @@
 import re
 from dataclasses import dataclass
 from typing import List, Optional, Union
+from unittest.mock import patch
 
 import numpy as np
 import pytest
 from test_helpers import skip_if_no_ams_installation, skip_if_no_scm_base
 
 from scm.plams.interfaces.molecule.packmol import (
+    PackMol,
     PackMolStructure,
     guess_density,
     packmol,
@@ -14,6 +16,60 @@ from scm.plams.interfaces.molecule.packmol import (
 )
 from scm.plams.interfaces.molecule.rdkit import from_smiles
 from scm.plams.mol.molecule import Atom, Molecule
+
+
+@pytest.mark.parametrize("as_list", [False, True])
+@pytest.mark.parametrize("return_details", [False, True])
+def test_packmol_returns_chemical_system_for_chemical_system_input(as_list: bool, return_details: bool) -> None:
+    base = pytest.importorskip("scm.base")
+    system = base.ChemicalSystem.from_smiles("[NH4+]")
+    system.charge = 1
+    packed_molecule = Molecule()
+    packed_molecule.lattice = [[10, 0, 0], [0, 10, 0], [0, 0, 10]]
+    for i in range(2):
+        for atom in system.atoms:
+            packed_molecule.add_atom(Atom(symbol=atom.symbol, coords=atom.coords + [i * 3, 0, 0]))
+
+    with patch.object(PackMol, "run", return_value=packed_molecule):
+        result = packmol(
+            [system] if as_list else system,
+            n_molecules=[2] if as_list else 2,
+            box_bounds=[0, 0, 0, 10, 10, 10],
+            region_names=["ammonium"] if as_list else "ammonium",
+            return_details=return_details,
+        )
+
+    packed = result[0] if return_details else result
+
+    assert isinstance(packed, base.ChemicalSystem)
+    assert len(packed) == 2 * len(system)
+    assert packed.charge == 2
+    assert len(packed.bonds) == 2 * len(system.bonds)
+    assert np.allclose(packed.lattice.vectors, np.eye(3) * 10)
+    assert "region=ammonium" in str(packed)
+    if return_details:
+        assert result[1]["n_molecules"] == [2]
+    assert system.charge == 1
+    assert len(system) == 5
+
+
+def test_packmol_mixed_inputs_return_molecule() -> None:
+    base = pytest.importorskip("scm.base")
+    system = base.ChemicalSystem.from_smiles("[He]")
+    molecule = Molecule()
+    molecule.add_atom(Atom(symbol="Ne"))
+    packed_molecule = Molecule()
+    packed_molecule.add_atom(Atom(symbol="He"))
+    packed_molecule.add_atom(Atom(symbol="Ne"))
+
+    with patch.object(PackMol, "run", return_value=packed_molecule):
+        packed = packmol(
+            [system, molecule],
+            n_molecules=[1, 1],
+            box_bounds=[0, 0, 0, 10, 10, 10],
+        )
+
+    assert isinstance(packed, Molecule)
 
 
 class TestPackmolStructure:
@@ -345,7 +401,9 @@ class TestPackMol:
             expected_error="molecules is a list, but n_molecules is not",
         ),
         UnhappyTestCase(
-            molecules=[water, acetonitrile], n_molecules=[42], expected_error=r"len\(n_molecules\) != len\(molecules\)"
+            molecules=[water, acetonitrile],
+            n_molecules=[42],
+            expected_error=r"len\(n_molecules\) != len\(molecules\)",
         ),
         UnhappyTestCase(
             molecules=[water, acetonitrile],
@@ -372,7 +430,9 @@ class TestPackMol:
             expected_error=r"len\(region_names\) != len\(molecules\)",
         ),
         UnhappyTestCase(
-            molecules=water, n_molecules=[42], expected_error="n_molecules is a list, when molecules is not"
+            molecules=water,
+            n_molecules=[42],
+            expected_error="n_molecules is a list, when molecules is not",
         ),
         UnhappyTestCase(
             molecules=water,
@@ -1039,6 +1099,17 @@ class TestGuessDensity:
 
 
 class TestPackMolAround:
+
+    def test_preserves_chemical_system_type(self):
+        skip_if_no_ams_installation()
+        base = pytest.importorskip("scm.base")
+
+        current = base.ChemicalSystem()
+        current.lattice = base.Lattice([[10, 0, 0], [0, 10, 0], [0, 0, 10]])
+
+        packed = packmol_around(current, from_smiles("O"), density=0.5, seed=1)
+
+        assert isinstance(packed, base.ChemicalSystem)
 
     def test_pack_water_iteratively(self):
         skip_if_no_ams_installation()
