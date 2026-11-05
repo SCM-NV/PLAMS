@@ -9,9 +9,7 @@ from typing import (
     Literal,
     cast,
     Sequence,
-    Set,
-    Callable,
-    Iterable,
+    Mapping,
 )
 import numpy as np
 
@@ -43,6 +41,7 @@ __all__ = [
     "plot_phonons_dos",
     "plot_phonons_thermodynamic_properties",
     "plot_energy_landscape",
+    "plot_reaction_network",
     "plot_molecule",
     "plot_image_grid",
     "plot_correlation",
@@ -1132,9 +1131,7 @@ def plot_energy_landscape(
         The axis containing the plotted energy landscape.
     """
     import matplotlib.pyplot as plt
-    from collections import deque
-    import itertools
-    import numpy as np
+    from scm.plams.tools.plot_energy_landscape_utils import _EnergyLandscapeLayout, _crop_view_image
     from scm.plams.tools.view import view
 
     states = list(energy_landscape)
@@ -1154,277 +1151,10 @@ def plot_energy_landscape(
         ax.set_xticks([])
         return ax
 
-    state_map = {state.id: state for state in states}
-    # Build a graph representation of the landscape from the TS reactant/product links.
-    adjacency: Dict[int, Set[int]] = {state.id: set() for state in states}
-    edge_pairs: Set[Tuple[int, int]] = set()
-    for state in states:
-        if state.reactants is not None:
-            adjacency[state.id].add(state.reactants.id)
-            adjacency[state.reactants.id].add(state.id)
-            left_id, right_id = sorted((state.id, state.reactants.id))
-            edge_pairs.add((left_id, right_id))
-        if state.products is not None:
-            adjacency[state.id].add(state.products.id)
-            adjacency[state.products.id].add(state.id)
-            left_id, right_id = sorted((state.id, state.products.id))
-            edge_pairs.add((left_id, right_id))
-
-    def _state_sort_key(state_id: int) -> Tuple[bool, float, int]:
-        state = state_map[state_id]
-        return (state.isTS, state.energy, state.id)
-
-    def _component(start_id: int, remaining_ids: Set[int]) -> Set[int]:
-        component: Set[int] = set()
-        stack = [start_id]
-        while stack:
-            node = stack.pop()
-            if node in component:
-                continue
-            component.add(node)
-            stack.extend(adjacency[node] & remaining_ids)
-        return component
-
-    def _component_start(component: Set[int]) -> int:
-        endpoints = [node for node in component if len(adjacency[node] & component) <= 1]
-        candidates = endpoints if endpoints else list(component)
-        return min(candidates, key=_state_sort_key)
-
-    def _connected_components() -> List[Set[int]]:
-        # Layout disconnected reaction networks independently before placing them side by side.
-        remaining_ids = {state.id for state in states}
-        components: List[Set[int]] = []
-        while remaining_ids:
-            start_id = min(remaining_ids, key=_state_sort_key)
-            component = _component(start_id, remaining_ids)
-            components.append(component)
-            remaining_ids -= component
-        components.sort(key=lambda component: _state_sort_key(_component_start(component)))
-        return components
-
-    def _ordered_components(orderer: Callable[[Set[int]], List[int]]) -> List[int]:
-        ordered_ids: List[int] = []
-        for component in _connected_components():
-            ordered_ids.extend(orderer(component))
-        return ordered_ids
-
-    def _dfs_order(component: Set[int]) -> List[int]:
-        # Follow one branch deeply before backtracking, which often matches a reaction path view.
-        start_id = _component_start(component)
-        visited: Set[int] = set()
-        ordered_ids: List[int] = []
-
-        def _visit(node: int) -> None:
-            visited.add(node)
-            ordered_ids.append(node)
-            neighbors = sorted(adjacency[node] & component, key=_state_sort_key)
-            for neighbor in neighbors:
-                if neighbor not in visited:
-                    _visit(neighbor)
-
-        _visit(start_id)
-        return ordered_ids
-
-    def _bfs_order(component: Set[int]) -> List[int]:
-        # Expand level by level from one endpoint to keep nearby states grouped together.
-        start_id = _component_start(component)
-        queue = deque([start_id])
-        visited: Set[int] = {start_id}
-        ordered_ids: List[int] = []
-        while queue:
-            node = queue.popleft()
-            ordered_ids.append(node)
-            neighbors = sorted(adjacency[node] & component, key=_state_sort_key)
-            for neighbor in neighbors:
-                if neighbor not in visited:
-                    visited.add(neighbor)
-                    queue.append(neighbor)
-        return ordered_ids
-
-    # ``view()`` returns a raster image with its own canvas and margins. Cropping away
-    # empty borders makes ``molecule_scale`` control the apparent molecule size instead
-    # of mostly scaling surrounding whitespace inside the inset.
-    def _crop_view_image(image: Any) -> Any:
-        image_array = np.asarray(image)
-        if image_array.ndim < 2:
-            return image
-
-        if image_array.ndim == 3 and image_array.shape[2] == 4:
-            mask = image_array[:, :, 3] > 0
-        elif image_array.ndim == 3:
-            mask = np.any(image_array[:, :, :3] < 250, axis=2)
-        else:
-            mask = image_array < 250
-
-        nonempty = np.argwhere(mask)
-        if nonempty.size == 0:
-            return image
-
-        y0, x0 = nonempty.min(axis=0)
-        y1, x1 = nonempty.max(axis=0) + 1
-        if x0 == 0 and y0 == 0 and y1 == image_array.shape[0] and x1 == image_array.shape[1]:
-            return image
-
-        return image.crop((int(x0), int(y0), int(x1), int(y1)))
-
-    def _farthest(start_id: int, component: Set[int]) -> Tuple[int, Dict[int, int], Dict[int, Optional[int]]]:
-        distances: Dict[int, int] = {start_id: 0}
-        parents: Dict[int, Optional[int]] = {start_id: None}
-        queue = deque([start_id])
-        while queue:
-            node = queue.popleft()
-            for neighbor in sorted(adjacency[node] & component, key=_state_sort_key):
-                if neighbor not in distances:
-                    distances[neighbor] = distances[node] + 1
-                    parents[neighbor] = node
-                    queue.append(neighbor)
-        farthest_id = max(
-            distances, key=lambda node: (distances[node], -int(state_map[node].isTS), -state_map[node].energy, -node)
-        )
-        return farthest_id, distances, parents
-
-    def _longest_path_order(component: Set[int]) -> List[int]:
-        # Use the graph backbone first, then attach side branches around that main path.
-        start_id = _component_start(component)
-        end_a, _, _ = _farthest(start_id, component)
-        end_b, _, parents = _farthest(end_a, component)
-
-        backbone: List[int] = []
-        node: Optional[int] = end_b
-        while node is not None:
-            backbone.append(node)
-            node = parents[node]
-        backbone.reverse()
-
-        ordered_ids: List[int] = []
-        placed: Set[int] = set()
-
-        def _add_side_branch(root_id: int, blocked: Set[int]) -> None:
-            neighbors = sorted((adjacency[root_id] & component) - blocked - placed, key=_state_sort_key)
-            for neighbor in neighbors:
-                ordered_ids.append(neighbor)
-                placed.add(neighbor)
-                _add_side_branch(neighbor, blocked | {root_id})
-
-        for node in backbone:
-            if node not in placed:
-                ordered_ids.append(node)
-                placed.add(node)
-            _add_side_branch(node, set(backbone))
-
-        leftovers = sorted(component - placed, key=_state_sort_key)
-        ordered_ids.extend(leftovers)
-        return ordered_ids
-
-    def _crossings_for_order(order: Iterable[int]) -> Tuple[int, int, Tuple[int, ...]]:
-        # Score a 1D ordering by counting connector crossings and total connector length.
-        positions = {state_id: idx for idx, state_id in enumerate(order)}
-        edge_list = sorted(edge_pairs)
-        crossings = 0
-        edge_length = 0
-        for idx, (a1, b1) in enumerate(edge_list):
-            x1, x2 = sorted((positions[a1], positions[b1]))
-            edge_length += x2 - x1
-            for a2, b2 in edge_list[idx + 1 :]:
-                if len({a1, b1, a2, b2}) < 4:
-                    continue
-                y1, y2 = sorted((positions[a2], positions[b2]))
-                if (x1 < y1 < x2 < y2) or (y1 < x1 < y2 < x2):
-                    crossings += 1
-        return crossings, edge_length, tuple(order)
-
-    def _crossings_order(component: Set[int]) -> List[int]:
-        # For small graphs try all permutations; otherwise improve a good initial guess locally.
-        component_list = sorted(component, key=_state_sort_key)
-        if len(component_list) <= 8:
-            return list(min(itertools.permutations(component_list), key=lambda perm: _crossings_for_order(perm)))
-
-        best = min(
-            (_dfs_order(component), _bfs_order(component), _longest_path_order(component)),
-            key=_crossings_for_order,
-        )
-        improved = list(best)
-        improved_flag = True
-        while improved_flag:
-            improved_flag = False
-            best_score = _crossings_for_order(improved)
-            for i in range(len(improved) - 1):
-                candidate = improved.copy()
-                candidate[i], candidate[i + 1] = candidate[i + 1], candidate[i]
-                candidate_score = _crossings_for_order(candidate)
-                if candidate_score < best_score:
-                    improved = candidate
-                    best_score = candidate_score
-                    improved_flag = True
-        return improved
-
-    def _force_order(component: Set[int]) -> List[int]:
-        # Relax 1D positions with attractive edges and repulsive nodes, then sort by the relaxed positions.
-        component_ids = sorted(component, key=_state_sort_key)
-        initial = _longest_path_order(component)
-        x_pos: Dict[int, float] = {state_id: float(index) for index, state_id in enumerate(initial)}
-        ideal_gap = max(spacing, 1.0)
-        for _ in range(max(force_iterations, 1)):
-            delta: Dict[int, float] = {state_id: 0.0 for state_id in component_ids}
-            for i, left in enumerate(component_ids):
-                for right in component_ids[i + 1 :]:
-                    distance = x_pos[right] - x_pos[left]
-                    if abs(distance) < 1e-8:
-                        distance = 1e-8
-                    repulsion = 0.02 / abs(distance)
-                    delta[left] -= repulsion
-                    delta[right] += repulsion
-            for left, right in edge_pairs:
-                if left in component and right in component:
-                    distance = x_pos[right] - x_pos[left]
-                    attraction = 0.08 * (distance - ideal_gap)
-                    delta[left] += attraction
-                    delta[right] -= attraction
-            for state_id in component_ids:
-                state = state_map[state_id]
-                delta[state_id] += 0.03 * Units.convert(state.energy - min(s.energy for s in states), "hartree", unit)
-            for state_id in component_ids:
-                x_pos[state_id] += delta[state_id]
-            centered = float(np.mean([x_pos[state_id] for state_id in component_ids]))
-            for state_id in component_ids:
-                x_pos[state_id] -= centered
-        return sorted(component_ids, key=lambda state_id: (x_pos[state_id],) + _state_sort_key(state_id))
-
-    layout_orderers: Dict[str, Callable[[], List[int]]] = {
-        "dfs": lambda: _ordered_components(_dfs_order),
-        "bfs": lambda: _ordered_components(_bfs_order),
-        "longest_path": lambda: _ordered_components(_longest_path_order),
-        "force": lambda: _ordered_components(_force_order),
-        "crossings": lambda: _ordered_components(_crossings_order),
-    }
-
-    if layout == "auto":
-        # Compare all available strategies and keep the one with the cleanest connector pattern.
-        candidate_orders: Dict[str, List[int]] = {name: orderer() for name, orderer in layout_orderers.items()}
-        ordered_ids: List[int] = min(
-            candidate_orders.values(),
-            key=lambda order: _crossings_for_order(order)
-            + (sum(abs(i - order.index(state.id)) for i, state in enumerate(states)),),
-        )
-    else:
-        if layout not in layout_orderers:
-            raise ValueError(
-                "Unsupported layout '{}'. Choose from 'auto', 'dfs', 'bfs', 'longest_path', 'force', or 'crossings'.".format(
-                    layout
-                )
-            )
-        ordered_ids = layout_orderers[layout]()
-
-    ordered_states = [state_map[state_id] for state_id in ordered_ids]
-    # Convert the chosen ordering into actual x-coordinates, leaving a gap between components.
-    component_gap = max(1.5 * spacing, spacing + landscape_width)
-    x_map = {}
-    current_x = 0.0
-    for component in _connected_components():
-        component_order = [state_id for state_id in ordered_ids if state_id in component]
-        for offset, state_id in enumerate(component_order):
-            x_map[state_id] = current_x + offset * spacing
-        current_x = x_map[component_order[-1]] + component_gap
+    layout_data = _EnergyLandscapeLayout(states, spacing, unit, force_iterations)
+    ordered_ids = layout_data.ordered_ids(layout)
+    ordered_states = [layout_data.state_map[state_id] for state_id in ordered_ids]
+    x_map = layout_data.x_positions(ordered_ids, landscape_width)
 
     reference_energy = min(state.energy for state in states)
     relative_energies = {state.id: Units.convert(state.energy - reference_energy, "hartree", unit) for state in states}
@@ -1540,3 +1270,171 @@ def plot_energy_landscape(
     ax.tick_params(axis="x", length=0)
 
     return ax
+
+
+@requires_optional_package("matplotlib")
+@requires_optional_package("networkx")
+def plot_reaction_network(
+    energy_landscape: "AMSResults.EnergyLandscape",
+    ax: Optional["plt.Axes"] = None,
+    *,
+    positions: Optional[Mapping[int, Sequence[float]]] = None,
+    layout: Literal["auto", "connectivity", "tree"] = "auto",
+    color_by: Literal["formula", "energy"] = "formula",
+    cmap: str = "jet",
+    unit: str = "eV",
+    energy_reference: Optional[float] = None,
+    energy_limits: Optional[Tuple[float, float]] = None,
+    surface_region: Optional[str] = "surface",
+    surface_only: bool = False,
+    guess_bonds_dmax: float = 1.35,
+    size_scale: float = 1.0,
+    label_states: Optional[bool] = None,
+    label_padding: float = 2.0,
+    node_spacing: float = 14.0,
+    within_class_spacing: float = 0.014,
+    between_class_spacing: float = 1.8,
+    seed: int = 11,
+    layout_iterations: int = 500,
+    edge_gray: float = 0.11666666666666667,
+    edge_alpha: float = 0.7066666666666667,
+    title: str = "Reaction network",
+) -> "plt.Axes":
+    """Plot stationary points and directed connections from an AMS energy landscape.
+
+    Minima are circles and transition states (TS) are squares. Every stationary
+    point is retained, including separate TS nodes connecting the same minima.
+    Each TS contributes ``reactant -> TS -> product`` edges for its known links.
+    Arrowheads are slender darts at connector midpoints. The stored orientation
+    is retained; it does not imply that the reverse reaction is impossible.
+
+    Formula grouping uses the connected fragments outside ``surface_region``.
+    A fragment touching the surface is marked with ``*``. Isomers with the same
+    fragment formulas share a class; nodes are never collapsed into one state.
+    Energies and forward/backward prefactors are not modified. Coordinates in
+    this diagram have no energetic meaning; use :func:`plot_energy_landscape`
+    for an energy-level representation.
+
+    Parameters
+    ----------
+    energy_landscape
+        Stationary points returned by :meth:`AMSResults.get_energy_landscape`.
+        State energies are in hartree. ``select_states`` and ``accessible_states``
+        may be used before plotting; retained original IDs are used as labels.
+    ax
+        Axes to reuse. If omitted, a figure is created with adaptive dimensions.
+        A supplied axes keeps its figure dimensions. The caller controls saving.
+    positions
+        Optional mapping from current, one-based ``state.id`` to finite 2D
+        coordinates. Reuse these coordinates to recolor a network without
+        recomputing the layout. Extra entries for filtered states are ignored.
+    layout
+        ``"auto"`` uses connectivity-based placement for at most 40 states and
+        a formula-grouped tree-like layout for larger networks. ``"connectivity"``
+        layers directed acyclic graphs; graphs with directed cycles use a spring
+        layout. ``"tree"`` spreads formula classes around a spring-layout
+        backbone. All modes preserve cycles and every directed connection.
+    color_by
+        ``"formula"`` colors minima by formula class and TS nodes gray.
+        ``"energy"`` colors both node types on one shared energy scale and
+        adds a colorbar without changing node positions, sizes, or edge paths.
+    cmap
+        Matplotlib colormap for energy coloring; the default is ``"jet"``.
+    unit
+        Unit of the relative energies used by energy coloring and its colorbar.
+    energy_reference
+        Optional reference energy in hartree. The lowest plotted state is used
+        by default. This is independent of ``unit``.
+    energy_limits
+        Optional ``(minimum, maximum)`` relative energies in ``unit``. Use fixed
+        limits for comparable palettes across plots. Otherwise, each network
+        uses its full energy range. Equal energies receive one common color.
+    surface_region
+        Name of the molecular region defining surface atoms, or ``None`` to
+        classify all atoms as nonsurface. The surface itself is excluded from
+        fragment formulas.
+    surface_only
+        If true, keep minima whose nonsurface fragments all touch the surface,
+        and TS nodes whose two endpoints satisfy this criterion. Isolated nodes
+        are then removed. This requires a nonempty ``surface_region`` name.
+    guess_bonds_dmax
+        Positive bond-guessing distance factor. Bond guessing is performed on
+        copies and does not modify the landscape's molecules.
+    size_scale
+        Multiplier for adaptive marker area, rather than diameter. Visible
+        labels impose an additional minimum area so text fits inside markers.
+    label_states
+        Whether to show plain state IDs. The default shows IDs for at most
+        40 nodes. The circle/square shapes identify the stationary-point type.
+    label_padding
+        Non-negative clearance around label text, in points.
+    node_spacing
+        Target gap between marker boundaries, in points, for automatically
+        created figures containing at most 40 nodes. The figure expands when
+        needed. Resizing cannot separate coincident supplied coordinates.
+    within_class_spacing
+        Positive target spacing of minima within a class in tree-layout units.
+    between_class_spacing
+        Positive multiplier of class-center coordinates in the tree layout.
+    seed
+        Seed for the detailed spring layout and cyclic connectivity layout.
+    layout_iterations
+        Positive number of detailed spring-layout iterations in tree mode.
+    edge_gray
+        Grayscale value from 0 (black) to 1 (white).
+    edge_alpha
+        Edge opacity from 0 to 1.
+    title
+        Title placed above the network.
+
+    Returns
+    -------
+    matplotlib.axes.Axes
+        Axes containing the network. Colorbars use inset axes and do not
+        reduce the main drawing area.
+
+    Notes
+    -----
+    Matplotlib and NetworkX are optional requirements. Computing the tree layout
+    also requires SciPy; supplying ``positions`` avoids this requirement.
+    Bond guessing uses ``scm.base`` when available. Without it, nonperiodic
+    molecules use native PLAMS bond guessing; periodic molecules require
+    ``scm.base``. The two bond-guessing implementations can classify borderline
+    geometries differently.
+
+    Examples
+    --------
+    Read an existing result and save the energy-colored reaction network::
+
+        from scm.plams import AMSJob, plot_reaction_network
+
+        job = AMSJob.load_external("example.results")
+        landscape = job.results.get_energy_landscape()
+        ax = plot_reaction_network(landscape, color_by="energy", cmap="jet")
+        ax.figure.savefig("reaction_network.png", dpi=180)
+    """
+    from scm.plams.tools.plot_reaction_network_utils import _build_reaction_graph, _plot_reaction_graph
+
+    graph = _build_reaction_graph(energy_landscape, surface_region, surface_only, guess_bonds_dmax)
+    return _plot_reaction_graph(
+        graph,
+        positions=positions,
+        ax=ax,
+        layout=layout,
+        seed=seed,
+        layout_iterations=layout_iterations,
+        within_class_spacing=within_class_spacing,
+        between_class_spacing=between_class_spacing,
+        color_by=color_by,
+        cmap=cmap,
+        energy_unit=unit,
+        energy_reference=energy_reference,
+        energy_limits=energy_limits,
+        size_scale=size_scale,
+        label_states=label_states,
+        label_padding=label_padding,
+        node_spacing=node_spacing,
+        edge_gray=edge_gray,
+        edge_alpha=edge_alpha,
+        title=title,
+    )
