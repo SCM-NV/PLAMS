@@ -230,6 +230,8 @@ class ADFCOSMORSCompoundJob(MultiJob):
                 elements=list(set(at.symbol for at in self.parent.input_molecule)),
                 atomic_ion=self.parent.atomic_ion,
             )
+            # LoadSystem reads the complete system, including its charge, from the gas-phase RKF.
+            self.settings.input.ams.pop("System", None)
 
         @add_to_instance(solv_job)
         def postrun(self):

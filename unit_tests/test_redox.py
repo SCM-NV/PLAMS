@@ -108,6 +108,16 @@ def test_redox_charges_spin_and_geometry_transfers(structure, settings, workflow
             assert target._use_chemical_system == use_system
             assert not target.atomic_ion
             assert target.settings.input.ADF.SpinPolarization == (10 - charge) % 2
+            assert target.settings.input.ams.System.Charge == charge
+            gas = target.children["gas"]
+            assert gas.settings.input.ams.System.Charge == charge
+            gas.results.wait = MagicMock()
+            setattr(gas.results, getter_name, MagicMock(return_value=optimized))
+            solv = target.children["solv"]
+            solv.parent = target
+            solv.prerun()
+            assert "System" not in solv.settings.input.ams
+            assert solv.settings.input.ams.LoadSystem.File == "../gas/ams.rkf"
             getter.assert_called_once_with()
 
     assert (settings.input if isinstance(settings, Settings) else settings.to_input()) == original

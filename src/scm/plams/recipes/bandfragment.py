@@ -68,8 +68,8 @@ class BANDFragmentJob(ADFFragmentJob):
 
     def prerun(self) -> None:
         """Creates the fragment jobs."""
-        self.f1 = AMSJob(name="frag1", molecule=self.fragment1, settings=self.settings + self.frag1_settings)
-        self.f2 = AMSJob(name="frag2", molecule=self.fragment2, settings=self.settings + self.frag2_settings)
+        self.f1 = AMSJob(name="frag1", molecule=self.fragment1, settings=self.frag1_settings + self.settings)
+        self.f2 = AMSJob(name="frag2", molecule=self.fragment2, settings=self.frag2_settings + self.settings)
         self.children += [self.f1, self.f2]
 
     def new_children(self) -> Union[None, List[AMSJob]]:
@@ -97,7 +97,7 @@ class BANDFragmentJob(ADFFragmentJob):
             self.full = AMSJob(
                 name="full",
                 molecule=self.fragment1 + self.fragment2,
-                settings=self.settings + self.full_settings,
+                settings=self.full_settings + self.settings,
             )
 
             return [self.full]
@@ -163,7 +163,7 @@ class NOCVBandFragmentJob(BANDFragmentJob):
         else:
             # add NOCV run
             # settings for the NOCV calculation
-            set = self.settings + self.full_settings + self.nocv_settings
+            set = self.nocv_settings + self.full_settings + self.settings
             # set the restart file
             set.input.band.restart.file = "full.rkf"
             # copy the fragment settings

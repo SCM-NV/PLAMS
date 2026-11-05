@@ -215,6 +215,9 @@ class ADFFragmentJob(MultiJob):
         Single point calculations on these structures will then be performed
         to obtain the preparation energy.
 
+        Mixed fragment representations are combined as a ChemicalSystem.
+        Fragment-specific and full-system settings override shared settings.
+
         Subclass of |MultiJob|.
 
         Args:
@@ -233,6 +236,13 @@ class ADFFragmentJob(MultiJob):
         self.fragment1 = fragment1.copy() if fragment1 is not None else None
         self.frag1_settings = to_plams_settings(frag1_settings, type(self).__name__) or Settings()
         self.fragment2 = fragment2.copy() if fragment2 is not None else None
+        if is_chemical_system(self.fragment1) or is_chemical_system(self.fragment2):
+            from scm.base import ChemicalSystem
+
+            if isinstance(self.fragment1, Molecule):
+                self.fragment1 = ChemicalSystem(AMSJob(molecule=self.fragment1).get_input())
+            if isinstance(self.fragment2, Molecule):
+                self.fragment2 = ChemicalSystem(AMSJob(molecule=self.fragment2).get_input())
         self.frag2_settings = to_plams_settings(frag2_settings, type(self).__name__) or Settings()
         self.full_settings = to_plams_settings(full_settings, type(self).__name__) or Settings()
 
@@ -250,12 +260,12 @@ class ADFFragmentJob(MultiJob):
         self.f1 = AMSJob(
             name="frag1",
             molecule=self.fragment1,
-            settings=self.settings + self.frag1_settings,
+            settings=self.frag1_settings + self.settings,
         )
         self.f2 = AMSJob(
             name="frag2",
             molecule=self.fragment2,
-            settings=self.settings + self.frag2_settings,
+            settings=self.frag2_settings + self.settings,
         )
 
         for fragment, name in (
@@ -273,7 +283,7 @@ class ADFFragmentJob(MultiJob):
         self.full = AMSJob(
             name="full",
             molecule=self.fragment1 + self.fragment2,
-            settings=self.settings + self.full_settings,
+            settings=self.full_settings + self.settings,
         )
 
         self.full.settings.input.adf.fragments.subsystem1 = (self.f1, "adf")
@@ -284,14 +294,14 @@ class ADFFragmentJob(MultiJob):
             self.f1_opt = AMSJob(
                 name="frag1_opt",
                 molecule=self.fragment1_opt,
-                settings=self.settings + self.frag1_settings,
+                settings=self.frag1_settings + self.settings,
             )
             self.children.append(self.f1_opt)
         if hasattr(self, "fragment2_opt"):
             self.f2_opt = AMSJob(
                 name="frag2_opt",
                 molecule=self.fragment2_opt,
-                settings=self.settings + self.frag2_settings,
+                settings=self.frag2_settings + self.settings,
             )
             self.children.append(self.f2_opt)
 

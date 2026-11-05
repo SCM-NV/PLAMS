@@ -23,11 +23,15 @@ def test_band_fragment_creates_full_job_and_applies_fragment_settings(
 ) -> None:
     full_settings = Settings()
     full_settings.input.BAND.XC.GGA = "PBE"
+    common = Settings()
+    common.input.BAND.Basis.Type = "TZ2P"
+    common.input.BAND.XC.GGA = "BP86"
     if custom_mapping:
         full_settings.input.BAND.Fragment = [Settings({"FileName": "custom.rkf", "AtomMapping": {"1": "1"}})]
     job = BANDFragmentJob(
         fragment1=chemical_system.extract_atoms([0]),
         fragment2=chemical_system.extract_atoms([1, 2]),
+        settings=common,
         full_settings=full_settings,
         frag1_settings=typed_inputs.AMS(Engine=typed_inputs.BAND(Basis={"Type": "DZP"})),
         frag2_settings=typed_inputs.AMS(Engine=typed_inputs.BAND(Basis={"Type": "TZP"})),
@@ -65,10 +69,16 @@ def test_nocv_band_fragment_accepts_typed_settings(typed_inputs, tmp_path: Path)
     fragment = Molecule()
     fragment.add_atom(Atom(symbol="He"))
     model = typed_inputs.AMS(Engine=typed_inputs.BAND(Basis={"Type": "TZP"}))
-    job = NOCVBandFragmentJob(fragment1=fragment, fragment2=fragment, nocv_settings=model)
+    common = typed_inputs.AMS(Engine=typed_inputs.BAND(Basis={"Type": "DZP"}))
+    full = typed_inputs.AMS(Engine=typed_inputs.BAND(Basis={"Type": "TZ2P"}))
+    original = model.to_input()
+    job = NOCVBandFragmentJob(
+        fragment1=fragment, fragment2=fragment, settings=common, full_settings=full, nocv_settings=model
+    )
 
     job.prerun()
     assert job.new_children() == [job.full]
+    assert job.full.settings.input.BAND.Basis.Type == "TZ2P"
     for child in (job.f1, job.f2, job.full):
         child.path = str(tmp_path / child.name)
     assert job.new_children() == [job.nocv]
@@ -78,3 +88,4 @@ def test_nocv_band_fragment_accepts_typed_settings(typed_inputs, tmp_path: Path)
     assert len(job.nocv.settings.input.BAND.Fragment) == 2
     assert job.new_children() is None
     assert model.Engine.Basis.Type == "TZP"
+    assert model.to_input() == original

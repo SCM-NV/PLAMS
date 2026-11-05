@@ -158,6 +158,8 @@ def run_amsjob(mol: Structure, s: Settings, **kwargs) -> AMSResults:
     # Construct the AMS COSMO surface
     _s.input.ams.Task = "SinglePoint"
     _s.input.ams.EngineRestart = adf_out
+    # The gas-phase RKF supplies the system; System and LoadSystem are mutually exclusive.
+    _s.input.ams.pop("System", None)
     _s.input.ams.LoadSystem.File = ams_out
     job2 = AMSJob(molecule=None, settings=_s, depend=[job1], name=name)
     results2 = job2.run(**kwargs)

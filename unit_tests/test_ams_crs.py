@@ -68,6 +68,7 @@ def test_run_amsjob_structure_and_restart(monkeypatch, use_system) -> None:
         name = "AMSJob.water"
     settings = Settings()
     settings.input.ADF.Solvation.Solv = "name=CRS"
+    settings.input.ams.System.Charge = 1
     original = settings.copy()
     gas = MagicMock()
     gas.run.return_value.__getitem__.side_effect = lambda key: "/gas/" + key
@@ -87,6 +88,7 @@ def test_run_amsjob_structure_and_restart(monkeypatch, use_system) -> None:
     assert second.kwargs["depend"] == [gas]
     assert second.kwargs["settings"].input.ams.EngineRestart == "/gas/adf.rkf"
     assert second.kwargs["settings"].input.ams.LoadSystem.File == "/gas/ams.rkf"
+    assert "System" not in second.kwargs["settings"].input.ams
     assert result is solv.run.return_value
     convert.assert_called_once_with(result, name.split(".")[1])
     gas.run.assert_called_once_with(watch=True)
