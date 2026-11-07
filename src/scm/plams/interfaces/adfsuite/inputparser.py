@@ -1,6 +1,5 @@
 import os
 import json
-import threading
 from typing import List, Union, Tuple, Optional, Dict, TYPE_CHECKING, TypeVar, Any
 
 from scm.plams.core.settings import Settings
@@ -86,10 +85,9 @@ class InputParserFacade:
     try:
         from scm.base import InputParser as InputParserLibbase
 
-        # Cache a single instance of the parser to avoid having to repeatedly reload input file definition JSON
-        # But for this need to make access to the parser thread-safe
+        # A single instance of the parser. It can be used by several threads at the same time: in AMS2027 and later it has
+        # no state (scm.base caches the input definitions), and before that it took a lock of its own.
         input_parser_scm_base = InputParserLibbase()
-        input_parser_lock = threading.Lock()
         _has_scm_base = True
     except ImportError:
         _has_scm_base = False
@@ -109,8 +107,7 @@ class InputParserFacade:
         Run a string of text input through the input parser and produce a Python dictionary representing the JSONified input.
         """
         if self._has_scm_base:
-            with self.input_parser_lock:
-                return self.parser.to_dict(program, text_input, string_leafs)
+            return self.parser.to_dict(program, text_input, string_leafs)
         else:
             with self.parser as parser:
                 return parser.to_dict(program, text_input, string_leafs)
