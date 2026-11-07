@@ -294,16 +294,13 @@ def to_dict_succeeds(input_texts, input_parser):
         assert actual_dict == expected_settings.as_dict()
 
 
-def test_libbase_parser_cached(ams_text_inputs):
+def test_libbase_parser_shared(ams_text_inputs):
     input_parser = get_input_parser_or_skip()
+    from scm.base import InputParser as InputParserLibbase
 
-    assert "ams" not in input_parser.parser.parsers.keys()
-
-    input_parser.to_dict("ams", ams_text_inputs[0][0])
-
-    assert "ams" in input_parser.parser.parsers.keys()
-
-    assert input_parser.parser == input_parser.parser
+    assert isinstance(input_parser.parser, InputParserLibbase)
+    assert input_parser.parser is input_parser.parser
+    assert input_parser.to_dict("ams", ams_text_inputs[0][0])["Task"] == "GeometryOptimization"
 
 
 def test_thread_safe(large_system_input):
