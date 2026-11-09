@@ -850,6 +850,6 @@ class CRSJob(SCMJob):
                 "the 'AMSBIN' environment variable has not been set"
             )
 
-        args = [os.path.join(amsbin, "cosmo2kf"), filename, filename_out]
-        subprocess.run(args)
+        args = ["sh", os.path.join(amsbin, "cosmo2kf"), filename, filename_out]
+        subprocess.run(args, check=True, stdin=subprocess.DEVNULL)
         return filename_out
