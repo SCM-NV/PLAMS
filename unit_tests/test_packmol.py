@@ -13,6 +13,7 @@ from scm.plams.interfaces.molecule.packmol import (
     guess_density,
     packmol,
     packmol_around,
+    packmol_microsolvation,
 )
 from scm.plams.interfaces.molecule.rdkit import from_smiles
 from scm.plams.mol.molecule import Atom, Molecule
@@ -70,6 +71,54 @@ def test_packmol_mixed_inputs_return_molecule() -> None:
         )
 
     assert isinstance(packed, Molecule)
+
+
+@pytest.mark.parametrize("solute_system", [False, True])
+@pytest.mark.parametrize("solvent_system", [False, True])
+def test_microsolvation_preserves_structure_types_and_selects_complete_molecules(
+    solute_system: bool, solvent_system: bool
+) -> None:
+    solute = Molecule()
+    solute.add_atom(Atom(symbol="Na", coords=(1, 1, 1)))
+    solute.properties.charge = 1
+    solvent = Molecule()
+    solvent.add_atom(Atom(symbol="O"))
+    solvent.add_atom(Atom(symbol="H", coords=(0.9, 0, 0)))
+    solvent.add_atom(Atom(symbol="H", coords=(0, 0.9, 0)))
+    solvent.add_bond(solvent[1], solvent[2])
+    solvent.add_bond(solvent[1], solvent[3])
+
+    packed = solute.copy()
+    packed.translate((-1, -1, -1))
+    for shift in (2, 20):
+        water = solvent.copy()
+        water.translate((shift, 0, 0))
+        packed += water
+    packed.properties.charge = 1
+
+    if solute_system or solvent_system:
+        base = pytest.importorskip("scm.base")
+        from scm.plams import AMSJob
+
+        if solute_system:
+            solute = base.ChemicalSystem(AMSJob(molecule=solute).get_input())
+        if solvent_system:
+            solvent = base.ChemicalSystem(AMSJob(molecule=solvent).get_input())
+
+    originals = (str(solute), str(solvent))
+    with patch("scm.plams.interfaces.molecule.packmol.packmol", return_value=packed) as pack:
+        result = packmol_microsolvation(solute, solvent, threshold=2.1)
+
+    assert len(result) == 4  # Keep the nearby whole water, including its more distant H atom.
+    assert len(result.bonds) == 2
+    assert all(isinstance(mol, Molecule) for mol in pack.call_args.args[0])
+    if solute_system and solvent_system:
+        assert isinstance(result, base.ChemicalSystem)
+        assert result.charge == 1
+    else:
+        assert isinstance(result, Molecule)
+        assert result.properties.charge == 1
+    assert (str(solute), str(solvent)) == originals
 
 
 class TestPackmolStructure:

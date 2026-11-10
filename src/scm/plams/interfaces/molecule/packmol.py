@@ -1462,22 +1462,22 @@ def get_n_from_density_and_box_bounds(molecule: Molecule, box_bounds: List[float
 
 
 def packmol_microsolvation(
-    solute: Molecule,
-    solvent: Molecule,
+    solute: MoleculeLike,
+    solvent: MoleculeLike,
     density: float = 1.0,
     threshold: float = 3.0,
     keep_bonds: bool = True,
     keep_atom_properties: bool = True,
     region_names: List[str] = ["solute", "solvent"],
     executable: Optional[str] = None,
-) -> Molecule:
+) -> MoleculeLike:
     """
     Microsolvation of a ``solute`` with a ``solvent`` with an approximate ``density``.
 
-    solute: |Molecule|
+    solute: |Molecule| or ChemicalSystem
         The solute to be surrounded by solvent molecules
 
-    solvent: |Molecule|
+    solvent: |Molecule| or ChemicalSystem
         The solvent molecule
 
     density: float
@@ -1488,8 +1488,14 @@ def packmol_microsolvation(
 
     For the other arguments, see ``packmol``.
 
+    The result is a ``ChemicalSystem`` if both inputs are ``ChemicalSystem`` objects.
+    Otherwise, including mixed inputs, the result is a PLAMS ``Molecule``.
+
     """
 
+    return_chemical_system = _is_chemical_system(solute) and _is_chemical_system(solvent)
+    solute = _to_plams_molecule(solute)
+    solvent = _to_plams_molecule(solvent)
     solute_coords = solute.as_array()
     com = np.mean(solute_coords, axis=0)
     plams_solute = solute.copy()
@@ -1514,7 +1520,7 @@ def packmol_microsolvation(
     solute_indices = [i for i, at in enumerate(plams_solvated, 1) if i <= len(solute)]
     newmolecule = plams_solvated.get_complete_molecules_within_threshold(solute_indices, threshold=threshold)
 
-    return newmolecule
+    return _to_chemical_system(newmolecule) if return_chemical_system else newmolecule
 
 
 @overload
