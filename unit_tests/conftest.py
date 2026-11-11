@@ -64,6 +64,14 @@ def xyz_folder():
     return p
 
 
+@pytest.fixture(scope="session")
+def inp_folder() -> Path:
+    """Directory containing standalone AMS input fixtures."""
+    path = Path(__file__).resolve().parent / "inp"
+    assert path.is_dir()
+    return path
+
+
 @pytest.fixture
 def pdb_folder():
     """
