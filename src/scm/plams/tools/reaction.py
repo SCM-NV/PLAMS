@@ -6,9 +6,27 @@ from scm.plams.core.functions import requires_optional_package
 from scm.plams.core.errors import PlamsError
 from dataclasses import dataclass
 
-from typing import Union, Optional, Iterable, Sequence, List, Dict, Set, Mapping, Literal, Any
+from typing import Union, Optional, Iterable, Sequence, List, Dict, Set, Mapping, Literal, Any, Tuple
 import numpy.typing
 import numpy as np
+
+try:
+    from scm.base import ChemicalSystem
+
+    _has_scm_chemsys = True
+except ImportError:
+    _has_scm_chemsys = False
+
+
+def _species_data(species: Union[Molecule, "ChemicalSystem", str]) -> Tuple[str, float, Optional[str]]:
+    """Read formula, total charge and optional SMILES without changing the structure."""
+    if isinstance(species, str):
+        return species, 0.0, None
+    if isinstance(species, Molecule):
+        return species.get_formula(), species.properties.get("charge", 0) or 0, to_smiles(species)
+    if _has_scm_chemsys and isinstance(species, ChemicalSystem):
+        return species.formula(), species.charge, species.to_smiles()
+    raise TypeError("Reaction species must be a formula string, PLAMS Molecule or ChemicalSystem")
 
 
 class ReactionEquationError(PlamsError):
@@ -31,40 +49,33 @@ class ReactionEquation:
     nullspace_methods = ["sympy", "plams"]
 
     def __init__(
-        self, reactants: Sequence[Union[Molecule, str]], products: Sequence[Union[Molecule, str]], method: str = "plams"
-    ):
+        self,
+        reactants: Sequence[Union[Molecule, "ChemicalSystem", str]],
+        products: Sequence[Union[Molecule, "ChemicalSystem", str]],
+        method: str = "plams",
+    ) -> None:
         """
         Initiate the reaction
 
-        * ``reactants`` -- List of PLAMS molecules or strings representing a molecular formula
-        * ``products`` -- List of PLAMS molecules or strings representing a molecular formula
+        * ``reactants`` -- List of PLAMS Molecules, ChemicalSystems (requires scm.base), or molecular formula strings
+        * ``products`` -- List of PLAMS Molecules, ChemicalSystems (requires scm.base), or molecular formula strings
         """
         self.method = method
         self.print_as_smiles = False
 
         # Not to be changed by user
-        self._rformulas = [m.get_formula() if isinstance(m, Molecule) else m for m in reactants]
-        self._pformulas = [m.get_formula() if isinstance(m, Molecule) else m for m in products]
-        rsmiles = [to_smiles(m) if isinstance(m, Molecule) else None for m in reactants]
-        psmiles = [to_smiles(m) if isinstance(m, Molecule) else None for m in products]
+        rdata = [_species_data(m) for m in reactants]
+        pdata = [_species_data(m) for m in products]
+        self._rformulas = [formula for formula, _, _ in rdata]
+        self._pformulas = [formula for formula, _, _ in pdata]
+        rsmiles = [smiles for _, _, smiles in rdata]
+        psmiles = [smiles for _, _, smiles in pdata]
         self.rsmiles: Optional[List[Union[str, None]]] = None if None in rsmiles else rsmiles  # type: ignore[assignment]
         self.psmiles: Optional[List[Union[str, None]]] = None if None in psmiles else psmiles  # type: ignore[assignment]
 
         # Set the charges
-        self._rcharges = []
-        for m in reactants:
-            q = 0.0
-            if isinstance(m, Molecule):
-                if "charge" in m.properties:
-                    q = m.properties.charge
-            self._rcharges.append(q)
-        self._pcharges = []
-        for m in products:
-            q = 0.0
-            if isinstance(m, Molecule):
-                if "charge" in m.properties:
-                    q = m.properties.charge
-            self._pcharges.append(q)
+        self._rcharges = [charge for _, charge, _ in rdata]
+        self._pcharges = [charge for _, charge, _ in pdata]
 
         # General settings for this system
         self.elements: Optional[List[str]] = None

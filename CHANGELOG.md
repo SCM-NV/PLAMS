@@ -27,9 +27,10 @@ This changelog is effective from the 2025 releases.
 * `view` function supports AMSJob and rkf as inputs
 * Expanded typed `scm.inputs.AMS` support across AMS workers, ASE calculators, MD jobs, and the
   ADF NBO, ADF/BAND fragment, counterpoise, reorganization-energy, COSMO-RS, and redox recipes.
-* Expanded `ChemicalSystem` support in quick jobs, Packmol, and the fragment, counterpoise,
-  reorganization-energy, COSMO-RS, and redox recipes. Quick jobs and Packmol preserve the documented input
-  structure type (mixed Packmol inputs return a `Molecule`). System-returning results methods are available for
+  COSMO-RS conformer workflows also accept `scm.inputs.Conformers` for additional refinement stages.
+* Expanded `ChemicalSystem` support in quick jobs, Packmol (including microsolvation), and the fragment, counterpoise,
+  reorganization-energy, COSMO-RS, and redox recipes, as well as `ReactionEquation`. Quick jobs and Packmol preserve
+  the documented input structure type (mixed Packmol inputs return a `Molecule`). System-returning results methods are available for
   trajectory frames (`get_history_system`), equilibrated NPT structures (`get_equilibrated_system`),
   and fragment calculations (`get_main_system` and `get_input_system`).
 
