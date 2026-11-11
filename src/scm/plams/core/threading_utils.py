@@ -159,7 +159,8 @@ class ContextAwareThread(threading.Thread):
         *,
         daemon: Optional[bool] = None,
     ) -> None:
-        self._context = copy_context()
+        # Thread uses _context internally from Python 3.14 onwards.
+        self._parent_context = copy_context()
         super().__init__(
             group=group,
             target=target,
@@ -173,4 +174,4 @@ class ContextAwareThread(threading.Thread):
         """
         Run thread target in the context copied from the parent thread
         """
-        self._context.run(super().run)
+        self._parent_context.run(super().run)

@@ -210,23 +210,23 @@ test_context_var = contextvars.ContextVar("test_value", default=-1)
 
 class TestContextAwareThread:
 
-    def test_context_aware_thread_copies_parent_context(self):
+    def test_context_aware_thread_copies_parent_context(self) -> None:
         # Given context var in parent thread
         test_context_var.set(42)
 
-        errors = []
+        values = []
 
-        def verify_context_var():
-            try:
-                assert test_context_var.get() == 42
-            except Exception as e:
-                errors.append(e)
+        def verify_context_var() -> None:
+            values.append(test_context_var.get())
+            test_context_var.set(99)
 
         # When create context aware thread
         t = ContextAwareThread(target=verify_context_var)
+        test_context_var.set(43)
         t.start()
-        t.join()
+        t.join(timeout=5)
 
-        # Then parent context vars can be accessed without errors
-        if errors:
-            raise errors[0]
+        # Then the target ran with the captured context, isolated from the parent
+        assert not t.is_alive()
+        assert values == [42]
+        assert test_context_var.get() == 43
