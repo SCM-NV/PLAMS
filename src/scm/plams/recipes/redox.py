@@ -184,9 +184,9 @@ class AMSRedoxParentResults(Results):
 
 
 class CRSActivityCoefficientResults(CRSResults):
-    def get_gibbs_energy(self):
+    def get_gibbs_energy(self) -> float:
         """Gibbs energy in hartree"""
-        return float(self.get_results()["G solute"][1]) * 0.00159376  # kcal/mol to hartree
+        return self.get_results()["G solute"][1].item() * 0.00159376  # kcal/mol to hartree
 
 
 class CRSActivityCoefficientJob(CRSJob):
