@@ -2094,7 +2094,7 @@ class Molecule:
         angle = Units.convert(angle, angle_unit, "radian")
 
         xy_array = self.as_array().T[0:2]
-        if xy_array[0].ptp() > length:
+        if np.ptp(xy_array[0]) > length:
             raise MoleculeError("wrap: x-extension of the molecule is larger than length")
 
         if angle < 0 or angle > 2 * math.pi:
