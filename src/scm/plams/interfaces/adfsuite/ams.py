@@ -2336,12 +2336,12 @@ class AMSResults(Results):
 
         """
 
-        from scipy.integrate import cumtrapz
+        from scipy.integrate import cumulative_trapezoid
 
         if times is None or acf is None:
             times, acf = self.get_velocity_acf(normalize=False)
 
-        diffusion_coefficient = (1.0 / n_dimensions) * cumtrapz(acf, times)  # ang^2/fs
+        diffusion_coefficient = (1.0 / n_dimensions) * cumulative_trapezoid(acf, times)  # ang^2/fs
         diffusion_coefficient *= 1e-20 / 1e-15
         new_times = times[:-1]
 
@@ -2418,7 +2418,7 @@ class AMSResults(Results):
         yz: bool = True,
         xz: bool = True,
     ) -> Tuple[np.ndarray, np.ndarray]:
-        from scipy.integrate import cumtrapz
+        from scipy.integrate import cumulative_trapezoid
 
         from scm.plams.tools.units import Units
         from scm.plams.trajectories.analysis import autocorrelation
@@ -2437,7 +2437,7 @@ class AMSResults(Results):
         acf = autocorrelation(data, max_dt=max_dt)
         times = np.arange(len(acf)) * time_step
 
-        integrated_acf = cumtrapz(acf, times, initial=0)
+        integrated_acf = cumulative_trapezoid(acf, times, initial=0)
         integrated_times = np.arange(len(integrated_acf)) * time_step
 
         k_B = Units.constants["k_B"]
@@ -2475,7 +2475,7 @@ class AMSResults(Results):
         :return: integration times in femtoseconds and cumulative viscosity in ``mPa*s``
 
         """
-        from scipy.integrate import cumtrapz
+        from scipy.integrate import cumulative_trapezoid
 
         from scm.plams.tools.units import Units
         from scm.plams.trajectories.analysis import autocorrelation
@@ -2505,7 +2505,7 @@ class AMSResults(Results):
         acf = autocorrelation(data, max_dt=max_dt)
         times = np.arange(len(acf)) * time_step * every
 
-        integrated_acf = cumtrapz(acf, times)
+        integrated_acf = cumulative_trapezoid(acf, times)
         integrated_times = np.arange(len(integrated_acf)) * time_step * every
 
         V = self.get_main_molecule().unit_cell_volume()

@@ -376,7 +376,7 @@ class CRSResults(SCMResults):
             if isinstance(x_axis, str):
                 ret = self._prop_dict[x_axis]  # type: ignore[attr-defined]
             else:
-                ret = np.array(x_axis, copy=False)
+                ret = np.asarray(x_axis)
             ret = ret.ravel()  # Flatten it
             return ret[: array.shape[1]]
 
@@ -418,7 +418,7 @@ class CRSResults(SCMResults):
                 array = self._prop_dict[array]
 
             # Ensure it's a 2D array
-            array = np.array(array, ndmin=2, dtype=float, copy=False)
+            array = np.atleast_2d(np.asarray(array, dtype=float))
 
             # Fill the array dict with 1d arrays
             base_key = "" if name is None else name + " "
