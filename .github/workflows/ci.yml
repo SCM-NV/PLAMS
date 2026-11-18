@@ -80,7 +80,7 @@ jobs:
 
       - name: Run Black
         run: |
-          black --check -t py310 -l 120 .
+          black --check -t py313 -l 120 .
 
       - name: Run Flake8
         run: |
