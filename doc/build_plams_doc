@@ -1,53 +1,16 @@
 #!/usr/bin/env python
 
 import os
+from pathlib import Path
 import subprocess
 import sys
-from os.path import join as opj
 
-command = ""
-# Try to locate sphinx-build executable
-if "AMSBIN" in os.environ:
-    command = opj(os.path.expandvars("$AMSBIN"), "python3.8", "bin", "sphinx-build")
-    if not os.path.exists(command):
-        # This might be a windows machine
-        command = opj(os.path.expandvars("$AMSBIN"), "python3.8", "Scripts", "sphinx-build.exe")
-        if os.path.exists(command):
-            # starting sphinx-build on windows is tricky...
-            command = ["sh", opj(os.path.expandvars("$AMSBIN"), "amspython"), "-m", "sphinx"]
-        else:
-            print("Warning: AMSBIN found in environment, but failed to locate sphinx-build")
-            command = ""
-if command == "":
-    null = open(os.devnull, "wb")
-    try:
-        subprocess.call(["sphinx-build", "--version"], stdout=null, stderr=null)
-        command = "sphinx-build"
-    except OSError:
-        try:
-            subprocess.call(["sphinx-build2", "--version"], stdout=null, stderr=null)
-            command = "sphinx-build2"
-        except OSError:
-            print("Error: Sphinx executable not found!")
-            null.close()
-            sys.exit(0)
-    null.close()
+command = [sys.executable, "-m", "sphinx"]
+if os.environ.get("AMSBIN"):
+    command = ["sh", str(Path(os.environ["AMSBIN"]) / "amspython"), "-m", "sphinx"]
 
-location = os.path.dirname(os.path.realpath(__file__))
-# Source of documentation should be located in "source" subfolder next to this script
-source = opj(location, "source")
+location = Path(__file__).resolve().parent
+source = location / "source"
+target = Path(sys.argv[1]) if len(sys.argv) > 1 else location / "build"
 
-# Target can be given as command line argument, if not the "build" subfolder is used
-if len(sys.argv) > 1:
-    target = sys.argv[1]
-else:
-    target = opj(location, "build")
-
-warning_file = "build_plams_doc_warn_errors.txt"
-if isinstance(command, list):
-    # on windows command is a list of multiple items
-    return_code = subprocess.call(command + [source, target, "-W", "-w", warning_file])
-else:
-    return_code = subprocess.call([command, source, target, "-W", "-w", warning_file])
-
-sys.exit(return_code)
+sys.exit(subprocess.call([*command, str(source), str(target), "-W", "-w", "build_plams_doc_warn_errors.txt"]))
