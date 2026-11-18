@@ -642,9 +642,11 @@ class AMSWorker:
         # We can use spawn_lock on all platforms for simplicity without hurting performance
         # because most of the work is serialized in the kernel anyway.
         with spawn_lock:
-            with open(os.path.join(self.workerdir, "amsworker.in"), "r") as amsinput, open(
-                os.path.join(self.workerdir, "ams.out"), "w"
-            ) as amsoutput, open(os.path.join(self.workerdir, "ams.err"), "w") as amserror:
+            with (
+                open(os.path.join(self.workerdir, "amsworker.in"), "r") as amsinput,
+                open(os.path.join(self.workerdir, "ams.out"), "w") as amsoutput,
+                open(os.path.join(self.workerdir, "ams.err"), "w") as amserror,
+            ):
                 startupinfo = None
                 if os.name == "nt":
                     startupinfo = subprocess.STARTUPINFO()  # type: ignore[attr-defined]
@@ -714,8 +716,9 @@ class AMSWorker:
                         with open(self._pipe_name, "r+b"):
                             pass
                     else:
-                        with open(os.path.join(workerdir, "call_pipe"), "rb"), open(
-                            os.path.join(workerdir, "reply_pipe"), "wb"
+                        with (
+                            open(os.path.join(workerdir, "call_pipe"), "rb"),
+                            open(os.path.join(workerdir, "reply_pipe"), "wb"),
                         ):
                             # Nothing to do here, just close the pipes again.
                             pass

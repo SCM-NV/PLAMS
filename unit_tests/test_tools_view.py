@@ -183,9 +183,10 @@ class TestView:
 
         kf = get_charges_kf_mock()
 
-        with patch("scm.plams.tools.view.view", return_value=MagicMock()) as mock_view, patch(
-            "scm.plams.tools.view.KFFile", return_value=kf
-        ) as mock_kf:
+        with (
+            patch("scm.plams.tools.view.view", return_value=MagicMock()) as mock_view,
+            patch("scm.plams.tools.view.KFFile", return_value=kf) as mock_kf,
+        ):
             result = view_atomic_property(
                 water_opt,
                 kind="charge",
@@ -321,9 +322,11 @@ class TestAmsViewBackend:
         input_path.write_text("")
         image = MagicMock()
 
-        with patch.object(_AMSViewManager, "_generate_image", return_value=image) as mock_generate, patch.object(
-            self.backend, "write_system_input", return_value=(str(input_path), True)
-        ), patch.object(self.backend, "run_command") as mock_run_command:
+        with (
+            patch.object(_AMSViewManager, "_generate_image", return_value=image) as mock_generate,
+            patch.object(self.backend, "write_system_input", return_value=(str(input_path), True)),
+            patch.object(self.backend, "run_command") as mock_run_command,
+        ):
             actual = self.backend.generate_image(water, ViewConfig(open_window=True))
 
         assert actual is image
@@ -485,9 +488,11 @@ class TestAMSViewManager:
         proc = _FakeProcess()
         image = MagicMock()
 
-        with patch("subprocess.Popen", return_value=proc) as mock_popen, patch.object(
-            _AMSViewManager, "_wait_for_image"
-        ), patch.object(_AmsViewBackend, "load_and_resize_image", return_value=image):
+        with (
+            patch("subprocess.Popen", return_value=proc) as mock_popen,
+            patch.object(_AMSViewManager, "_wait_for_image"),
+            patch.object(_AmsViewBackend, "load_and_resize_image", return_value=image),
+        ):
             assert manager._generate_image(water, ViewConfig(timeout=1)) is image
             assert manager._generate_image(water, ViewConfig(timeout=1)) is image
 
@@ -501,9 +506,11 @@ class TestAMSViewManager:
         dead_proc = _FakeProcess(returncode=1)
         live_proc = _FakeProcess()
 
-        with patch("subprocess.Popen", side_effect=[dead_proc, live_proc]) as mock_popen, patch.object(
-            _AMSViewManager, "_wait_for_image"
-        ), patch.object(_AmsViewBackend, "load_and_resize_image", return_value=MagicMock()):
+        with (
+            patch("subprocess.Popen", side_effect=[dead_proc, live_proc]) as mock_popen,
+            patch.object(_AMSViewManager, "_wait_for_image"),
+            patch.object(_AmsViewBackend, "load_and_resize_image", return_value=MagicMock()),
+        ):
             manager._ensure_started()
             manager._generate_image(water, ViewConfig(timeout=1))
 
@@ -514,8 +521,9 @@ class TestAMSViewManager:
         manager = _AMSViewManager()
         broken_proc = _FakeProcess(fail_on_write=True)
 
-        with patch("subprocess.Popen", return_value=broken_proc) as mock_popen, patch.object(
-            _AMSViewManager, "_wait_for_image"
+        with (
+            patch("subprocess.Popen", return_value=broken_proc) as mock_popen,
+            patch.object(_AMSViewManager, "_wait_for_image"),
         ):
             with pytest.raises(AMSExecutionError):
                 manager._generate_image(water, ViewConfig(timeout=1))
@@ -528,8 +536,9 @@ class TestAMSViewManager:
         manager = _AMSViewManager()
         proc = _FakeProcess()
 
-        with patch("subprocess.Popen", return_value=proc) as mock_popen, patch.object(
-            _AMSViewManager, "_wait_for_image", side_effect=TimeoutError("timeout")
+        with (
+            patch("subprocess.Popen", return_value=proc) as mock_popen,
+            patch.object(_AMSViewManager, "_wait_for_image", side_effect=TimeoutError("timeout")),
         ):
             with pytest.raises(AMSExecutionError):
                 manager._generate_image(water, ViewConfig(timeout=1))
@@ -556,9 +565,11 @@ class TestAMSViewManager:
         first_proc = _FakeProcess()
         second_proc = _FakeProcess()
 
-        with patch("subprocess.Popen", side_effect=[first_proc, second_proc]) as mock_popen, patch.object(
-            _AMSViewManager, "_wait_for_image"
-        ), patch.object(_AmsViewBackend, "load_and_resize_image", return_value=MagicMock()):
+        with (
+            patch("subprocess.Popen", side_effect=[first_proc, second_proc]) as mock_popen,
+            patch.object(_AMSViewManager, "_wait_for_image"),
+            patch.object(_AmsViewBackend, "load_and_resize_image", return_value=MagicMock()),
+        ):
             manager._generate_image(water, ViewConfig(timeout=1))
             manager.close()
             manager._generate_image(water, ViewConfig(timeout=1))
@@ -590,16 +601,12 @@ class TestAMSViewManager:
             time.sleep(0.05)
             active -= 1
 
-        with patch.object(
-            _AmsViewBackend, "write_system_input", side_effect=[(str(path), True) for path in temp_paths]
-        ), patch.object(
-            _AmsViewBackend, "get_image_path", return_value=(str(tmp_path / "image.png"), False)
-        ), patch.object(
-            manager, "_send_command", side_effect=send_command
-        ), patch.object(
-            manager, "_wait_for_image"
-        ), patch.object(
-            _AmsViewBackend, "load_and_resize_image", return_value=MagicMock()
+        with (
+            patch.object(_AmsViewBackend, "write_system_input", side_effect=[(str(path), True) for path in temp_paths]),
+            patch.object(_AmsViewBackend, "get_image_path", return_value=(str(tmp_path / "image.png"), False)),
+            patch.object(manager, "_send_command", side_effect=send_command),
+            patch.object(manager, "_wait_for_image"),
+            patch.object(_AmsViewBackend, "load_and_resize_image", return_value=MagicMock()),
         ):
             threads = [
                 threading.Thread(
@@ -644,9 +651,11 @@ class TestAMSViewManager:
             assert path != str(img_path)
             PilImage.new("RGB", (1, 1), color="blue").save(path)
 
-        with patch.object(manager, "_send_command") as mock_send_command, patch.object(
-            manager, "_wait_for_image", side_effect=write_render
-        ), patch.object(_AmsViewBackend, "load_and_resize_image", return_value=image):
+        with (
+            patch.object(manager, "_send_command") as mock_send_command,
+            patch.object(manager, "_wait_for_image", side_effect=write_render),
+            patch.object(_AmsViewBackend, "load_and_resize_image", return_value=image),
+        ):
             actual = manager._generate_image(water, ViewConfig(timeout=1, picture_path=img_path))
 
         assert actual is image
@@ -816,9 +825,11 @@ class TestXvfbManager:
         manager = _XvfbManager(startup_timeout=0.2, startup_retries=3)
 
         # Given manager with xvfb command which initially fails then succeeds
-        with patch("subprocess.Popen") as mock_popen, patch("shutil.which") as mock_which, patch(
-            "subprocess.run"
-        ) as mock_run:
+        with (
+            patch("subprocess.Popen") as mock_popen,
+            patch("shutil.which") as mock_which,
+            patch("subprocess.run") as mock_run,
+        ):
             mock_which.return_value = "foo/Xvfb"
             mock_run_ret = MagicMock()
             mock_run_ret.stderr = "-displayfd fd"
@@ -861,9 +872,11 @@ class TestXvfbManager:
                 pass
 
         # When started
-        with patch("subprocess.Popen") as mock_popen, patch("shutil.which") as mock_which, patch(
-            "subprocess.run"
-        ) as mock_run:
+        with (
+            patch("subprocess.Popen") as mock_popen,
+            patch("shutil.which") as mock_which,
+            patch("subprocess.run") as mock_run,
+        ):
             mock_which.return_value = "foo/Xvfb"
             mock_run_ret = MagicMock()
             mock_run_ret.stderr = "-displayfd fd"
@@ -898,9 +911,11 @@ class TestXvfbManager:
         assert manager.display is None
 
         # When started
-        with patch("subprocess.Popen") as mock_popen, patch("shutil.which") as mock_which, patch(
-            "subprocess.run"
-        ) as mock_run:
+        with (
+            patch("subprocess.Popen") as mock_popen,
+            patch("shutil.which") as mock_which,
+            patch("subprocess.run") as mock_run,
+        ):
             mock_which.return_value = "foo/Xvfb"
             mock_run_ret = MagicMock()
             mock_run_ret.stderr = "-displayfd fd"
@@ -927,9 +942,11 @@ class TestXvfbManager:
         manager2 = _XvfbManager()
 
         # When start one manager
-        with patch("subprocess.Popen") as mock_popen, patch("shutil.which") as mock_which, patch(
-            "subprocess.run"
-        ) as mock_run:
+        with (
+            patch("subprocess.Popen") as mock_popen,
+            patch("shutil.which") as mock_which,
+            patch("subprocess.run") as mock_run,
+        ):
             mock_which.return_value = "foo/Xvfb"
             mock_run_ret = MagicMock()
             mock_run_ret.stderr = "-displayfd fd"

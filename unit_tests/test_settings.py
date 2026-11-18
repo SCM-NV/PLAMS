@@ -895,9 +895,10 @@ class TestConfigSettings(TestSettings):
         """
         Mock out the job runner and manager to avoid creating run directories etc.
         """
-        with patch("scm.plams.core.jobrunner.JobRunner") as mock_jobrunner, patch(
-            "scm.plams.core.jobmanager.JobManager"
-        ) as mock_jobmanager:
+        with (
+            patch("scm.plams.core.jobrunner.JobRunner") as mock_jobrunner,
+            patch("scm.plams.core.jobmanager.JobManager") as mock_jobmanager,
+        ):
             yield mock_jobrunner, mock_jobmanager
 
     def test_settings_string_representation(self, nested_settings, extra_nested_settings):

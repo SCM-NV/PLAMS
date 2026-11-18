@@ -248,10 +248,13 @@ def test_display_movie_falls_back_to_html_for_old_ipython_webp(tmp_path):
     data = b"fake webp"
     path.write_bytes(data)
 
-    with patch(
-        "IPython.display.Image",
-        side_effect=ValueError("Cannot embed the 'webp' image format"),
-    ), patch("IPython.display.display") as mock_display:
+    with (
+        patch(
+            "IPython.display.Image",
+            side_effect=ValueError("Cannot embed the 'webp' image format"),
+        ),
+        patch("IPython.display.display") as mock_display,
+    ):
         result = display_movie(path, width=320)
 
     assert result is None
