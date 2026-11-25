@@ -193,7 +193,7 @@ class RKFTrajectoryFile(TrajectoryFile):
         self.file_object = fileobject
 
         if len(mode) == 1:
-            mode = "".join(mode, "b")
+            mode = "".join([mode, "b"])
         self.mode = mode
 
     def store_mddata(self, rkf=None):
