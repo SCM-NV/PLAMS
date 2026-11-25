@@ -121,7 +121,7 @@ class TestTrajectoryFileFormats:
 
         classes = [XYZTrajectoryFile, SDFTrajectoryFile]
 
-        rkf = RKFTrajectoryFile(conformers_rkf)
+        rkf = RKFTrajectoryFile(conformers_rkf, mode="r")
         mol = rkf.get_plamsmol()
         nats = len(mol)
         nframes = len(rkf)

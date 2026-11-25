@@ -31,7 +31,7 @@ class ForceFieldPatch:
         Creates an instance of the class ForceFieldPatch
         """
         # Set all instance variables
-        self.comment = ""
+        self.comment = "\n"
 
         self.types: List[str] = []
         self.bondtypes: List[List[str]] = []
@@ -117,7 +117,7 @@ class ForceFieldPatch:
         """
         Empty self
         """
-        self.comment = ""
+        self.comment = "\n"
         self._set_types([])
         self._set_bonds([])
         self._set_angles([])
@@ -142,7 +142,7 @@ class ForceFieldPatch:
         Combine two patch files
         """
         ret = self.copy()
-        if len(ret.comment) == 0:
+        if ret.comment == "\n":
             ret.comment = other.comment
 
         # Combine the lines from each section
