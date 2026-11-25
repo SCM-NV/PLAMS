@@ -8,7 +8,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scm.plams import init, packmol, Settings, AMSJob, from_smiles, plot_molecule
 
-
 # ## Run Simple MD Simulation of Water
 
 # Run a short MD simulation of 16 water molecules in a box.

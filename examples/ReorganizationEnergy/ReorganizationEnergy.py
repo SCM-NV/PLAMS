@@ -22,8 +22,7 @@ def get_molecule(input_string):
     return job.molecule[""]
 
 
-molecule = get_molecule(
-    """
+molecule = get_molecule("""
 System
     Atoms
         C      -1.12843000       0.00000000      -0.35463200
@@ -38,8 +37,7 @@ System
         H       2.12074000       0.00000000      -0.79100200
     End
 End
-"""
-)
+""")
 
 molecule.properties.name = "pyrrole"  # normally the name of the xyz file
 

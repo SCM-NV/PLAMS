@@ -7,7 +7,6 @@
 
 from scm.plams.tools.reaction import ReactionEquation, balance
 
-
 # ### Example: Aspirin in water
 
 reactants = ["C9H8O4", "H2O"]

@@ -98,7 +98,9 @@ The available groups are:
 
 One or more of these can be installed using the command ``pip install 'plams[chem,analysis,ams]'``.
 
-Users of AMS will also have to install the ``scm.amspipe`` package using the command ``pip install $AMSHOME/scripting/scm/amspipe``.
+For AMS-specific functionality in a separate Python environment, also install
+``scm-amspipe`` from the SCM package index, following the
+`Amsterdam Modeling PySuite instructions <../Scripting/amsterdam-modeling-pysuite.html>`__.
 
 A final option is to download PLAMS directly from the `GitHub page <https://github.com/SCM-NV/PLAMS>`_.
 `Released versions <https://github.com/SCM-NV/PLAMS/releases>`_ are available since ``AMS2024.103``.

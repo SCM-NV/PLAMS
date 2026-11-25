@@ -18,7 +18,6 @@ from scm.plams.tools.plot import plot_molecule, plot_energy_landscape
 from scm.plams.tools.view import ViewConfig
 import matplotlib.pyplot as plt
 
-
 # ## Build the molecular system
 #
 # This cell defines the small HCNO molecule used throughout the example and guesses its bonds so that the different visualization backends can draw it properly.

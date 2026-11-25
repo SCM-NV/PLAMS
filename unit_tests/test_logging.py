@@ -58,14 +58,11 @@ class TestTextLogger:
             for i in range(10):
                 logger.log(f"log line {i}", i)
 
-            assert (
-                mock_stdout.getvalue()
-                == """log line 0
+            assert mock_stdout.getvalue() == """log line 0
 log line 1
 log line 2
 log line 3
 """
-            )
 
     def test_configure_writes_to_logfile_up_to_and_including_level(self):
         with temp_file_path(suffix=".log") as temp_log_file:
@@ -75,14 +72,11 @@ log line 3
                 logger.log(f"log line {i}", i)
 
             with open(temp_log_file) as tf:
-                assert (
-                    tf.read()
-                    == """log line 0
+                assert tf.read() == """log line 0
 log line 1
 log line 2
 log line 3
 """
-                )
             logger.close()
 
     def test_configure_does_not_error_with_invalid_logfile_location(self):
@@ -127,15 +121,11 @@ log line 3
                     logger.log(f"log line {i}", i)
 
                 with open(temp_log_file) as tf:
-                    assert (
-                        tf.read()
-                        == mock_stdout.getvalue()
-                        == """log line 0
+                    assert tf.read() == mock_stdout.getvalue() == """log line 0
 log line 1
 log line 2
 log line 3
 """
-                    )
 
     def test_multiple_loggers_cannot_write_to_same_file(self):
         with temp_file_path(suffix=".log") as temp_log_file:
@@ -159,9 +149,7 @@ log line 3
                     logger1.log(f"From 1, level {i}", i)
                     logger2.log(f"From 2, level {i}", i)
 
-                assert (
-                    mock_stdout.getvalue()
-                    == """From 1, level 0
+                assert mock_stdout.getvalue() == """From 1, level 0
 From 2, level 0
 From 1, level 1
 From 2, level 1
@@ -169,24 +157,17 @@ From 1, level 2
 From 2, level 2
 From 2, level 3
 """
-                )
 
                 with open(temp_log_file1) as tf1:
-                    assert (
-                        tf1.read()
-                        == """From 1, level 0
+                    assert tf1.read() == """From 1, level 0
 From 1, level 1
 """
-                    )
 
                 with open(temp_log_file2) as tf2:
-                    assert (
-                        tf2.read()
-                        == """From 2, level 0
+                    assert tf2.read() == """From 2, level 0
 From 2, level 1
 From 2, level 2
 """
-                    )
                 logger1.close()
                 logger2.close()
 
@@ -213,25 +194,19 @@ From 2, level 2
                 logger.log(f"To 1 again, level {i}", i)
 
             with open(temp_log_file1) as tf1:
-                assert (
-                    tf1.read()
-                    == """To 1, level 0
+                assert tf1.read() == """To 1, level 0
 To 1, level 1
 To 1, level 2
 To 1 again, level 0
 To 1 again, level 1
 To 1 again, level 2
 """
-                )
 
             with open(temp_log_file2) as tf2:
 
-                assert (
-                    tf2.read()
-                    == """To 2, level 0
+                assert tf2.read() == """To 2, level 0
 To 2, level 1
 """
-                )
             logger.close()
 
     def test_logger_does_not_error_when_existing_logfile_deleted(self):
@@ -338,15 +313,12 @@ class TestCSVLogger:
             for i in range(10):
                 logger.log(f"log line {i}", i)
 
-            assert (
-                mock_stdout.getvalue()
-                == """message
+            assert mock_stdout.getvalue() == """message
 log line 0
 log line 1
 log line 2
 log line 3
 """
-            )
 
     def test_configure_writes_to_logfile_up_to_and_including_level(self):
         with temp_file_path(suffix=".log") as temp_log_file:
@@ -356,15 +328,12 @@ log line 3
                 logger.log(f"log line {i}", i)
 
             with open(temp_log_file) as tf:
-                assert (
-                    tf.read()
-                    == """message
+                assert tf.read() == """message
 log line 0
 log line 1
 log line 2
 log line 3
 """
-                )
             logger.close()
 
     def test_close_removes_stdout_and_logfile_handlers(self):
@@ -381,16 +350,12 @@ log line 3
                     logger.log(f"log line {i}", i)
 
                 with open(temp_log_file) as tf:
-                    assert (
-                        tf.read()
-                        == mock_stdout.getvalue()
-                        == """message
+                    assert tf.read() == mock_stdout.getvalue() == """message
 log line 0
 log line 1
 log line 2
 log line 3
 """
-                    )
 
     def test_multiple_loggers_cannot_write_to_same_file(self):
         with temp_file_path(suffix=".log") as temp_log_file:
@@ -414,9 +379,7 @@ log line 3
                     logger1.log(f"From 1, level {i}", i)
                     logger2.log(f"From 2, level {i}", i)
 
-                assert (
-                    mock_stdout.getvalue()
-                    == """message
+                assert mock_stdout.getvalue() == """message
 "From 1, level 0"
 message
 "From 2, level 0"
@@ -426,26 +389,19 @@ message
 "From 2, level 2"
 "From 2, level 3"
 """
-                )
 
                 with open(temp_log_file1) as tf1:
-                    assert (
-                        tf1.read()
-                        == """message
+                    assert tf1.read() == """message
 "From 1, level 0"
 "From 1, level 1"
 """
-                    )
 
                 with open(temp_log_file2) as tf2:
-                    assert (
-                        tf2.read()
-                        == """message
+                    assert tf2.read() == """message
 "From 2, level 0"
 "From 2, level 1"
 "From 2, level 2"
 """
-                    )
                 logger1.close()
                 logger2.close()
 
@@ -472,9 +428,7 @@ message
                 logger.log(f"To 1 again, level {i}", i)
 
             with open(temp_log_file1) as tf1:
-                assert (
-                    tf1.read()
-                    == """message
+                assert tf1.read() == """message
 "To 1, level 0"
 "To 1, level 1"
 "To 1, level 2"
@@ -482,17 +436,13 @@ message
 "To 1 again, level 1"
 "To 1 again, level 2"
 """
-                )
 
             with open(temp_log_file2) as tf2:
 
-                assert (
-                    tf2.read()
-                    == """message
+                assert tf2.read() == """message
 "To 2, level 0"
 "To 2, level 1"
 """
-                )
             logger.close()
 
     def test_configure_adds_date_and_or_time_fields_to_logging(self):
@@ -532,16 +482,12 @@ message
                     logger.log(f"log line {i}", i)
 
                 with open(temp_log_file) as tf:
-                    assert (
-                        tf.read()
-                        == mock_stdout.getvalue()
-                        == f"""logger_name,level,message
+                    assert tf.read() == mock_stdout.getvalue() == f"""logger_name,level,message
 {name},0,log line 0
 {name},1,log line 1
 {name},2,log line 2
 {name},3,log line 3
 """
-                    )
                 logger.close()
 
     def test_log_gets_field_names_from_dictionary(self):
@@ -554,14 +500,11 @@ message
                 logger.log({"foo": f"bar{i}", "fizz": f"buzz{i}"}, 3)
 
             with open(temp_log_file) as tf:
-                assert (
-                    tf.read()
-                    == """foo,fizz
+                assert tf.read() == """foo,fizz
 bar0,buzz0
 bar1,buzz1
 bar2,buzz2
 """
-                )
             logger.close()
 
     def test_log_cannot_change_field_names_or_add_fields(self):
@@ -576,11 +519,9 @@ bar2,buzz2
                 logger.log({"foo": "bar3", "fizz": "buzz3", "abc": "def"}, 3)
 
             assert "ValueError: dict contains fields not in fieldnames" in mock_stderr.getvalue()
-            assert mock_stdout.getvalue() == (
-                """foo,fizz
+            assert mock_stdout.getvalue() == ("""foo,fizz
 bar,buzz
-"""
-            )
+""")
 
             logger.close()
 
@@ -613,8 +554,7 @@ bar,buzz
                     3,
                 )
 
-            assert mock_stdout.getvalue() == (
-                """commas,multi-line
+            assert mock_stdout.getvalue() == ("""commas,multi-line
 "a,b,c,'(d,e,f)'","See the following:
     a,b,c
     d,e,f
@@ -624,8 +564,7 @@ bar,buzz
 
     p,q,r
 "
-"""
-            )
+""")
 
             with open(temp_log_file) as tf:
                 reader = csv.reader(tf)

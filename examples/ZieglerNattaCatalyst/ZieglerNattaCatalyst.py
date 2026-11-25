@@ -17,11 +17,9 @@
 from scm.base import ChemicalSystem
 from scm.plams import view, Settings, AMSJob, Units
 
-
 # ## Initial system
 
-mol = ChemicalSystem(
-    """
+mol = ChemicalSystem("""
 System
     Charge 1.0
     Atoms
@@ -57,8 +55,7 @@ System
         H       3.01865674      -6.20459134       2.26225286
         H       4.86414560      -7.85327440       2.17514370
     End
-End"""
-)
+End""")
 mol.guess_bonds()
 print(f"{mol.charge=}")
 view(mol, direction="along_y", show_atom_labels=True, atom_label_type="Name")

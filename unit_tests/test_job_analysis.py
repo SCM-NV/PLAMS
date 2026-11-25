@@ -80,9 +80,7 @@ class TestJobAnalysis:
             "GyrationRadius", ".0f"
         )  # For different rdkit versions on GitHub and amspython
 
-        assert (
-            ja.to_table()
-            == """\
+        assert ja.to_table() == """\
 | Name         | OK   | Check | ErrorMsg | Formula | Smiles | GyrationRadius | CPUTime | SysTime | ElapsedTime |
 |--------------|------|-------|----------|---------|--------|----------------|---------|---------|-------------|
 | dummyjob     | True | True  | None     | C2H6    | CC     | 1              | None    | None    | None        |
@@ -95,15 +93,12 @@ class TestJobAnalysis:
 | dummyjob.008 | True | True  | None     | C6H14   | CCCCCC | 3              | None    | None    | None        |
 | dummyjob.009 | True | True  | None     | C4H10O  | CCCOC  | 2              | None    | None    | None        |
 | dummyjob.010 | True | True  | None     | None    | None   | None           | None    | None    | None        |"""
-        )
 
         ja = ja.remove_fields(["CPUTime", "SysTime", "ElapsedTime", "GyrationRadius"]).add_standard_fields(
             ["ParentPath", "ParentName"]
         )
 
-        assert (
-            ja.to_table()
-            == """\
+        assert ja.to_table() == """\
 | Name         | OK   | Check | ErrorMsg | Formula | Smiles | ParentPath | ParentName |
 |--------------|------|-------|----------|---------|--------|------------|------------|
 | dummyjob     | True | True  | None     | C2H6    | CC     | None       | None       |
@@ -116,13 +111,10 @@ class TestJobAnalysis:
 | dummyjob.008 | True | True  | None     | C6H14   | CCCCCC | None       | None       |
 | dummyjob.009 | True | True  | None     | C4H10O  | CCCOC  | None       | None       |
 | dummyjob.010 | True | True  | None     | None    | None   | None       | None       |"""
-        )
 
         ja = ja.remove_fields(["ParentPath", "ParentName", "Smiles", "Formula", "ErrorMsg", "Check", "OK"])
 
-        assert (
-            ja.to_table()
-            == """\
+        assert ja.to_table() == """\
 | Name         |
 |--------------|
 | dummyjob     |
@@ -135,7 +127,6 @@ class TestJobAnalysis:
 | dummyjob.008 |
 | dummyjob.009 |
 | dummyjob.010 |"""
-        )
 
     def test_add_set_remove_rename_filter_fields(self, dummy_single_jobs):
         ja = (
@@ -154,9 +145,7 @@ class TestJobAnalysis:
             .rename_field("ErrorMsg", "Err")
         )
 
-        assert (
-            ja.to_table()
-            == """\
+        assert ja.to_table() == """\
 | Name         | OK   | Check | Err  | Formula | Smiles | CPUTime | SysTime | ElapsedTime | Wait | Output | Empty |
 |--------------|------|-------|------|---------|--------|---------|---------|-------------|------|--------|-------|
 | dummyjob     | True | True  | None | C2H6    | CC     | None    | None    | None        | 0.0  | Dummy  | None  |
@@ -169,13 +158,10 @@ class TestJobAnalysis:
 | dummyjob.008 | True | True  | None | C6H14   | CCCCCC | None    | None    | None        | 0.07 | Dummy  | None  |
 | dummyjob.009 | True | True  | None | C4H10O  | CCCOC  | None    | None    | None        | 0.08 | Dummy  | None  |
 | dummyjob.010 | True | True  | None | None    | None   | None    | None    | None        | 0.09 | Dummy  | None  |"""
-        )
 
         ja = ja.remove_empty_fields()
 
-        assert (
-            ja.to_table()
-            == """\
+        assert ja.to_table() == """\
 | Name         | OK   | Check | Formula | Smiles | Wait | Output |
 |--------------|------|-------|---------|--------|------|--------|
 | dummyjob     | True | True  | C2H6    | CC     | 0.0  | Dummy  |
@@ -188,13 +174,10 @@ class TestJobAnalysis:
 | dummyjob.008 | True | True  | C6H14   | CCCCCC | 0.07 | Dummy  |
 | dummyjob.009 | True | True  | C4H10O  | CCCOC  | 0.08 | Dummy  |
 | dummyjob.010 | True | True  | None    | None   | 0.09 | Dummy  |"""
-        )
 
         ja = ja.remove_uniform_fields()
 
-        assert (
-            ja.to_table()
-            == """\
+        assert ja.to_table() == """\
 | Name         | Formula | Smiles | Wait |
 |--------------|---------|--------|------|
 | dummyjob     | C2H6    | CC     | 0.0  |
@@ -207,15 +190,12 @@ class TestJobAnalysis:
 | dummyjob.008 | C6H14   | CCCCCC | 0.07 |
 | dummyjob.009 | C4H10O  | CCCOC  | 0.08 |
 | dummyjob.010 | None    | None   | 0.09 |"""
-        )
 
         ja = ja.remove_uniform_fields(tol=0.1, ignore_empty=True).filter_fields(
             lambda vals: all([not v or "H" in v for v in vals])
         )
 
-        assert (
-            ja.to_table()
-            == """\
+        assert ja.to_table() == """\
 | Formula |
 |---------|
 | C2H6    |
@@ -228,7 +208,6 @@ class TestJobAnalysis:
 | C6H14   |
 | C4H10O  |
 | None    |"""
-        )
 
         ja = (
             ja.add_field(
@@ -246,9 +225,7 @@ class TestJobAnalysis:
             .remove_uniform_fields(ignore_empty=True)
         )
 
-        assert (
-            ja.to_table()
-            == """\
+        assert ja.to_table() == """\
 | Formula |
 |---------|
 | C2H6    |
@@ -261,7 +238,6 @@ class TestJobAnalysis:
 | C6H14   |
 | C4H10O  |
 | None    |"""
-        )
 
     def test_add_fields_with_closure(self, dummy_single_jobs):
         ja = JobAnalysis(jobs=dummy_single_jobs, standard_fields=[])
@@ -270,9 +246,7 @@ class TestJobAnalysis:
         for m in [1, 10, 100]:
             ja = ja.add_field(f"Wait{m}", lambda j, mul=m: j.wait * mul, fmt=".2f")
 
-        assert (
-            ja.to_table()
-            == """\
+        assert ja.to_table() == """\
 | OK   | Check | Formula | Wait1 | Wait10 | Wait100 |
 |------|-------|---------|-------|--------|---------|
 | True | True  | C2H6    | 0.00  | 0.00   | 0.00    |
@@ -285,7 +259,6 @@ class TestJobAnalysis:
 | True | True  | C6H14   | 0.07  | 0.70   | 7.00    |
 | True | True  | C4H10O  | 0.08  | 0.80   | 8.00    |
 | True | True  | None    | 0.09  | 0.90   | 9.00    |"""
-        )
 
     def test_format_field(self, dummy_single_jobs):
         ja = (
@@ -300,9 +273,7 @@ class TestJobAnalysis:
             .rename_field("ErrorMsg", "Err")
         )
 
-        assert (
-            ja.to_table()
-            == """\
+        assert ja.to_table() == """\
 | Name         | OK   | Check | Err  | Formula | Smiles | WaitS        | WaitMs | Output |
 |--------------|------|-------|------|---------|--------|--------------|--------|--------|
 | dummyjob     | True | True  | None | C2H6    | CC     | 0.000000e+00 | 0000   | Dummy  |
@@ -315,7 +286,6 @@ class TestJobAnalysis:
 | dummyjob.008 | True | True  | None | C6H14   | CCCCCC | 7.000000e-02 | 0070   | Dummy  |
 | dummyjob.009 | True | True  | None | C4H10O  | CCCOC  | 8.000000e-02 | 0080   | Dummy  |
 | dummyjob.010 | True | True  | None | None    | None   | 9.000000e-02 | 0090   | Dummy  |"""
-        )
 
     def test_expand_collapse_fields(self, dummy_single_jobs):
         ja = (
@@ -639,9 +609,7 @@ class TestJobAnalysis:
 
         ja = ja.expand_field("MultiValue", depth=100)
 
-        assert (
-            ja.to_table(max_rows=1000)
-            == """\
+        assert ja.to_table(max_rows=1000) == """\
 | Name         | OK   | Check | ErrorMsg | Formula | Smiles | Atoms                                    | MultiValue |
 |--------------|------|-------|----------|---------|--------|------------------------------------------|------------|
 | dummyjob     | True | True  | None     | C2H6    | CC     | C                                        | None       |
@@ -749,7 +717,6 @@ class TestJobAnalysis:
 | dummyjob.010 | True | True  | None     | None    | None   | ERROR: 'NoneType' object is not iterable | w1         |
 | dummyjob.010 | True | True  | None     | None    | None   | ERROR: 'NoneType' object is not iterable | w2         |
 | dummyjob.010 | True | True  | None     | None    | None   | ERROR: 'NoneType' object is not iterable | w3         |"""
-        )
 
         ja = ja.collapse_field("Atoms")
 
@@ -840,9 +807,7 @@ class TestJobAnalysis:
             .filter_jobs(lambda d: d["Formula"] is not None and "O" not in d["Smiles"])
         )
 
-        assert (
-            ja.to_table()
-            == """\
+        assert ja.to_table() == """\
 | Name         | OK   | Check | ErrorMsg | Formula | Smiles | Wait | Output |
 |--------------|------|-------|----------|---------|--------|------|--------|
 | dummyjob     | True | True  | None     | C2H6    | CC     | 0.0  | Dummy  |
@@ -850,7 +815,6 @@ class TestJobAnalysis:
 | dummyjob.005 | True | True  | None     | C3H8    | CCC    | 0.04 | Dummy  |
 | dummyjob.006 | True | True  | None     | C4H10   | CCCC   | 0.05 | Dummy  |
 | dummyjob.008 | True | True  | None     | C6H14   | CCCCCC | 0.07 | Dummy  |"""
-        )
 
         ja = (
             JobAnalysis(jobs=dummy_single_jobs)
@@ -1227,9 +1191,7 @@ class TestJobAnalysis:
             .remove_uniform_fields()
         )
 
-        assert (
-            ja.to_table(max_col_width=10, max_rows=6)
-            == """\
+        assert ja.to_table(max_col_width=10, max_rows=6) == """\
 | Name          | Formula | Smiles | InputAmsPr... |
 |---------------|---------|--------|---------------|
 | dummyjob      | C2H6    | CC     | False         |
@@ -1239,7 +1201,6 @@ class TestJobAnalysis:
 | dummyjob.0... | C6H14   | CCCCCC | True          |
 | dummyjob.0... | C4H10O  | CCCOC  | True          |
 | dummyjob.0... | None    | None   | False         |"""
-        )
 
     def test_to_csv(self, dummy_single_jobs):
         ja = (
@@ -1257,9 +1218,7 @@ class TestJobAnalysis:
             with open(tfp) as tf:
                 csv = tf.read()
 
-        assert (
-            csv
-            == """\
+        assert csv == """\
 Name,Formula,Smiles,InputAmsPropertiesNormalmodes
 dummyjob,C2H6,CC,False
 dummyjob.002,CH4,C,True
@@ -1272,7 +1231,6 @@ dummyjob.008,C6H14,CCCCCC,True
 dummyjob.009,C4H10O,CCCOC,True
 dummyjob.010,,,False
 """
-        )
 
     def test_to_dataframe(self, dummy_single_jobs):
         try:
@@ -1346,51 +1304,40 @@ dummyjob.010,,,False
         # When get timeline
         # Then empty table produced
         timeline = ja.get_timeline()
-        assert (
-            timeline
-            == """\
+        assert timeline == """\
 <pre>
 | JobName | WaitDuration | RunDuration | TotalDuration |
 |---------|--------------|-------------|---------------|
 </pre>"""
-        )
 
         # Add single job that takes seconds to run
         job_s = get_job_with_statuses("tls", JobStatus.SUCCESSFUL, start, timedelta(seconds=0.1), timedelta(seconds=3))
         ja = ja.add_job(job_s)
         timeline = ja.get_timeline()
-        assert (
-            timeline
-            == """\
+        assert timeline == """\
 <pre>
 | JobName | ↓2025-01-01 12:00:00 | ↓2025-01-01 12:00:01 | ↓2025-01-01 12:00:02 | ↓2025-01-01 12:00:03 | WaitDuration | RunDuration | TotalDuration |
 |---------|----------------------|----------------------|----------------------|----------------------|--------------|-------------|---------------|
 | tls     | .-+================= | ==================== | ===================* | >                    | 0s           | 3s          | 3s            |
 </pre>"""
-        )
 
         # Add single job that takes minutes to run
         job_m = get_job_with_statuses("tlm", JobStatus.FAILED, start, timedelta(seconds=2), timedelta(minutes=2))
         ja = ja.add_job(job_m)
         timeline = ja.get_timeline()
-        assert (
-            timeline
-            == """\
+        assert timeline == """\
 <pre>
 | JobName | ↓2025-01-01 12:00:00 | ↓2025-01-01 12:00:30 | ↓2025-01-01 12:01:01 | ↓2025-01-01 12:01:31 | ↓2025-01-01 12:02:02 | WaitDuration | RunDuration | TotalDuration |
 |---------|----------------------|----------------------|----------------------|----------------------|----------------------|--------------|-------------|---------------|
 | tls     | ==>                  |                      |                      |                      |                      | 0s           | 3s          | 3s            |
 | tlm     | .=================== | ==================== | ==================== | ===================* | X                    | 2s           | 2m0s        | 2m2s          |
 </pre>"""
-        )
 
         # Add single job that takes hours to run
         job_m = get_job_with_statuses("tlh", JobStatus.CRASHED, start, timedelta(seconds=10), timedelta(hours=2))
         ja = ja.add_job(job_m)
         timeline = ja.get_timeline()
-        assert (
-            timeline
-            == """\
+        assert timeline == """\
 <pre>
 | JobName | ↓2025-01-01 12:00:00 | ↓2025-01-01 12:30:02 | ↓2025-01-01 13:00:05 | ↓2025-01-01 13:30:07 | ↓2025-01-01 14:00:10 | WaitDuration | RunDuration | TotalDuration |
 |---------|----------------------|----------------------|----------------------|----------------------|----------------------|--------------|-------------|---------------|
@@ -1398,7 +1345,6 @@ dummyjob.010,,,False
 | tlm     | =X                   |                      |                      |                      |                      | 2s           | 2m0s        | 2m2s          |
 | tlh     | ==================== | ==================== | ==================== | ===================* | x                    | 10s          | 2h0m0s      | 2h0m10s       |
 </pre>"""
-        )
 
         # Add more single jobs with delayed start
         job_ds = get_job_with_statuses(
@@ -1411,9 +1357,7 @@ dummyjob.010,,,False
         ja = ja.add_job(job_ds)
         ja = ja.add_job(job_dm)
         timeline = ja.get_timeline(max_intervals=5)
-        assert (
-            timeline
-            == """\
+        assert timeline == """\
 <pre>
 | JobName | ↓2025-01-01 12:00:00 | ↓2025-01-01 12:30:02 | ↓2025-01-01 13:00:05 | ↓2025-01-01 13:30:07 | ↓2025-01-01 14:00:10 | WaitDuration | RunDuration | TotalDuration |
 |---------|----------------------|----------------------|----------------------|----------------------|----------------------|--------------|-------------|---------------|
@@ -1423,7 +1367,6 @@ dummyjob.010,,,False
 | tlds    |                      |                    = | >                    |                      |                      | 1s           | 30s         | 31s           |
 | tldm    |                      |                    . | .======>             |                      |                      | 2m0s         | 10m0s       | 12m0s         |
 </pre>"""
-        )
 
         # Add more single jobs with dependencies
         job_dps = get_job_with_statuses(
@@ -1436,9 +1379,7 @@ dummyjob.010,,,False
         ja = ja.add_job(job_dps)
         ja = ja.add_job(job_dpm)
         timeline = ja.get_timeline(max_intervals=10)
-        assert (
-            timeline
-            == """\
+        assert timeline == """\
 <pre>
 | JobName | ↓2025-01-01 12:00:00 | ↓2025-01-01 12:13:21 | ↓2025-01-01 12:26:42 | ↓2025-01-01 12:40:03 | ↓2025-01-01 12:53:24 | ↓2025-01-01 13:06:45 | ↓2025-01-01 13:20:06 | ↓2025-01-01 13:33:27 | ↓2025-01-01 13:46:48 | ↓2025-01-01 14:00:10 | WaitDuration | RunDuration | TotalDuration |
 |---------|----------------------|----------------------|----------------------|----------------------|----------------------|----------------------|----------------------|----------------------|----------------------|----------------------|--------------|-------------|---------------|
@@ -1450,7 +1391,6 @@ dummyjob.010,,,False
 | tldps   |                      |                      |                      |                      |          ........... | .......=>            |                      |                      |                      |                      | 12m0s        | 10s         | 12m10s        |
 | tldpm   |                      |                      |                      |                      |          ........... | .......============= | ==>                  |                      |                      |                      | 12m0s        | 10m0s       | 22m0s         |
 </pre>"""
-        )
 
         # Add more single jobs with dependencies
         job_n = DummySingleJob(name="tln")
@@ -1466,9 +1406,7 @@ dummyjob.010,,,False
         ja = ja.add_job(job_n)
         ja = ja.add_job(job_e)
         timeline = ja.get_timeline()
-        assert (
-            timeline
-            == """\
+        assert timeline == """\
 <pre>
 | JobName | ↓2025-01-01 12:00:00 | ↓2025-01-01 12:30:02 | ↓2025-01-01 13:00:05 | ↓2025-01-01 13:30:07 | ↓2025-01-01 14:00:10 | WaitDuration | RunDuration | TotalDuration |
 |---------|----------------------|----------------------|----------------------|----------------------|----------------------|--------------|-------------|---------------|
@@ -1482,12 +1420,9 @@ dummyjob.010,,,False
 | tln     |                      |                      |                      |                      |                      | Unknown      | Unknown     | Unknown       |
 | tle     |                      |                      |                      |                      |                      | Unknown      | Unknown     | Unknown       |
 </pre>"""
-        )
 
         timeline = ja.get_timeline(fmt="html")
-        assert (
-            timeline
-            == """\
+        assert timeline == """\
 <div style="max-width: 100%; overflow-x: auto;">
 <table border="1" style="border-collapse: collapse; width: auto; font-family: monospace; ">
 <thead><tr><th style="border-left: 1px solid black; border-right: 1px solid black;">JobName<th style="border-left: 1px solid black; border-right: 1px solid black;">↓2025-01-01 12:00:00                                                                                                    <th style="border-left: 1px solid black; border-right: 1px solid black;">↓2025-01-01 12:30:02                                                                                                    <th style="border-left: 1px solid black; border-right: 1px solid black;">↓2025-01-01 13:00:05                                                                                                    <th style="border-left: 1px solid black; border-right: 1px solid black;">↓2025-01-01 13:30:07                                                                                                    <th style="border-left: 1px solid black; border-right: 1px solid black;">↓2025-01-01 14:00:10                                                                                                    <th style="border-left: 1px solid black; border-right: 1px solid black;">WaitDuration<th style="border-left: 1px solid black; border-right: 1px solid black;">RunDuration<th style="border-left: 1px solid black; border-right: 1px solid black;">TotalDuration</th></tr></thead>
@@ -1504,7 +1439,6 @@ dummyjob.010,,,False
 </tbody>
 </table>
 </div>"""
-        )
 
         jm._clean()
         shutil.rmtree(jm.workdir)

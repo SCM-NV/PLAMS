@@ -5,7 +5,6 @@
 
 from scm.plams import read_molecules, Settings, AMSJob, init, config, JobRunner
 
-
 # this line is not required in AMS2025+
 init()
 

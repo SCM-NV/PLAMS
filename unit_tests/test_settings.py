@@ -838,9 +838,7 @@ elements:
             metal: 	False
             name: 	Helium
             num: 	2
-""".replace(
-            "\r\n", "\n"
-        )
+""".replace("\r\n", "\n")
         assert actual == expected
 
     def test_settings_dir_also_returns_dynamic_attributes(self, flat_settings):
@@ -992,9 +990,7 @@ saferun:
         repeat: 	10
         delay: 	1
 sleepstep: 	5
-""".replace(
-            "\r\n", "\n"
-        )
+""".replace("\r\n", "\n")
         assert actual == expected
 
     def test_new_has_correct_defaults_and_nested_types(self):

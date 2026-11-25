@@ -2,7 +2,6 @@ from typing import Dict, List, Literal, Sequence, Optional
 
 import numpy as np
 
-
 __all__ = ["format_in_table"]
 
 

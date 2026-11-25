@@ -1,4 +1,4 @@
-""" Deprecated, do not use """
+"""Deprecated, do not use"""
 
 import argparse
 import os

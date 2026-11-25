@@ -142,14 +142,11 @@ EndEngine
         runscript = job.get_runscript()
 
         # Then standard runscript returned
-        assert (
-            runscript
-            == """unset AMS_SWITCH_LOGFILE_AND_STDOUT
+        assert runscript == """unset AMS_SWITCH_LOGFILE_AND_STDOUT
 unset SCM_LOGFILE
 AMS_JOBNAME="plamsjob" AMS_RESULTSDIR=. $AMSBIN/ams --input="plamsjob.in" < /dev/null
 
 """
-        )
 
     def test_get_runscript_with_runscript_settings_generates_expected_string(self, job_input, config):
         # Given job with additional runscript settings
@@ -164,9 +161,7 @@ AMS_JOBNAME="plamsjob" AMS_RESULTSDIR=. $AMSBIN/ams --input="plamsjob.in" < /dev
         runscript = job.get_runscript()
 
         # Then runscript with additional lines returned
-        assert (
-            runscript
-            == """unset AMS_SWITCH_LOGFILE_AND_STDOUT
+        assert runscript == """unset AMS_SWITCH_LOGFILE_AND_STDOUT
 unset SCM_LOGFILE
 # Start
 AMS_JOBNAME="plamsjob" AMS_RESULTSDIR=. $AMSBIN/ams -n 8 --input="plamsjob.in" < /dev/null >"plamsjob.out"
@@ -174,7 +169,6 @@ AMS_JOBNAME="plamsjob" AMS_RESULTSDIR=. $AMSBIN/ams -n 8 --input="plamsjob.in" <
 # End
 
 """
-        )
 
     @pytest.mark.parametrize(
         "status,expected",
@@ -1362,16 +1356,13 @@ class TestAMSJobRun:
         ]
         job.results = results
 
-        assert (
-            job.get_errormsg()
-            == """LICENSE INVALID
+        assert job.get_errormsg() == """LICENSE INVALID
 ---------------
 Your license does not include module AMS version 2024.206 on this machine.
 Module AMS
 Version 2024.206
 Machine: Foo
 License file: ./license.txt"""
-        )
 
         # Invalid input
         job._error_msg = None

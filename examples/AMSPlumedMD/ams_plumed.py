@@ -34,8 +34,7 @@ init()
 
 
 def get_molecule():
-    job = AMSJob.from_input(
-        """
+    job = AMSJob.from_input("""
     system
       Atoms
                   O      -0.1009275285       1.5113007791      -0.4061554537 
@@ -46,8 +45,7 @@ def get_molecule():
                   H      -1.8707340481      -0.5160303870      -0.1988424913
       End
     End
-    """
-    )
+    """)
     return job.molecule[""]
 
 

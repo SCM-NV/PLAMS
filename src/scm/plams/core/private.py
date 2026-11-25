@@ -18,7 +18,6 @@ from typing import Callable, Dict, NoReturn, List, Optional, TypeVar, Union, Any
 from typing_extensions import ParamSpec
 from types import TracebackType
 
-
 __all__: List[str] = []
 
 T = TypeVar("T")
@@ -66,7 +65,7 @@ def saferun(*args: Any, **kwargs: Any) -> "subprocess.CompletedProcess[Any]":
 
     attempt = 0
     cfg = get_config()
-    (repeat, delay) = (cfg.saferun.repeat, cfg.saferun.delay) if cfg.saferun is not None else (5, 1)
+    repeat, delay = (cfg.saferun.repeat, cfg.saferun.delay) if cfg.saferun is not None else (5, 1)
     while attempt <= repeat:
         try:
             return subprocess.run(*args, **kwargs)

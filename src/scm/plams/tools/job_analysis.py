@@ -122,7 +122,7 @@ class JobAnalysis:
 
     @staticmethod
     def _mol_formula_extractor(
-        mol: Optional[Union[Molecule, Dict[str, Molecule], "ChemicalSystem", Dict[str, "ChemicalSystem"]]]
+        mol: Optional[Union[Molecule, Dict[str, Molecule], "ChemicalSystem", Dict[str, "ChemicalSystem"]]],
     ) -> Optional[str]:
         if isinstance(mol, dict):
             return ", ".join([f"{n}: {JobAnalysis._mol_formula_extractor(m)}" for n, m in mol.items()])
@@ -134,7 +134,7 @@ class JobAnalysis:
 
     @staticmethod
     def _mol_smiles_extractor(
-        mol: Optional[Union[Molecule, Dict[str, Molecule], "ChemicalSystem", Dict[str, "ChemicalSystem"]]]
+        mol: Optional[Union[Molecule, Dict[str, Molecule], "ChemicalSystem", Dict[str, "ChemicalSystem"]]],
     ) -> Optional[str]:
         if isinstance(mol, dict):
             return ", ".join([f"{n}: {JobAnalysis._mol_smiles_extractor(m)}" for n, m in mol.items()])
@@ -146,7 +146,7 @@ class JobAnalysis:
 
     @staticmethod
     def _mol_gyration_radius_extractor(
-        mol: Optional[Union[Molecule, Dict[str, Molecule], "ChemicalSystem", Dict[str, "ChemicalSystem"]]]
+        mol: Optional[Union[Molecule, Dict[str, Molecule], "ChemicalSystem", Dict[str, "ChemicalSystem"]]],
     ) -> Optional[Union[float, str]]:
         if isinstance(mol, dict):
             return ", ".join([f"{n}: {JobAnalysis._mol_gyration_radius_extractor(m)}" for n, m in mol.items()])

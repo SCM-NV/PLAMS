@@ -1478,12 +1478,8 @@ def get_substructure(
             return to_rdmol(functional_group)
         elif isinstance(functional_group, Chem.Mol):
             return functional_group
-        raise TypeError(
-            "get_substructure: "
-            + str(type(functional_group))
-            + " is not a supported \
-                        object type"
-        )
+        raise TypeError("get_substructure: " + str(type(functional_group)) + " is not a supported \
+                        object type")
 
     def _get_match(
         mol: Molecule, rdmol: "RDKitMol", functional_group: Union[str, Molecule, "RDKitMol"]

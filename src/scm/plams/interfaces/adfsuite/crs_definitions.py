@@ -6,7 +6,6 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, Mapping, Tuple
 
-
 __all__ = [
     "CRS_METHODS",
     "CRSInputMetadata",

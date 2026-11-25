@@ -19,8 +19,7 @@ def get_molecule(input_string):
     return job.molecule[""]
 
 
-mol = get_molecule(
-    """
+mol = get_molecule("""
 System
     Atoms
          C      0.000000      0.000000      0.000000
@@ -30,8 +29,7 @@ System
          H     -0.631600     -0.631600      0.631600
     End
 End
-"""
-)
+""")
 
 
 # ## Create and run job
