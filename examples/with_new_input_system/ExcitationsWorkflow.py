@@ -74,6 +74,7 @@ sp_adf_exci_sett.input.Engine.XC.GGA = "PBE"
 sp_adf_exci_sett.input.Engine.NumericalQuality = "Basic"
 sp_adf_exci_sett.input.Engine.Symmetry = "NOSYM"
 sp_adf_exci_sett.input.Engine.Excitations.Lowest = [10]
+sp_adf_exci_sett.input.Engine.Excitations.ExtraInitialVectors = 0
 sp_adf_exci_sett.input.Engine.Excitations.OnlySing = True
 
 

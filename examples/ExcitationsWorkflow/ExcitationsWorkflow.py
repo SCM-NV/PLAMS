@@ -73,6 +73,7 @@ adf_exci_sett.input.adf.XC.GGA = "PBE"
 adf_exci_sett.input.adf.NumericalQuality = "Basic"
 adf_exci_sett.input.adf.Symmetry = "NoSym"
 adf_exci_sett.input.adf.Excitations.lowest = 10
+adf_exci_sett.input.adf.Excitations.ExtraInitialVectors = 0
 adf_exci_sett.input.adf.Excitations.OnlySing = ""
 
 
