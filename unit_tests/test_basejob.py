@@ -149,19 +149,14 @@ class TestSingleJob:
         runscript = job.full_runscript()
 
         # Then the script is composed as expected
-        assert (
-            runscript
-            == """#!/bin/sh
+        assert runscript == """#!/bin/sh
 
 # Add pre line
 
 sleep 0.0 && sed 's/input/output/g' plamsjob.in
 # Add post line
 
-""".replace(
-                "\r\n", "\n"
-            )
-        )
+""".replace("\r\n", "\n")
 
     def test_run_wrapped_in_pre_and_postrun(self):
         # When run a job

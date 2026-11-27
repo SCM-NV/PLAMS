@@ -613,14 +613,11 @@ class TestLog:
                 log(f"log with level {i}", level=i)
 
             self.assert_logs(mock_stdout.getvalue(), expected_lines=4)
-            assert (
-                mock_stdout.getvalue()
-                == """log with level 0
+            assert mock_stdout.getvalue() == """log with level 0
 log with level 1
 log with level 2
 log with level 3
 """
-            )
 
     def test_log_with_init_writes_message_to_stdout_and_default_jobmanger_file(self, config):
         with patch("sys.stdout", new_callable=StringIO) as mock_stdout:

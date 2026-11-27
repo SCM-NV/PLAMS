@@ -17,9 +17,7 @@ class TestFormatInTable:
 
     def test_format_in_table_default_md(self, data):
         t = format_in_table(data)
-        assert (
-            t
-            == """\
+        assert t == """\
 | A   | B     | CCCCC | D          | EEEEEEEE        |
 |-----|-------|-------|------------|-----------------|
 | 1   | one   | max   | evenbigger | header          |
@@ -27,47 +25,35 @@ class TestFormatInTable:
 | -3  | three | width | maximum    | evenbiggerrrrrr |
 | 44  | four  | is    | column     | than            |
 | -55 | five  | five  | width      | max             |"""
-        )
 
     def test_format_in_table_with_max_column_width_and_max_rows_md(self, data):
         t = format_in_table(data, max_col_width=5, max_rows=3)
-        assert (
-            t
-            == """\
+        assert t == """\
 | A   | B    | CCCCC | D        | EEEEE... |
 |-----|------|-------|----------|----------|
 | 1   | one  | max   | evenb... | heade... |
 | ... | ...  | ...   | ...      | ...      |
 | 44  | four | is    | colum... | than     |
 | -55 | five | five  | width    | max      |"""
-        )
 
         t = format_in_table(data, max_col_width=3, max_rows=2)
-        assert (
-            t
-            == """\
+        assert t == """\
 | A   | B      | CCC... | D      | EEE... |
 |-----|--------|--------|--------|--------|
 | 1   | one    | max    | eve... | hea... |
 | ... | ...    | ...    | ...    | ...    |
 | -55 | fiv... | fiv... | wid... | max    |"""
-        )
 
         t = format_in_table(data, max_col_width=100, max_rows=1)
-        assert (
-            t
-            == """\
+        assert t == """\
 | A   | B    | CCCCC | D     | EEEEEEEE |
 |-----|------|-------|-------|----------|
 | ... | ...  | ...   | ...   | ...      |
 | -55 | five | five  | width | max      |"""
-        )
 
     def test_format_in_table_default_html(self, data):
         t = format_in_table(data, fmt="html")
-        assert (
-            t
-            == """\
+        assert t == """\
 <div style="max-width: 100%; overflow-x: auto;">
 <table border="1" style="border-collapse: collapse; width: auto; ">
 <thead><tr><th>A  <th>B    <th>CCCCC<th>D         <th>EEEEEEEE       </th></tr></thead>
@@ -80,13 +66,10 @@ class TestFormatInTable:
 </tbody>
 </table>
 </div>"""
-        )
 
     def test_format_in_table_with_max_column_width_and_max_rows_html(self, data):
         t = format_in_table(data, max_col_width=5, max_rows=3, fmt="html")
-        assert (
-            t
-            == """\
+        assert t == """\
 <div style="max-width: 100%; overflow-x: auto;">
 <table border="1" style="border-collapse: collapse; width: auto; ">
 <thead><tr><th>A  <th>B   <th>CCCCC<th>D       <th>EEEEE...</th></tr></thead>
@@ -98,12 +81,9 @@ class TestFormatInTable:
 </tbody>
 </table>
 </div>"""
-        )
 
         t = format_in_table(data, max_col_width=3, max_rows=2, fmt="html")
-        assert (
-            t
-            == """\
+        assert t == """\
 <div style="max-width: 100%; overflow-x: auto;">
 <table border="1" style="border-collapse: collapse; width: auto; ">
 <thead><tr><th>A  <th>B     <th>CCC...<th>D     <th>EEE...</th></tr></thead>
@@ -114,12 +94,9 @@ class TestFormatInTable:
 </tbody>
 </table>
 </div>"""
-        )
 
         t = format_in_table(data, max_col_width=100, max_rows=1, fmt="html")
-        assert (
-            t
-            == """\
+        assert t == """\
 <div style="max-width: 100%; overflow-x: auto;">
 <table border="1" style="border-collapse: collapse; width: auto; ">
 <thead><tr><th>A  <th>B   <th>CCCCC<th>D    <th>EEEEEEEE</th></tr></thead>
@@ -129,13 +106,10 @@ class TestFormatInTable:
 </tbody>
 </table>
 </div>"""
-        )
 
     def test_format_in_table_default_rst(self, data):
         t = format_in_table(data, fmt="rst")
-        assert (
-            t
-            == """\
+        assert t == """\
 +-----+-------+-------+------------+-----------------+
 | A   | B     | CCCCC | D          | EEEEEEEE        |
 +=====+=======+=======+============+=================+
@@ -149,13 +123,10 @@ class TestFormatInTable:
 +-----+-------+-------+------------+-----------------+
 | -55 | five  | five  | width      | max             |
 +-----+-------+-------+------------+-----------------+"""
-        )
 
     def test_format_in_table_with_max_column_width_and_max_rows_rst(self, data):
         t = format_in_table(data, max_col_width=5, max_rows=3, fmt="rst")
-        assert (
-            t
-            == """\
+        assert t == """\
 +-----+------+-------+----------+----------+
 | A   | B    | CCCCC | D        | EEEEE... |
 +=====+======+=======+==========+==========+
@@ -167,12 +138,9 @@ class TestFormatInTable:
 +-----+------+-------+----------+----------+
 | -55 | five | five  | width    | max      |
 +-----+------+-------+----------+----------+"""
-        )
 
         t = format_in_table(data, max_col_width=3, max_rows=2, fmt="rst")
-        assert (
-            t
-            == """\
+        assert t == """\
 +-----+--------+--------+--------+--------+
 | A   | B      | CCC... | D      | EEE... |
 +=====+========+========+========+========+
@@ -182,12 +150,9 @@ class TestFormatInTable:
 +-----+--------+--------+--------+--------+
 | -55 | fiv... | fiv... | wid... | max    |
 +-----+--------+--------+--------+--------+"""
-        )
 
         t = format_in_table(data, max_col_width=100, max_rows=1, fmt="rst")
-        assert (
-            t
-            == """\
+        assert t == """\
 +-----+------+-------+-------+----------+
 | A   | B    | CCCCC | D     | EEEEEEEE |
 +=====+======+=======+=======+==========+
@@ -195,4 +160,3 @@ class TestFormatInTable:
 +-----+------+-------+-------+----------+
 | -55 | five | five  | width | max      |
 +-----+------+-------+-------+----------+"""
-        )

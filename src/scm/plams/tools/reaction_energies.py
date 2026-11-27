@@ -189,7 +189,7 @@ def balance_equation(
     """
 
     def get_stoichiometries_and_elements(
-        list_of_jobs: Sequence[Union[AMSJob, Molecule, str, Dict[str, int]]]
+        list_of_jobs: Sequence[Union[AMSJob, Molecule, str, Dict[str, int]]],
     ) -> Tuple[List[Dict[str, int]], Set[str]]:
         stoich = []
         elements = set()

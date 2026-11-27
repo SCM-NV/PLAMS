@@ -7,7 +7,6 @@ import sys
 
 from scm.plams import AMSJob, Settings, init, from_smiles
 
-
 # this line is not required in AMS2025+
 init()
 
@@ -16,8 +15,7 @@ init()
 
 # First run a reference calculation where charges are guessed (using DFTB by default):
 
-ref_job = AMSJob.from_input(
-    """
+ref_job = AMSJob.from_input("""
 Task GeometryOptimization
 
 GeometryOptimization
@@ -37,8 +35,7 @@ Engine ForceField
    Verbosity Verbose
    GuessCharges True
 EndEngine
-"""
-)
+""")
 
 
 ref_job.run()

@@ -106,7 +106,6 @@ for j in jobs:
 
 from scm.plams import JobAnalysis
 
-
 ja = JobAnalysis(jobs=jobs)
 # ja = JobAnalysis(paths=[j.path for j in jobs]) # alternatively load jobs from a set of paths
 

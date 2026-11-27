@@ -6,11 +6,9 @@
 from scm.base import ChemicalSystem
 from scm.plams import AMSJob, Settings, view
 
-
 # ## System
 
-cs = ChemicalSystem(
-    """
+cs = ChemicalSystem("""
 System
     Atoms
         O 1.48603879 -1.49561627 0.0 
@@ -29,8 +27,7 @@ System
         H 2.26362714 1.38098693 -0.87932777 
     End
 End
-"""
-)
+""")
 
 
 # visualize system with bonds

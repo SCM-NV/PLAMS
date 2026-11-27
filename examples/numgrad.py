@@ -8,8 +8,7 @@ init()
 
 config.default_jobrunner = JobRunner(parallel=True, maxjobs=8)
 
-mol = AMSJob.from_input(
-    """
+mol = AMSJob.from_input("""
 System
   Atoms
     C       0.000000000000       0.138569980000       0.355570700000
@@ -19,8 +18,7 @@ System
     H       0.000000000000       1.145042790000       0.750208830000
   End
 End
-"""
-).molecule[""]
+""").molecule[""]
 
 
 s = Settings()

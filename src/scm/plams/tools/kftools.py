@@ -26,7 +26,6 @@ from scm.plams.core.functions import log
 from scm.plams.core.private import saferun
 import numpy
 
-
 __all__ = ["KFFile", "KFReader", "KFHistory"]
 
 

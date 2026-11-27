@@ -3,7 +3,6 @@ from scm.plams.interfaces.adfsuite.scmjob import SCMJob, SCMResults, TSCMJobPath
 
 from typing import Optional, Any
 
-
 __all__ = ["FCFJob", "FCFResults"]
 
 

@@ -358,9 +358,7 @@ class Cp2kResults(Results):
 
         names = [x[0] for x in ret[0]]
         for i, frame in enumerate(ret):
-            assert names == [
-                x[0] for x in frame
-            ], "Namings in output\
+            assert names == [x[0] for x in frame], "Namings in output\
             not constant?"
             assert len(frame) == len(names), "{:}".format(frame)
             assert set(len(x) for x in frame) == {2}

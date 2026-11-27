@@ -365,15 +365,12 @@ VEC3       0.00000000       0.00000000       5.30828236
                         structure_file_name = re.search(r"structure\s+(.+\.xyz)", content).group(1)
                         with open(structure_file_name) as structure_file:
                             s = structure_file.read()
-                        assert (
-                            s
-                            == """3
+                        assert s == """3
 
          O       0.06692105       0.06692105       0.00000000
          H       1.01204160      -0.07896265       0.00000000
          H      -0.07896265       1.01204160       0.00000000
 """
-                        )
 
                     mock_saferun.side_effect = read_input_file
                     mols = packmol(input_mol, n_atoms=15, density=1.0, executable="mock_exe")

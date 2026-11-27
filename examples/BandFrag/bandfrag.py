@@ -10,7 +10,6 @@ from scm.plams.recipes.bandfragment import BANDFragmentJob
 from ase import Atoms
 from ase.build import fcc111, add_adsorbate
 
-
 # ## Build Surface & Fragments
 
 # We first build a gold surface and add the hydrogen adsorbate.

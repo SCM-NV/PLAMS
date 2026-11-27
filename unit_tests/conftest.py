@@ -6,7 +6,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-
 # Keep Matplotlib's font cache private to this test process.
 # A stale/broken cache must not affect later test runs.
 _original_mplconfigdir = os.environ.get("MPLCONFIGDIR")
